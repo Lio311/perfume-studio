@@ -17,7 +17,7 @@ export const PUMPS: PumpSpec[] = [
 
 export const COLLARS: CollarSpec[] = [
   { id: "col-thin", name: { he: "קרימפ דק", en: "Thin crimp" }, wallMm: 0.9, heightMm: 6.2, rings: 1, knurl: false, flareMm: 0, tags: ["thin", "דק", "crimp", "קרימפ"], model: { type: "procedural" } },
-  { id: "col-crimp", name: { he: "קרימפ", en: "Crimp collar" }, wallMm: 1.35, heightMm: 7.4, rings: 1, knurl: false, flareMm: 0.2, tags: ["crimp", "קרימפ", "standard", "סטנדרט"], model: { type: "procedural" } },
+  { id: "col-crimp", name: { he: "קרימפ", en: "Crimp collar" }, wallMm: 0.475, heightMm: 6.7, rings: 1, knurl: false, flareMm: 0.15, tags: ["crimp", "קרימפ", "standard", "סטנדרט", "ferrule", "פרול"], model: { type: "procedural" } },
   { id: "col-thick", name: { he: "פרול עבה", en: "Thick ferrule" }, wallMm: 2.4, heightMm: 9, rings: 1, knurl: false, flareMm: 0.4, tags: ["thick", "עבה", "ferrule", "פרול"], model: { type: "procedural" } },
   { id: "col-double", name: { he: "טבעת כפולה", en: "Double ring" }, wallMm: 1.5, heightMm: 8.2, rings: 2, knurl: false, flareMm: 0.3, tags: ["double", "כפול", "ring", "טבעת"], model: { type: "procedural" } },
   { id: "col-triple", name: { he: "שלוש טבעות", en: "Triple ring" }, wallMm: 1.4, heightMm: 10, rings: 3, knurl: false, flareMm: 0.2, tags: ["triple", "שלוש", "ring"], model: { type: "procedural" } },

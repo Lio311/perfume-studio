@@ -18,6 +18,7 @@ export function Library() {
   const applyCommands = useLab((s) => s.applyCommands);
   const patch = useLab((s) => s.patch);
   const setModal = useLab((s) => s.setModal);
+  const randomize = useLab((s) => s.randomize);
   const removePending = useLab((s) => s.removePending);
   const [tab, setTab] = useState<(typeof TABS)[number]>("bottle");
   const [query, setQuery] = useState("");
@@ -42,6 +43,7 @@ export function Library() {
       <div className="panel-head">
         <h2>{t.library}</h2>
         <span className="count">{tab in CATALOG_COUNTS ? CATALOG_COUNTS[tab as VariantPart] : tab === "pending" ? pending.length : LIQUID_PALETTE.length}</span>
+        <button type="button" className="text-btn" onClick={() => randomize()}>{t.random}</button>
       </div>
       <input className="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t.search} />
       <div className="tabs" role="tablist">
@@ -92,6 +94,7 @@ export function Library() {
             >
               <img src={thumbFor(tab, item.id, design.label.text)} alt="" />
               <span>{lang === "he" ? item.he : item.en}</span>
+              {item.mm && <bdi className="mm" dir="ltr">{item.mm}</bdi>}
             </button>
           ))}
         </div>

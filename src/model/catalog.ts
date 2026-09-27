@@ -10,6 +10,8 @@ export interface CatalogEntry {
   he: string;
   en: string;
   tags: string[];
+  /** Compact millimetre line for the library card. */
+  mm: string;
 }
 
 export function bottleById(id: string): BottleSpec {
@@ -40,14 +42,27 @@ export function listFor(kind: VariantPart): CatalogEntry[] {
   return BOXES.map(toEntry("box"));
 }
 
+function mm(n: number): string {
+  return Number.isInteger(n) ? String(n) : n.toFixed(1);
+}
+
 function toEntry(kind: VariantPart) {
-  return (item: { id: string; name: { he: string; en: string }; tags: string[] }): CatalogEntry => ({
-    id: item.id,
-    kind,
-    he: item.name.he,
-    en: item.name.en,
-    tags: item.tags,
-  });
+  return (item: { id: string; name: { he: string; en: string }; tags: string[]; heightMm?: number; widthMm?: number; depthMm?: number; actuatorHeightMm?: number; padMm?: number }): CatalogEntry => {
+    let size = "";
+    if (kind === "bottle" && item.heightMm && item.widthMm && item.depthMm) size = `${mm(item.heightMm)} × ${mm(item.widthMm)} × ${mm(item.depthMm)}`;
+    else if (kind === "cap" && item.heightMm && item.widthMm) size = `${mm(item.heightMm)} × ${mm(item.widthMm)}`;
+    else if (kind === "collar" && item.heightMm) size = `${mm(item.heightMm)} mm`;
+    else if (kind === "pump" && item.actuatorHeightMm) size = `${mm(item.actuatorHeightMm)} mm`;
+    else if (kind === "box" && item.padMm) size = `+${mm(item.padMm)} mm`;
+    return {
+      id: item.id,
+      kind,
+      he: item.name.he,
+      en: item.name.en,
+      tags: item.tags,
+      mm: size,
+    };
+  };
 }
 
 export function cycleId(kind: VariantPart, id: string, dir: number): string {

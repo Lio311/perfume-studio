@@ -4,7 +4,9 @@ import { BOTTLES } from "../model/bottles.ts";
 import { CAPS } from "../model/caps.ts";
 import { LOGOS } from "../model/logos.ts";
 import { bottleRadii } from "../model/sample.ts";
-import { neckRadius } from "../model/necks.ts";
+import { NECKS, neckRadius } from "../model/necks.ts";
+import { computeFit } from "../model/fit.ts";
+import { createDefaultDesign } from "../model/design.ts";
 import { interpretUtterance, type InterpretContext } from "./interpret.ts";
 
 const ctx: InterpretContext = {
@@ -42,6 +44,18 @@ describe("catalog", () => {
     const top = bottleRadii(67.6, 67.6, 51, 43, "cara", 0.13, neckRadius("FEA15"));
     expect(top.rx).toBeCloseTo(7.5, 1);
     expect(top.rz).toBeCloseTo(7.5, 1);
+  });
+
+  it("seats the FEA 15 ferrule and lists Coverpla Bazille", () => {
+    expect(NECKS.FEA15.ferrule).toEqual({ innerMm: 15.35, outerMm: 16.3, heightMinMm: 5.5, heightMaxMm: 7.9 });
+    expect(BOTTLES.find((b) => b.id === "bazille-30")).toMatchObject({ heightMm: 64, widthMm: 39.2, depthMm: 39.2, neck: "FEA15" });
+    expect(BOTTLES.find((b) => b.id === "bazille-50")).toMatchObject({ heightMm: 75.8, widthMm: 46.8, depthMm: 46.8, neck: "FEA15" });
+    expect(BOTTLES.find((b) => b.id === "bazille-100")).toMatchObject({ heightMm: 90.9, widthMm: 57, depthMm: 57, neck: "FEA15" });
+    const fit = computeFit(createDefaultDesign(), false);
+    expect(fit.collarInner * 2).toBeCloseTo(15.35, 2);
+    expect(fit.collarOuter * 2).toBeCloseTo(16.3, 2);
+    expect(fit.collarHeight).toBeGreaterThanOrEqual(5.5);
+    expect(fit.collarHeight).toBeLessThanOrEqual(7.9);
   });
 });
 

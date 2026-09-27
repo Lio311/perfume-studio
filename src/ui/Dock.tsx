@@ -1,36 +1,39 @@
 import { tx } from "../i18n/copy.ts";
-import { requestShot } from "../scene/capture.ts";
-import { useLab } from "../store/labStore.ts";
+import { useLab, type ViewPreset } from "../store/labStore.ts";
+
+const PRESETS: Array<{ id: ViewPreset; key: "presetFront" | "presetThree" | "presetTop" | "presetSide" }> = [
+  { id: "front", key: "presetFront" },
+  { id: "three", key: "presetThree" },
+  { id: "top", key: "presetTop" },
+  { id: "side", key: "presetSide" },
+];
 
 export function Dock() {
   const lang = useLab((s) => s.lang);
   const t = tx(lang);
-  const exploded = useLab((s) => s.exploded);
-  const autoRotate = useLab((s) => s.autoRotate);
-  const toggleExplode = useLab((s) => s.toggleExplode);
-  const toggleRotate = useLab((s) => s.toggleRotate);
-  const resetView = useLab((s) => s.resetView);
-  const setModal = useLab((s) => s.setModal);
+  const explode = useLab((s) => s.explode);
+  const preset = useLab((s) => s.viewPreset);
+  const setExplode = useLab((s) => s.setExplode);
+  const setView = useLab((s) => s.setView);
   return (
     <div className="dock" dir={lang === "he" ? "rtl" : "ltr"}>
-      <button type="button" className={exploded ? "is-on" : ""} onClick={() => toggleExplode()}>{exploded ? t.assemble : t.explode}</button>
-      <button type="button" className={autoRotate ? "is-on" : ""} onClick={() => toggleRotate()}>{t.rotate}</button>
-      <button type="button" onClick={() => resetView()}>{t.reset}</button>
-      <button type="button" onClick={() => setModal("save")}>{t.save}</button>
-      <button type="button" onClick={() => setModal("compare")}>{t.compare}</button>
-      <button
-        type="button"
-        onClick={() => {
-          requestShot((url) => {
-            const link = document.createElement("a");
-            link.href = url;
-            link.download = "perfume-lab.png";
-            link.click();
-          });
-        }}
-      >
-        {t.export}
-      </button>
+      <span className="dock-label">{t.explode}</span>
+      <input
+        type="range"
+        min={0}
+        max={1}
+        step={0.01}
+        value={explode}
+        aria-label={t.explode}
+        onChange={(event) => setExplode(Number(event.target.value))}
+      />
+      <div className="presets" dir="ltr">
+        {PRESETS.map((item) => (
+          <button key={item.id} type="button" className={preset === item.id ? "is-on" : ""} onClick={() => setView(item.id)}>
+            {t[item.key]}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }

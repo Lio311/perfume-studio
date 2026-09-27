@@ -45,6 +45,9 @@ function bottle(
 export const BOTTLES: BottleSpec[] = [
   bottle("cara-50", "קארה 50", "Cara 50", "rect", "cara", 0.13, 67.6, 51, 43, "FEA15", 0.62, false, ["cara", "קארה", "square", "מרובע", "ריבוע", "rect", "50", "verescence"], { name: "Verescence", ref: "43419 52", capacityMl: 50, origin: "Spain" }, 50),
   bottle("cara-100", "קארה 100", "Cara 100", "rect", "cara", 0.12, 92.7, 56.1, 47.2, "FEA15", 0.62, false, ["cara", "קארה", "square", "מרובע", "100", "verescence"], { name: "Verescence", ref: "43420 52", capacityMl: 100, origin: "Spain" }, 100),
+  bottle("bazille-30", "בזיל 30", "Bazille 30", "circle", "classic", 0.2, 64, 39.2, 39.2, "FEA15", 1, false, ["bazille", "בזיל", "coverpla", "round", "עגול", "30"], { name: "Coverpla", ref: "Bazille", capacityMl: 30 }, 30),
+  bottle("bazille-50", "בזיל 50", "Bazille 50", "circle", "classic", 0.18, 75.8, 46.8, 46.8, "FEA15", 1, false, ["bazille", "בזיל", "coverpla", "round", "עגול", "50"], { name: "Coverpla", ref: "Bazille", capacityMl: 50 }, 50),
+  bottle("bazille-100", "בזיל 100", "Bazille 100", "circle", "classic", 0.16, 90.9, 57, 57, "FEA15", 1, false, ["bazille", "בזיל", "coverpla", "round", "עגול", "100"], { name: "Coverpla", ref: "Bazille", capacityMl: 100 }, 100),
   bottle("round-30", "עגול 30", "Round 30", "circle", "classic", 0.22, 78, 38, 38, "FEA13", 1, false, ["round", "עגול", "classic", "קלאסי", "30"]),
   bottle("round-50", "עגול 50", "Round 50", "circle", "classic", 0.22, 98, 46, 46, "FEA15", 1, false, ["round", "עגול", "classic", "קלאסי", "50"]),
   bottle("round-100", "עגול 100", "Round 100", "circle", "classic", 0.2, 122, 56, 56, "FEA15", 1, false, ["round", "עגול", "classic", "קלאסי", "100"]),

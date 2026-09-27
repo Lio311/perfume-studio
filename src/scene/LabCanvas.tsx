@@ -10,8 +10,15 @@ import { computeFit } from "../model/fit.ts";
 import { takeShot } from "./capture.ts";
 import { Assembly } from "./Assembly.tsx";
 
-const HOME_POS = new THREE.Vector3(54, 70, 188);
-const HOME_TARGET = new THREE.Vector3(0, 36, 0);
+const PRESETS = {
+  home: { pos: new THREE.Vector3(54, 70, 188), target: new THREE.Vector3(0, 36, 0) },
+  front: { pos: new THREE.Vector3(0, 48, 206), target: new THREE.Vector3(0, 42, 0) },
+  three: { pos: new THREE.Vector3(86, 58, 156), target: new THREE.Vector3(0, 40, 0) },
+  top: { pos: new THREE.Vector3(0.4, 250, 28), target: new THREE.Vector3(0, 24, 0) },
+  side: { pos: new THREE.Vector3(214, 42, 0), target: new THREE.Vector3(0, 40, 0) },
+} as const;
+const HOME_POS = PRESETS.home.pos;
+const HOME_TARGET = PRESETS.home.target;
 const UP = new THREE.Vector3(0, 1, 0);
 const OFFSET = new THREE.Vector3();
 
@@ -109,8 +116,9 @@ function CameraRig() {
     }
     if (state.viewToken !== seenView.current) {
       seenView.current = state.viewToken;
-      goalPos.current.copy(HOME_POS);
-      goalTarget.current.copy(HOME_TARGET);
+      const preset = PRESETS[state.viewPreset];
+      goalPos.current.copy(preset.pos);
+      goalTarget.current.copy(preset.target);
       camera.up.set(0, 1, 0);
       mode.current = "anim";
     }
@@ -188,15 +196,21 @@ function Stage() {
         args={[400, 400]}
         position={[0, 0, 0]}
         cellSize={10}
-        cellThickness={0.7}
+        cellThickness={0.55}
         cellColor={theme.scene.gridCell}
         sectionSize={50}
-        sectionThickness={1.25}
+        sectionThickness={0.9}
         sectionColor={theme.scene.gridSection}
-        fadeDistance={420}
-        fadeStrength={1.15}
+        fadeDistance={380}
+        fadeStrength={1.35}
         infiniteGrid
       />
+      {[32, 58, 92, 132].map((radius) => (
+        <mesh key={radius} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.12, 0]}>
+          <ringGeometry args={[radius - 0.28, radius, 96]} />
+          <meshBasicMaterial color={theme.id === "dark" ? "#8eb8c2" : "#c4b49a"} transparent opacity={theme.id === "dark" ? 0.22 : 0.22} depthWrite={false} />
+        </mesh>
+      ))}
       <Assembly />
       <CameraRig />
       <EffectComposer enableNormalPass={false} multisampling={0}>

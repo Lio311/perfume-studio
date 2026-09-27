@@ -8,6 +8,7 @@ import { Library } from "./ui/Library.tsx";
 import { Inspector } from "./ui/Inspector.tsx";
 import { ChatPanel } from "./ui/ChatPanel.tsx";
 import { Dock } from "./ui/Dock.tsx";
+import { CompareBoard } from "./ui/CompareBoard.tsx";
 import { Modals } from "./ui/Modals.tsx";
 
 export default function App() {
@@ -15,8 +16,11 @@ export default function App() {
   const lang = useLab((s) => s.lang);
   const sideOpen = useLab((s) => s.sideOpen);
   const hovered = useLab((s) => s.hovered);
+  const mode = useLab((s) => s.mode);
   const cycle = useLab((s) => s.cycle);
-  const toggleExplode = useLab((s) => s.toggleExplode);
+  const setMode = useLab((s) => s.setMode);
+  const undo = useLab((s) => s.undo);
+  const redo = useLab((s) => s.redo);
   const resetView = useLab((s) => s.resetView);
   const select = useLab((s) => s.select);
   const setModal = useLab((s) => s.setModal);
@@ -34,18 +38,24 @@ export default function App() {
         if (!typing) select(null);
         return;
       }
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "z") {
+        event.preventDefault();
+        if (event.shiftKey) redo();
+        else undo();
+        return;
+      }
       if (typing) return;
       if (event.key === "ArrowRight" || event.key === "ArrowLeft") {
         event.preventDefault();
         const dir = lang === "he" ? (event.key === "ArrowLeft" ? 1 : -1) : event.key === "ArrowRight" ? 1 : -1;
         cycle(dir);
       }
-      if (event.key === "e" || event.key === "E") toggleExplode();
+      if (event.key === "e" || event.key === "E") setMode(mode === "explode" ? "assemble" : "explode");
       if (event.key === "0") resetView();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [cycle, lang, resetView, select, setModal, toggleExplode]);
+  }, [cycle, lang, mode, redo, resetView, select, setModal, setMode, undo]);
 
   return (
     <div className="app">
@@ -55,6 +65,7 @@ export default function App() {
         <TopBar />
         <Library />
         <div className="stage-slot">
+          {mode === "compare" && <CompareBoard />}
           <Dock />
         </div>
         <div className={`side-col ${sideOpen ? "is-open" : ""}`}>

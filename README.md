@@ -2,7 +2,9 @@
 
 One configurator for a private-label perfume bottle. Pick a shape, cap, pump, collar, label, and box, and they snap together on a real neck standard. The default bottle is the Verescence CARA 50 ml (67.6 × 51 × 43 mm, FEA 15).
 
-The interface is Hebrew, right to left. Switch to English from the top bar.
+The default look is the dark lab: graphite stage, a faint cyan floor grid, one champagne-gold accent, and frosted panels. Hebrew is right to left. A light studio theme is in the top bar.
+
+The top bar switches assemble, explode, dimensions, and compare, and holds undo, redo, share, and PNG export. The library cards show millimetres. The dock is an explode slider plus view presets. A selected part gets corner brackets and live millimetre lines. Chat suggestions stay visible, and each reply has its own undo.
 
 ## Run
 

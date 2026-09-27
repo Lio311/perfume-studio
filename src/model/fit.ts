@@ -48,9 +48,13 @@ export function computeFit(design: Design, exploded = false): Fit {
   const bottleW = design.bottle.widthMm;
   const bottleD = design.bottle.depthMm;
 
-  const collarInner = neckR + 0.18;
-  const collarOuter = collarInner + collar.wallMm;
-  const collarHeight = collar.heightMm;
+  const ferrule = neck.ferrule;
+  const stockFerrule = collar.tags.includes("crimp") && collar.tags.includes("standard");
+  const collarInner = ferrule.innerMm / 2;
+  const collarOuter = stockFerrule ? ferrule.outerMm / 2 : Math.max(ferrule.outerMm / 2, collarInner + collar.wallMm);
+  const collarHeight = stockFerrule
+    ? Math.min(ferrule.heightMaxMm, Math.max(ferrule.heightMinMm, collar.heightMm))
+    : collar.heightMm;
   const collarBottom = bottleH - Math.min(collarHeight * 0.72, neck.crimpMm * 0.85);
   const collarTop = collarBottom + collarHeight;
 
@@ -105,7 +109,7 @@ export function computeFit(design: Design, exploded = false): Fit {
   };
 
   const explode: Record<PartKey, [number, number, number]> = {
-    box: [78, 0, -36],
+    box: [-36, 0, -24],
     cap: [0, 62, 0],
     pump: [0, 36, 0],
     collar: [0, 16, 0],

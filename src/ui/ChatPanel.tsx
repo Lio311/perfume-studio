@@ -12,6 +12,7 @@ export function ChatPanel() {
   const selected = useLab((s) => s.selected);
   const pushChat = useLab((s) => s.pushChat);
   const applyCommands = useLab((s) => s.applyCommands);
+  const restoreDesign = useLab((s) => s.restoreDesign);
   const [text, setText] = useState("");
   const [listening, setListening] = useState(false);
 
@@ -19,6 +20,7 @@ export function ChatPanel() {
     const utterance = value.trim();
     if (!utterance) return;
     setText("");
+    const snapshot = structuredClone(design);
     pushChat({ id: `u-${Date.now()}`, role: "user", text: utterance });
     const result = await interpretCommand(utterance, {
       lang,
@@ -31,7 +33,7 @@ export function ChatPanel() {
       boxId: design.box.variantId,
     });
     applyCommands(result.commands);
-    pushChat({ id: `l-${Date.now()}`, role: "lab", he: result.reply.he, en: result.reply.en });
+    pushChat({ id: `l-${Date.now()}`, role: "lab", he: result.reply.he, en: result.reply.en, snapshot });
   }
 
   function listen() {
@@ -60,25 +62,28 @@ export function ChatPanel() {
       <div className="panel-head">
         <h2>{t.commands}</h2>
       </div>
+      <div className="suggest">
+        {CHIPS[lang].map((chip) => (
+          <button key={chip} type="button" onClick={() => void submit(chip)}>{chip}</button>
+        ))}
+      </div>
       <div className="transcript">
-        {chat.length === 0 && (
-          <div className="chips examples">
-            {CHIPS[lang].map((chip) => (
-              <button key={chip} type="button" onClick={() => void submit(chip)}>{chip}</button>
-            ))}
-          </div>
-        )}
         <AnimatePresence initial={false}>
           {chat.map((message) => (
-            <motion.p
+            <motion.div
               key={message.id}
-              className={message.role === "user" ? "msg user" : "msg lab"}
+              className={message.role === "user" ? "msg-row user" : "msg-row lab"}
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.28, ease: "easeOut" }}
             >
-              {message.role === "user" ? message.text : lang === "he" ? message.he : message.en}
-            </motion.p>
+              <p className={message.role === "user" ? "msg user" : "msg lab"}>
+                {message.role === "user" ? message.text : lang === "he" ? message.he : message.en}
+              </p>
+              {message.role === "lab" && message.snapshot && (
+                <button type="button" className="undo-chip" onClick={() => restoreDesign(message.snapshot!)}>{t.undo}</button>
+              )}
+            </motion.div>
           ))}
         </AnimatePresence>
       </div>

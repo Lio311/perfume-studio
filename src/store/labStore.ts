@@ -12,12 +12,17 @@ import type { ThemeId } from "../theme/themes.ts";
 import type { Lang } from "../model/types.ts";
 import type { LabCommand } from "../parser/interpret.ts";
 
+export type LabMode = "assemble" | "explode" | "dimensions" | "compare";
+export type ViewPreset = "home" | "front" | "three" | "top" | "side";
+
 export interface ChatMessage {
   id: string;
   role: "user" | "lab";
   text?: string;
   he?: string;
   en?: string;
+  /** Design captured before this chat action, so the reply can undo itself. */
+  snapshot?: Design;
 }
 
 export interface SavedDesign {
@@ -47,7 +52,12 @@ interface LabState {
   design: Design;
   selected: PartKey | null;
   hovered: { part: PartKey; x: number; y: number } | null;
-  exploded: boolean;
+  mode: LabMode;
+  explode: number;
+  viewPreset: ViewPreset;
+  past: Design[];
+  future: Design[];
+  gesturing: boolean;
   autoRotate: boolean;
   viewToken: number;
   focusToken: number;
@@ -66,7 +76,15 @@ interface LabState {
   applyCommands: (commands: LabCommand[]) => void;
   cycle: (dir: number, part?: VariantPart) => void;
   randomize: () => void;
-  toggleExplode: () => void;
+  setMode: (mode: LabMode) => void;
+  setExplode: (amount: number) => void;
+  setView: (preset: ViewPreset) => void;
+  undo: () => void;
+  redo: () => void;
+  beginGesture: () => void;
+  endGesture: () => void;
+  restoreDesign: (design: Design) => void;
+  duplicateDesign: () => void;
   toggleRotate: () => void;
   resetView: () => void;
   setTheme: (theme: ThemeId) => void;
@@ -109,7 +127,7 @@ function seeds(): SavedDesign[] {
   ];
 }
 
-function applyOne(design: Design, command: LabCommand, ui: { exploded: boolean; autoRotate: boolean; viewToken: number; selected: PartKey | null; focusToken: number }) {
+function applyOne(design: Design, command: LabCommand, ui: { explode: number; mode: LabMode; autoRotate: boolean; viewToken: number; selected: PartKey | null; focusToken: number }) {
   switch (command.type) {
     case "finish": {
       const finish = command.finish;
@@ -186,7 +204,8 @@ function applyOne(design: Design, command: LabCommand, ui: { exploded: boolean; 
       design.label.text = command.text.slice(0, 32);
       break;
     case "explode":
-      ui.exploded = command.value;
+      ui.explode = command.value ? 1 : 0;
+      ui.mode = command.value ? "explode" : ui.mode === "explode" ? "assemble" : ui.mode;
       break;
     case "rotate":
       ui.autoRotate = command.value === "toggle" ? !ui.autoRotate : command.value === "on";
@@ -221,7 +240,12 @@ export const useLab = create<LabState>()(
       design: createDefaultDesign(),
       selected: "bottle",
       hovered: null,
-      exploded: false,
+      mode: "explode",
+      explode: 1,
+      viewPreset: "home",
+      past: [],
+      future: [],
+      gesturing: false,
       autoRotate: false,
       viewToken: 0,
       focusToken: 0,
@@ -244,20 +268,27 @@ export const useLab = create<LabState>()(
           if (part === "box" && ("heightMm" in partial || "widthMm" in partial || "depthMm" in partial) && !("linked" in partial)) {
             next.box.linked = false;
           }
-          return { design: next };
+          return state.gesturing ? { design: next } : { design: next, past: [...state.past, structuredClone(state.design)].slice(-30), future: [] };
         }),
       applyCommands: (commands) =>
         set((state) => {
           const design = structuredClone(state.design);
           const ui = {
-            exploded: state.exploded,
+            explode: state.explode,
+            mode: state.mode,
             autoRotate: state.autoRotate,
             viewToken: state.viewToken,
             selected: state.selected,
             focusToken: state.focusToken,
           };
           for (const command of commands) applyOne(design, command, ui);
-          return { design, ...ui, sideOpen: ui.selected ? true : state.sideOpen };
+          return {
+            design,
+            ...ui,
+            sideOpen: ui.selected ? true : state.sideOpen,
+            past: [...state.past, structuredClone(state.design)].slice(-30),
+            future: [],
+          };
         }),
       cycle: (dir, part) => {
         const selected = part ?? get().selected;
@@ -273,9 +304,47 @@ export const useLab = create<LabState>()(
         get().applyCommands([{ type: "cycle", part: kind, dir: dir > 0 ? 1 : -1 }, { type: "select", part: kind }]);
       },
       randomize: () => get().applyCommands([{ type: "random" }]),
-      toggleExplode: () => set((state) => ({ exploded: !state.exploded })),
+      setMode: (mode) =>
+        set(() => {
+          if (mode === "assemble") return { mode, explode: 0 };
+          if (mode === "explode") return { mode, explode: 1 };
+          return { mode };
+        }),
+      setExplode: (amount) =>
+        set((state) => {
+          const explode = clamp(amount, 0, 1);
+          const mode: LabMode =
+            state.mode === "compare" || state.mode === "dimensions" ? state.mode : explode < 0.02 ? "assemble" : "explode";
+          return { explode, mode };
+        }),
+      setView: (viewPreset) => set((state) => ({ viewPreset, viewToken: state.viewToken + 1 })),
+      undo: () =>
+        set((state) => {
+          const previous = state.past[state.past.length - 1];
+          if (!previous) return state;
+          return { design: structuredClone(previous), past: state.past.slice(0, -1), future: [structuredClone(state.design), ...state.future].slice(0, 30) };
+        }),
+      redo: () =>
+        set((state) => {
+          const next = state.future[0];
+          if (!next) return state;
+          return { design: structuredClone(next), future: state.future.slice(1), past: [...state.past, structuredClone(state.design)].slice(-30) };
+        }),
+      beginGesture: () =>
+        set((state) => (state.gesturing ? state : { gesturing: true, past: [...state.past, structuredClone(state.design)].slice(-30), future: [] })),
+      endGesture: () => set({ gesturing: false }),
+      restoreDesign: (design) =>
+        set((state) => ({
+          design: structuredClone(design),
+          past: [...state.past, structuredClone(state.design)].slice(-30),
+          future: [],
+        })),
+      duplicateDesign: () =>
+        set((state) => ({
+          saved: [{ id: uid("cfg"), name: state.lang === "he" ? "עותק" : "Copy", design: structuredClone(state.design), thumb: "", createdAt: Date.now() }, ...state.saved].slice(0, 24),
+        })),
       toggleRotate: () => set((state) => ({ autoRotate: !state.autoRotate })),
-      resetView: () => set((state) => ({ viewToken: state.viewToken + 1 })),
+      resetView: () => set((state) => ({ viewPreset: "home", viewToken: state.viewToken + 1 })),
       setTheme: (theme) => set({ theme }),
       setLang: (lang) => set({ lang }),
       setLibraryOpen: (libraryOpen) => set({ libraryOpen }),

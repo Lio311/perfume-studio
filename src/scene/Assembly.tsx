@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, type ReactNode } from "react";
+import { useContext, useEffect, useLayoutEffect, useMemo, useRef, type ReactNode } from "react";
 import { useFrame } from "@react-three/fiber";
 import { Html, Outlines, RoundedBox } from "@react-three/drei";
 import * as THREE from "three";
@@ -11,8 +11,9 @@ import { logoTexture } from "../geometry/logos.ts";
 import { useLab } from "../store/labStore.ts";
 import { partLabel } from "../i18n/copy.ts";
 import { FinishMaterial } from "./materials.tsx";
+import { PartGuides } from "./Guides.tsx";
+import { Clock } from "./clock.ts";
 
-const Clock = createContext<React.RefObject<number>>({ current: 0 });
 
 function smooth(edge0: number, edge1: number, x: number): number {
   const t = Math.min(1, Math.max(0, (x - edge0) / (edge1 - edge0 || 1)));
@@ -40,7 +41,7 @@ function PartShell({
   const clock = useContext(Clock);
   const pop = useRef(1);
   const lang = useLab((s) => s.lang);
-  const exploded = useLab((s) => s.exploded);
+  const exploded = useLab((s) => s.explode) > 0.08;
   const hot = useHot(part);
   const line = useMemo(() => {
     const geometry = new THREE.BufferGeometry();
@@ -147,12 +148,12 @@ function useDisposable<T extends { dispose: () => void }>(factory: () => T, deps
 
 export function Assembly() {
   const design = useLab((s) => s.design);
-  const exploded = useLab((s) => s.exploded);
+  const explode = useLab((s) => s.explode);
   const clock = useRef(0);
-  const fit = useMemo(() => computeFit(design, exploded), [design, exploded]);
+  const fit = useMemo(() => computeFit(design, explode > 0.45), [design, explode]);
 
   useFrame((_, dt) => {
-    clock.current = THREE.MathUtils.damp(clock.current, exploded ? 1 : 0, 1.7, dt);
+    clock.current = THREE.MathUtils.damp(clock.current, explode, 1.7, dt);
   });
 
   return (
@@ -164,6 +165,7 @@ export function Assembly() {
       <CollarPart />
       <PumpPart />
       <CapPart />
+      <PartGuides />
       <pointLight position={[0, 6, 18]} intensity={0.35} color="#e7c48a" distance={90} />
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.15, 0]}>
         <ringGeometry args={[18, 36, 64]} />
@@ -331,7 +333,7 @@ function CollarPart() {
 function PumpPart() {
   const design = useLab((s) => s.design);
   const spec = pumpById(design.pump.variantId);
-  const exploded = useLab((s) => s.exploded);
+  const exploded = useLab((s) => s.explode) > 0.45;
   const fit = computeFit(design, exploded || !design.cap.visible);
   const tube = useDisposable(() => {
     const length = Math.max(18, fit.pumpBase - 8);
@@ -473,7 +475,7 @@ function BoxPart() {
   const spec = boxById(design.box.variantId);
   const fit = computeFit(design, false);
   return (
-    <PartShell part="box" index={0} home={[fit.boxX, 0, fit.boxZ]} explode={[-36, 0, -24]} visible={design.box.visible} variantKey={spec.id}>
+    <PartShell part="box" index={0} home={[fit.boxX, 0, fit.boxZ]} explode={fit.explode.box} visible={design.box.visible} variantKey={spec.id}>
       <BoxFormMesh form={spec.form} w={fit.boxW} h={fit.boxH} d={fit.boxD} finish={design.box.finish} color={design.box.color} />
     </PartShell>
   );
