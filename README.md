@@ -41,6 +41,22 @@ npm run build
 
 Randomize in the top bar picks a harmonious look from the catalog. The light studio theme sits next to the default dark graphite and champagne-gold lab.
 
+## Decisions
+
+- One configurator. `?voice=1`, `?voice=2`, and `?voice=3` change the dark look and the voice behaviour. They do not fork the catalog, the fit rules, or the chat parser. With no query, the lab opens on variant 1.
+- Voice colour skins apply only while the theme is dark. The light studio toggle still replaces the stage and the panels.
+- Variant 3 plays one entrance move, from a wide frame into the three-quarter view, when you enter it. After that the camera stays put so orbit, zoom, and pan keep working. Selecting a part still eases the camera in. A continuous orbit was dropped because it fought those controls.
+- The holographic depth of field is gentle (`resolutionScale` 0.25) so the bottle stays sharp and the pass stays light. The floor in variant 3 is a metal disc plus a moving grid, not a full-scene mirror, for the same reason.
+- Cubique 100 ml is not in the catalog. The research table published the square size and not the height.
+- Speech recognition and spoken replies need a browser that exposes the Web Speech API, a microphone, and a click or key before audio can start. There is no cloud speech service and no API key.
+
+## What's next
+
+- A GLB loader on the existing `model` field, when a part should stop being procedural.
+- An LLM behind `src/parser/interpreter.ts`. The local parser stays the fallback.
+- Photo-to-3D for the pending uploads. Today those files are stored only.
+- A Hebrew speech voice is only as good as the voices the browser has installed.
+
 ## Not in this version
 
 - Dropping in a GLB per variant. Specs already carry a `model` field (`procedural` today). A loader can branch on `glb` later.

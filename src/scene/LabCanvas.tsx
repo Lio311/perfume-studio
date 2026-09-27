@@ -106,8 +106,7 @@ function CameraRig() {
   const look = useRef(HOME_TARGET.clone());
   const seenFocus = useRef(0);
   const seenView = useRef(0);
-  const cine = useRef(0);
-  const cineStep = useRef(0);
+  const greeted = useRef(false);
 
   useLayoutEffect(() => {
     camera.position.copy(HOME_POS);
@@ -156,17 +155,15 @@ function CameraRig() {
       camera.up.lerp(UP, 0.02).normalize();
       camera.lookAt(controls.target);
     }
-    if (state.voice === 3 && state.theme === "dark" && !state.autoRotate && !dragging.current && mode.current === "idle") {
-      cine.current += delta;
-      if (cine.current > 6.5) {
-        cine.current = 0;
-        cineStep.current = (cineStep.current + 1) % 3;
-        const preset = [PRESETS.three, PRESETS.front, PRESETS.side][cineStep.current];
-        goalPos.current.copy(preset.pos);
-        goalTarget.current.copy(preset.target);
-        camera.up.set(0, 1, 0);
-        mode.current = "anim";
-      }
+    if (state.voice !== 3) greeted.current = false;
+    if (state.voice === 3 && state.theme === "dark" && !greeted.current && !dragging.current && mode.current === "idle") {
+      greeted.current = true;
+      camera.position.set(128, 58, 250);
+      look.current.set(0, 36, 0);
+      goalPos.current.copy(PRESETS.three.pos);
+      goalTarget.current.copy(PRESETS.three.target);
+      camera.up.set(0, 1, 0);
+      mode.current = "anim";
     }
     const shot = takeShot();
     if (shot) shot(gl.domElement.toDataURL("image/png"));

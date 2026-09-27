@@ -31,7 +31,7 @@ const HOLO_FRAG = `
     vec3 cyan = vec3(0.62, 0.84, 0.86);
     vec3 gold = vec3(0.84, 0.7, 0.42);
     vec3 color = mix(cyan, gold, fres);
-    float alpha = fres * 0.42 + scan * 0.16 * band;
+    float alpha = fres * 0.28 + scan * 0.12 * band;
     gl_FragColor = vec4(color, alpha);
   }
 `;
