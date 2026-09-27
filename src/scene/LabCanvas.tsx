@@ -1,7 +1,6 @@
 import { useLayoutEffect, useRef } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Grid, TrackballControls } from "@react-three/drei";
-import { Bloom, EffectComposer } from "@react-three/postprocessing";
 import * as THREE from "three";
 import { damp3 } from "maath/easing";
 import { themes } from "../theme/themes.ts";
@@ -9,6 +8,7 @@ import { useLab } from "../store/labStore.ts";
 import { computeFit } from "../model/fit.ts";
 import { takeShot } from "./capture.ts";
 import { Assembly } from "./Assembly.tsx";
+import { CinematicFloor, EnergyRings, MinimalRing, ParticleField, VoiceGrade } from "./voiceScenery.tsx";
 
 const PRESETS = {
   home: { pos: new THREE.Vector3(54, 70, 188), target: new THREE.Vector3(0, 36, 0) },
@@ -22,14 +22,23 @@ const HOME_TARGET = PRESETS.home.target;
 const UP = new THREE.Vector3(0, 1, 0);
 const OFFSET = new THREE.Vector3();
 
+function stageWash(themeId: "dark" | "light", voice: 1 | 2 | 3): { top: string; bottom: string } {
+  if (themeId === "light") return { top: themes.light.scene.top, bottom: themes.light.scene.bottom };
+  if (voice === 1) return { top: "#0c0c0e", bottom: "#000000" };
+  if (voice === 2) return { top: "#121a22", bottom: "#03050a" };
+  return { top: "#141820", bottom: "#05060a" };
+}
+
 function Backdrop() {
-  const theme = useLab((s) => themes[s.theme]);
+  const themeId = useLab((s) => s.theme);
+  const voice = useLab((s) => s.voice);
+  const wash = stageWash(themeId, voice);
   const material = useRef<THREE.ShaderMaterial>(null);
   useLayoutEffect(() => {
     if (!material.current) return;
-    material.current.uniforms.top.value.set(theme.scene.top);
-    material.current.uniforms.bottom.value.set(theme.scene.bottom);
-  }, [theme]);
+    material.current.uniforms.top.value.set(wash.top);
+    material.current.uniforms.bottom.value.set(wash.bottom);
+  }, [wash.top, wash.bottom]);
   return (
     <mesh scale={900} frustumCulled={false} renderOrder={-2}>
       <sphereGeometry args={[1, 32, 24]} />
@@ -38,8 +47,8 @@ function Backdrop() {
         side={THREE.BackSide}
         depthWrite={false}
         uniforms={{
-          top: { value: new THREE.Color(theme.scene.top) },
-          bottom: { value: new THREE.Color(theme.scene.bottom) },
+          top: { value: new THREE.Color(wash.top) },
+          bottom: { value: new THREE.Color(wash.bottom) },
         }}
         vertexShader="varying vec3 vPos; void main(){ vPos = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }"
         fragmentShader="varying vec3 vPos; uniform vec3 top; uniform vec3 bottom; void main(){ float h = smoothstep(-0.35, 0.55, vPos.y); gl_FragColor = vec4(mix(bottom, top, h), 1.0); }"
@@ -97,6 +106,8 @@ function CameraRig() {
   const look = useRef(HOME_TARGET.clone());
   const seenFocus = useRef(0);
   const seenView = useRef(0);
+  const cine = useRef(0);
+  const cineStep = useRef(0);
 
   useLayoutEffect(() => {
     camera.position.copy(HOME_POS);
@@ -145,6 +156,18 @@ function CameraRig() {
       camera.up.lerp(UP, 0.02).normalize();
       camera.lookAt(controls.target);
     }
+    if (state.voice === 3 && state.theme === "dark" && !state.autoRotate && !dragging.current && mode.current === "idle") {
+      cine.current += delta;
+      if (cine.current > 6.5) {
+        cine.current = 0;
+        cineStep.current = (cineStep.current + 1) % 3;
+        const preset = [PRESETS.three, PRESETS.front, PRESETS.side][cineStep.current];
+        goalPos.current.copy(preset.pos);
+        goalTarget.current.copy(preset.target);
+        camera.up.set(0, 1, 0);
+        mode.current = "anim";
+      }
+    }
     const shot = takeShot();
     if (shot) shot(gl.domElement.toDataURL("image/png"));
   }, 1);
@@ -173,7 +196,38 @@ function CameraRig() {
 }
 
 function Lights() {
-  const scene = useLab((s) => themes[s.theme].scene);
+  const themeId = useLab((s) => s.theme);
+  const voice = useLab((s) => s.voice);
+  const scene = themes[themeId].scene;
+  if (themeId === "dark" && voice === 1) {
+    return (
+      <>
+        <ambientLight color="#f4f1ea" intensity={0.72} />
+        <directionalLight position={[30, 90, 80]} color="#fffaf4" intensity={1.15} />
+        <directionalLight position={[-40, 24, 30]} color="#d9d4cc" intensity={0.35} />
+      </>
+    );
+  }
+  if (themeId === "dark" && voice === 2) {
+    return (
+      <>
+        <ambientLight color="#d5e6ea" intensity={0.42} />
+        <directionalLight position={[48, 100, 60]} color="#f7f1e6" intensity={1.25} />
+        <directionalLight position={[-50, 18, -40]} color="#9fd4e0" intensity={0.85} />
+        <pointLight position={[0, 18, 24]} color="#d6b26a" intensity={0.55} distance={140} />
+      </>
+    );
+  }
+  if (themeId === "dark" && voice === 3) {
+    return (
+      <>
+        <ambientLight color="#c5ccd6" intensity={0.42} />
+        <directionalLight position={[64, 72, 48]} color="#fff6ea" intensity={1.7} />
+        <directionalLight position={[-24, 46, -110]} color="#f0d7a8" intensity={2.15} />
+        <directionalLight position={[-70, 20, 40]} color="#8ea0b8" intensity={0.55} />
+      </>
+    );
+  }
   return (
     <>
       <ambientLight color={scene.ambient} intensity={scene.ambientIntensity} />
@@ -186,53 +240,54 @@ function Lights() {
 
 function Stage() {
   const theme = useLab((s) => themes[s.theme]);
+  const voice = useLab((s) => s.voice);
+  const dark = theme.id === "dark";
+  const grid = !dark
+    ? { cell: theme.scene.gridCell, section: theme.scene.gridSection }
+    : voice === 1
+      ? { cell: "#141414", section: "#2a2a2a" }
+      : voice === 2
+        ? { cell: "#163844", section: "#3d7480" }
+        : { cell: "#14110e", section: "#2a241c" };
   return (
     <>
-      <color attach="background" args={[theme.scene.bottom]} />
+      <color attach="background" args={[dark && voice === 1 ? "#000000" : theme.scene.bottom]} />
       <Backdrop />
       <Studio />
       <Lights />
-      <Grid
-        args={[400, 400]}
-        position={[0, 0, 0]}
-        cellSize={10}
-        cellThickness={0.55}
-        cellColor={theme.scene.gridCell}
-        sectionSize={50}
-        sectionThickness={0.9}
-        sectionColor={theme.scene.gridSection}
-        fadeDistance={380}
-        fadeStrength={1.35}
-        infiniteGrid
-      />
-      {theme.id === "dark" ? (
+      {(voice !== 3 || !dark) && (
+        <Grid
+          args={[400, 400]}
+          position={[0, 0, 0]}
+          cellSize={voice === 1 ? 20 : 10}
+          cellThickness={voice === 1 ? 0.35 : 0.55}
+          cellColor={grid.cell}
+          sectionSize={voice === 1 ? 80 : 50}
+          sectionThickness={voice === 1 ? 0.5 : 0.9}
+          sectionColor={grid.section}
+          fadeDistance={voice === 1 ? 240 : 380}
+          fadeStrength={1.35}
+          infiniteGrid
+        />
+      )}
+      {dark && voice === 1 && <MinimalRing />}
+      {dark && voice === 2 && (
         <>
-          <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.08, 0]}>
-            <circleGeometry args={[46, 64]} />
-            <meshBasicMaterial color="#5EE7FF" transparent opacity={0.045} depthWrite={false} />
-          </mesh>
-          <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.14, 0]}>
-            <ringGeometry args={[57.2, 58.4, 96]} />
-            <meshBasicMaterial color="#5EE7FF" transparent opacity={0.38} depthWrite={false} />
-          </mesh>
-          <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.16, 0]}>
-            <ringGeometry args={[69.2, 70.6, 96]} />
-            <meshBasicMaterial color="#D6B26A" transparent opacity={0.32} depthWrite={false} />
-          </mesh>
+          <ParticleField />
+          <EnergyRings />
         </>
-      ) : (
+      )}
+      {dark && voice === 3 && <CinematicFloor />}
+      {!dark &&
         [48, 78].map((radius) => (
           <mesh key={radius} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.12, 0]}>
             <ringGeometry args={[radius - 0.4, radius, 96]} />
             <meshBasicMaterial color="#c4b49a" transparent opacity={0.28} depthWrite={false} />
           </mesh>
-        ))
-      )}
+        ))}
       <Assembly />
       <CameraRig />
-      <EffectComposer enableNormalPass={false} multisampling={0}>
-        <Bloom intensity={theme.id === "dark" ? 0.1 : 0.05} luminanceThreshold={0.94} luminanceSmoothing={0.18} mipmapBlur radius={0.28} />
-      </EffectComposer>
+      <VoiceGrade />
     </>
   );
 }

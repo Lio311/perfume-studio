@@ -17,9 +17,9 @@ Open http://127.0.0.1:4327
 
 Three voice variants share this lab. Switch them in the top bar, or open them directly:
 
-- [Voice Assistant](http://127.0.0.1:4327/?voice=1) — hold the mic (or Space). Hebrew speech-to-text shows live, commands use the chat parser, and the assistant speaks a short Hebrew confirmation.
-- [Hands-free Lab](http://127.0.0.1:4327/?voice=2) — say «מעבדה» or “Lab”, then the command. A full-width waveform follows the microphone, replies are spoken, and Tour narrates each part as the bottle opens.
-- [Sonic UI](http://127.0.0.1:4327/?voice=3) — hover ticks, clicks, an explode whoosh, an assemble snap, and glass, metal, and wood sounds, plus a lab hum with mute. The chat mic stays as a secondary input.
+- [Sleek minimal](http://127.0.0.1:4327/?voice=1) — matte black, hairline gold and white, a floating glass HUD. Hold the mic (or Space). Hebrew speech-to-text shows live, and the assistant speaks a short Hebrew confirmation.
+- [Holographic lab](http://127.0.0.1:4327/?voice=2) — scanline shell on the selected part, a particle field, energy rings, bloom, and a soft depth of field. Say «מעבדה» or “Lab”, then the command. Tour narrates each part as the bottle opens.
+- [Cinematic sci-fi](http://127.0.0.1:4327/?voice=3) — a slow camera drift, rim light, a reflective animated grid, mono readouts, and a short scan when a part swaps. Hover ticks, an explode whoosh, an assemble snap, and glass, metal, and wood sounds, plus a lab hum with mute.
 
 Speech uses the browser Web Speech API (`he-IL` and `en-US`) and Web Audio. No API key.
 

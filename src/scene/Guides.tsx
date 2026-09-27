@@ -14,7 +14,7 @@ function smooth(edge0: number, edge1: number, x: number): number {
   return t * t * (3 - 2 * t);
 }
 
-interface Frame {
+export interface Frame {
   home: [number, number, number];
   explode: [number, number, number];
   index: number;
@@ -22,7 +22,7 @@ interface Frame {
   size: [number, number, number];
 }
 
-function frameFor(part: PartKey, fit: ReturnType<typeof computeFit>): Frame {
+export function frameFor(part: PartKey, fit: ReturnType<typeof computeFit>): Frame {
   if (part === "cap") {
     return { home: [0, fit.capBottom, 0], explode: fit.explode.cap, index: 1, center: [0, fit.capH / 2, 0], size: [fit.capW, fit.capH, fit.capD] };
   }

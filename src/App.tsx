@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { LabCanvas } from "./scene/LabCanvas.tsx";
 import { applyTheme } from "./theme/themes.ts";
 import { partLabel, tx } from "./i18n/copy.ts";
@@ -83,6 +83,8 @@ export default function App() {
         <Library />
         <div className="stage-slot">
           <p className="hint-strip" dir={lang === "he" ? "rtl" : "ltr"}>
+            <b>{voice === 1 ? t.look1 : voice === 2 ? t.look2 : t.look3}</b>
+            <span>·</span>
             {t.hintDrag}
             <span>·</span>
             {t.hintWheel}
@@ -106,6 +108,27 @@ export default function App() {
         </div>
       )}
       <Modals />
+      <SwapFlash />
     </div>
   );
+}
+
+function SwapFlash() {
+  const voice = useLab((s) => s.voice);
+  const design = useLab((s) => s.design);
+  const sig = `${design.bottle.variantId}|${design.cap.variantId}|${design.pump.variantId}|${design.collar.variantId}|${design.label.variantId}|${design.box.variantId}`;
+  const seen = useRef(sig);
+  useEffect(() => {
+    if (voice !== 3) {
+      seen.current = sig;
+      return;
+    }
+    if (seen.current === sig) return;
+    seen.current = sig;
+    const root = document.querySelector(".app");
+    root?.classList.add("is-swapping");
+    const timer = window.setTimeout(() => root?.classList.remove("is-swapping"), 480);
+    return () => window.clearTimeout(timer);
+  }, [sig, voice]);
+  return null;
 }

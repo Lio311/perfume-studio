@@ -80,6 +80,11 @@ export function playClick(): void {
   tone(420, 0.05, "triangle", 0.03);
 }
 
+export function playScan(): void {
+  tone(140, 0.26, "sawtooth", 0.012, 880);
+  noise(0.2, 0.028, 280, 1600);
+}
+
 export function playWhoosh(): void {
   noise(0.42, 0.07, 1600, 180);
   tone(240, 0.28, "sine", 0.02, 90);

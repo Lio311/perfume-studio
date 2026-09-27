@@ -12,6 +12,7 @@ import { useLab } from "../store/labStore.ts";
 import { partLabel } from "../i18n/copy.ts";
 import { FinishMaterial } from "./materials.tsx";
 import { PartGuides } from "./Guides.tsx";
+import { HoloShell } from "./voiceScenery.tsx";
 import { Clock } from "./clock.ts";
 
 
@@ -141,8 +142,10 @@ function useHot(part: PartKey): "selected" | "hover" | null {
 
 function HotOutline({ part }: { part: PartKey }) {
   const hot = useHot(part);
+  const voice = useLab((s) => s.voice);
   if (!hot) return null;
-  return <Outlines thickness={hot === "selected" ? 3.4 : 2} color="#e7d3ae" screenspace toneMapped={false} />;
+  const color = voice === 2 ? "#d5eef2" : voice === 1 ? "#f7f4ee" : "#e7d3ae";
+  return <Outlines thickness={hot === "selected" ? 2.4 : 1.6} color={color} screenspace toneMapped={false} />;
 }
 
 function useDisposable<T extends { dispose: () => void }>(factory: () => T, deps: unknown[]): T {
@@ -171,6 +174,7 @@ export function Assembly() {
       <PumpPart />
       <CapPart />
       <PartGuides />
+      <HoloShell />
       <pointLight position={[0, 6, 18]} intensity={0.35} color="#e7c48a" distance={90} />
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.15, 0]}>
         <ringGeometry args={[18, 36, 64]} />

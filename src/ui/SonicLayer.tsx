@@ -1,10 +1,14 @@
 import { useEffect } from "react";
 import { tx } from "../i18n/copy.ts";
-import { playClick, playMaterial, playSnap, playTick, playWhoosh, setMasterMuted, startHum, stopHum, unlockAudio } from "../audio/sfx.ts";
+import { playClick, playMaterial, playScan, playSnap, playTick, playWhoosh, setMasterMuted, startHum, stopHum, unlockAudio } from "../audio/sfx.ts";
 import type { FinishId } from "../model/types.ts";
 import { useLab } from "../store/labStore.ts";
 
 const PARTS = ["bottle", "cap", "collar", "pump", "label", "box"] as const;
+
+function partSig(design: ReturnType<typeof useLab.getState>["design"]): string {
+  return PARTS.map((part) => design[part].variantId).join("|");
+}
 
 export function SonicLayer() {
   const lang = useLab((s) => s.lang);
@@ -53,6 +57,15 @@ export function SonicLayer() {
       prevExplode = state.explode;
       prevSelected = state.selected;
       prevDesign = state.design;
+    });
+  }, []);
+
+  useEffect(() => {
+    let prev = partSig(useLab.getState().design);
+    return useLab.subscribe((state) => {
+      const next = partSig(state.design);
+      if (state.voice === 3 && state.soundOn && prev && next !== prev) playScan();
+      prev = next;
     });
   }, []);
 
