@@ -252,7 +252,7 @@ export const useLab = create<LabState>()(
       theme: "dark",
       lang: "he",
       libraryOpen: false,
-      sideOpen: true,
+      sideOpen: false,
       modal: null,
       chat: [],
       saved: seeds(),
