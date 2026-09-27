@@ -1,21 +1,24 @@
 :root {
-  --bg: #0b0d11;
-  --panel: rgba(16, 20, 26, 0.58);
-  --panel-2: rgba(10, 12, 16, 0.78);
-  --line: rgba(212, 180, 138, 0.28);
-  --line-strong: rgba(212, 180, 138, 0.62);
-  --text: #f3efe8;
-  --muted: #9a9388;
+  --bg: #06070b;
+  --panel: rgba(14, 16, 24, 0.58);
+  --panel-2: rgba(8, 10, 16, 0.78);
+  --line: rgba(214, 178, 106, 0.26);
+  --line-strong: rgba(214, 178, 106, 0.55);
+  --text: #EDE8DD;
+  --muted: #8f8c86;
   --faint: #6e685e;
-  --accent: #d4b48a;
+  --accent: #D6B26A;
   --accent-2: #f3e6cc;
-  --danger: #e07a72;
+  --on-accent: #141109;
+  --danger: #ff7a7a;
+  --good: #3ddc97;
   --shadow: 0 22px 60px rgba(0, 0, 0, 0.42);
   --inset: inset 0 1px 0 rgba(255, 248, 236, 0.08);
   --thumb: rgba(255, 255, 255, 0.035);
-  --fill: rgba(212, 180, 138, 0.14);
+  --fill: rgba(214, 178, 106, 0.14);
   --vignette: rgba(0, 0, 0, 0.32);
   --sans: "Heebo", "Segoe UI", sans-serif;
+  --num: "Inter", "Heebo", sans-serif;
   --display: "Syne", "Heebo", sans-serif;
   color: var(--text);
   background: var(--bg);
@@ -82,7 +85,7 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   inset: 0;
   border-radius: inherit;
   pointer-events: none;
-  background: linear-gradient(145deg, rgba(212, 180, 138, 0.16), rgba(122, 176, 186, 0.07) 36%, transparent 58%);
+  background: linear-gradient(145deg, rgba(214, 178, 106, 0.16), rgba(94, 231, 255, 0.05) 36%, transparent 58%);
   mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
   mask-composite: exclude;
   padding: 1px;
@@ -111,17 +114,18 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 }
 .brand strong {
   font-family: var(--display);
-  font-weight: 640;
-  font-size: 20px;
-  letter-spacing: -0.03em;
+  font-weight: 600;
+  font-size: 15px;
+  letter-spacing: 0.04em;
 }
 .spec {
-  margin: 0 auto;
+  margin: 2px 0 0;
   display: flex;
   gap: 8px;
   align-items: baseline;
   color: var(--muted);
-  font-size: 13px;
+  font-family: var(--num);
+  font-size: 12px;
   font-variant-numeric: tabular-nums;
 }
 .spec bdi { color: var(--text); }
@@ -182,7 +186,7 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   border-radius: 999px;
   font-size: 12px;
 }
-.tabs button.is-on { color: var(--accent-2); border-color: var(--accent); background: var(--fill); }
+.tabs button.is-on { color: var(--bg); border-color: var(--text); background: var(--text); }
 
 .thumb-grid {
   display: grid;
@@ -207,9 +211,9 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 }
 .thumb img { width: 100%; aspect-ratio: 3 / 3.4; object-fit: contain; }
 .thumb span { font-size: 11px; line-height: 1.25; }
-.thumb .mm { color: var(--accent); font-size: 10px; letter-spacing: 0.02em; font-variant-numeric: tabular-nums; }
+.thumb .mm { color: var(--accent); font-family: var(--num); font-size: 10px; letter-spacing: 0.02em; font-variant-numeric: tabular-nums; }
 .thumb:hover { transform: translateY(-2px); border-color: var(--line); }
-.thumb.is-on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent), 0 10px 24px rgba(212, 180, 138, 0.12); color: var(--text); }
+.thumb.is-on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent), 0 10px 24px rgba(214, 178, 106, 0.12); color: var(--text); }
 
 .upload-btn {
   margin-top: auto;
@@ -242,7 +246,7 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   display: inline-block;
   border: 1px solid rgba(255, 255, 255, 0.3);
 }
-.chip.is-on { border-color: var(--accent); background: var(--fill); }
+.chip.is-on { border-color: var(--text); background: var(--text); color: var(--bg); }
 .swatches, .liquid-swatches { display: flex; flex-wrap: wrap; gap: 6px; }
 .swatch { width: 22px; height: 22px; padding: 0; border-radius: 50%; border: 1px solid var(--line); }
 .swatch.is-on { outline: 1px solid var(--accent); }
@@ -294,7 +298,8 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   border-radius: 999px;
 }
 .presets button { padding: 6px 9px; font-size: 12px; }
-.presets button.is-on, .modes button.is-on { border-color: var(--accent); background: var(--fill); color: var(--accent-2); }
+.presets button.is-on { border-color: var(--accent); background: var(--fill); color: var(--accent-2); }
+.modes button.is-on { background: var(--accent); color: var(--on-accent); border-color: transparent; font-weight: 600; }
 
 .modes { display: flex; gap: 2px; padding: 3px; border-radius: 999px; border: 1px solid var(--line); background: rgba(0, 0, 0, 0.22); }
 .modes button { border: 0; padding: 7px 11px; font-size: 12.5px; color: var(--muted); }
@@ -312,8 +317,61 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   letter-spacing: 0.04em;
   margin-top: 8px;
 }
+.badge.is-fit {
+  color: var(--good);
+  border-color: rgba(61, 220, 151, 0.45);
+  background: rgba(61, 220, 151, 0.1);
+  font-family: var(--num);
+}
 .part-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 14px; }
 .part-actions button { padding: 7px 10px; font-size: 12px; }
+.part-actions .is-danger { color: var(--danger); border-color: rgba(255, 122, 122, 0.45); }
+.spec-export {
+  background: var(--accent);
+  color: var(--on-accent);
+  border-color: transparent;
+  font-weight: 600;
+}
+.spec-export:hover { filter: brightness(1.06); }
+.dim-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 10px;
+}
+.dim-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: rgba(0, 0, 0, 0.28);
+}
+.dim-grid span { color: var(--muted); font-size: 11px; }
+.dim-grid input {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  font-family: var(--num);
+  font-variant-numeric: tabular-nums;
+  font-size: 16px;
+}
+.hint-strip {
+  position: absolute;
+  top: 6px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 8px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.dock-pct { font-family: var(--num); font-size: 12px; color: var(--accent-2); min-width: 36px; }
 .msg-row { display: flex; align-items: flex-start; gap: 6px; }
 .msg-row.user { align-self: flex-end; }
 .msg-row.lab { align-self: flex-start; }
@@ -329,9 +387,10 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 .dim-tag {
   padding: 2px 6px;
   border-radius: 999px;
-  border: 1px solid rgba(212, 180, 138, 0.45);
+  border: 1px solid rgba(214, 178, 106, 0.45);
   background: rgba(8, 10, 14, 0.88);
   color: #f6edd8;
+  font-family: var(--num);
   font-size: 12px;
   letter-spacing: 0.03em;
   white-space: nowrap;
@@ -376,15 +435,21 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   font-size: 12px;
 }
 .explode-tag {
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
   padding: 3px 8px;
   border-radius: 999px;
-  border: 1px solid rgba(212, 180, 138, 0.45);
+  border: 1px solid rgba(214, 178, 106, 0.45);
   background: rgba(10, 11, 14, 0.72);
   color: #f3e6cc;
   font-size: 12px;
   white-space: nowrap;
   letter-spacing: 0.04em;
 }
+.explode-tag span { font-family: var(--num); opacity: 0.8; }
+.explode-tag.is-sel { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+.explode-tag.is-sel span { opacity: 1; }
 
 .modal-back {
   position: fixed;

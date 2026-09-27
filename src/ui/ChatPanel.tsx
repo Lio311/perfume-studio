@@ -81,7 +81,7 @@ export function ChatPanel() {
                 {message.role === "user" ? message.text : lang === "he" ? message.he : message.en}
               </p>
               {message.role === "lab" && message.snapshot && (
-                <button type="button" className="undo-chip" onClick={() => restoreDesign(message.snapshot!)}>{t.undo}</button>
+                <button type="button" className="undo-chip" onClick={() => restoreDesign(message.snapshot!)}>{t.undoChip}</button>
               )}
             </motion.div>
           ))}

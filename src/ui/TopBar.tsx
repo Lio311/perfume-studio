@@ -4,6 +4,7 @@ import { bottleById } from "../model/catalog.ts";
 import { estimateMl } from "../model/design.ts";
 import { requestShot } from "../scene/capture.ts";
 import { useLab, type LabMode } from "../store/labStore.ts";
+import { downloadSpec } from "./specSheet.ts";
 
 const MODES: LabMode[] = ["assemble", "explode", "dimensions", "compare"];
 
@@ -56,18 +57,15 @@ export function TopBar() {
   }
 
   return (
-    <header className="topbar">
-      <div className="brand" dir={lang === "he" ? "rtl" : "ltr"}>
-        <span className="kicker">{t.kicker}</span>
-        <strong>{lang === "he" ? t.appHe : t.appEn}</strong>
-        <p className="spec" dir="ltr">
-          <bdi>{ml} ml</bdi>
+    <header className="topbar" dir="rtl">
+      <div className="brand">
+        <strong>{t.brandLine}</strong>
+        <p className="spec">
+          <span>{t.project}</span>
           <span>·</span>
-          <bdi>{design.bottle.neck.replace("FEA", "FEA ")}</bdi>
+          <bdi>{design.label.text}</bdi>
           <span>·</span>
-          <bdi>
-            {design.bottle.heightMm.toFixed(1)}×{design.bottle.widthMm.toFixed(1)}×{design.bottle.depthMm.toFixed(1)}
-          </bdi>
+          <bdi>{ml} {lang === "he" ? "מ״ל" : "ml"}</bdi>
           <span className="spec-name">{lang === "he" ? spec.name.he : spec.name.en}</span>
         </p>
       </div>
@@ -83,6 +81,7 @@ export function TopBar() {
         <button type="button" className="icon-btn" onClick={() => redo()} disabled={future === 0}>{t.redo}</button>
         <button type="button" className="icon-btn" onClick={share}>{t.share}</button>
         <button type="button" className="icon-btn" onClick={exportPng}>{t.export}</button>
+        <button type="button" className="text-btn spec-export" onClick={() => downloadSpec(design, lang)}>{t.exportSpec}</button>
         <button type="button" className="text-btn panel-toggle" onClick={() => setLibraryOpen(!libraryOpen)}>{t.library}</button>
         <button type="button" className="text-btn panel-toggle" onClick={() => setSideOpen(!sideOpen)}>{t.properties}</button>
         <button type="button" className="text-btn" onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>

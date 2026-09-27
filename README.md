@@ -22,8 +22,8 @@ npm run build
 
 ## What you can do
 
-- Browse the library by category. The catalog is data: 46 bottles, 50 caps, 50 logos, 12 pumps, 10 collars, and 8 boxes. A new variant is another entry (lathe profile, section, proportions, neck).
-- Every finish and colour applies to the selected part immediately. Parts snap by neck: FEA 13, 15, 18, or 20. The collar wraps the neck, the pump sits on it, and the cap covers the collar.
+- Browse the library by category. The catalog is data: bottles (including Verescence Cara, Coverpla Bazille, and Stoelzle Cube, Cubique, and Linton), 50 caps, 50 logos, 12 pumps, 10 collars, and 8 boxes. A new variant is another entry (lathe profile, section, proportions, neck).
+- Every finish and colour applies to the selected part immediately. Parts snap by neck: FEA 13, 15, 17, 18, or 20. Ferrule inner diameter, outer diameter, and height follow EN 14849. The collar wraps the neck, the pump sits on it, and the cap covers the collar.
 - Logos are procedural monograms, geometric marks, and type. Type a brand name on the label. Hebrew text uses Heebo.
 - Search the library, use the arrows in the properties panel, or press Left / Right to cycle the selected slot. E explodes, 0 resets the camera, Escape clears the selection.
 - Orbit freely on every axis, zoom, and pan. Explode separates the parts and puts them back.

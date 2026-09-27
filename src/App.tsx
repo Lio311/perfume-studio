@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { LabCanvas } from "./scene/LabCanvas.tsx";
 import { applyTheme } from "./theme/themes.ts";
-import { partLabel } from "./i18n/copy.ts";
+import { partLabel, tx } from "./i18n/copy.ts";
 import { useLab } from "./store/labStore.ts";
 import { TopBar } from "./ui/TopBar.tsx";
 import { Library } from "./ui/Library.tsx";
@@ -17,6 +17,7 @@ export default function App() {
   const sideOpen = useLab((s) => s.sideOpen);
   const hovered = useLab((s) => s.hovered);
   const mode = useLab((s) => s.mode);
+  const t = tx(lang);
   const cycle = useLab((s) => s.cycle);
   const setMode = useLab((s) => s.setMode);
   const undo = useLab((s) => s.undo);
@@ -65,6 +66,13 @@ export default function App() {
         <TopBar />
         <Library />
         <div className="stage-slot">
+          <p className="hint-strip" dir={lang === "he" ? "rtl" : "ltr"}>
+            {t.hintDrag}
+            <span>·</span>
+            {t.hintWheel}
+            <span>·</span>
+            {t.hintClick}
+          </p>
           {mode === "compare" && <CompareBoard />}
           <Dock />
         </div>

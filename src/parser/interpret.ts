@@ -314,12 +314,15 @@ const NECK_WORDS: Array<[string, NeckId]> = [
   ["fea13", "FEA13"],
   ["fea 15", "FEA15"],
   ["fea15", "FEA15"],
+  ["fea 17", "FEA17"],
+  ["fea17", "FEA17"],
   ["fea 18", "FEA18"],
   ["fea18", "FEA18"],
   ["fea 20", "FEA20"],
   ["fea20", "FEA20"],
   ["פיאה 13", "FEA13"],
   ["פיאה 15", "FEA15"],
+  ["פיאה 17", "FEA17"],
   ["פיאה 18", "FEA18"],
   ["פיאה 20", "FEA20"],
 ];
@@ -470,7 +473,7 @@ export function interpretUtterance(input: string, ctx: InterpretContext): Interp
   if (measure) {
     const mm = Number(measure[1]);
     const part = variantPart(uniqueParts[0], ctx.selected && ctx.selected !== "liquid" ? ctx.selected : "bottle");
-    if ([13, 15, 18, 20].includes(mm) && (uniqueParts.includes("collar") || text.includes("fea") || text.includes("צוואר") || text.includes("קוטר") || text.includes("diameter"))) {
+    if ([13, 15, 17, 18, 20].includes(mm) && (uniqueParts.includes("collar") || text.includes("fea") || text.includes("צוואר") || text.includes("קוטר") || text.includes("diameter"))) {
       commands.push({ type: "neck", neck: `FEA${mm}` as NeckId });
     } else if (text.includes("רוחב") || text.includes("width")) commands.push({ type: "size", part, axis: "width", mm });
     else if (text.includes("עומק") || text.includes("depth")) commands.push({ type: "size", part, axis: "depth", mm });

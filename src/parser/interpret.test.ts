@@ -56,6 +56,13 @@ describe("catalog", () => {
     expect(fit.collarOuter * 2).toBeCloseTo(16.3, 2);
     expect(fit.collarHeight).toBeGreaterThanOrEqual(5.5);
     expect(fit.collarHeight).toBeLessThanOrEqual(7.9);
+    expect(NECKS.FEA13.ferrule).toEqual({ innerMm: 13.35, outerMm: 14.3, heightMinMm: 4.7, heightMaxMm: 7.1 });
+    expect(NECKS.FEA17.ferrule).toEqual({ innerMm: 16.9, outerMm: 17.9, heightMinMm: 5.9, heightMaxMm: 8.3 });
+    expect(NECKS.FEA18.ferrule).toEqual({ innerMm: 18.6, outerMm: 19.6, heightMinMm: 5.5, heightMaxMm: 8.3 });
+    expect(NECKS.FEA20.ferrule).toEqual({ innerMm: 20.1, outerMm: 21.1, heightMinMm: 5.6, heightMaxMm: 9.0 });
+    expect(BOTTLES.find((b) => b.id === "cube-50")).toMatchObject({ heightMm: 54.9, widthMm: 46, depthMm: 46, neck: "FEA15" });
+    expect(BOTTLES.find((b) => b.id === "linton-100")).toMatchObject({ heightMm: 135, widthMm: 59, depthMm: 29.3, neck: "FEA15" });
+    expect(createDefaultDesign().cap).toMatchObject({ variantId: "cap-cube-tall", heightMm: 34.5, widthMm: 30, finish: "gold" });
   });
 });
 

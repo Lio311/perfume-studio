@@ -3,7 +3,7 @@ import type { Design, VariantPart } from "./types.ts";
 
 export function createDefaultDesign(): Design {
   const bottle = bottleById("cara-50");
-  const cap = capById("cap-cyl-32");
+  const cap = capById("cap-cube-tall");
   const box = boxById("box-rigid");
   return {
     bottle: {
@@ -18,30 +18,30 @@ export function createDefaultDesign(): Design {
     },
     cap: {
       variantId: cap.id,
-      finish: "matteBlack",
-      color: "#141414",
-      heightMm: cap.heightMm,
-      widthMm: cap.widthMm,
+      finish: "gold",
+      color: "#D6B26A",
+      heightMm: 34.5,
+      widthMm: 30,
       visible: true,
     },
     label: {
       variantId: "lg-foil-diamond",
       finish: "gold",
-      color: "#d4b48a",
-      text: "Nº 01",
+      color: "#D6B26A",
+      text: "OUD",
       scale: 1,
       visible: true,
     },
     pump: {
       variantId: "pump-crimp",
-      finish: "silver",
-      color: "#d5d8de",
+      finish: "gold",
+      color: "#D6B26A",
       visible: true,
     },
     collar: {
       variantId: "col-crimp",
       finish: "gold",
-      color: "#d4b48a",
+      color: "#D6B26A",
       visible: true,
     },
     box: {
@@ -55,7 +55,7 @@ export function createDefaultDesign(): Design {
       visible: true,
     },
     liquid: {
-      color: "#e2a24a",
+      color: "#c98a2b",
       fill: 0.78,
       visible: true,
     },

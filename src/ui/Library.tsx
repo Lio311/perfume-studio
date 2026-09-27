@@ -20,7 +20,7 @@ export function Library() {
   const setModal = useLab((s) => s.setModal);
   const randomize = useLab((s) => s.randomize);
   const removePending = useLab((s) => s.removePending);
-  const [tab, setTab] = useState<(typeof TABS)[number]>("bottle");
+  const [tab, setTab] = useState<(typeof TABS)[number]>("cap");
   const [query, setQuery] = useState("");
 
   const items = useMemo(() => {
@@ -100,7 +100,7 @@ export function Library() {
         </div>
       )}
       <button type="button" className="upload-btn" onClick={() => setModal("upload")}>
-        {t.upload}
+        {t.addPart}
       </button>
     </aside>
   );

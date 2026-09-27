@@ -1,6 +1,6 @@
 export type Lang = "he" | "en";
 
-export type NeckId = "FEA13" | "FEA15" | "FEA18" | "FEA20";
+export type NeckId = "FEA13" | "FEA15" | "FEA17" | "FEA18" | "FEA20";
 
 export type SectionKind =
   | "circle"

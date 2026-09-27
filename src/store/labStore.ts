@@ -121,7 +121,7 @@ function seeds(): SavedDesign[] {
   applyVariant(noir, "box", "box-magnetic");
   applyLook(noir, LOOKS[2]);
   return [
-    { id: "seed-atelier", name: "קארה · אטלייה", design: atelier, thumb: "", createdAt: 1 },
+    { id: "seed-atelier", name: "OUD NOIR", design: atelier, thumb: "", createdAt: 1 },
     { id: "seed-blush", name: "פלקון · סומק", design: blush, thumb: "", createdAt: 2 },
     { id: "seed-noir", name: "יהלום · נואר", design: noir, thumb: "", createdAt: 3 },
   ];
@@ -204,7 +204,7 @@ function applyOne(design: Design, command: LabCommand, ui: { explode: number; mo
       design.label.text = command.text.slice(0, 32);
       break;
     case "explode":
-      ui.explode = command.value ? 1 : 0;
+      ui.explode = command.value ? 0.72 : 0;
       ui.mode = command.value ? "explode" : ui.mode === "explode" ? "assemble" : ui.mode;
       break;
     case "rotate":
@@ -238,10 +238,10 @@ export const useLab = create<LabState>()(
   persist(
     (set, get) => ({
       design: createDefaultDesign(),
-      selected: "bottle",
+      selected: "cap",
       hovered: null,
       mode: "explode",
-      explode: 1,
+      explode: 0.72,
       viewPreset: "home",
       past: [],
       future: [],
@@ -252,7 +252,7 @@ export const useLab = create<LabState>()(
       theme: "dark",
       lang: "he",
       libraryOpen: false,
-      sideOpen: false,
+      sideOpen: true,
       modal: null,
       chat: [],
       saved: seeds(),
@@ -307,7 +307,7 @@ export const useLab = create<LabState>()(
       setMode: (mode) =>
         set(() => {
           if (mode === "assemble") return { mode, explode: 0 };
-          if (mode === "explode") return { mode, explode: 1 };
+          if (mode === "explode") return { mode, explode: 0.72 };
           return { mode };
         }),
       setExplode: (amount) =>
@@ -373,7 +373,14 @@ export const useLab = create<LabState>()(
     }),
     {
       name: "perfume-lab-v1",
-      version: 1,
+      version: 2,
+      migrate: (persisted, version) => {
+        const state = persisted as { design?: Design };
+        if (version < 2 && state.design?.cap.variantId === "cap-cyl-32" && state.design.label.text === "Nº 01") {
+          state.design = createDefaultDesign();
+        }
+        return state;
+      },
       partialize: (state) => ({
         design: state.design,
         theme: state.theme,

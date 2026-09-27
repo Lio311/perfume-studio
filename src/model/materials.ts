@@ -11,7 +11,7 @@ export const FINISHES: FinishDef[] = [
   { id: "clear", name: { he: "זכוכית שקופה", en: "Clear glass" }, color: "#f4f0e8", group: "glass" },
   { id: "frosted", name: { he: "זכוכית חלבית", en: "Frosted" }, color: "#f2f2f0", group: "glass" },
   { id: "tinted", name: { he: "זכוכית כהה", en: "Tinted" }, color: "#6e857c", group: "glass" },
-  { id: "gold", name: { he: "זהב", en: "Gold" }, color: "#d4b48a", group: "metal" },
+  { id: "gold", name: { he: "זהב", en: "Gold" }, color: "#D6B26A", group: "metal" },
   { id: "silver", name: { he: "כסף", en: "Silver" }, color: "#d5d8de", group: "metal" },
   { id: "rose", name: { he: "רוז גולד", en: "Rose gold" }, color: "#e4b7ae", group: "metal" },
   { id: "matteBlack", name: { he: "שחור מט", en: "Matte black" }, color: "#141414", group: "solid" },

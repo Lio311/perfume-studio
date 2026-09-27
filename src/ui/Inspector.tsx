@@ -24,7 +24,7 @@ export function Inspector() {
   const neckLabel = design.bottle.neck.replace("FEA", "FEA ");
   const badge = !part || part === "liquid" || part === "label" || part === "box"
     ? ""
-    : lang === "he" ? `${t.fitBadge} ${neckLabel}` : `${neckLabel} ${t.fitBadge}`;
+    : `✓ ${t.fitOk} ${neckLabel}`;
 
   return (
     <section className={`panel props ${open ? "is-open" : ""}`} dir={lang === "he" ? "rtl" : "ltr"}>
@@ -35,7 +35,7 @@ export function Inspector() {
       {!part && <p className="empty">{t.emptySelect}</p>}
       {part && (
         <>
-          {badge && <div className="badge" dir="ltr">{badge}</div>}
+          {badge && <div className="badge is-fit" dir="ltr">{badge}</div>}
           <div className="part-title">
             <div>
               <span className="eyebrow">{partLabel[lang][part]}</span>
@@ -85,9 +85,13 @@ export function Inspector() {
                   </button>
                 ))}
               </div>
-              <Slider label={t.width} value={design.bottle.widthMm} min={26} max={96} onGesture={beginGesture} onGestureEnd={endGesture} onChange={(widthMm) => patch("bottle", { widthMm })} />
-              <Slider label={t.depth} value={design.bottle.depthMm} min={20} max={90} onGesture={beginGesture} onGestureEnd={endGesture} onChange={(depthMm) => patch("bottle", { depthMm })} />
-              <Slider label={t.height} value={design.bottle.heightMm} min={48} max={180} onGesture={beginGesture} onGestureEnd={endGesture} onChange={(heightMm) => patch("bottle", { heightMm })} />
+              <DimFields
+                fields={[
+                  { label: t.width, value: design.bottle.widthMm, min: 26, max: 96, onChange: (widthMm) => patch("bottle", { widthMm }) },
+                  { label: t.depth, value: design.bottle.depthMm, min: 20, max: 90, onChange: (depthMm) => patch("bottle", { depthMm }) },
+                  { label: t.height, value: design.bottle.heightMm, min: 48, max: 180, onChange: (heightMm) => patch("bottle", { heightMm }) },
+                ]}
+              />
               <Slider
                 label={t.scale}
                 value={ratio(design.bottle.heightMm, bottleById(design.bottle.variantId).heightMm) * 100}
@@ -117,9 +121,13 @@ export function Inspector() {
           {part === "cap" && (
             <>
               <p className="hint">{t.snap}</p>
-              <Slider label={t.width} value={design.cap.widthMm} min={16} max={48} onGesture={beginGesture} onGestureEnd={endGesture} onChange={(widthMm) => patch("cap", { widthMm })} />
-              <Slider label={t.depth} value={fit.capD} min={16} max={48} onGesture={beginGesture} onGestureEnd={endGesture} onChange={(depthMm) => patch("cap", { widthMm: depthMm * (design.cap.widthMm / Math.max(1, fit.capD)) })} />
-              <Slider label={t.height} value={design.cap.heightMm} min={10} max={78} onGesture={beginGesture} onGestureEnd={endGesture} onChange={(heightMm) => patch("cap", { heightMm })} />
+              <DimFields
+                fields={[
+                  { label: t.width, value: design.cap.widthMm, min: 16, max: 48, onChange: (widthMm) => patch("cap", { widthMm }) },
+                  { label: t.depth, value: fit.capD, min: 16, max: 48, onChange: (depthMm) => patch("cap", { widthMm: depthMm * (design.cap.widthMm / Math.max(1, fit.capD)) }) },
+                  { label: t.height, value: design.cap.heightMm, min: 10, max: 78, onChange: (heightMm) => patch("cap", { heightMm }) },
+                ]}
+              />
               <Slider
                 label={t.scale}
                 value={ratio(design.cap.heightMm, capById(design.cap.variantId).heightMm) * 100}
@@ -173,15 +181,47 @@ export function Inspector() {
             <Slider label={t.fill} value={design.liquid.fill * 100} min={5} max={95} suffix="%" onGesture={beginGesture} onGestureEnd={endGesture} onChange={(value) => patch("liquid", { fill: value / 100 })} />
           )}
           <div className="part-actions">
-            {part !== "liquid" && <button type="button" onClick={() => cycle(1, part)}>{t.replace}</button>}
-            <button type="button" onClick={() => duplicateDesign()}>{t.duplicate}</button>
-            <button type="button" onClick={() => patch(part, { visible: !design[part].visible })}>
-              {design[part].visible ? t.remove : t.show}
+            {part !== "liquid" && <button type="button" onClick={() => cycle(1, part)}>⇄ {t.replace}</button>}
+            <button type="button" onClick={() => duplicateDesign()}>⧉ {t.duplicate}</button>
+            <button type="button" className={design[part].visible ? "is-danger" : ""} onClick={() => patch(part, { visible: !design[part].visible })}>
+              {design[part].visible ? `✕ ${t.remove}` : t.show}
             </button>
           </div>
         </>
       )}
     </section>
+  );
+}
+
+function DimFields({
+  fields,
+}: {
+  fields: Array<{ label: string; value: number; min: number; max: number; onChange: (value: number) => void }>;
+}) {
+  const beginGesture = useLab((s) => s.beginGesture);
+  const endGesture = useLab((s) => s.endGesture);
+  return (
+    <div className="dim-grid">
+      {fields.map((field) => (
+        <label key={field.label}>
+          <span>{field.label}</span>
+          <input
+            type="number"
+            dir="ltr"
+            min={field.min}
+            max={field.max}
+            step={0.1}
+            value={Number(field.value.toFixed(1))}
+            onFocus={beginGesture}
+            onBlur={endGesture}
+            onChange={(event) => {
+              const next = Number(event.target.value);
+              if (Number.isFinite(next)) field.onChange(Math.min(field.max, Math.max(field.min, next)));
+            }}
+          />
+        </label>
+      ))}
+    </div>
   );
 }
 

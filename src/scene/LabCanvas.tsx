@@ -205,12 +205,29 @@ function Stage() {
         fadeStrength={1.35}
         infiniteGrid
       />
-      {[32, 58, 92, 132].map((radius) => (
-        <mesh key={radius} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.12, 0]}>
-          <ringGeometry args={[radius - 0.28, radius, 96]} />
-          <meshBasicMaterial color={theme.id === "dark" ? "#8eb8c2" : "#c4b49a"} transparent opacity={theme.id === "dark" ? 0.22 : 0.22} depthWrite={false} />
-        </mesh>
-      ))}
+      {theme.id === "dark" ? (
+        <>
+          <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.08, 0]}>
+            <circleGeometry args={[46, 64]} />
+            <meshBasicMaterial color="#5EE7FF" transparent opacity={0.045} depthWrite={false} />
+          </mesh>
+          <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.14, 0]}>
+            <ringGeometry args={[57.2, 58.4, 96]} />
+            <meshBasicMaterial color="#5EE7FF" transparent opacity={0.38} depthWrite={false} />
+          </mesh>
+          <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.16, 0]}>
+            <ringGeometry args={[69.2, 70.6, 96]} />
+            <meshBasicMaterial color="#D6B26A" transparent opacity={0.32} depthWrite={false} />
+          </mesh>
+        </>
+      ) : (
+        [48, 78].map((radius) => (
+          <mesh key={radius} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.12, 0]}>
+            <ringGeometry args={[radius - 0.4, radius, 96]} />
+            <meshBasicMaterial color="#c4b49a" transparent opacity={0.28} depthWrite={false} />
+          </mesh>
+        ))
+      )}
       <Assembly />
       <CameraRig />
       <EffectComposer enableNormalPass={false} multisampling={0}>

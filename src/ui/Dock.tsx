@@ -1,11 +1,11 @@
 import { tx } from "../i18n/copy.ts";
 import { useLab, type ViewPreset } from "../store/labStore.ts";
 
-const PRESETS: Array<{ id: ViewPreset; key: "presetFront" | "presetThree" | "presetTop" | "presetSide" }> = [
+const PRESETS: Array<{ id: ViewPreset; key: "preset360" | "presetFront" | "presetSide" | "presetTop" }> = [
+  { id: "home", key: "preset360" },
   { id: "front", key: "presetFront" },
-  { id: "three", key: "presetThree" },
-  { id: "top", key: "presetTop" },
   { id: "side", key: "presetSide" },
+  { id: "top", key: "presetTop" },
 ];
 
 export function Dock() {
@@ -18,6 +18,7 @@ export function Dock() {
   return (
     <div className="dock" dir={lang === "he" ? "rtl" : "ltr"}>
       <span className="dock-label">{t.explode}</span>
+      <bdi className="dock-pct" dir="ltr">{Math.round(explode * 100)}%</bdi>
       <input
         type="range"
         min={0}
