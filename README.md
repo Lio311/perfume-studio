@@ -15,6 +15,14 @@ npm run dev
 
 Open http://127.0.0.1:4327
 
+Three voice variants share this lab. Switch them in the top bar, or open them directly:
+
+- [Voice Assistant](http://127.0.0.1:4327/?voice=1) — hold the mic (or Space). Hebrew speech-to-text shows live, commands use the chat parser, and the assistant speaks a short Hebrew confirmation.
+- [Hands-free Lab](http://127.0.0.1:4327/?voice=2) — say «מעבדה» or “Lab”, then the command. A full-width waveform follows the microphone, replies are spoken, and Tour narrates each part as the bottle opens.
+- [Sonic UI](http://127.0.0.1:4327/?voice=3) — hover ticks, clicks, an explode whoosh, an assemble snap, and glass, metal, and wood sounds, plus a lab hum with mute. The chat mic stays as a secondary input.
+
+Speech uses the browser Web Speech API (`he-IL` and `en-US`) and Web Audio. No API key.
+
 ```bash
 npm test
 npm run build
@@ -27,7 +35,7 @@ npm run build
 - Logos are procedural monograms, geometric marks, and type. Type a brand name on the label. Hebrew text uses Heebo.
 - Search the library, use the arrows in the properties panel, or press Left / Right to cycle the selected slot. E explodes, 0 resets the camera, Escape clears the selection.
 - Orbit freely on every axis, zoom, and pan. Explode separates the parts and puts them back.
-- Chat accepts Hebrew and English, including `פקק הבא` and `next cap`. The mic button uses the browser speech API (`he-IL` / `en-US`) when the browser provides it.
+- Chat accepts Hebrew and English, including `פקק הבא` and `next cap`. Voice variants 1 and 2 speak the reply. Variant 3 keeps a secondary mic in the chat.
 - Save named designs in this browser, compare up to three, and export a PNG.
 - Upload catalog photos or a PDF as a pending part. That stores the files only. It does not build a 3D model.
 

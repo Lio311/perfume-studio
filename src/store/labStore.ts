@@ -11,6 +11,7 @@ import type { Design, FinishId, NeckId, PartKey, VariantPart } from "../model/ty
 import type { ThemeId } from "../theme/themes.ts";
 import type { Lang } from "../model/types.ts";
 import type { LabCommand } from "../parser/interpret.ts";
+import { parseVoiceParam, readVoiceParam, type VoiceVariant } from "../audio/wake.ts";
 
 export type LabMode = "assemble" | "explode" | "dimensions" | "compare";
 export type ViewPreset = "home" | "front" | "three" | "top" | "side";
@@ -70,6 +71,8 @@ interface LabState {
   saved: SavedDesign[];
   pending: PendingPart[];
   compareIds: string[];
+  voice: VoiceVariant;
+  soundOn: boolean;
   select: (part: PartKey | null) => void;
   hover: (part: PartKey | null, x?: number, y?: number) => void;
   patch: (part: PartKey, partial: Record<string, unknown>) => void;
@@ -99,6 +102,9 @@ interface LabState {
   toggleCompare: (id: string) => void;
   addPending: (part: PendingPart) => void;
   removePending: (id: string) => void;
+  setVoice: (voice: VoiceVariant) => void;
+  setSoundOn: (on: boolean) => void;
+  applyVoiceParam: (value: string | null) => void;
 }
 
 function uid(prefix: string): string {
@@ -258,6 +264,8 @@ export const useLab = create<LabState>()(
       saved: seeds(),
       pending: [],
       compareIds: ["seed-atelier", "seed-blush", "seed-noir"],
+      voice: readVoiceParam(),
+      soundOn: true,
       select: (part) => set((state) => ({ selected: part, focusToken: part ? state.focusToken + 1 : state.focusToken, sideOpen: part ? true : state.sideOpen })),
       hover: (part, x = 0, y = 0) => set({ hovered: part ? { part, x, y } : null }),
       patch: (part, partial) =>
@@ -370,6 +378,16 @@ export const useLab = create<LabState>()(
         }),
       addPending: (part) => set((state) => ({ pending: [part, ...state.pending].slice(0, 30), modal: null })),
       removePending: (id) => set((state) => ({ pending: state.pending.filter((item) => item.id !== id) })),
+      setVoice: (voice) => {
+        if (typeof location !== "undefined" && typeof history !== "undefined") {
+          const url = new URL(location.href);
+          url.searchParams.set("voice", String(voice));
+          history.replaceState(null, "", url);
+        }
+        set({ voice });
+      },
+      setSoundOn: (soundOn) => set({ soundOn }),
+      applyVoiceParam: (value: string | null) => set({ voice: parseVoiceParam(value) }),
     }),
     {
       name: "perfume-lab-v1",

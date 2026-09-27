@@ -5,6 +5,7 @@ import { estimateMl } from "../model/design.ts";
 import { requestShot } from "../scene/capture.ts";
 import { useLab, type LabMode } from "../store/labStore.ts";
 import { downloadSpec } from "./specSheet.ts";
+import { VoiceSwitch } from "./VoiceSwitch.tsx";
 
 const MODES: LabMode[] = ["assemble", "explode", "dimensions", "compare"];
 
@@ -76,6 +77,7 @@ export function TopBar() {
           </button>
         ))}
       </div>
+      <VoiceSwitch />
       <div className="top-cluster">
         <button type="button" className="icon-btn" onClick={() => undo()} disabled={past === 0}>{t.undo}</button>
         <button type="button" className="icon-btn" onClick={() => redo()} disabled={future === 0}>{t.redo}</button>

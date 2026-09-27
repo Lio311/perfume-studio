@@ -94,8 +94,9 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 .topbar {
   grid-column: 1 / -1;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 18px;
+  gap: 12px;
   min-height: 64px;
   padding: 8px 16px;
   background: linear-gradient(180deg, var(--panel), transparent);
@@ -303,6 +304,23 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 
 .modes { display: flex; gap: 2px; padding: 3px; border-radius: 999px; border: 1px solid var(--line); background: rgba(0, 0, 0, 0.22); }
 .modes button { border: 0; padding: 7px 11px; font-size: 12.5px; color: var(--muted); }
+.voice-switch {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: rgba(0, 0, 0, 0.22);
+}
+.voice-switch button {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  border-radius: 999px;
+  padding: 6px 9px;
+  font-size: 12px;
+}
+.voice-switch button.is-on { background: var(--accent); color: var(--on-accent); font-weight: 600; }
 .icon-btn { padding: 7px 10px; font-size: 12px; }
 .icon-btn:disabled { opacity: 0.35; cursor: default; }
 .top-cluster { display: flex; align-items: center; gap: 8px; margin-inline-start: auto; }
@@ -514,6 +532,117 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   .thumb-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .topbar { flex-wrap: wrap; }
   .dock { min-width: 0; width: calc(100% - 8px); }
+}
+
+.app[data-voice="2"] .chrome { padding-bottom: 68px; }
+
+.voice-assistant, .hands-free, .sonic-bar { pointer-events: auto; z-index: 4; }
+.voice-assistant, .orb-stack {
+  position: absolute;
+  left: 50%;
+  bottom: 74px;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.hands-free { position: static; }
+.live-caption {
+  margin: 0;
+  max-width: min(440px, 80vw);
+  text-align: center;
+  padding: 7px 12px;
+  border-radius: 999px;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  font-size: 13px;
+  line-height: 1.35;
+}
+.ptt {
+  width: 84px;
+  height: 84px;
+  border-radius: 50%;
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  background: radial-gradient(circle at 40% 35%, rgba(214, 178, 106, 0.38), rgba(8, 10, 16, 0.88) 64%);
+  box-shadow: 0 0 0 8px rgba(214, 178, 106, 0.08), var(--shadow);
+}
+.ptt.is-hot {
+  color: var(--on-accent);
+  background: var(--accent);
+  box-shadow: 0 0 0 12px rgba(214, 178, 106, 0.2);
+}
+.ptt-core {
+  display: block;
+  width: 16px;
+  height: 24px;
+  margin: 0 auto;
+  border: 2px solid currentColor;
+  border-radius: 10px;
+  position: relative;
+}
+.ptt-core::after {
+  content: "";
+  position: absolute;
+  left: 2px;
+  right: 2px;
+  bottom: -7px;
+  height: 7px;
+  border: 2px solid currentColor;
+  border-top: 0;
+  border-radius: 0 0 8px 8px;
+}
+.ptt-hint { color: var(--muted); font-size: 11px; letter-spacing: 0.04em; }
+.voice-wave {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  height: 56px;
+  z-index: 3;
+  pointer-events: none;
+  background: linear-gradient(180deg, transparent, rgba(6, 7, 11, 0.72));
+}
+.orb {
+  width: 86px;
+  height: 86px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 38% 32%, #f6edd8, #D6B26A 46%, #141109 74%);
+  box-shadow: 0 0 28px rgba(214, 178, 106, 0.35), inset 0 0 0 1px rgba(255, 248, 236, 0.35);
+}
+.orb.is-live { box-shadow: 0 0 36px rgba(94, 231, 255, 0.28), 0 0 28px rgba(214, 178, 106, 0.45); }
+.orb-actions { display: flex; gap: 8px; }
+.orb-actions .is-on { border-color: var(--accent); color: var(--accent-2); }
+.sonic-bar {
+  position: absolute;
+  top: 34px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  align-items: center;
+  width: max-content;
+  max-width: calc(100% - 16px);
+  padding: 6px 10px;
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  backdrop-filter: blur(16px);
+}
+.sonic-hum, .sonic-note { color: var(--muted); font-size: 12px; }
+.sonic-marks {
+  font-family: var(--num);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent-2);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 3px 8px;
 }
 
 @media (prefers-reduced-motion: reduce) {

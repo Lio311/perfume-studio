@@ -1,18 +1,17 @@
 import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { CHIPS, tx } from "../i18n/copy.ts";
-import { interpretCommand } from "../parser/interpreter.ts";
+import { submitUtterance } from "../audio/command.ts";
+import { recognitionCtor, transcriptOf } from "../audio/speech.ts";
 import { useLab } from "../store/labStore.ts";
 
 export function ChatPanel() {
   const lang = useLab((s) => s.lang);
   const t = tx(lang);
   const chat = useLab((s) => s.chat);
-  const design = useLab((s) => s.design);
-  const selected = useLab((s) => s.selected);
   const pushChat = useLab((s) => s.pushChat);
-  const applyCommands = useLab((s) => s.applyCommands);
   const restoreDesign = useLab((s) => s.restoreDesign);
+  const voice = useLab((s) => s.voice);
   const [text, setText] = useState("");
   const [listening, setListening] = useState(false);
 
@@ -20,41 +19,32 @@ export function ChatPanel() {
     const utterance = value.trim();
     if (!utterance) return;
     setText("");
-    const snapshot = structuredClone(design);
-    pushChat({ id: `u-${Date.now()}`, role: "user", text: utterance });
-    const result = await interpretCommand(utterance, {
-      lang,
-      selected,
-      bottleId: design.bottle.variantId,
-      capId: design.cap.variantId,
-      labelId: design.label.variantId,
-      pumpId: design.pump.variantId,
-      collarId: design.collar.variantId,
-      boxId: design.box.variantId,
-    });
-    applyCommands(result.commands);
-    pushChat({ id: `l-${Date.now()}`, role: "lab", he: result.reply.he, en: result.reply.en, snapshot });
+    await submitUtterance(utterance, { speak: voice === 1 || voice === 2, hebrew: voice === 1 });
   }
 
   function listen() {
-    const ctor = (window as unknown as { SpeechRecognition?: new () => SpeechRec; webkitSpeechRecognition?: new () => SpeechRec }).SpeechRecognition
-      ?? (window as unknown as { webkitSpeechRecognition?: new () => SpeechRec }).webkitSpeechRecognition;
-    if (!ctor) {
+    const Ctor = recognitionCtor();
+    if (!Ctor) {
       pushChat({ id: `l-${Date.now()}`, role: "lab", he: t.voiceUnsupported, en: t.voiceUnsupported });
       return;
     }
-    const rec = new ctor();
+    const rec = new Ctor();
     rec.lang = lang === "he" ? "he-IL" : "en-US";
-    rec.interimResults = false;
+    rec.interimResults = true;
+    rec.continuous = false;
     rec.onresult = (event) => {
-      const transcript = event.results[0]?.[0]?.transcript ?? "";
+      const transcript = transcriptOf(event, 0, true) || transcriptOf(event);
       setListening(false);
       if (transcript) void submit(transcript);
     };
     rec.onerror = () => setListening(false);
     rec.onend = () => setListening(false);
     setListening(true);
-    rec.start();
+    try {
+      rec.start();
+    } catch {
+      setListening(false);
+    }
   }
 
   return (
@@ -94,21 +84,14 @@ export function ChatPanel() {
           void submit(text);
         }}
       >
-        <button type="button" className={listening ? "mic is-on" : "mic"} onClick={listen} aria-label={t.listening}>
-          {listening ? "●" : "🎙"}
-        </button>
+        {voice === 3 && (
+          <button type="button" className={listening ? "mic is-on" : "mic"} onClick={listen} aria-label={t.sonicNote}>
+            {listening ? "●" : "🎙"}
+          </button>
+        )}
         <input value={text} onChange={(event) => setText(event.target.value)} placeholder={t.chatPlaceholder} />
         <button type="submit">{t.send}</button>
       </form>
     </section>
   );
-}
-
-interface SpeechRec {
-  lang: string;
-  interimResults: boolean;
-  start: () => void;
-  onresult: ((event: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void) | null;
-  onerror: (() => void) | null;
-  onend: (() => void) | null;
 }

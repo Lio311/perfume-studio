@@ -10,6 +10,10 @@ import { ChatPanel } from "./ui/ChatPanel.tsx";
 import { Dock } from "./ui/Dock.tsx";
 import { CompareBoard } from "./ui/CompareBoard.tsx";
 import { Modals } from "./ui/Modals.tsx";
+import { VoiceAssistant } from "./ui/VoiceAssistant.tsx";
+import { HandsFree } from "./ui/HandsFree.tsx";
+import { SonicLayer } from "./ui/SonicLayer.tsx";
+import { stopSpeaking } from "./audio/speech.ts";
 
 export default function App() {
   const theme = useLab((s) => s.theme);
@@ -17,6 +21,7 @@ export default function App() {
   const sideOpen = useLab((s) => s.sideOpen);
   const hovered = useLab((s) => s.hovered);
   const mode = useLab((s) => s.mode);
+  const voice = useLab((s) => s.voice);
   const t = tx(lang);
   const cycle = useLab((s) => s.cycle);
   const setMode = useLab((s) => s.setMode);
@@ -29,6 +34,17 @@ export default function App() {
   useEffect(() => {
     applyTheme(theme);
   }, [theme]);
+
+  useEffect(() => {
+    const sync = () => {
+      const value = new URLSearchParams(location.search).get("voice");
+      useLab.getState().applyVoiceParam(value);
+    };
+    window.addEventListener("popstate", sync);
+    return () => window.removeEventListener("popstate", sync);
+  }, []);
+
+  useEffect(() => () => stopSpeaking(), [voice]);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -59,7 +75,7 @@ export default function App() {
   }, [cycle, lang, mode, redo, resetView, select, setModal, setMode, undo]);
 
   return (
-    <div className="app">
+    <div className="app" data-voice={voice}>
       <LabCanvas />
       <div className="vignette" />
       <div className="chrome">
@@ -74,6 +90,9 @@ export default function App() {
             {t.hintClick}
           </p>
           {mode === "compare" && <CompareBoard />}
+          {voice === 1 && <VoiceAssistant />}
+          {voice === 2 && <HandsFree />}
+          {voice === 3 && <SonicLayer />}
           <Dock />
         </div>
         <div className={`side-col ${sideOpen ? "is-open" : ""}`}>
