@@ -1,7 +1,6 @@
-import { useContext, useEffect, useMemo, useRef, useState } from "react";
-import { useFrame } from "@react-three/fiber";
-import { Bloom, DepthOfField, EffectComposer, Glitch, Scanline, Vignette } from "@react-three/postprocessing";
-import { GlitchMode } from "postprocessing";
+import { Component, useContext, useMemo, useRef, useState, type ReactNode } from "react";
+import { useFrame, useThree } from "@react-three/fiber";
+import { Bloom, DepthOfField, EffectComposer, Scanline, Vignette } from "@react-three/postprocessing";
 import * as THREE from "three";
 import { useLab } from "../store/labStore.ts";
 import { computeFit } from "../model/fit.ts";
@@ -189,29 +188,60 @@ export function MinimalRing() {
   );
 }
 
-export function useSwapPulse(enabled: boolean): boolean {
-  const design = useLab((s) => s.design);
-  const sig = `${design.bottle.variantId}|${design.cap.variantId}|${design.pump.variantId}|${design.collar.variantId}|${design.label.variantId}|${design.box.variantId}`;
-  const seen = useRef(sig);
-  const [pulse, setPulse] = useState(false);
-  useEffect(() => {
-    if (!enabled) {
-      seen.current = sig;
-      return;
-    }
-    if (seen.current === sig) return;
-    seen.current = sig;
-    setPulse(true);
-    const timer = window.setTimeout(() => setPulse(false), 420);
-    return () => window.clearTimeout(timer);
-  }, [enabled, sig]);
-  return pulse;
+class GradeBoundary extends Component<{ children: ReactNode; onFail: () => void }, { dead: boolean }> {
+  state = { dead: false };
+  static getDerivedStateFromError(): { dead: boolean } {
+    return { dead: true };
+  }
+  componentDidCatch(): void {
+    this.props.onFail();
+  }
+  render(): ReactNode {
+    return this.state.dead ? null : this.props.children;
+  }
 }
 
-export function VoiceGrade() {
+function GradeWatch({ onFail }: { onFail: () => void }) {
+  const voice = useLab((s) => s.voice);
+  const gl = useThree((s) => s.gl);
+  const frames = useRef(0);
+  const done = useRef(false);
+  useFrame(() => {
+    if (done.current || voice !== 3) return;
+    frames.current += 1;
+    if (frames.current < 28) return;
+    done.current = true;
+    const ctx = gl.getContext();
+    const width = ctx.drawingBufferWidth;
+    const height = ctx.drawingBufferHeight;
+    if (width < 2 || height < 2) return;
+    const pixel = new Uint8Array(4);
+    let brightest = 0;
+    const samples: Array<[number, number]> = [
+      [0.5, 0.58],
+      [0.5, 0.46],
+      [0.44, 0.52],
+      [0.6, 0.52],
+      [0.5, 0.7],
+      [0.36, 0.4],
+    ];
+    try {
+      for (const [fx, fy] of samples) {
+        ctx.readPixels(Math.floor(width * fx), Math.floor(height * fy), 1, 1, ctx.RGBA, ctx.UNSIGNED_BYTE, pixel);
+        brightest = Math.max(brightest, pixel[0] + pixel[1] + pixel[2]);
+      }
+    } catch {
+      onFail();
+      return;
+    }
+    if (brightest < 8) onFail();
+  }, 2);
+  return null;
+}
+
+function GradePasses() {
   const voice = useLab((s) => s.voice);
   const theme = useLab((s) => s.theme);
-  const pulse = useSwapPulse(voice === 3 && theme === "dark");
   if (theme === "light" || voice === 1) {
     return (
       <EffectComposer enableNormalPass={false} multisampling={0}>
@@ -230,16 +260,21 @@ export function VoiceGrade() {
   }
   return (
     <EffectComposer enableNormalPass={false} multisampling={0}>
-      <Bloom intensity={0.2} luminanceThreshold={0.8} luminanceSmoothing={0.18} mipmapBlur radius={0.32} />
-      <Vignette eskil={false} offset={0.22} darkness={0.78} />
-      <Glitch
-        active={pulse}
-        mode={GlitchMode.CONSTANT}
-        ratio={0.32}
-        strength={[0.04, 0.1]}
-        duration={[0.08, 0.16]}
-        chromaticAberrationOffset={[0.0015, 0.0025]}
-      />
+      <Bloom intensity={0.16} luminanceThreshold={0.82} luminanceSmoothing={0.2} mipmapBlur radius={0.28} />
+      <Vignette eskil={false} offset={0.35} darkness={0.42} />
     </EffectComposer>
+  );
+}
+
+export function VoiceGrade() {
+  const gl = useThree((s) => s.gl);
+  const [off, setOff] = useState(false);
+  if (off || !gl.capabilities.isWebGL2) return null;
+  const fail = () => setOff(true);
+  return (
+    <GradeBoundary onFail={fail}>
+      <GradePasses />
+      <GradeWatch onFail={fail} />
+    </GradeBoundary>
   );
 }

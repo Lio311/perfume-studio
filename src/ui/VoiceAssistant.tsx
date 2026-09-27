@@ -7,7 +7,6 @@ import { useLab } from "../store/labStore.ts";
 export function VoiceAssistant() {
   const lang = useLab((s) => s.lang);
   const t = tx(lang);
-  const chat = useLab((s) => s.chat);
   const [listening, setListening] = useState(false);
   const [live, setLive] = useState("");
   const recRef = useRef<SpeechRec | null>(null);
@@ -88,12 +87,11 @@ export function VoiceAssistant() {
     };
   }, [lang]);
 
-  const last = [...chat].reverse().find((message) => message.role === "lab");
-  const caption = listening ? live || t.listening : live || (last ? (lang === "he" ? last.he : last.en) : t.holdToTalk);
+  const caption = listening ? live || t.listening : live;
 
   return (
     <div className="voice-assistant" data-variant="1">
-      <p className="live-caption" dir={lang === "he" ? "rtl" : "ltr"}>{caption}</p>
+      {caption && <p className="live-caption" dir={lang === "he" ? "rtl" : "ltr"}>{caption}</p>}
       <button
         type="button"
         className={listening ? "ptt is-hot" : "ptt"}
@@ -105,7 +103,6 @@ export function VoiceAssistant() {
       >
         <span className="ptt-core" />
       </button>
-      <span className="ptt-hint">{t.pttHint}</span>
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import { useContext, useEffect, useLayoutEffect, useMemo, useRef, type ReactNode } from "react";
 import { useFrame } from "@react-three/fiber";
-import { Html, Outlines, RoundedBox } from "@react-three/drei";
+import { Outlines, RoundedBox } from "@react-three/drei";
 import * as THREE from "three";
 import { bottleById, boxById, capById, collarById, logoById, pumpById } from "../model/catalog.ts";
 import { computeFit } from "../model/fit.ts";
@@ -9,8 +9,8 @@ import type { BoxForm, PartKey, PumpStyle } from "../model/types.ts";
 import { buildBottleGeometry, buildCapGeometry, curvedPlate } from "../geometry/sweep.ts";
 import { logoTexture } from "../geometry/logos.ts";
 import { useLab } from "../store/labStore.ts";
-import { partLabel } from "../i18n/copy.ts";
 import { FinishMaterial } from "./materials.tsx";
+import { Callouts } from "./Callouts.tsx";
 import { PartGuides } from "./Guides.tsx";
 import { HoloShell } from "./voiceScenery.tsx";
 import { Clock } from "./clock.ts";
@@ -28,7 +28,6 @@ function PartShell({
   explode,
   visible,
   variantKey,
-  size = "",
   children,
 }: {
   part: PartKey;
@@ -37,15 +36,11 @@ function PartShell({
   explode: [number, number, number];
   visible: boolean;
   variantKey: string;
-  size?: string;
   children: ReactNode;
 }) {
   const ref = useRef<THREE.Group>(null);
   const clock = useContext(Clock);
   const pop = useRef(1);
-  const lang = useLab((s) => s.lang);
-  const exploded = useLab((s) => s.explode) > 0.08;
-  const hot = useHot(part);
   const line = useMemo(() => {
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute("position", new THREE.BufferAttribute(new Float32Array(6), 3));
@@ -120,14 +115,6 @@ function PartShell({
     >
       <primitive object={line} />
       {children}
-      {exploded && (
-        <Html position={[0, 10, 0]} center distanceFactor={240} zIndexRange={[12, 0]} style={{ pointerEvents: "none" }}>
-          <div className={`explode-tag ${hot === "selected" ? "is-sel" : ""}`}>
-            <b>{partLabel[lang][part]}</b>
-            {size && <span dir="ltr">{size}</span>}
-          </div>
-        </Html>
-      )}
     </group>
   );
 }
@@ -174,6 +161,7 @@ export function Assembly() {
       <PumpPart />
       <CapPart />
       <PartGuides />
+      <Callouts />
       <HoloShell />
       <pointLight position={[0, 6, 18]} intensity={0.35} color="#e7c48a" distance={90} />
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.15, 0]}>
@@ -230,7 +218,7 @@ function BottlePart() {
     [design.bottle.heightMm, design.bottle.widthMm, design.bottle.depthMm, design.bottle.neck, spec],
   );
   return (
-    <PartShell part="bottle" index={5} home={[0, 0, 0]} explode={[0, 0, 0]} visible={design.bottle.visible} variantKey={spec.id} size={`${design.bottle.widthMm.toFixed(1)}×${design.bottle.depthMm.toFixed(1)}×${design.bottle.heightMm.toFixed(1)}`}>
+    <PartShell part="bottle" index={5} home={[0, 0, 0]} explode={[0, 0, 0]} visible={design.bottle.visible} variantKey={spec.id}>
       <mesh geometry={geo} renderOrder={2}>
         <FinishMaterial finish={design.bottle.finish} color={design.bottle.color} flat={spec.faceted} glass />
         <HotOutline part="bottle" />
@@ -302,7 +290,7 @@ function CapPart() {
   );
   const glass = isGlass(design.cap.finish);
   return (
-    <PartShell part="cap" index={1} home={[0, fit.capBottom, 0]} explode={[0, 62, 0]} visible={design.cap.visible} variantKey={spec.id} size={`${fit.capW.toFixed(1)}×${fit.capH.toFixed(1)}`}>
+    <PartShell part="cap" index={1} home={[0, fit.capBottom, 0]} explode={fit.explode.cap} visible={design.cap.visible} variantKey={spec.id}>
       <mesh geometry={geo}>
         <FinishMaterial finish={design.cap.finish} color={design.cap.color} flat={spec.faceted} glass={glass} />
         <HotOutline part="cap" />
@@ -317,7 +305,7 @@ function CollarPart() {
   const fit = computeFit(design, false);
   const y = fit.collarHeight / 2;
   return (
-    <PartShell part="collar" index={3} home={[0, fit.collarBottom, 0]} explode={[0, 16, 0]} visible={design.collar.visible} variantKey={spec.id + design.bottle.neck} size={`Ø${(fit.collarOuter * 2).toFixed(1)}`}>
+    <PartShell part="collar" index={3} home={[0, fit.collarBottom, 0]} explode={fit.explode.collar} visible={design.collar.visible} variantKey={spec.id + design.bottle.neck}>
       <mesh position={[0, y, 0]}>
         <cylinderGeometry args={[fit.collarOuter, fit.collarOuter - spec.flareMm * 0.15, fit.collarHeight, spec.knurl ? 18 : 48, 1]} />
         <FinishMaterial finish={design.collar.finish} color={design.collar.color} flat={spec.knurl} />
@@ -354,7 +342,7 @@ function PumpPart() {
     return new THREE.TubeGeometry(curve, 28, 0.72, 8, false);
   }, [fit.pumpBase]);
   return (
-    <PartShell part="pump" index={2} home={[0, fit.pumpBase, 0]} explode={[0, 36, 0]} visible={design.pump.visible} variantKey={spec.id} size={`Ø${(fit.actuatorR * 2).toFixed(1)}`}>
+    <PartShell part="pump" index={2} home={[0, fit.pumpBase, 0]} explode={fit.explode.pump} visible={design.pump.visible} variantKey={spec.id}>
       <mesh geometry={tube} position={[0, -1, 0]}>
         <meshPhysicalMaterial color={design.pump.color} metalness={0.55} roughness={0.32} />
       </mesh>
@@ -446,7 +434,7 @@ function LabelPart() {
   }, [spec.plate, fit.labelW, fit.labelH, round, design.bottle.depthMm]);
   const z = spec.plate === "band" && round ? design.bottle.depthMm / 2 + 0.4 : fit.labelZ;
   return (
-    <PartShell part="label" index={4} home={[0, fit.labelY, z]} explode={[0, 0, 42]} visible={design.label.visible} variantKey={spec.id + design.label.text} size={design.label.text}>
+    <PartShell part="label" index={4} home={[0, fit.labelY, z]} explode={fit.explode.label} visible={design.label.visible} variantKey={spec.id + design.label.text}>
       <mesh geometry={plate} renderOrder={3}>
         <meshPhysicalMaterial
           color={design.label.color}
@@ -484,7 +472,7 @@ function BoxPart() {
   const spec = boxById(design.box.variantId);
   const fit = computeFit(design, false);
   return (
-    <PartShell part="box" index={0} home={[fit.boxX, 0, fit.boxZ]} explode={fit.explode.box} visible={design.box.visible} variantKey={spec.id} size={`${fit.boxW.toFixed(0)}×${fit.boxH.toFixed(0)}`}>
+    <PartShell part="box" index={0} home={[fit.boxX, 0, fit.boxZ]} explode={fit.explode.box} visible={design.box.visible} variantKey={spec.id}>
       <BoxFormMesh form={spec.form} w={fit.boxW} h={fit.boxH} d={fit.boxD} finish={design.box.finish} color={design.box.color} />
     </PartShell>
   );

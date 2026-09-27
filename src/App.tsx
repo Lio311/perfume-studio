@@ -10,9 +10,6 @@ import { ChatPanel } from "./ui/ChatPanel.tsx";
 import { Dock } from "./ui/Dock.tsx";
 import { CompareBoard } from "./ui/CompareBoard.tsx";
 import { Modals } from "./ui/Modals.tsx";
-import { VoiceAssistant } from "./ui/VoiceAssistant.tsx";
-import { HandsFree } from "./ui/HandsFree.tsx";
-import { SonicLayer } from "./ui/SonicLayer.tsx";
 import { stopSpeaking } from "./audio/speech.ts";
 
 export default function App() {
@@ -92,9 +89,6 @@ export default function App() {
             {t.hintClick}
           </p>
           {mode === "compare" && <CompareBoard />}
-          {voice === 1 && <VoiceAssistant />}
-          {voice === 2 && <HandsFree />}
-          {voice === 3 && <SonicLayer />}
           <Dock />
         </div>
         <div className={`side-col ${sideOpen ? "is-open" : ""}`}>

@@ -45,8 +45,13 @@ Randomize in the top bar picks a harmonious look from the catalog. The light stu
 
 - One configurator. `?voice=1`, `?voice=2`, and `?voice=3` change the dark look and the voice behaviour. They do not fork the catalog, the fit rules, or the chat parser. With no query, the lab opens on variant 1.
 - Voice colour skins apply only while the theme is dark. The light studio toggle still replaces the stage and the panels.
-- Variant 3 plays one entrance move, from a wide frame into the three-quarter view, when you enter it. After that the camera stays put so orbit, zoom, and pan keep working. Selecting a part still eases the camera in. A continuous orbit was dropped because it fought those controls.
+- The camera fits the whole assembly — bottle, cap, pump, label, and the box — inside the open stage, with room for the leader labels. It refits when the explode amount, the viewport, or the look changes. Dragging the orbit still wins until you release, then a pending refit can run. Variant 3 plays one entrance along that same framing, from further back into the three-quarter view, and then leaves the camera alone.
+- Leader labels sit in the left and right gutters of the stage, with a line back to each part. The selected part's millimetre readout is a separate chip in that gutter, not a second label on the glass.
+- The rigid box stands to the right of the bottle, clear of the glass, slightly behind the front face. Exploding it steps it further right.
+- The mic, the holographic orb, and the cinematic sound controls sit in the bottom dock so they do not cover the bottle.
+- Postprocessing is skipped when the canvas is not WebGL2. If the cinematic grade still presents a black frame, or the effect chain throws, the lab drops the composer and keeps the lit scene. Part swaps in variant 3 use the CSS scan, not a WebGL glitch pass.
 - The holographic depth of field is gentle (`resolutionScale` 0.25) so the bottle stays sharp and the pass stays light. The floor in variant 3 is a metal disc plus a moving grid, not a full-scene mirror, for the same reason.
+- `vite build` writes `dist/` with relative asset paths (`base: './'`), so the folder can be hosted from any static path. A zip of that folder is the portable copy.
 - Cubique 100 ml is not in the catalog. The research table published the square size and not the height.
 - Speech recognition and spoken replies need a browser that exposes the Web Speech API, a microphone, and a click or key before audio can start. There is no cloud speech service and no API key.
 

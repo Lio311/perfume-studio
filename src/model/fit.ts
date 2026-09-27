@@ -94,9 +94,10 @@ export function computeFit(design: Design, exploded = false): Fit {
   const boxW = design.box.linked ? contentW + box.padMm * 2 : design.box.widthMm;
   const boxD = design.box.linked ? contentD + box.padMm * 2 : design.box.depthMm;
   const boxH = design.box.linked ? contentH + box.liftMm : design.box.heightMm;
-  // Beside the bottle, slightly behind, so clear glass does not transmit a black wall.
-  const boxX = -(bottleW / 2 + boxW / 2 + 18);
-  const boxZ = -(bottleD * 0.15 + 8);
+  // Standing on the bottle's right, clear of the glass, slightly behind the front face.
+  const gap = 28;
+  const boxX = bottleW / 2 + boxW / 2 + gap;
+  const boxZ = -(boxD * 0.22 + 4);
 
   const anchors: Record<PartKey, [number, number, number]> = {
     bottle: [0, bottleH * 0.42, 0],
@@ -109,11 +110,11 @@ export function computeFit(design: Design, exploded = false): Fit {
   };
 
   const explode: Record<PartKey, [number, number, number]> = {
-    box: [-36, 0, -24],
+    box: [36, 0, -18],
     cap: [0, 62, 0],
     pump: [0, 36, 0],
     collar: [0, 16, 0],
-    label: [0, 0, 42],
+    label: [-32, 10, 64],
     bottle: [0, 0, 0],
     liquid: [0, 0, 0],
   };

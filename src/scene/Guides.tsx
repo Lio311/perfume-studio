@@ -1,6 +1,6 @@
 import { useContext, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
-import { Html, Line } from "@react-three/drei";
+import { Line } from "@react-three/drei";
 import * as THREE from "three";
 import { computeFit } from "../model/fit.ts";
 import type { PartKey } from "../model/types.ts";
@@ -115,17 +115,8 @@ function Dimensions({ w, h, d }: { w: number; h: number; d: number }) {
   return (
     <>
       <Line points={[[-x, -y - gap, z + 2], [x, -y - gap, z + 2]]} color={GOLD} lineWidth={1} />
-      <Html position={[0, -y - gap - 1, z + 2]} center zIndexRange={[20, 0]} style={{ pointerEvents: "none" }}>
-        <div className="dim-tag"><bdi>{w.toFixed(1)} mm</bdi></div>
-      </Html>
       <Line points={[[x + gap, -y, z], [x + gap, y, z]]} color={GOLD} lineWidth={1} />
-      <Html position={[x + gap + 2, 0, z]} center zIndexRange={[20, 0]} style={{ pointerEvents: "none" }}>
-        <div className="dim-tag"><bdi>{h.toFixed(1)} mm</bdi></div>
-      </Html>
       <Line points={[[-x - gap, -y, -z], [-x - gap, -y, z]]} color={GOLD} lineWidth={1} />
-      <Html position={[-x - gap, -y - 4, 0]} center zIndexRange={[20, 0]} style={{ pointerEvents: "none" }}>
-        <div className="dim-tag"><bdi>{d.toFixed(1)} mm</bdi></div>
-      </Html>
     </>
   );
 }

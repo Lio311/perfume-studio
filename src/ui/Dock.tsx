@@ -1,5 +1,8 @@
 import { tx } from "../i18n/copy.ts";
 import { useLab, type ViewPreset } from "../store/labStore.ts";
+import { HandsFree } from "./HandsFree.tsx";
+import { SonicLayer } from "./SonicLayer.tsx";
+import { VoiceAssistant } from "./VoiceAssistant.tsx";
 
 const PRESETS: Array<{ id: ViewPreset; key: "preset360" | "presetFront" | "presetSide" | "presetTop" }> = [
   { id: "home", key: "preset360" },
@@ -13,6 +16,7 @@ export function Dock() {
   const t = tx(lang);
   const explode = useLab((s) => s.explode);
   const preset = useLab((s) => s.viewPreset);
+  const voice = useLab((s) => s.voice);
   const setExplode = useLab((s) => s.setExplode);
   const setView = useLab((s) => s.setView);
   return (
@@ -34,6 +38,11 @@ export function Dock() {
             {t[item.key]}
           </button>
         ))}
+      </div>
+      <div className="dock-voice">
+        {voice === 1 && <VoiceAssistant />}
+        {voice === 2 && <HandsFree />}
+        {voice === 3 && <SonicLayer />}
       </div>
     </div>
   );
