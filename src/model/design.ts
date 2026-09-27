@@ -1,0 +1,154 @@
+import { bottleById, boxById, capById, collarById, logoById, pumpById } from "./catalog.ts";
+import type { Design, VariantPart } from "./types.ts";
+
+export function createDefaultDesign(): Design {
+  const bottle = bottleById("cara-50");
+  const cap = capById("cap-cyl-32");
+  const box = boxById("box-rigid");
+  return {
+    bottle: {
+      variantId: bottle.id,
+      neck: bottle.neck,
+      finish: "clear",
+      color: "#f3efe6",
+      heightMm: bottle.heightMm,
+      widthMm: bottle.widthMm,
+      depthMm: bottle.depthMm,
+      visible: true,
+    },
+    cap: {
+      variantId: cap.id,
+      finish: "matteBlack",
+      color: "#141414",
+      heightMm: cap.heightMm,
+      widthMm: cap.widthMm,
+      visible: true,
+    },
+    label: {
+      variantId: "lg-foil-diamond",
+      finish: "gold",
+      color: "#d4b48a",
+      text: "Nº 01",
+      scale: 1,
+      visible: true,
+    },
+    pump: {
+      variantId: "pump-crimp",
+      finish: "silver",
+      color: "#d5d8de",
+      visible: true,
+    },
+    collar: {
+      variantId: "col-crimp",
+      finish: "gold",
+      color: "#d4b48a",
+      visible: true,
+    },
+    box: {
+      variantId: box.id,
+      finish: "matteBlack",
+      color: "#1a1b1e",
+      heightMm: 120,
+      widthMm: 78,
+      depthMm: 68,
+      linked: true,
+      visible: true,
+    },
+    liquid: {
+      color: "#e2a24a",
+      fill: 0.78,
+      visible: true,
+    },
+  };
+}
+
+export function applyVariant(design: Design, kind: VariantPart, id: string): void {
+  if (kind === "bottle") {
+    const spec = bottleById(id);
+    design.bottle.variantId = spec.id;
+    design.bottle.neck = spec.neck;
+    design.bottle.heightMm = spec.heightMm;
+    design.bottle.widthMm = spec.widthMm;
+    design.bottle.depthMm = spec.depthMm;
+    return;
+  }
+  if (kind === "cap") {
+    const spec = capById(id);
+    design.cap.variantId = spec.id;
+    design.cap.heightMm = spec.heightMm;
+    design.cap.widthMm = spec.widthMm;
+    return;
+  }
+  if (kind === "label") {
+    design.label.variantId = logoById(id).id;
+    return;
+  }
+  if (kind === "pump") {
+    design.pump.variantId = pumpById(id).id;
+    return;
+  }
+  if (kind === "collar") {
+    design.collar.variantId = collarById(id).id;
+    return;
+  }
+  design.box.variantId = boxById(id).id;
+  design.box.linked = true;
+}
+
+export interface Look {
+  id: string;
+  name: { he: string; en: string };
+  bottleFinish: Design["bottle"]["finish"];
+  bottleColor: string;
+  capFinish: Design["cap"]["finish"];
+  capColor: string;
+  collarFinish: Design["collar"]["finish"];
+  collarColor: string;
+  pumpFinish: Design["pump"]["finish"];
+  pumpColor: string;
+  labelFinish: Design["label"]["finish"];
+  labelColor: string;
+  boxFinish: Design["box"]["finish"];
+  boxColor: string;
+  liquid: string;
+}
+
+export const LOOKS: Look[] = [
+  { id: "atelier", name: { he: "אטלייה", en: "Atelier" }, bottleFinish: "clear", bottleColor: "#f3efe6", capFinish: "matteBlack", capColor: "#141414", collarFinish: "gold", collarColor: "#d4b48a", pumpFinish: "silver", pumpColor: "#d5d8de", labelFinish: "gold", labelColor: "#d4b48a", boxFinish: "matteBlack", boxColor: "#1a1b1e", liquid: "#e2a24a" },
+  { id: "blush", name: { he: "סומק", en: "Blush" }, bottleFinish: "frosted", bottleColor: "#f7e7ea", capFinish: "rose", capColor: "#e4b7ae", collarFinish: "rose", collarColor: "#e4b7ae", pumpFinish: "rose", pumpColor: "#e4b7ae", labelFinish: "rose", labelColor: "#e4b7ae", boxFinish: "leather", boxColor: "#6b3c32", liquid: "#f3c9d6" },
+  { id: "noir", name: { he: "נואר", en: "Noir" }, bottleFinish: "tinted", bottleColor: "#2a2c2b", capFinish: "gold", capColor: "#d4b48a", collarFinish: "gold", collarColor: "#d4b48a", pumpFinish: "gold", pumpColor: "#d4b48a", labelFinish: "gold", labelColor: "#d4b48a", boxFinish: "matteBlack", boxColor: "#101010", liquid: "#7a1f2c" },
+  { id: "sage", name: { he: "מרווה", en: "Sage" }, bottleFinish: "tinted", bottleColor: "#8d9a84", capFinish: "wood", capColor: "#8a5a3a", collarFinish: "gold", collarColor: "#c9a36a", pumpFinish: "gold", pumpColor: "#c9a36a", labelFinish: "gold", labelColor: "#c9a36a", boxFinish: "wood", boxColor: "#6d4c34", liquid: "#d8efe4" },
+  { id: "ice", name: { he: "קרח", en: "Ice" }, bottleFinish: "clear", bottleColor: "#f7f8f8", capFinish: "silver", capColor: "#e6e8ec", collarFinish: "silver", collarColor: "#d5d8de", pumpFinish: "silver", pumpColor: "#d5d8de", labelFinish: "silver", labelColor: "#d5d8de", boxFinish: "silver", boxColor: "#c5c8ce", liquid: "#f7f1e4" },
+  { id: "ink", name: { he: "דיו", en: "Ink" }, bottleFinish: "tinted", bottleColor: "#1d3344", capFinish: "matteBlack", capColor: "#121416", collarFinish: "silver", collarColor: "#c5c8ce", pumpFinish: "silver", pumpColor: "#c5c8ce", labelFinish: "silver", labelColor: "#d5d8de", boxFinish: "leather", boxColor: "#243044", liquid: "#1d3344" },
+];
+
+export function applyLook(design: Design, look: Look): void {
+  design.bottle.finish = look.bottleFinish;
+  design.bottle.color = look.bottleColor;
+  design.cap.finish = look.capFinish;
+  design.cap.color = look.capColor;
+  design.collar.finish = look.collarFinish;
+  design.collar.color = look.collarColor;
+  design.pump.finish = look.pumpFinish;
+  design.pump.color = look.pumpColor;
+  design.label.finish = look.labelFinish;
+  design.label.color = look.labelColor;
+  design.box.finish = look.boxFinish;
+  design.box.color = look.boxColor;
+  design.liquid.color = look.liquid;
+}
+
+export function estimateMl(design: Design): number {
+  const spec = bottleById(design.bottle.variantId);
+  const same =
+    Math.abs(design.bottle.heightMm - spec.heightMm) < 0.6 &&
+    Math.abs(design.bottle.widthMm - spec.widthMm) < 0.6 &&
+    Math.abs(design.bottle.depthMm - spec.depthMm) < 0.6;
+  if (same && spec.supplier?.capacityMl) return spec.supplier.capacityMl;
+  if (same) return spec.capacityMl;
+  const scale =
+    (design.bottle.heightMm / spec.heightMm) *
+    (design.bottle.widthMm / spec.widthMm) *
+    (design.bottle.depthMm / spec.depthMm);
+  return Math.max(5, Math.round((spec.capacityMl * scale) / 5) * 5);
+}

@@ -1,0 +1,252 @@
+import * as THREE from "three";
+import { bottleRadii, clamp, sampleProfile } from "../model/sample.ts";
+import { capProfiles } from "../model/profiles.ts";
+import type { CapProfileName, SectionKind } from "../model/types.ts";
+
+export interface SweepArgs {
+  height: number;
+  width: number;
+  depth: number;
+  section: SectionKind;
+  softness: number;
+  faceted: boolean;
+  neckR: number;
+  profile: Parameters<typeof bottleRadii>[4];
+  shoulder: number;
+  inset?: number;
+  closedTop?: boolean;
+}
+
+function sectionPoint(
+  section: SectionKind,
+  angle: number,
+  rx: number,
+  rz: number,
+  softness: number,
+  morph: number,
+  y: number,
+): [number, number] {
+  const c = Math.cos(angle);
+  const s = Math.sin(angle);
+  const ellipse: [number, number] = [c * rx, s * rz];
+  let shaped = ellipse;
+  if (section === "squircle" || section === "rect") {
+    const n = section === "squircle" ? 3.1 + (1 - softness) * 1.6 : 4.2 + (1 - softness) * 9;
+    const exp = 2 / n;
+    shaped = [Math.sign(c) * Math.pow(Math.abs(c), exp) * rx, Math.sign(s) * Math.pow(Math.abs(s), exp) * rz];
+  } else if (section === "diamond") {
+    const denom = Math.abs(c) / Math.max(rx, 0.001) + Math.abs(s) / Math.max(rz, 0.001);
+    const rad = 1 / Math.max(denom, 0.001);
+    shaped = [
+      Math.cos(angle) * rad * (1 - softness) + ellipse[0] * softness,
+      Math.sin(angle) * rad * (1 - softness) + ellipse[1] * softness,
+    ];
+  } else if (section === "hex" || section === "oct") {
+    const n = section === "hex" ? 6 : 8;
+    const sector = (Math.PI * 2) / n;
+    const local = ((angle % sector) + sector) % sector;
+    const mid = sector / 2;
+    const edge = Math.cos(mid) / Math.max(0.2, Math.cos(local - mid));
+    const round = softness * 0.72;
+    shaped = [c * rx * (edge * (1 - round) + round), s * rz * (edge * (1 - round) + round)];
+  } else if (section === "pebble") {
+    const nse = 1 + 0.04 * Math.sin(angle * 3 + y * 0.07) + 0.025 * Math.cos(angle * 5.2 - y * 0.05);
+    shaped = [c * rx * nse, s * rz * nse];
+  }
+  return [shaped[0] + (ellipse[0] - shaped[0]) * morph, shaped[1] + (ellipse[1] - shaped[1]) * morph];
+}
+
+function orientOutward(geo: THREE.BufferGeometry): THREE.BufferGeometry {
+  geo.computeVertexNormals();
+  const pos = geo.getAttribute("position");
+  const nor = geo.getAttribute("normal");
+  let best = 0;
+  let bestR = -1;
+  for (let i = 0; i < pos.count; i++) {
+    const r = pos.getX(i) ** 2 + pos.getZ(i) ** 2;
+    if (r > bestR) {
+      bestR = r;
+      best = i;
+    }
+  }
+  const dot = nor.getX(best) * pos.getX(best) + nor.getZ(best) * pos.getZ(best);
+  if (dot < 0) {
+    for (let i = 0; i < nor.count; i++) nor.setXYZ(i, -nor.getX(i), -nor.getY(i), -nor.getZ(i));
+    const index = geo.getIndex();
+    if (index) {
+      for (let i = 0; i < index.count; i += 3) {
+        const a = index.getX(i);
+        const c = index.getX(i + 2);
+        index.setX(i, c);
+        index.setX(i + 2, a);
+      }
+    }
+  }
+  geo.computeBoundingSphere();
+  return geo;
+}
+
+export function buildBottleGeometry(args: SweepArgs): THREE.BufferGeometry {
+  const height = Math.max(12, args.height);
+  const width = Math.max(10, args.width - (args.inset ?? 0) * 2);
+  const depth = Math.max(10, args.depth - (args.inset ?? 0) * 2);
+  const neckR = Math.max(3, args.neckR - (args.inset ?? 0) * 0.35);
+  const ySteps = args.faceted ? 28 : 40;
+  const aSteps = args.faceted ? 40 : 72;
+  const positions: number[] = [];
+  const uvs: number[] = [];
+  const indices: number[] = [];
+
+  const ringAt = (y: number, rxOverride?: number, rzOverride?: number, morphOverride?: number) => {
+    const start = positions.length / 3;
+    const sample = bottleRadii(clamp(y, 0, height), height, width, depth, args.profile, args.shoulder, neckR);
+    const rx = rxOverride ?? sample.rx;
+    const rz = rzOverride ?? sample.rz;
+    const morph = morphOverride ?? sample.morph;
+    for (let a = 0; a <= aSteps; a++) {
+      const ang = (a / aSteps) * Math.PI * 2;
+      const [x, z] = sectionPoint(args.section, ang, rx, rz, args.softness, morph, y);
+      positions.push(x, y, z);
+      uvs.push(a / aSteps, height === 0 ? 0 : y / height);
+    }
+    return start;
+  };
+
+  const connect = (a0: number, b0: number) => {
+    for (let a = 0; a < aSteps; a++) {
+      const i0 = a0 + a;
+      const i1 = i0 + 1;
+      const i2 = b0 + a;
+      const i3 = i2 + 1;
+      indices.push(i0, i2, i1, i1, i2, i3);
+    }
+  };
+
+  let prev = ringAt(0);
+  for (let i = 1; i <= ySteps; i++) {
+    const y = (i / ySteps) * height;
+    const ring = ringAt(y);
+    connect(prev, ring);
+    prev = ring;
+  }
+
+  const bottomCenter = positions.length / 3;
+  positions.push(0, 0.4, 0);
+  uvs.push(0.5, 0);
+  const first = 0;
+  for (let a = 0; a < aSteps; a++) indices.push(bottomCenter, first + a + 1, first + a);
+
+  if (args.closedTop) {
+    const topCenter = positions.length / 3;
+    positions.push(0, height, 0);
+    uvs.push(0.5, 1);
+    for (let a = 0; a < aSteps; a++) indices.push(topCenter, prev + a, prev + a + 1);
+  } else {
+    const lip = Math.max(1, Math.min(1.6, neckR * 0.22));
+    const innerR = Math.max(2.4, neckR - lip);
+    const innerTop = ringAt(height, innerR, innerR, 1);
+    const innerDrop = ringAt(height - 1.5, innerR, innerR, 1);
+    connect(prev, innerTop);
+    connect(innerTop, innerDrop);
+  }
+
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+  geo.setAttribute("uv", new THREE.Float32BufferAttribute(uvs, 2));
+  geo.setIndex(indices);
+  return orientOutward(geo);
+}
+
+export function buildCapGeometry(
+  profile: CapProfileName,
+  section: SectionKind,
+  height: number,
+  width: number,
+  depth: number,
+  softness: number,
+  faceted: boolean,
+  seatR: number,
+): THREE.BufferGeometry {
+  const h = Math.max(8, height);
+  const aSteps = faceted ? 36 : 64;
+  const ySteps = 28;
+  const positions: number[] = [];
+  const uvs: number[] = [];
+  const indices: number[] = [];
+  const halfW = width / 2;
+  const halfD = depth / 2;
+
+  const ringAt = (t: number) => {
+    const start = positions.length / 3;
+    const y = t * h;
+    let rx = Math.max(0.8, halfW * sampleProfile(capProfiles[profile], t));
+    let rz = Math.max(0.8, halfD * sampleProfile(capProfiles[profile], t));
+    if (t < 0.07 && seatR > 0) {
+      rx = Math.max(rx, seatR);
+      rz = Math.max(rz, seatR);
+    }
+    for (let a = 0; a <= aSteps; a++) {
+      const ang = (a / aSteps) * Math.PI * 2;
+      const [x, z] = sectionPoint(section, ang, rx, rz, softness, 0, y);
+      positions.push(x, y, z);
+      uvs.push(a / aSteps, t);
+    }
+    return start;
+  };
+
+  const connect = (a0: number, b0: number) => {
+    for (let a = 0; a < aSteps; a++) {
+      indices.push(a0 + a, b0 + a, a0 + a + 1, a0 + a + 1, b0 + a, b0 + a + 1);
+    }
+  };
+
+  let prev = ringAt(0);
+  for (let i = 1; i <= ySteps; i++) {
+    const ring = ringAt(i / ySteps);
+    connect(prev, ring);
+    prev = ring;
+  }
+  const bottom = positions.length / 3;
+  positions.push(0, 0, 0);
+  uvs.push(0.5, 0);
+  for (let a = 0; a < aSteps; a++) indices.push(bottom, a + 1, a);
+  const top = positions.length / 3;
+  positions.push(0, h, 0);
+  uvs.push(0.5, 1);
+  for (let a = 0; a < aSteps; a++) indices.push(top, prev + a, prev + a + 1);
+
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+  geo.setAttribute("uv", new THREE.Float32BufferAttribute(uvs, 2));
+  geo.setIndex(indices);
+  return orientOutward(geo);
+}
+
+export function curvedPlate(width: number, height: number, radius: number): THREE.BufferGeometry {
+  const segs = 28;
+  const theta = Math.min(1.15, 2 * Math.asin(clamp(width / (2 * Math.max(radius, 1)), -1, 1)));
+  const positions: number[] = [];
+  const uvs: number[] = [];
+  const indices: number[] = [];
+  for (let y = 0; y <= 1; y++) {
+    for (let i = 0; i <= segs; i++) {
+      const a = -theta / 2 + (i / segs) * theta;
+      positions.push(Math.sin(a) * radius, (y - 0.5) * height, Math.cos(a) * radius);
+      uvs.push(i / segs, y);
+    }
+  }
+  const stride = segs + 1;
+  for (let y = 0; y < 1; y++) {
+    for (let i = 0; i < segs; i++) {
+      const a = y * stride + i;
+      indices.push(a, a + stride, a + 1, a + 1, a + stride, a + stride + 1);
+    }
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+  geo.setAttribute("uv", new THREE.Float32BufferAttribute(uvs, 2));
+  geo.setIndex(indices);
+  geo.translate(0, 0, -radius);
+  geo.computeVertexNormals();
+  return geo;
+}
