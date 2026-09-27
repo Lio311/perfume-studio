@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { computeFit } from "../model/fit.ts";
 import type { Design, PartKey } from "../model/types.ts";
+import { explodeLocal } from "./explodeCurve.ts";
 import { frameFor } from "./Guides.tsx";
 
 const PARTS: PartKey[] = ["bottle", "liquid", "label", "collar", "pump", "cap", "box"];
@@ -8,47 +9,37 @@ const scratch = new THREE.PerspectiveCamera(30, 1, 0.5, 5000);
 const center = new THREE.Vector3();
 const projected = new THREE.Vector3();
 
-function smooth(edge0: number, edge1: number, x: number): number {
-  const t = Math.min(1, Math.max(0, (x - edge0) / (edge1 - edge0 || 1)));
-  return t * t * (3 - 2 * t);
-}
-
-export interface SafeRect {
-  left: number;
-  top: number;
-  right: number;
-  bottom: number;
+export interface StageFrame {
   width: number;
   height: number;
+  stageLeft: number;
+  stageTop: number;
+  stageWidth: number;
+  stageHeight: number;
+  gutter: number;
+  openTop: number;
+  openHeight: number;
 }
 
 export function gutterFor(slotWidth: number): number {
-  if (slotWidth < 480) return 108;
-  if (slotWidth < 700) return 136;
-  return 168;
+  if (slotWidth < 520) return 78;
+  if (slotWidth < 760) return 96;
+  return 112;
 }
 
-export function readStageSafe(canvas: HTMLCanvasElement): SafeRect {
+export function readStageFrame(canvas: HTMLCanvasElement): StageFrame {
   const canvasRect = canvas.getBoundingClientRect();
   const width = canvasRect.width || canvas.clientWidth || 1;
   const height = canvasRect.height || canvas.clientHeight || 1;
   const slot = document.querySelector(".stage-slot")?.getBoundingClientRect();
-  if (!slot || slot.width < 80 || slot.height < 80) {
-    return { left: width * 0.22, top: height * 0.16, right: width * 0.78, bottom: height * 0.82, width, height };
-  }
-  const gutter = gutterFor(slot.width);
-  const left = slot.left - canvasRect.left + gutter;
-  const right = slot.right - canvasRect.left - gutter;
-  const top = slot.top - canvasRect.top + 36;
-  const bottom = slot.bottom - canvasRect.top - 88;
-  return {
-    left: Math.min(left, width * 0.46),
-    top: Math.max(8, top),
-    right: Math.max(right, width * 0.54),
-    bottom: Math.min(height - 8, Math.max(bottom, top + 80)),
-    width,
-    height,
-  };
+  const stageLeft = slot && slot.width > 80 ? slot.left - canvasRect.left : width * 0.2;
+  const stageTop = slot && slot.height > 80 ? slot.top - canvasRect.top : height * 0.12;
+  const stageWidth = slot && slot.width > 80 ? slot.width : width * 0.6;
+  const stageHeight = slot && slot.height > 80 ? slot.height : height * 0.76;
+  const gutter = gutterFor(stageWidth);
+  const openTop = stageTop + 28;
+  const openHeight = Math.max(120, stageHeight - 28 - 76);
+  return { width, height, stageLeft, stageTop, stageWidth, stageHeight, gutter, openTop, openHeight };
 }
 
 export function assemblyBounds(design: Design, explode: number): THREE.Box3 {
@@ -58,17 +49,16 @@ export function assemblyBounds(design: Design, explode: number): THREE.Box3 {
     if (!design[part].visible) continue;
     if (part === "liquid" && !design.bottle.visible) continue;
     const frame = frameFor(part, fit);
-    const span = frame.index * 0.07;
-    const local = smooth(span, span + 0.5, explode);
+    const local = explodeLocal(frame.index, explode);
     const originX = frame.home[0] + frame.explode[0] * local;
     const originY = frame.home[1] + frame.explode[1] * local;
     const originZ = frame.home[2] + frame.explode[2] * local;
     const cx = originX + frame.center[0];
     const cy = originY + frame.center[1];
     const cz = originZ + frame.center[2];
-    const hx = frame.size[0] / 2 + 4;
-    const hy = frame.size[1] / 2 + 4;
-    const hz = frame.size[2] / 2 + 4;
+    const hx = frame.size[0] / 2 + 2;
+    const hy = frame.size[1] / 2 + 2;
+    const hz = frame.size[2] / 2 + 2;
     box.expandByPoint(new THREE.Vector3(cx - hx, cy - hy, cz - hz));
     box.expandByPoint(new THREE.Vector3(cx + hx, cy + hy, cz + hz));
   }
@@ -88,16 +78,35 @@ function cornersOf(box: THREE.Box3): THREE.Vector3[] {
   return points;
 }
 
+const FILL = 0.63;
+
+function projectBox(corners: THREE.Vector3[], canvasW: number, canvasH: number): { w: number; h: number; cx: number; cy: number } {
+  let minX = Infinity;
+  let maxX = -Infinity;
+  let minY = Infinity;
+  let maxY = -Infinity;
+  for (const corner of corners) {
+    projected.copy(corner).project(scratch);
+    const x = (projected.x * 0.5 + 0.5) * canvasW;
+    const y = (-projected.y * 0.5 + 0.5) * canvasH;
+    minX = Math.min(minX, x);
+    maxX = Math.max(maxX, x);
+    minY = Math.min(minY, y);
+    maxY = Math.max(maxY, y);
+  }
+  return { w: Math.max(1, maxX - minX), h: Math.max(1, maxY - minY), cx: (minX + maxX) / 2, cy: (minY + maxY) / 2 };
+}
+
 export function fitPose(
   bounds: THREE.Box3,
   direction: THREE.Vector3,
   fov: number,
-  safe: SafeRect,
+  frame: StageFrame,
 ): { position: THREE.Vector3; target: THREE.Vector3 } {
   bounds.getCenter(center);
   const corners = cornersOf(bounds);
   const dir = direction.clone().normalize();
-  const aspect = safe.width / Math.max(1, safe.height);
+  const aspect = frame.width / Math.max(1, frame.height);
   scratch.fov = fov;
   scratch.aspect = aspect;
   scratch.near = 0.5;
@@ -111,48 +120,35 @@ export function fitPose(
     scratch.updateMatrixWorld();
   };
 
-  const contains = (target: THREE.Vector3, distance: number) => {
-    place(distance, target);
-    for (const corner of corners) {
-      projected.copy(corner).project(scratch);
-      if (projected.z < -1 || projected.z > 1) return false;
-      const x = (projected.x * 0.5 + 0.5) * safe.width;
-      const y = (-projected.y * 0.5 + 0.5) * safe.height;
-      if (x < safe.left || x > safe.right || y < safe.top || y > safe.bottom) return false;
-    }
-    return true;
-  };
-
-  let low = 80;
-  let high = 2200;
-  let best = high;
-  for (let i = 0; i < 16; i += 1) {
-    const mid = (low + high) / 2;
-    if (contains(center, mid)) {
-      best = mid;
-      high = mid;
-    } else low = mid;
-  }
-  best *= 1.06;
-
+  const targetPx = Math.min(frame.stageHeight * FILL, frame.openHeight * 0.92);
+  const allowedW = Math.max(80, frame.stageWidth - frame.gutter * 2);
+  let best = 480;
   const target = center.clone();
+  for (let pass = 0; pass < 4; pass += 1) {
+    place(best, target);
+    const box = projectBox(corners, frame.width, frame.height);
+    best *= box.h / targetPx;
+  }
+  place(best, target);
+  const wide = projectBox(corners, frame.width, frame.height);
+  if (wide.w > allowedW) best *= wide.w / allowedW;
+
+  const aimX = frame.stageLeft + frame.stageWidth / 2;
+  const aimY = frame.openTop + frame.openHeight / 2;
   for (let pass = 0; pass < 3; pass += 1) {
     place(best, target);
-    projected.copy(center).project(scratch);
-    const px = (projected.x * 0.5 + 0.5) * safe.width;
-    const py = (-projected.y * 0.5 + 0.5) * safe.height;
-    const dx = px - (safe.left + safe.right) / 2;
-    const dy = py - (safe.top + safe.bottom) / 2;
+    const box = projectBox(corners, frame.width, frame.height);
+    const dx = box.cx - aimX;
+    const dy = box.cy - aimY;
     const vFov = (fov * Math.PI) / 180;
-    const worldPerPixelY = (2 * Math.tan(vFov / 2) * best) / safe.height;
+    const worldPerPixelY = (2 * Math.tan(vFov / 2) * best) / frame.height;
     const worldPerPixelX = worldPerPixelY * aspect;
     const right = new THREE.Vector3().setFromMatrixColumn(scratch.matrixWorld, 0);
     const up = new THREE.Vector3().setFromMatrixColumn(scratch.matrixWorld, 1);
     target.addScaledVector(right, dx * worldPerPixelX);
     target.addScaledVector(up, -dy * worldPerPixelY);
-    if (!contains(target, best)) best *= 1.08;
   }
 
-  const position = target.clone().addScaledVector(dir, best);
+  const position = target.clone().addScaledVector(dir, Math.max(90, best));
   return { position, target };
 }

@@ -6,6 +6,7 @@ import { computeFit } from "../model/fit.ts";
 import type { Design, PartKey } from "../model/types.ts";
 import { useLab } from "../store/labStore.ts";
 import { Clock } from "./clock.ts";
+import { explodeLocal } from "./explodeCurve.ts";
 import { frameFor } from "./Guides.tsx";
 
 const SIDES: Record<PartKey, -1 | 1> = {
@@ -30,10 +31,6 @@ const ORDER: Record<PartKey, number> = {
 
 const NAME_PARTS: PartKey[] = ["cap", "collar", "label", "liquid", "pump", "bottle", "box"];
 
-function smooth(edge0: number, edge1: number, x: number): number {
-  const t = Math.min(1, Math.max(0, (x - edge0) / (edge1 - edge0 || 1)));
-  return t * t * (3 - 2 * t);
-}
 
 function partSize(part: PartKey, design: Design, fit: ReturnType<typeof computeFit>): string {
   if (part === "bottle") return `${design.bottle.widthMm.toFixed(1)}×${design.bottle.depthMm.toFixed(1)}×${design.bottle.heightMm.toFixed(1)}`;
@@ -101,8 +98,7 @@ export function Callouts() {
       if (!showNames || !state.design[part].visible) continue;
       if (part === "liquid" && !state.design.bottle.visible) continue;
       const frame = frameFor(part, fit);
-      const span = frame.index * 0.07;
-      const local = smooth(span, span + 0.5, clock.current);
+      const local = explodeLocal(frame.index, clock.current);
       anchor.current.set(
         frame.home[0] + frame.explode[0] * local + frame.center[0],
         frame.home[1] + frame.explode[1] * local + frame.center[1],
@@ -124,8 +120,7 @@ export function Callouts() {
     if (showDims && state.selected && state.design[state.selected].visible) {
       const part = state.selected;
       const frame = frameFor(part, fit);
-      const span = frame.index * 0.07;
-      const local = smooth(span, span + 0.5, clock.current);
+      const local = explodeLocal(frame.index, clock.current);
       const [w, h, d] = frame.size;
       anchor.current.set(
         frame.home[0] + frame.explode[0] * local + frame.center[0],

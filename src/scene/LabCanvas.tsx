@@ -9,7 +9,8 @@ import { computeFit } from "../model/fit.ts";
 import { takeShot } from "./capture.ts";
 import type { ViewPreset } from "../store/labStore.ts";
 import { Assembly } from "./Assembly.tsx";
-import { assemblyBounds, fitPose, readStageSafe } from "./framing.ts";
+import { assemblyBounds, fitPose, readStageFrame } from "./framing.ts";
+import { Exposure, PixelRatio, StageFloor, StudioEnv, StudioLights } from "./studio.tsx";
 import { CinematicFloor, EnergyRings, MinimalRing, ParticleField, VoiceGrade } from "./voiceScenery.tsx";
 
 const VIEW_DIR: Record<ViewPreset | "three", THREE.Vector3> = {
@@ -54,9 +55,9 @@ function frameSignature(width: number, height: number): string {
 
 function stageWash(themeId: "dark" | "light", voice: 1 | 2 | 3): { top: string; bottom: string } {
   if (themeId === "light") return { top: themes.light.scene.top, bottom: themes.light.scene.bottom };
-  if (voice === 1) return { top: "#0c0c0e", bottom: "#000000" };
-  if (voice === 2) return { top: "#121a22", bottom: "#03050a" };
-  return { top: "#141820", bottom: "#05060a" };
+  if (voice === 1) return { top: "#1a2230", bottom: "#0a0d14" };
+  if (voice === 2) return { top: "#152028", bottom: "#070b12" };
+  return { top: "#1c2230", bottom: "#090c12" };
 }
 
 function Backdrop() {
@@ -87,44 +88,6 @@ function Backdrop() {
   );
 }
 
-function Studio() {
-  const themeId = useLab((s) => s.theme);
-  const gl = useThree((s) => s.gl);
-  const scene = useThree((s) => s.scene);
-  useLayoutEffect(() => {
-    const theme = themes[themeId];
-    gl.toneMapping = THREE.ACESFilmicToneMapping;
-    gl.toneMappingExposure = theme.scene.exposure;
-    const env = new THREE.Scene();
-    env.add(new THREE.Mesh(new THREE.SphereGeometry(14, 24, 24), new THREE.MeshBasicMaterial({ color: themeId === "dark" ? "#12141a" : "#f4f0e8", side: THREE.BackSide })));
-    const panel = (color: string, position: [number, number, number], size: number) => {
-      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(size, size), new THREE.MeshBasicMaterial({ color }));
-      mesh.position.set(...position);
-      mesh.lookAt(0, 1, 0);
-      env.add(mesh);
-    };
-    if (themeId === "dark") {
-      panel("#f4efe6", [0, 8, 6], 7);
-      panel("#e4c48a", [6, 2.2, -2], 3.2);
-      panel("#8ea0bb", [-6, 3, 1], 2.6);
-      panel("#141820", [0, -4, 6], 8);
-    } else {
-      panel("#ffffff", [0, 7, 8], 12);
-      panel("#f4e4d0", [7, 2, 4], 5);
-      panel("#d5dee8", [-7, 3, 2], 4);
-    }
-    const pmrem = new THREE.PMREMGenerator(gl);
-    const target = pmrem.fromScene(env, 0.04);
-    scene.environment = target.texture;
-    scene.environmentIntensity = themeId === "dark" ? 0.92 : 1;
-    return () => {
-      target.dispose();
-      pmrem.dispose();
-    };
-  }, [gl, scene, themeId]);
-  return null;
-}
-
 function CameraRig() {
   const camera = useThree((s) => s.camera);
   const gl = useThree((s) => s.gl);
@@ -145,9 +108,9 @@ function CameraRig() {
   const poseFor = (dir: THREE.Vector3) => {
     const state = useLab.getState();
     const bounds = assemblyBounds(state.design, state.explode);
-    const safe = readStageSafe(gl.domElement);
+    const frame = readStageFrame(gl.domElement);
     const fov = camera instanceof THREE.PerspectiveCamera ? camera.fov : 30;
-    return fitPose(bounds, dir, fov, safe);
+    return fitPose(bounds, dir, fov, frame);
   };
 
   const aim = (dir: THREE.Vector3, pullBack = 1) => {
@@ -268,49 +231,6 @@ function CameraRig() {
   );
 }
 
-function Lights() {
-  const themeId = useLab((s) => s.theme);
-  const voice = useLab((s) => s.voice);
-  const scene = themes[themeId].scene;
-  if (themeId === "dark" && voice === 1) {
-    return (
-      <>
-        <ambientLight color="#f4f1ea" intensity={0.72} />
-        <directionalLight position={[30, 90, 80]} color="#fffaf4" intensity={1.15} />
-        <directionalLight position={[-40, 24, 30]} color="#d9d4cc" intensity={0.35} />
-      </>
-    );
-  }
-  if (themeId === "dark" && voice === 2) {
-    return (
-      <>
-        <ambientLight color="#d5e6ea" intensity={0.42} />
-        <directionalLight position={[48, 100, 60]} color="#f7f1e6" intensity={1.25} />
-        <directionalLight position={[-50, 18, -40]} color="#9fd4e0" intensity={0.85} />
-        <pointLight position={[0, 18, 24]} color="#d6b26a" intensity={0.55} distance={140} />
-      </>
-    );
-  }
-  if (themeId === "dark" && voice === 3) {
-    return (
-      <>
-        <ambientLight color="#c5ccd6" intensity={0.42} />
-        <directionalLight position={[64, 72, 48]} color="#fff6ea" intensity={1.7} />
-        <directionalLight position={[-24, 46, -110]} color="#f0d7a8" intensity={2.15} />
-        <directionalLight position={[-70, 20, 40]} color="#8ea0b8" intensity={0.55} />
-      </>
-    );
-  }
-  return (
-    <>
-      <ambientLight color={scene.ambient} intensity={scene.ambientIntensity} />
-      <directionalLight position={[48, 110, 72]} color={scene.key} intensity={scene.keyIntensity} />
-      <directionalLight position={[-62, 28, 48]} color={scene.fill} intensity={scene.fillIntensity} />
-      <directionalLight position={[-18, 36, -90]} color={scene.rim} intensity={scene.rimIntensity} />
-    </>
-  );
-}
-
 function Stage() {
   const theme = useLab((s) => themes[s.theme]);
   const voice = useLab((s) => s.voice);
@@ -318,27 +238,30 @@ function Stage() {
   const grid = !dark
     ? { cell: theme.scene.gridCell, section: theme.scene.gridSection }
     : voice === 1
-      ? { cell: "#141414", section: "#2a2a2a" }
+      ? { cell: "#1a3344", section: "#3d6e84" }
       : voice === 2
         ? { cell: "#163844", section: "#3d7480" }
         : { cell: "#14110e", section: "#2a241c" };
   return (
     <>
-      <color attach="background" args={[dark && voice === 1 ? "#000000" : theme.scene.bottom]} />
+      <color attach="background" args={[theme.scene.bottom]} />
+      <Exposure />
+      <PixelRatio />
       <Backdrop />
-      <Studio />
-      <Lights />
+      <StudioEnv />
+      <StudioLights />
+      <StageFloor />
       {(voice !== 3 || !dark) && (
         <Grid
           args={[400, 400]}
           position={[0, 0, 0]}
-          cellSize={voice === 1 ? 20 : 10}
-          cellThickness={voice === 1 ? 0.35 : 0.55}
+          cellSize={voice === 1 ? 12 : 10}
+          cellThickness={voice === 1 ? 0.55 : 0.55}
           cellColor={grid.cell}
           sectionSize={voice === 1 ? 80 : 50}
           sectionThickness={voice === 1 ? 0.5 : 0.9}
           sectionColor={grid.section}
-          fadeDistance={voice === 1 ? 240 : 380}
+          fadeDistance={voice === 1 ? 320 : 380}
           fadeStrength={1.35}
           infiniteGrid
         />

@@ -11,15 +11,10 @@ import { logoTexture } from "../geometry/logos.ts";
 import { useLab } from "../store/labStore.ts";
 import { FinishMaterial } from "./materials.tsx";
 import { Callouts } from "./Callouts.tsx";
+import { explodeLocal } from "./explodeCurve.ts";
 import { PartGuides } from "./Guides.tsx";
 import { HoloShell } from "./voiceScenery.tsx";
 import { Clock } from "./clock.ts";
-
-
-function smooth(edge0: number, edge1: number, x: number): number {
-  const t = Math.min(1, Math.max(0, (x - edge0) / (edge1 - edge0 || 1)));
-  return t * t * (3 - 2 * t);
-}
 
 function PartShell({
   part,
@@ -64,7 +59,7 @@ function PartShell({
   useFrame((_, dt) => {
     const group = ref.current;
     if (!group) return;
-    const local = smooth(index * 0.07, index * 0.07 + 0.5, clock.current);
+    const local = explodeLocal(index, clock.current);
     pop.current = THREE.MathUtils.damp(pop.current, 1, 7, dt);
     const shown = visible ? pop.current : 0.001;
     const scale = THREE.MathUtils.damp(group.scale.x || shown, shown, 8, dt);
@@ -260,13 +255,17 @@ function LiquidPart() {
       <mesh geometry={geo} renderOrder={1}>
         <meshPhysicalMaterial
           color={design.liquid.color}
-          transmission={0.18}
-          thickness={20}
-          roughness={0.12}
+          emissive={design.liquid.color}
+          emissiveIntensity={1.35}
+          transmission={0.32}
+          thickness={6}
+          roughness={0.08}
           metalness={0}
-          ior={1.36}
+          ior={1.4}
           attenuationColor={design.liquid.color}
-          attenuationDistance={3.5}
+          attenuationDistance={2.4}
+          envMapIntensity={0.55}
+          specularIntensity={0.8}
           transparent
           clippingPlanes={[plane]}
           clipShadows
@@ -274,8 +273,22 @@ function LiquidPart() {
       </mesh>
       <mesh position={[0, surface, 0]} rotation={[-Math.PI / 2, 0, 0]} scale={[1, rz / rx, 1]} renderOrder={1}>
         <circleGeometry args={[rx, 40]} />
-        <meshPhysicalMaterial color={design.liquid.color} roughness={0.04} metalness={0.02} transmission={0.2} transparent opacity={0.92} />
+        <meshPhysicalMaterial
+          color={design.liquid.color}
+          emissive={design.liquid.color}
+          emissiveIntensity={1.15}
+          roughness={0.04}
+          metalness={0.08}
+          transmission={0.12}
+          transparent
+          opacity={0.98}
+        />
       </mesh>
+      <mesh position={[0, Math.max(6, surface) / 2, 0]}>
+        <cylinderGeometry args={[rx * 0.62, rx * 0.7, Math.max(8, surface - 3), 28]} />
+        <meshStandardMaterial color={design.liquid.color} emissive={design.liquid.color} emissiveIntensity={1.6} roughness={0.4} />
+      </mesh>
+      <pointLight position={[0, Math.max(8, surface * 0.55), 0]} color={design.liquid.color} intensity={4} distance={90} decay={2} />
     </PartShell>
   );
 }
@@ -344,7 +357,7 @@ function PumpPart() {
   return (
     <PartShell part="pump" index={2} home={[0, fit.pumpBase, 0]} explode={fit.explode.pump} visible={design.pump.visible} variantKey={spec.id}>
       <mesh geometry={tube} position={[0, -1, 0]}>
-        <meshPhysicalMaterial color={design.pump.color} metalness={0.55} roughness={0.32} />
+        <FinishMaterial finish={design.pump.finish} color={design.pump.color} />
       </mesh>
       <Actuator style={spec.style} height={fit.actuatorH} radius={fit.actuatorR} nozzle={fit.nozzle} finish={design.pump.finish} color={design.pump.color} />
     </PartShell>
@@ -530,8 +543,8 @@ function BoxFormMesh({
       </RoundedBox>
       {form === "rigid" && (
         <mesh position={[0, baseH * 0.62, 0]}>
-          <boxGeometry args={[w + 0.5, 1.5, d + 0.5]} />
-          <meshStandardMaterial color="#D6B26A" metalness={0.82} roughness={0.28} />
+          <boxGeometry args={[w + 1.4, 4.4, d + 1.4]} />
+          <meshStandardMaterial color="#ffe3a4" metalness={1} roughness={0.16} emissive="#c4923a" emissiveIntensity={0.7} />
         </mesh>
       )}
       {form === "window" && (

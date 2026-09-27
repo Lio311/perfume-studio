@@ -112,6 +112,9 @@ const he = {
   capacity: "נפח",
   snap: "מתחבר אוטומטית לפי צוואר ה־FEA.",
   none: "לא נבחר חלק",
+  quality: "איכות",
+  qualityHigh: "גבוה",
+  qualityMed: "בינוני",
 };
 
 const en: typeof he = {
@@ -226,6 +229,9 @@ const en: typeof he = {
   capacity: "Capacity",
   snap: "Snaps automatically to the FEA neck.",
   none: "No part selected",
+  quality: "Quality",
+  qualityHigh: "High",
+  qualityMed: "Medium",
 };
 
 export const copy = { he, en };

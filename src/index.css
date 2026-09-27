@@ -278,11 +278,15 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 
 .dock {
   pointer-events: auto;
+  position: relative;
+  z-index: 6;
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
   justify-content: center;
   gap: 10px;
+  max-width: calc(100% - 8px);
+  overflow-x: auto;
   padding: 8px 12px;
   border-radius: 18px;
   border: 1px solid var(--line);
@@ -536,7 +540,7 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   .dock { min-width: 0; width: calc(100% - 8px); }
 }
 
-.app[data-voice="2"] .chrome { padding-bottom: 68px; }
+.app[data-voice="2"] .chrome { padding-bottom: 14px; }
 
 .dock-voice { display: flex; align-items: center; min-width: 0; }
 .voice-assistant, .hands-free, .sonic-bar { pointer-events: auto; z-index: 4; }
@@ -548,7 +552,13 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   align-items: center;
   gap: 8px;
 }
-.hands-free { position: static; }
+.hands-free {
+  position: static;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
 .live-caption {
   margin: 0;
   max-width: 200px;
@@ -600,15 +610,12 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 }
 .ptt-hint { color: var(--muted); font-size: 11px; letter-spacing: 0.04em; }
 .voice-wave {
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  width: 100%;
-  height: 56px;
-  z-index: 3;
+  position: relative;
+  width: 72px;
+  height: 22px;
+  flex: 0 0 72px;
   pointer-events: none;
-  background: linear-gradient(180deg, transparent, rgba(6, 7, 11, 0.72));
+  opacity: 0.9;
 }
 .orb {
   width: 36px;

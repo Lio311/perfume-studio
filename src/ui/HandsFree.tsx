@@ -156,7 +156,7 @@ export function HandsFree() {
       }
       ctx.clearRect(0, 0, width, height);
       const level = levelRef.current;
-      const bars = 72;
+      const bars = 16;
       const gap = 3;
       const barW = Math.max(2, (width - gap * bars) / bars);
       for (let i = 0; i < bars; i++) {
@@ -206,7 +206,7 @@ export function HandsFree() {
       <canvas ref={canvasRef} className="voice-wave" aria-hidden="true" />
       <div className="orb-stack">
         <div ref={orbRef} className={awake || touring || armed ? "orb is-live" : "orb"} />
-        <p className="live-caption" dir={lang === "he" ? "rtl" : "ltr"}>{live || (touring ? t.tourRunning : t.wakeHint)}</p>
+        {(live || touring) && <p className="live-caption" dir={lang === "he" ? "rtl" : "ltr"}>{live || t.tourRunning}</p>}
         <div className="orb-actions">
           <button type="button" className={armed ? "text-btn is-on" : "text-btn"} onClick={() => setArmed((value) => !value)}>
             {armed ? t.listeningOn : t.armListen}

@@ -1,10 +1,11 @@
 import { Component, useContext, useMemo, useRef, useState, type ReactNode } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
-import { Bloom, DepthOfField, EffectComposer, Scanline, Vignette } from "@react-three/postprocessing";
+import { Bloom, EffectComposer, Scanline, Vignette } from "@react-three/postprocessing";
 import * as THREE from "three";
 import { useLab } from "../store/labStore.ts";
 import { computeFit } from "../model/fit.ts";
 import { Clock } from "./clock.ts";
+import { explodeLocal } from "./explodeCurve.ts";
 import { frameFor } from "./Guides.tsx";
 
 const HOLO_VERT = `
@@ -30,7 +31,7 @@ const HOLO_FRAG = `
     vec3 cyan = vec3(0.62, 0.84, 0.86);
     vec3 gold = vec3(0.84, 0.7, 0.42);
     vec3 color = mix(cyan, gold, fres);
-    float alpha = fres * 0.28 + scan * 0.12 * band;
+    float alpha = fres * 0.055 + scan * 0.018 * band;
     gl_FragColor = vec4(color, alpha);
   }
 `;
@@ -50,9 +51,7 @@ export function HoloShell() {
   useFrame(({ clock: threeClock }) => {
     if (material.current) material.current.uniforms.uTime.value = threeClock.elapsedTime;
     if (!group.current || !frame) return;
-    const span = frame.index * 0.07;
-    const t = Math.min(1, Math.max(0, (clock.current - span) / 0.5));
-    const local = t * t * (3 - 2 * t);
+    const local = explodeLocal(frame.index, clock.current);
     group.current.position.set(
       frame.home[0] + frame.explode[0] * local,
       frame.home[1] + frame.explode[1] * local,
@@ -82,12 +81,12 @@ export function HoloShell() {
 
 export function ParticleField() {
   const points = useRef<THREE.Points>(null);
-  const count = 150;
+  const count = 26;
   const geometry = useMemo(() => {
     const data = new Float32Array(count * 3);
     for (let i = 0; i < count; i++) {
-      data[i * 3] = (Math.random() - 0.5) * 240;
-      data[i * 3 + 1] = Math.random() * 150;
+      data[i * 3] = (Math.random() - 0.5) * 220;
+      data[i * 3 + 1] = 6 + Math.random() * 70;
       data[i * 3 + 2] = (Math.random() - 0.5) * 200;
     }
     const buffer = new THREE.BufferGeometry();
@@ -99,7 +98,7 @@ export function ParticleField() {
   });
   return (
     <points ref={points} geometry={geometry}>
-      <pointsMaterial color="#b7dde4" size={1.15} transparent opacity={0.42} depthWrite={false} sizeAttenuation />
+      <pointsMaterial color="#b7dde4" size={0.55} transparent opacity={0.1} depthWrite={false} sizeAttenuation />
     </points>
   );
 }
@@ -117,7 +116,7 @@ export function EnergyRings() {
       mesh.scale.setScalar(pulse);
       mesh.rotation.z = t * (0.12 + index * 0.05);
       const material = mesh.material as THREE.MeshBasicMaterial;
-      material.opacity = 0.16 + Math.sin(t * speed + index) * 0.07;
+      material.opacity = 0.035 + Math.sin(t * speed + index) * 0.012;
     });
   });
   const rings = [
@@ -130,7 +129,7 @@ export function EnergyRings() {
       {rings.map((ring) => (
         <mesh key={ring.radius} rotation={[-Math.PI / 2, 0, 0]}>
           <ringGeometry args={[ring.radius, ring.radius + 0.7, 96]} />
-          <meshBasicMaterial color={ring.color} transparent opacity={0.28} depthWrite={false} />
+          <meshBasicMaterial color={ring.color} transparent opacity={0.06} depthWrite={false} />
         </mesh>
       ))}
     </group>
@@ -160,11 +159,7 @@ export function CinematicFloor() {
   });
   return (
     <group>
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]}>
-        <circleGeometry args={[78, 48]} />
-        <meshPhysicalMaterial color="#12151c" metalness={0.92} roughness={0.18} envMapIntensity={1.4} />
-      </mesh>
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.2, 0]}>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.35, 0]}>
         <planeGeometry args={[360, 360]} />
         <shaderMaterial
           ref={grid}
@@ -252,9 +247,8 @@ function GradePasses() {
   if (voice === 2) {
     return (
       <EffectComposer enableNormalPass={false} multisampling={0}>
-        <DepthOfField worldFocusDistance={175} worldFocusRange={240} bokehScale={1.05} resolutionScale={0.25} />
-        <Bloom intensity={0.28} luminanceThreshold={0.74} luminanceSmoothing={0.22} mipmapBlur radius={0.35} />
-        <Scanline density={1.15} opacity={0.18} />
+        <Bloom intensity={0.12} luminanceThreshold={0.86} luminanceSmoothing={0.2} mipmapBlur radius={0.28} />
+        <Scanline density={0.55} opacity={0.028} />
       </EffectComposer>
     );
   }

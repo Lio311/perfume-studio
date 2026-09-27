@@ -73,6 +73,7 @@ interface LabState {
   compareIds: string[];
   voice: VoiceVariant;
   soundOn: boolean;
+  quality: "high" | "medium";
   select: (part: PartKey | null) => void;
   hover: (part: PartKey | null, x?: number, y?: number) => void;
   patch: (part: PartKey, partial: Record<string, unknown>) => void;
@@ -104,6 +105,7 @@ interface LabState {
   removePending: (id: string) => void;
   setVoice: (voice: VoiceVariant) => void;
   setSoundOn: (on: boolean) => void;
+  setQuality: (quality: "high" | "medium") => void;
   applyVoiceParam: (value: string | null) => void;
 }
 
@@ -210,7 +212,7 @@ function applyOne(design: Design, command: LabCommand, ui: { explode: number; mo
       design.label.text = command.text.slice(0, 32);
       break;
     case "explode":
-      ui.explode = command.value ? 0.72 : 0;
+      ui.explode = command.value ? 1 : 0;
       ui.mode = command.value ? "explode" : ui.mode === "explode" ? "assemble" : ui.mode;
       break;
     case "rotate":
@@ -247,7 +249,8 @@ export const useLab = create<LabState>()(
       selected: "cap",
       hovered: null,
       mode: "explode",
-      explode: 0.72,
+      explode: 0.25,
+      quality: "high",
       viewPreset: "home",
       past: [],
       future: [],
@@ -315,7 +318,7 @@ export const useLab = create<LabState>()(
       setMode: (mode) =>
         set(() => {
           if (mode === "assemble") return { mode, explode: 0 };
-          if (mode === "explode") return { mode, explode: 0.72 };
+          if (mode === "explode") return { mode, explode: 1 };
           return { mode };
         }),
       setExplode: (amount) =>
@@ -387,6 +390,7 @@ export const useLab = create<LabState>()(
         set({ voice });
       },
       setSoundOn: (soundOn) => set({ soundOn }),
+      setQuality: (quality) => set({ quality }),
       applyVoiceParam: (value: string | null) => set({ voice: parseVoiceParam(value) }),
     }),
     {

@@ -6,13 +6,9 @@ import { computeFit } from "../model/fit.ts";
 import type { PartKey } from "../model/types.ts";
 import { useLab } from "../store/labStore.ts";
 import { Clock } from "./clock.ts";
+import { explodeLocal } from "./explodeCurve.ts";
 
 const GOLD = "#f3e6cc";
-
-function smooth(edge0: number, edge1: number, x: number): number {
-  const t = Math.min(1, Math.max(0, (x - edge0) / (edge1 - edge0 || 1)));
-  return t * t * (3 - 2 * t);
-}
 
 export interface Frame {
   home: [number, number, number];
@@ -60,7 +56,7 @@ function GuideFrame({ frame, dims }: { frame: Frame; dims: boolean }) {
   useFrame(() => {
     const group = ref.current;
     if (!group) return;
-    const local = smooth(frame.index * 0.07, frame.index * 0.07 + 0.5, clock.current);
+    const local = explodeLocal(frame.index, clock.current);
     group.position.set(
       frame.home[0] + frame.explode[0] * local,
       frame.home[1] + frame.explode[1] * local,

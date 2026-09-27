@@ -18,6 +18,8 @@ export function TopBar() {
   const future = useLab((s) => s.future.length);
   const setLang = useLab((s) => s.setLang);
   const setTheme = useLab((s) => s.setTheme);
+  const quality = useLab((s) => s.quality);
+  const setQuality = useLab((s) => s.setQuality);
   const setMode = useLab((s) => s.setMode);
   const undo = useLab((s) => s.undo);
   const redo = useLab((s) => s.redo);
@@ -78,6 +80,10 @@ export function TopBar() {
         ))}
       </div>
       <VoiceSwitch />
+      <div className="voice-switch" role="group" aria-label={t.quality}>
+        <button type="button" className={quality === "high" ? "is-on" : ""} onClick={() => setQuality("high")}>{t.qualityHigh}</button>
+        <button type="button" className={quality === "medium" ? "is-on" : ""} onClick={() => setQuality("medium")}>{t.qualityMed}</button>
+      </div>
       <div className="top-cluster">
         <button type="button" className="icon-btn" onClick={() => undo()} disabled={past === 0}>{t.undo}</button>
         <button type="button" className="icon-btn" onClick={() => redo()} disabled={future === 0}>{t.redo}</button>

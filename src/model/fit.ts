@@ -110,11 +110,11 @@ export function computeFit(design: Design, exploded = false): Fit {
   };
 
   const explode: Record<PartKey, [number, number, number]> = {
-    box: [36, 0, -18],
-    cap: [0, 62, 0],
-    pump: [0, 36, 0],
-    collar: [0, 16, 0],
-    label: [-32, 10, 64],
+    box: [56, 0, -14],
+    cap: [0, 168, 0],
+    pump: [0, 102, 0],
+    collar: [0, 52, 0],
+    label: [-22, 16, 52],
     bottle: [0, 0, 0],
     liquid: [0, 0, 0],
   };
