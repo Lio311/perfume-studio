@@ -88,13 +88,37 @@ function glassFinish(finish: FinishId): GlassFinish | null {
   return null;
 }
 
+export interface GlassProps {
+  materialOpacity: number;
+  transmission: number;
+  roughness: number;
+  thickness: number;
+  ior: number;
+}
+
+export function computeGlassProps(finish: FinishId, slider?: number): GlassProps | null {
+  const glass = glassFinish(finish);
+  if (!glass) return null;
+
+  const defaults = GLASS_FINISH_DEFAULTS[glass];
+  const t = slider ?? defaults.opacity;
+
+  return {
+    materialOpacity: 0.08 + t * 0.92,
+    transmission: Math.max(0.01, (1 - t) * (glass === "clear" ? 0.95 : glass === "frosted" ? 0.6 : 0.7)),
+    roughness: glass === "frosted" ? 0.34 : glass === "tinted" ? 0.05 : 0.015,
+    thickness: glass === "tinted" ? 4.2 : 2.8,
+    ior: glass === "clear" ? 1.52 : 1.5,
+  };
+}
+
 export function effectiveGlassOpacity(finish: FinishId, opacity?: number): number | null {
   const glass = glassFinish(finish);
   if (!glass) return null;
   return opacity ?? DEFAULT_GLASS_OPACITY[glass];
 }
 
-/** Transmission stored with a finish when the opacity slider is unset. The slider itself forces transmission to 0 in the renderer. */
+/** Stored transmission for a finish. The renderer reads `computeGlassProps`, which also follows the slider. */
 export function glassTransmission(finish: FinishId, opacity?: number): number {
   const glass = glassFinish(finish);
   if (!glass) return 0;
