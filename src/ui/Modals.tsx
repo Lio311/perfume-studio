@@ -30,7 +30,7 @@ function SaveModal() {
   const [armed, setArmed] = useState<string | null>(null);
   const [saveStatus, setSaveStatus] = useState<"ok" | "err" | null>(null);
   return (
-    <div className="modal-back" onClick={() => setModal(null)}>
+    <div className="modal-back" onPointerDown={(e) => { if (e.target === e.currentTarget) setModal(null); }}>
       <div className="modal" dir={lang === "he" ? "rtl" : "ltr"} onClick={(event) => event.stopPropagation()}>
         <header><h2>{t.saveTitle}</h2><button type="button" onClick={() => setModal(null)}>{t.close}</button></header>
         <form
@@ -104,7 +104,7 @@ function CompareModal() {
   const setModal = useLab((s) => s.setModal);
   const chosen = saved.filter((item) => compareIds.includes(item.id)).slice(0, 3);
   return (
-    <div className="modal-back" onClick={() => setModal(null)}>
+    <div className="modal-back" onPointerDown={(e) => { if (e.target === e.currentTarget) setModal(null); }}>
       <div className="modal wide" dir={lang === "he" ? "rtl" : "ltr"} onClick={(event) => event.stopPropagation()}>
         <header><h2>{t.compareTitle}</h2><button type="button" onClick={() => setModal(null)} aria-label={t.close}>×</button></header>
         <p className="hint">{t.compareHint}</p>
@@ -151,7 +151,7 @@ function UploadModal() {
   const [category, setCategory] = useState<VariantPart | "unassigned">("bottle");
   const [files, setFiles] = useState<File[]>([]);
   return (
-    <div className="modal-back" onClick={() => setModal(null)}>
+    <div className="modal-back" onPointerDown={(e) => { if (e.target === e.currentTarget) setModal(null); }}>
       <div className="modal" dir={lang === "he" ? "rtl" : "ltr"} onClick={(event) => event.stopPropagation()}>
         <header><h2>{t.uploadTitle}</h2><button type="button" onClick={() => setModal(null)}>{t.close}</button></header>
         <p className="hint">{t.uploadHint}</p>
