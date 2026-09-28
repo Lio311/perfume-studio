@@ -1,4 +1,5 @@
 import { finishFromColor, importedMeta, isVariantPart } from "../import/registry.ts";
+import { closureForForm, DEFAULT_BOX_PACK, hydrateBox, withInnerStructure } from "./boxFields.ts";
 import { bottleById, boxById, capById, collarById, logoById, pumpById } from "./catalog.ts";
 import { isNeckId } from "./necks.ts";
 import type { Design, VariantPart } from "./types.ts";
@@ -47,6 +48,8 @@ export function createDefaultDesign(): Design {
       visible: false,
     },
     box: {
+      ...DEFAULT_BOX_PACK,
+      layers: DEFAULT_BOX_PACK.layers.map((layer) => ({ ...layer })),
       variantId: box.id,
       finish: "matteBlack",
       color: "#14161c",
@@ -55,6 +58,8 @@ export function createDefaultDesign(): Design {
       depthMm: 68,
       linked: true,
       visible: false,
+      wrap: { color: "#14161c", finish: "soft-touch" },
+      insert: { ...DEFAULT_BOX_PACK.insert },
     },
     liquid: {
       color: "#c98a2b",
@@ -146,6 +151,10 @@ export function applyVariant(design: Design, kind: string, id: string): void {
   }
   const box = boxById(id);
   design.box.variantId = box.id;
+  const pack = closureForForm(box.form);
+  design.box.structure = pack.structure;
+  design.box.latch = pack.latch;
+  design.box.layers = withInnerStructure(design.box.layers, pack.structure, pack.latch);
   const extra = importedMeta(id);
   if (extra) {
     design.box.widthMm = extra.widthMm;
@@ -199,6 +208,24 @@ export function applyLook(design: Design, look: Look): void {
   design.box.finish = look.boxFinish;
   design.box.color = look.boxColor;
   design.liquid.color = look.liquid;
+}
+
+/** Fills box fields that older saves and share links leave out. */
+export function hydrateDesign(input: unknown): Design {
+  const fallback = createDefaultDesign();
+  if (!input || typeof input !== "object") return fallback;
+  const raw = input as Partial<Design>;
+  if (!raw.bottle || !raw.cap) return fallback;
+  return {
+    bottle: { ...fallback.bottle, ...raw.bottle },
+    cap: { ...fallback.cap, ...raw.cap },
+    label: { ...fallback.label, ...raw.label },
+    pump: { ...fallback.pump, ...raw.pump },
+    collar: { ...fallback.collar, ...raw.collar },
+    box: hydrateBox({ ...fallback.box, ...raw.box }),
+    liquid: { ...fallback.liquid, ...raw.liquid },
+    step: typeof raw.step === "number" ? raw.step : fallback.step,
+  };
 }
 
 export function estimateMl(design: Design): number {
