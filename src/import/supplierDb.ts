@@ -1,6 +1,11 @@
 import DOMPurify from "dompurify";
-import { sanitizeSupplierPrice } from "./packPrice.ts";
+import { sanitizeSupplierPrice, type PriceDropReason } from "./packPrice.ts";
 import type { SupplierPack, SupplierPart } from "./registry.ts";
+
+export interface PriceWarning {
+  partId: string;
+  reason: PriceDropReason;
+}
 
 const DB_NAME = "perfume-lab-suppliers";
 const STORE = "packs";
@@ -54,7 +59,7 @@ export function downloadPack(pack: SupplierPack): void {
   URL.revokeObjectURL(url);
 }
 
-function sanitizePart(part: SupplierPart): SupplierPart {
+function sanitizePart(part: SupplierPart): { part: SupplierPart; warning?: PriceWarning } {
   const next: SupplierPart = {
     ...part,
     name: DOMPurify.sanitize(part.name || ""),
@@ -62,25 +67,37 @@ function sanitizePart(part: SupplierPart): SupplierPart {
   };
   if (part.price === undefined) {
     delete next.price;
-    return next;
+    return { part: next };
   }
   const price = sanitizeSupplierPrice(part.price);
-  if (!price) delete next.price;
-  else next.price = price;
-  return next;
+  if ("reason" in price) {
+    delete next.price;
+    return { part: next, warning: { partId: part.id, reason: price.reason } };
+  }
+  next.price = price.price;
+  return { part: next };
 }
 
-export function parsePackFile(text: string): SupplierPack | null {
+export function parsePackFile(text: string): { pack: SupplierPack; priceWarnings: PriceWarning[] } | null {
   try {
     const value = JSON.parse(text) as SupplierPack & Record<string, unknown>;
     if (!value || typeof value.name !== "string" || !Array.isArray(value.parts)) return null;
     const { id, name, createdAt, parts, ...rest } = value;
+    const priceWarnings: PriceWarning[] = [];
+    const cleaned = parts.filter((part) => part && typeof part.id === "string" && typeof part.kind === "string").map((part) => {
+      const result = sanitizePart(part);
+      if (result.warning) priceWarnings.push(result.warning);
+      return result.part;
+    });
     return {
-      ...rest,
-      id: typeof id === "string" && id ? id : `pack-${Date.now().toString(36)}`,
-      name: DOMPurify.sanitize(name),
-      createdAt: typeof createdAt === "number" ? createdAt : Date.now(),
-      parts: parts.filter((part) => part && typeof part.id === "string" && typeof part.kind === "string").map((part) => sanitizePart(part)),
+      pack: {
+        ...rest,
+        id: typeof id === "string" && id ? id : `pack-${Date.now().toString(36)}`,
+        name: DOMPurify.sanitize(name),
+        createdAt: typeof createdAt === "number" ? createdAt : Date.now(),
+        parts: cleaned,
+      },
+      priceWarnings,
     };
   } catch {
     return null;

@@ -243,6 +243,13 @@ const he = {
   perUnit: "ליחידה",
   moqShort: "מינימום",
   totalPrice: "סה״כ ליחידה",
+  quotedAt: "תאריך הצעה",
+  priceDropped: "המחיר הושמט. החלק יובא בלי מחיר.",
+  priceDropValue: "הערך חייב להיות מספר גדול מ-0",
+  priceDropCurrency: "המטבע חייב להיות קוד ISO 4217 בן שלוש אותיות",
+  priceDropMoq: "כמות מינימלית חייבת להיות מספר שלם מ-1 ומעלה",
+  priceDropTiers: "מדרגות הכמות חייבות להיות שבירות נוספות בלבד, עם minQty שלם מעל כמות הבסיס",
+  priceDropQuotedAt: "תאריך ההצעה חייב להיות תאריך ISO 8601",
 };
 
 const en: typeof he = {
@@ -488,6 +495,13 @@ const en: typeof he = {
   perUnit: "per unit",
   moqShort: "Minimum",
   totalPrice: "Unit total",
+  quotedAt: "Quoted",
+  priceDropped: "The price was dropped. The part is imported without a price.",
+  priceDropValue: "value must be a number greater than 0",
+  priceDropCurrency: "currency must be an ISO 4217 three-letter code",
+  priceDropMoq: "moq must be an integer of 1 or more",
+  priceDropTiers: "tiers must be extra breaks only, each with an integer minQty above the base quantity",
+  priceDropQuotedAt: "quotedAt must be an ISO 8601 date",
 };
 
 export const copy = { he, en };

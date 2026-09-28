@@ -1,16 +1,21 @@
 import type { PartFacts } from "./types.ts";
 
+/** An extra quantity break above the base price. `minQty` is an integer. */
 export interface PriceTier {
-  qty: number;
+  minQty: number;
   value: number;
 }
 
-/** Optional supplier price. Currency is an ISO code; ILS is the budget currency. */
+/**
+ * Optional supplier quote. `value` is the unit price at the base quantity (the MOQ, or one).
+ * `tiers` are further breaks only, sorted by `minQty` ascending.
+ */
 export interface SupplierPrice {
   value: number;
   currency: string;
   moq?: number;
   tiers?: PriceTier[];
+  quotedAt?: string;
 }
 
 export type PriceSource = "example" | "user" | "import";
@@ -21,6 +26,8 @@ export interface ResolvedPrice {
   source: PriceSource;
   moq?: number;
   tiers?: PriceTier[];
+  /** ISO 8601 date from an imported quote, when the pack included one. */
+  quotedAt?: string;
   /** Shekel amount used in the unit total. Null when a foreign price has no rate. */
   ils: number | null;
   /** True when `ils` is `value * rate` rather than a native shekel price. */
@@ -84,12 +91,16 @@ export function exampleIls(facts: Pick<PartFacts, "kind" | "widthMm" | "heightMm
   return Math.max(5, Math.round(raw / 5) * 5);
 }
 
-/** Per-unit price. A tier applies only when its quantity is at most one; higher breaks stay informational. */
-export function unitValue(price: { value: number; tiers?: PriceTier[] }, qty = 1): number {
-  const tiers = (price.tiers ?? []).filter((tier) => Number.isFinite(tier.qty) && Number.isFinite(tier.value) && tier.qty > 0 && tier.qty <= qty);
-  if (!tiers.length) return price.value;
-  tiers.sort((a, b) => b.qty - a.qty);
-  return tiers[0].value;
+/**
+ * Unit price at `qty`. The base `value` covers the MOQ (or one, when there is no MOQ).
+ * A tier applies only when `qty` reaches that extra break.
+ */
+export function unitValue(price: { value: number; moq?: number; tiers?: PriceTier[] }, qty = 1): number {
+  const base = price.moq ?? 1;
+  const applicable = (price.tiers ?? []).filter((tier) => tier.minQty <= Math.max(qty, base) && qty >= tier.minQty);
+  if (!applicable.length || qty < base) return price.value;
+  applicable.sort((a, b) => b.minQty - a.minQty);
+  return applicable[0].value;
 }
 
 export function toIls(value: number, currency: string, rates: Record<string, number>): { ils: number | null; converted: boolean } {
@@ -107,14 +118,14 @@ export function resolvePartPrice(
   override: { value: number; currency: string } | undefined,
   rates: Record<string, number>,
 ): ResolvedPrice {
-  if (override && Number.isFinite(override.value) && override.value >= 0 && normalizeCurrency(override.currency)) {
+  if (override && Number.isFinite(override.value) && override.value > 0 && normalizeCurrency(override.currency)) {
     const currency = normalizeCurrency(override.currency)!;
     const { ils, converted } = toIls(override.value, currency, rates);
     return { value: override.value, currency, source: "user", ils, converted };
   }
   if (imported && normalizeCurrency(imported.currency)) {
     const currency = normalizeCurrency(imported.currency)!;
-    const value = unitValue(imported, 1);
+    const value = imported.value;
     const { ils, converted } = toIls(value, currency, rates);
     return {
       value,
@@ -122,6 +133,7 @@ export function resolvePartPrice(
       source: "import",
       moq: imported.moq,
       tiers: imported.tiers,
+      quotedAt: imported.quotedAt,
       ils,
       converted,
     };

@@ -23,8 +23,9 @@ export interface SupplierPart {
   /** Normalised half-profile. Present for photo-revolved parts. */
   lathe?: number[];
   /**
-   * Optional unit price. Absent on older packs.
-   * `value` is the per-unit price; `tiers` are quantity breaks and do not replace it unless a tier qty is ≤ 1.
+   * Optional supplier quote. Absent on older packs. The pack version is not bumped for this field.
+   * `value` is the unit price at the base quantity (MOQ, or one). `currency` is an ISO 4217 code.
+   * `tiers` are extra breaks only (`minQty` above that base), sorted ascending. `quotedAt` is an ISO 8601 date.
    * A currency other than ILS is not added to the shekel total unless the user sets a rate.
    */
   price?: SupplierPrice;

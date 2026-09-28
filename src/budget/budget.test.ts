@@ -57,9 +57,11 @@ describe("budget totals", () => {
     expect(rated.remainingIls).toBe(6);
   });
 
-  it("uses the base unit price when every tier starts above one", () => {
-    expect(unitValue({ value: 4.5, tiers: [{ qty: 5000, value: 4.2 }, { qty: 20000, value: 3.9 }] }, 1)).toBe(4.5);
-    expect(unitValue({ value: 9, tiers: [{ qty: 1, value: 8 }, { qty: 10, value: 7 }] }, 1)).toBe(8);
+  it("keeps the base unit price until a quantity reaches an extra break", () => {
+    const tiers = [{ minQty: 5000, value: 4.2 }, { minQty: 20000, value: 3.9 }];
+    expect(unitValue({ value: 4.5, moq: 1000, tiers }, 1)).toBe(4.5);
+    expect(unitValue({ value: 4.5, moq: 1000, tiers }, 5000)).toBe(4.2);
+    expect(unitValue({ value: 4.5, moq: 1000, tiers }, 20000)).toBe(3.9);
   });
 });
 
@@ -294,8 +296,8 @@ describe("resolved prices", () => {
     expect(example.currency).toBe("ILS");
     expect(example.value % 5).toBe(0);
 
-    const imported = resolvePartPrice(row, { value: 4, currency: "usd" }, undefined, {});
-    expect(imported).toMatchObject({ source: "import", currency: "USD", value: 4, ils: null, converted: false });
+    const imported = resolvePartPrice(row, { value: 4, currency: "usd", quotedAt: "2026-09-01T08:30:00Z" }, undefined, {});
+    expect(imported).toMatchObject({ source: "import", currency: "USD", value: 4, ils: null, converted: false, quotedAt: "2026-09-01T08:30:00Z" });
 
     const rated = resolvePartPrice(row, { value: 4, currency: "USD" }, undefined, { USD: 4 });
     expect(rated.ils).toBe(16);

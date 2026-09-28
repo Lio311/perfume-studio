@@ -19,6 +19,7 @@ export function PriceTag({ price, compact = false }: { price: ResolvedPrice; com
       {price.currency !== "ILS" && !price.converted && <em>{t.notInTotal}</em>}
       {price.converted && <em>{t.converted}</em>}
       {price.moq ? <em dir="ltr">{t.moqShort} {price.moq}</em> : null}
+      {price.quotedAt ? <em className="quoted-at">{t.quotedAt} <bdi dir="ltr">{price.quotedAt}</bdi></em> : null}
     </span>
   );
 }
@@ -47,12 +48,12 @@ export function PartPriceEditor({ kind, partId }: { kind: VariantPart; partId: s
           <input
             type="number"
             dir="ltr"
-            min={0}
+            min={0.01}
             step={0.5}
             value={Number.isInteger(price.value) ? String(price.value) : price.value.toFixed(2)}
             onChange={(event) => {
               const next = Number(event.target.value);
-              if (!Number.isFinite(next) || next < 0) return;
+              if (!Number.isFinite(next) || next <= 0) return;
               setPriceOverride(partId, { value: next, currency });
             }}
           />

@@ -245,6 +245,7 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 .thumb .mm { color: var(--accent); font-family: var(--num); font-size: 10px; letter-spacing: 0.02em; font-variant-numeric: tabular-nums; }
 .price-tag { display: flex; flex-direction: column; align-items: center; gap: 1px; font-family: var(--num); font-size: 11px; color: var(--accent-2); font-variant-numeric: tabular-nums; }
 .price-tag em, .combo-total em { font-style: normal; font-size: 9px; color: var(--faint); letter-spacing: 0; }
+.price-tag .quoted-at { font-family: var(--sans, inherit); }
 .price-tag .price-ils { font-size: 10px; color: var(--muted); }
 .thumb .price-tag { align-items: center; }
 .combo-total { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: baseline; margin: 8px 0 0; font-size: 13px; }
