@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { useLab } from "./labStore.ts";
 import { createDefaultDesign } from "../model/design.ts";
+import { clampLabelText } from "../geometry/logos.ts";
 
 describe("labStore", () => {
   beforeEach(() => {
@@ -38,6 +39,38 @@ describe("labStore", () => {
     expect(stateAfterRedo.future.length).toBe(0);
     expect(stateAfterRedo.past.length).toBe(1);
     expect(stateAfterRedo.past[0]).toBe(initialDesign);
+  });
+
+  it("shows the label when brand text is typed and keeps the previous visibility when the text is cleared", () => {
+    expect(useLab.getState().design.label.visible).toBe(false);
+
+    useLab.getState().applyCommands([{ type: "text", text: "" }]);
+    expect(useLab.getState().design.label.text).toBe("");
+    expect(useLab.getState().design.label.visible).toBe(false);
+
+    useLab.getState().applyCommands([{ type: "text", text: "בושם שלי" }]);
+    expect(useLab.getState().design.label.text).toBe("בושם שלי");
+    expect(useLab.getState().design.label.visible).toBe(true);
+
+    useLab.getState().applyCommands([{ type: "text", text: "" }]);
+    expect(useLab.getState().design.label.text).toBe("");
+    expect(useLab.getState().design.label.visible).toBe(true);
+
+    useLab.getState().applyCommands([
+      { type: "visible", part: "label", visible: false },
+      { type: "text", text: "" },
+    ]);
+    expect(useLab.getState().design.label.visible).toBe(false);
+    expect(useLab.getState().design.label.text).toBe("");
+  });
+
+  it("keeps a trailing emoji whole when the text command is capped", () => {
+    const wave = "👋";
+    const text = "a".repeat(31) + wave;
+    useLab.getState().applyCommands([{ type: "text", text }]);
+    expect(useLab.getState().design.label.text).toBe(text);
+    expect(useLab.getState().design.label.text).toBe(clampLabelText(text));
+    expect(text.slice(0, 32)).not.toBe(text);
   });
 
   it("uses a count when a single warning is longer than 120 characters", () => {

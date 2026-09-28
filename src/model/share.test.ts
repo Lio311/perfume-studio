@@ -3,7 +3,7 @@ import { setImportedCatalog } from "./catalog.ts";
 import { createDefaultDesign } from "./design.ts";
 import { computeFit } from "./fit.ts";
 import { applyIncomingShareHash, applyShareHash, decodeShareDesign, encodeShareDesign, invalidShareMessage, mergeShareDesign, missingPartsMessage, respondToLocation } from "./share.ts";
-import type { BottleSpec } from "./types.ts";
+import type { BottleSpec, LogoSpec } from "./types.ts";
 
 describe("share links", () => {
   afterEach(() => {
@@ -94,6 +94,37 @@ describe("share links", () => {
     expect(decoded?.bottle.variantId).toBe(defaults.bottle.variantId);
     expect(decoded?.liquid.color).toBe(defaults.liquid.color);
     expect(decoded?.cap.variantId).toBe(defaults.cap.variantId);
+  });
+
+  it("migrates an old share colour and keeps a versioned ink", () => {
+    const legacy = mergeShareDesign({
+      label: { variantId: "lg-heebo-word", color: "#141414", text: "NOIR", visible: true },
+    });
+    expect(legacy?.label.color).toBe("#f4eee4");
+
+    const current = mergeShareDesign({
+      version: 6,
+      label: { variantId: "lg-heebo-word", color: "#c9a36a", text: "NOIR", visible: true },
+    });
+    expect(current?.label.color).toBe("#c9a36a");
+
+    const engraved: LogoSpec = {
+      id: "supplier-engrave",
+      name: { he: "ספק", en: "Supplier" },
+      plate: "plaque",
+      mark: "word",
+      application: "engrave",
+      font: "heebo",
+      frame: "none",
+      tags: ["imported"],
+      model: { type: "procedural" },
+    };
+    setImportedCatalog({ bottles: [], caps: [], labels: [engraved], pumps: [], collars: [], boxes: [] });
+    const imported = mergeShareDesign({
+      label: { variantId: "supplier-engrave", color: "#141414", text: "NOIR", visible: true },
+    });
+    expect(imported?.label.variantId).toBe("supplier-engrave");
+    expect(imported?.label.color).toBe("#0c0b0a");
   });
 
   it("keeps an imported supplier part id", () => {

@@ -145,7 +145,7 @@ describe("app error boundary", () => {
       };
       version: number;
     };
-    expect(stored.version).toBe(5);
+    expect(stored.version).toBe(6);
     expect(stored.state.design.bottle.variantId).toBe("cara-50");
     expect(stored.state.design.bottle.visible).toBe(true);
     expect(stored.state.chat).toEqual(chat);

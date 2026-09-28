@@ -15,6 +15,7 @@ import { useLab } from "../store/labStore.ts";
 import { thumbFor } from "../thumbnails/thumbs.ts";
 import { PriceTag } from "./PriceTag.tsx";
 import { useBudgetModel } from "./useBudget.ts";
+import { clampLabelText } from "../geometry/logos.ts";
 
 const TABS: Array<VariantPart | "liquid" | "pending"> = ["bottle", "cap", "label", "pump", "collar", "box", "liquid", "pending"];
 const WIZARD_ORDER: Array<VariantPart | "liquid"> = ["bottle", "liquid", "pump", "collar", "cap", "label", "box"];
@@ -217,7 +218,7 @@ export function Library() {
         </div>
       )}
       {visibleTab === "label" && (
-        <input className="search" style={{ marginTop: "-8px", marginBottom: "12px" }} value={design.label.text} placeholder={t.brand} onChange={(event) => patch("label", { text: event.target.value.slice(0, 32), visible: true })} />
+        <input className="search" style={{ marginTop: "-8px", marginBottom: "12px" }} value={design.label.text} placeholder={t.brand} onChange={(event) => patch("label", { text: clampLabelText(event.target.value), visible: true })} />
       )}
       {visibleTab === "liquid" ? (
         <div className="liquid-panel" style={{ padding: "32px 16px", textAlign: "center" }}>

@@ -1,3 +1,4 @@
+import { labelPatchExtent } from "../geometry/sweep.ts";
 import { bottleById, boxById, capById, collarById, logoById, pumpById } from "./catalog.ts";
 import { NECKS, neckRadius, neckStandard } from "./necks.ts";
 import { bottleRadii, neckFinishMm } from "./sample.ts";
@@ -130,17 +131,32 @@ export function computeFit(design: Design, exploded = false): Fit {
     slim: [0.78, 0.16],
   };
   const squareMark = logo.mark === "diamond" || logo.mark === "seal" || logo.mark === "crest" || logo.plate === "diamond" || logo.plate === "circle" || logo.plate === "square";
-  const [fw, fh] = squareMark ? [0.5, 0.56] : fractions[logo.plate];
+  const [baseW, baseH] = squareMark ? [0.5, 0.56] : fractions[logo.plate];
   const labelY = Math.max(12, shoulderY * 0.46);
   const face = bottleRadii(labelY, bottleH, bottleW, bottleD, bottle.profile, bottle.shoulder, neckR, bottle.finishMm);
-  const labelW = Math.min(
-    face.rx * 1.7,
-    logo.widthMm ? Math.min(bottleW - 2, logo.widthMm) : Math.min(bottleW - 6, bottleW * fw * design.label.scale),
-  );
-  const labelH = Math.min(
-    Math.max(8, shoulderY * 0.72),
-    logo.heightMm ? logo.heightMm : shoulderY * fh * design.label.scale,
-  );
+  const widthCap = Math.min(face.rx * 1.72, bottleW - 6);
+  const heightCap = Math.max(8, shoulderY * 0.72);
+  const rawW = logo.widthMm ? logo.widthMm : bottleW * baseW * design.label.scale;
+  const rawH = logo.heightMm ?? shoulderY * baseH * design.label.scale;
+  const desiredW = Math.min(widthCap, rawW);
+  const desiredH = Math.min(heightCap, rawH);
+  const extent = labelPatchExtent({
+    height: bottleH,
+    width: bottleW,
+    depth: bottleD,
+    section: bottle.section,
+    softness: bottle.softness,
+    faceted: bottle.faceted,
+    neckR,
+    profile: bottle.profile,
+    shoulder: bottle.shoulder,
+    finishMm: bottle.finishMm,
+    yCenter: labelY,
+    patchH: desiredH,
+    patchW: desiredW,
+  });
+  const labelW = extent.width;
+  const labelH = extent.height;
   const labelZ = face.rz + 0.45;
 
   const contentH = bottleH + Math.max(0, capBottom + capH - bottleH);

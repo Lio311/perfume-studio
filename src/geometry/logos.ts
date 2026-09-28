@@ -1,27 +1,414 @@
-import type { LogoFont, LogoFrame, LogoMark, LogoSpec } from "../model/types.ts";
+import * as THREE from "three";
+import type { LogoApplication, LogoFont, LogoFrame, LogoMark, LogoSpec } from "../model/types.ts";
+
+const TYPEFACE: Record<LogoFont, string> = {
+  cormorant: "Cormorant Garamond",
+  cinzel: "Cinzel",
+  italiana: "Italiana",
+  vibes: "Great Vibes",
+  heebo: "Heebo",
+};
 
 const FONT_FAMILY: Record<LogoFont, string> = {
-  cormorant: '"Cormorant Garamond", Georgia, serif',
-  cinzel: '"Cinzel", "Times New Roman", serif',
-  italiana: '"Italiana", "Times New Roman", serif',
-  vibes: '"Great Vibes", cursive',
+  cormorant: '"Cormorant Garamond", "Heebo", Georgia, serif',
+  cinzel: '"Cinzel", "Heebo", "Times New Roman", serif',
+  italiana: '"Italiana", "Heebo", "Times New Roman", serif',
+  vibes: '"Great Vibes", "Heebo", Georgia, serif',
   heebo: '"Heebo", sans-serif',
 };
 
 function inkFont(font: LogoFont, text: string): string {
-  return /[\u0590-\u05FF]/.test(text) ? FONT_FAMILY.heebo : FONT_FAMILY[font];
+  return labelFontFamily(font, text);
+}
+
+/** First strong directional letter (Unicode bidi). Neutrals such as digits and punctuation are skipped. */
+export function labelDirection(text: string): "rtl" | "ltr" {
+  for (const char of text) {
+    if (!/\p{L}/u.test(char)) continue;
+    if (/\p{Script=Hebrew}|\p{Script=Arabic}|\p{Script=Thaana}/u.test(char)) return "rtl";
+    return "ltr";
+  }
+  return "ltr";
+}
+
+/** Grapheme clusters, so a joiner sequence or Hebrew niqqud counts as one character. */
+function labelGraphemes(text: string): string[] {
+  const Segmenter = Intl.Segmenter;
+  if (typeof Segmenter !== "function") return Array.from(text);
+  return [...new Segmenter(undefined, { granularity: "grapheme" }).segment(text)].map((part) => part.segment);
+}
+
+/** Cap stored brand text by grapheme so an emoji sequence or niqqud is not split. */
+export function clampLabelText(text: string, max = 32): string {
+  return labelGraphemes(text).slice(0, max).join("");
+}
+
+/**
+ * Italiana and Great Vibes ship only at 400. Cormorant, Cinzel, and Heebo (including a Hebrew paragraph) are 500.
+ */
+export function labelFontWeight(font: LogoFont, text: string): 400 | 500 {
+  if (labelDirection(text) === "rtl") return 500;
+  if (font === "italiana" || font === "vibes") return 400;
+  return 500;
+}
+
+export function labelFontSpec(font: LogoFont, text: string): string {
+  return `${labelFontWeight(font, text)} 96px "${labelTypeface(font, text)}"`;
+}
+
+/** Repaint the plate only when a load brought in a face that was not already available. */
+export function shouldRepaintLabel(alreadyLoaded: boolean): boolean {
+  return !alreadyLoaded;
+}
+
+/** The colour the user chose. Application changes how that ink is finished, not the colour itself. */
+export function labelInk(color: string, _application?: LogoApplication): string {
+  return color;
+}
+
+/**
+ * Ink colour stored designs used before the label colour became the ink.
+ * Foil was always cream. Other applications picked a light or dark ink from the plate luminance.
+ * The luminance matches that old helper, including its second pass over linear `THREE.Color` channels.
+ */
+export function legacyLabelInk(application: string, plate: string): string {
+  const color = parsedColor(plate);
+  const lin = (channel: number) => (channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4);
+  const lum = 0.2126 * lin(color.r) + 0.7152 * lin(color.g) + 0.0722 * lin(color.b);
+  if (application === "foil") return "#fff6e4";
+  if (application === "emboss") return lum > 0.62 ? "#6d583c" : "#f6f1e6";
+  if (application === "engrave") return lum > 0.45 ? "#241c14" : "#0c0b0a";
+  return lum > 0.55 ? "#221910" : "#f4eee4";
+}
+
+export interface LabelFinish {
+  /** Metalness of the ink. The plate stays non-metallic via the ink mask. */
+  metalness: number;
+  /** Roughness of the ink. The plate stays rough (1) via the same mask. */
+  roughness: number;
+  /** Bump height of the glyph mask. Positive raises the ink, negative recesses it, zero stays flat. */
+  bumpScale: number;
+  /** Environment reflection strength. Foil never falls below {@link FOIL_ENV_FLOOR}. */
+  envMapIntensity: number;
+  /**
+   * Emissive strength in the ink colour, masked to the glyphs.
+   * Zero leaves print, emboss, and engrave unlit.
+   */
+  emissive: number;
+}
+
+/**
+ * Hot foil must not be a black mirror of a dark studio.
+ * The face is rough enough to carry the ink colour, and this is the least environment response it keeps.
+ */
+export const FOIL_ENV_FLOOR = 1.2;
+
+/**
+ * Finish of the ink region. Print is flat. Foil is coloured metal.
+ * Emboss is raised and engrave is recessed, from the same glyph mask with opposite bump.
+ */
+export function labelFinish(application: LogoApplication = "decal"): LabelFinish {
+  switch (application) {
+    case "foil":
+      return {
+        metalness: 1,
+        roughness: 0.4,
+        bumpScale: 0,
+        envMapIntensity: FOIL_ENV_FLOOR,
+        emissive: 0.36,
+      };
+    case "emboss":
+      return { metalness: 0.04, roughness: 0.55, bumpScale: 3.2, envMapIntensity: 1, emissive: 0 };
+    case "engrave":
+      return { metalness: 0.04, roughness: 0.55, bumpScale: -3.2, envMapIntensity: 1, emissive: 0 };
+    default:
+      return { metalness: 0, roughness: 1, bumpScale: 0, envMapIntensity: 1, emissive: 0 };
+  }
+}
+
+/** Emissive colour for a finish. Foil glows in the ink; every other application stays black. */
+export function labelEmissive(ink: string, application: LogoApplication = "decal"): string {
+  return labelFinish(application).emissive > 0 ? ink : "#000000";
+}
+
+/** 0 on the contrasting plate, 1 on solid ink. Edges in between stay partial so anti-aliasing survives. */
+export function inkCoverage(plate: readonly [number, number, number], rgb: readonly [number, number, number]): number {
+  const dist = Math.hypot(rgb[0] - plate[0], rgb[1] - plate[1], rgb[2] - plate[2]);
+  return Math.min(1, Math.max(0, (dist - 8) / 36));
+}
+
+function plateRgb(ink: string): [number, number, number] {
+  const hex = contrastingPlate(ink);
+  return [
+    Number.parseInt(hex.slice(1, 3), 16),
+    Number.parseInt(hex.slice(3, 5), 16),
+    Number.parseInt(hex.slice(5, 7), 16),
+  ];
+}
+
+function blurCoverage(coverage: Float32Array, width: number, height: number, radius: number): Float32Array {
+  const horizontal = new Float32Array(coverage.length);
+  const vertical = new Float32Array(coverage.length);
+  const denom = radius * 2 + 1;
+  const clamp = (value: number, max: number) => (value < 0 ? 0 : value > max ? max : value);
+  for (let y = 0; y < height; y += 1) {
+    const row = y * width;
+    let sum = 0;
+    for (let k = -radius; k <= radius; k += 1) sum += coverage[row + clamp(k, width - 1)];
+    for (let x = 0; x < width; x += 1) {
+      horizontal[row + x] = sum / denom;
+      sum -= coverage[row + clamp(x - radius, width - 1)];
+      sum += coverage[row + clamp(x + radius + 1, width - 1)];
+    }
+  }
+  for (let x = 0; x < width; x += 1) {
+    let sum = 0;
+    for (let k = -radius; k <= radius; k += 1) sum += horizontal[clamp(k, height - 1) * width + x];
+    for (let y = 0; y < height; y += 1) {
+      vertical[y * width + x] = sum / denom;
+      sum -= horizontal[clamp(y - radius, height - 1) * width + x];
+      sum += horizontal[clamp(y + radius + 1, height - 1) * width + x];
+    }
+  }
+  return vertical;
+}
+
+/**
+ * Packs the ink mask into one canvas for a lit finish.
+ * R is glyph height (bump), G is roughness, B is the metalness mask.
+ * Plate pixels stay rough and non-metallic so the ground stays readable.
+ */
+export function paintLabelSurface(
+  source: Uint8ClampedArray,
+  ink: string,
+  application: LogoApplication,
+  target: Uint8ClampedArray,
+  width = 0,
+  height = 0,
+): void {
+  const finish = labelFinish(application);
+  const plate = plateRgb(ink);
+  const count = Math.floor(source.length / 4);
+  const coverage = new Float32Array(count);
+  for (let pixel = 0; pixel < count; pixel += 1) {
+    const index = pixel * 4;
+    // Letterboxed margins are transparent. Their RGB is empty, so coverage must stay 0 or the plate reads as ink.
+    coverage[pixel] = source[index + 3] === 0 ? 0 : inkCoverage(plate, [source[index], source[index + 1], source[index + 2]]);
+  }
+  const bevel = finish.bumpScale !== 0 && width >= 8 && height >= 8 && width * height === count;
+  const radius = bevel ? Math.min(18, Math.max(1, Math.round(Math.min(width, height) * 0.018))) : 0;
+  const heightMap = radius > 0 ? blurCoverage(coverage, width, height, radius) : coverage;
+  const inkRough = Math.round(Math.min(1, Math.max(0, finish.roughness)) * 255);
+  for (let pixel = 0; pixel < count; pixel += 1) {
+    const index = pixel * 4;
+    const cover = coverage[pixel];
+    target[index] = Math.round(Math.min(1, Math.max(0, heightMap[pixel])) * 255);
+    target[index + 1] = Math.round(255 + (inkRough - 255) * cover);
+    target[index + 2] = Math.round(cover * 255);
+    target[index + 3] = 255;
+  }
+}
+
+/**
+ * White on the ink and black on the plate, so an emissive colour can be multiplied in without lighting the ground.
+ * Applications with no emissive stay fully black.
+ */
+export function paintLabelEmissive(
+  source: Uint8ClampedArray,
+  ink: string,
+  application: LogoApplication,
+  target: Uint8ClampedArray,
+): void {
+  const glow = labelFinish(application).emissive > 0 ? 1 : 0;
+  const plate = plateRgb(ink);
+  const count = Math.floor(source.length / 4);
+  for (let pixel = 0; pixel < count; pixel += 1) {
+    const index = pixel * 4;
+    const cover = (source[index + 3] === 0 ? 0 : inkCoverage(plate, [source[index], source[index + 1], source[index + 2]])) * glow;
+    const value = Math.round(Math.min(1, Math.max(0, cover)) * 255);
+    target[index] = value;
+    target[index + 1] = value;
+    target[index + 2] = value;
+    target[index + 3] = 255;
+  }
+}
+
+/** Emissive mask aligned to the colour canvas. Plate pixels stay black. */
+export function labelEmissiveCanvas(source: HTMLCanvasElement, ink: string, application: LogoApplication): HTMLCanvasElement {
+  const limit = 1024;
+  const scale = Math.min(1, limit / Math.max(source.width, source.height, 1));
+  const width = Math.max(1, Math.round(source.width * scale));
+  const height = Math.max(1, Math.round(source.height * scale));
+  const sample = document.createElement("canvas");
+  sample.width = width;
+  sample.height = height;
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const sampleCtx = sample.getContext("2d", { willReadFrequently: true });
+  const dst = canvas.getContext("2d");
+  if (!sampleCtx || !dst) return canvas;
+  sampleCtx.imageSmoothingEnabled = true;
+  sampleCtx.drawImage(source, 0, 0, width, height);
+  const image = sampleCtx.getImageData(0, 0, width, height);
+  const out = dst.createImageData(width, height);
+  paintLabelEmissive(image.data, ink, application, out.data);
+  dst.putImageData(out, 0, 0);
+  return canvas;
+}
+
+/** Mask derived from the painted plate. Same pixels as the colour canvas, so the ink lines up. */
+export function labelSurfaceCanvas(source: HTMLCanvasElement, ink: string, application: LogoApplication): HTMLCanvasElement {
+  const limit = 1024;
+  const scale = Math.min(1, limit / Math.max(source.width, source.height, 1));
+  const width = Math.max(1, Math.round(source.width * scale));
+  const height = Math.max(1, Math.round(source.height * scale));
+  const sample = document.createElement("canvas");
+  sample.width = width;
+  sample.height = height;
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const sampleCtx = sample.getContext("2d", { willReadFrequently: true });
+  const dst = canvas.getContext("2d");
+  if (!sampleCtx || !dst) return canvas;
+  sampleCtx.imageSmoothingEnabled = true;
+  sampleCtx.drawImage(source, 0, 0, width, height);
+  const image = sampleCtx.getImageData(0, 0, width, height);
+  const out = dst.createImageData(width, height);
+  paintLabelSurface(image.data, ink, application, out.data, width, height);
+  dst.putImageData(out, 0, 0);
+  return canvas;
+}
+
+/** Display faces have no Hebrew glyphs. A right-to-left paragraph uses Heebo, which also covers Latin and digits. */
+export function labelTypeface(font: LogoFont, text: string): string {
+  return labelDirection(text) === "rtl" ? "Heebo" : TYPEFACE[font];
+}
+
+export function labelFontFamily(font: LogoFont, text: string): string {
+  return labelDirection(text) === "rtl" ? FONT_FAMILY.heebo : FONT_FAMILY[font];
+}
+
+const DARK_PLATE = "#16130f";
+const LIGHT_PLATE = "#f7f2e8";
+
+function parsedColor(input: string): THREE.Color {
+  try {
+    return new THREE.Color(input);
+  } catch {
+    return new THREE.Color(0);
+  }
+}
+
+/** WCAG relative luminance. THREE.Color components are already linear. */
+export function relativeLuminance(color: string): number {
+  const parsed = parsedColor(color);
+  return 0.2126 * parsed.r + 0.7152 * parsed.g + 0.0722 * parsed.b;
+}
+
+export function contrastRatio(ink: string, plate: string): number {
+  const a = relativeLuminance(ink);
+  const b = relativeLuminance(plate);
+  const lighter = Math.max(a, b);
+  const darker = Math.min(a, b);
+  return (lighter + 0.05) / (darker + 0.05);
+}
+
+/** Opaque ground with the higher WCAG contrast against the ink. */
+export function contrastingPlate(ink: string): string {
+  return contrastRatio(ink, DARK_PLATE) >= contrastRatio(ink, LIGHT_PLATE) ? DARK_PLATE : LIGHT_PLATE;
+}
+
+export interface LabelLineLayout {
+  lines: string[];
+  px: number;
+  direction: "rtl" | "ltr";
+  text: string;
+}
+
+/** Pick 1–3 lines and the largest size that fits the plate. The strings stay in logical order. */
+export function layoutLabelLines(
+  text: string,
+  maxWidth: number,
+  maxHeight: number,
+  measure: (line: string, px: number) => number,
+): LabelLineLayout {
+  const clean = clampLabelText(text.replace(/\s+/g, " ").trim());
+  const direction = labelDirection(clean);
+  if (!clean) return { lines: [], px: 0, direction, text: "" };
+  const words = clean.split(" ").filter(Boolean);
+  const lineSets: string[][] = [[clean]];
+  if (words.length >= 2) {
+    let bestScore = Infinity;
+    let best: string[] | null = null;
+    for (let i = 1; i < words.length; i += 1) {
+      const left = words.slice(0, i).join(" ");
+      const right = words.slice(i).join(" ");
+      const score = Math.abs([...left].length - [...right].length);
+      if (score < bestScore) {
+        bestScore = score;
+        best = [left, right];
+      }
+    }
+    if (best) lineSets.push(best);
+  }
+  if (words.length >= 3) {
+    const third = Math.max(1, Math.round(words.length / 3));
+    const twoThird = Math.max(third + 1, Math.round((2 * words.length) / 3));
+    if (twoThird < words.length) {
+      lineSets.push([
+        words.slice(0, third).join(" "),
+        words.slice(third, twoThird).join(" "),
+        words.slice(twoThird).join(" "),
+      ]);
+    }
+  }
+  const widths = new Map<string, number>();
+  const widthOf = (line: string, px: number) => {
+    const key = `${px}\0${line}`;
+    const cached = widths.get(key);
+    if (cached !== undefined) return cached;
+    const value = measure(line, px);
+    widths.set(key, value);
+    return value;
+  };
+  let chosen = { lines: [clean], px: 0 };
+  for (const lines of lineSets) {
+    const px = fitFontSize(lines, maxWidth, Math.max(8, Math.floor(maxHeight / (lines.length * 1.16))), widthOf);
+    if (px > chosen.px) chosen = { lines, px };
+  }
+  return { ...chosen, direction, text: clean };
+}
+
+function fitFontSize(
+  lines: string[],
+  maxWidth: number,
+  maxPx: number,
+  widthOf: (line: string, px: number) => number,
+): number {
+  const fits = (px: number) => lines.every((line) => widthOf(line, px) <= maxWidth);
+  let lo = 8;
+  let hi = Math.max(lo, Math.floor(maxPx));
+  if (!fits(lo)) return lo;
+  while (lo < hi) {
+    const mid = Math.ceil((lo + hi) / 2);
+    if (fits(mid)) lo = mid;
+    else hi = mid - 1;
+  }
+  return lo;
 }
 
 function letters(text: string): string {
-  const clean = text.replace(/\s+/g, " ").trim();
-  return clean || "Nº";
+  return text.replace(/\s+/g, " ").trim();
 }
 
 function initial(text: string): string {
   const clean = letters(text);
+  if (!clean) return "";
   const parts = clean.split(" ").filter(Boolean);
-  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
-  return clean.slice(0, 1).toUpperCase();
+  if (parts.length >= 2) return (Array.from(parts[0])[0] + Array.from(parts[1])[0]).toUpperCase();
+  return Array.from(clean)[0]?.toUpperCase() ?? "";
 }
 
 function drawFrame(ctx: CanvasRenderingContext2D, frame: LogoFrame, s: number, ink: string) {
@@ -74,7 +461,7 @@ function drawMark(ctx: CanvasRenderingContext2D, mark: LogoMark, font: LogoFont,
   ctx.strokeStyle = ink;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  ctx.direction = /[\u0590-\u05FF]/.test(text) ? "rtl" : "ltr";
+  ctx.direction = labelDirection(text);
   const family = inkFont(font, text);
   const label = letters(text);
 
@@ -98,7 +485,7 @@ function drawMark(ctx: CanvasRenderingContext2D, mark: LogoMark, font: LogoFont,
     }
   } else if (mark === "vertical") {
     ctx.font = `500 ${s * 0.09}px ${family}`;
-    const chars = label.slice(0, 10).split("");
+    const chars = Array.from(label).slice(0, 10);
     chars.forEach((ch, i) => ctx.fillText(ch, s / 2, s * 0.22 + i * s * 0.07, s * 0.8));
   } else if (mark === "stacked") {
     const parts = label.split(" ");
@@ -233,23 +620,102 @@ function drawMark(ctx: CanvasRenderingContext2D, mark: LogoMark, font: LogoFont,
   ctx.restore();
 }
 
-function plateColor(ink: string): string {
-  const body = ink.trim().replace("#", "");
-  const n = Number.parseInt(body.length >= 6 ? body.slice(0, 6) : "ffffff", 16);
-  const r = (n >> 16) & 255;
-  const g = (n >> 8) & 255;
-  const b = n & 255;
-  return (r + g + b) / 3 > 170 ? "#171411" : "#f4efe6";
+function fitWord(ctx: CanvasRenderingContext2D, word: string, family: string, maxPx: number, maxWidth: number, weight = "600"): number {
+  if (!word) return 0;
+  const widths = new Map<number, number>();
+  const widthAt = (px: number) => {
+    const cached = widths.get(px);
+    if (cached !== undefined) return cached;
+    ctx.font = `${weight} ${px}px ${family}`;
+    const value = ctx.measureText(word).width;
+    widths.set(px, value);
+    return value;
+  };
+  let lo = 8;
+  let hi = Math.max(lo, Math.floor(maxPx));
+  if (widthAt(lo) > maxWidth) {
+    ctx.font = `${weight} ${lo}px ${family}`;
+    return lo;
+  }
+  while (lo < hi) {
+    const mid = Math.ceil((lo + hi) / 2);
+    if (widthAt(mid) <= maxWidth) lo = mid;
+    else hi = mid - 1;
+  }
+  ctx.font = `${weight} ${lo}px ${family}`;
+  return lo;
 }
 
-function fitWord(ctx: CanvasRenderingContext2D, word: string, family: string, maxPx: number, maxWidth: number, weight = "600"): number {
-  let px = Math.max(18, Math.floor(maxPx));
-  ctx.font = `${weight} ${px}px ${family}`;
-  while (px > 16 && ctx.measureText(word).width > maxWidth) {
-    px -= 2;
+const TYPE_MARKS = new Set<LogoSpec["mark"]>(["word", "horizon", "stacked", "vertical", "numeral"]);
+
+export function paintLabel(
+  ctx: CanvasRenderingContext2D,
+  spec: Pick<LogoSpec, "mark" | "font" | "frame">,
+  text: string,
+  ink: string,
+  w: number,
+  h: number,
+): LabelLineLayout {
+  const family = labelFontFamily(spec.font, text);
+  const weight = labelFontWeight(spec.font, text);
+  const typeMark = TYPE_MARKS.has(spec.mark) || h < w * 0.62;
+  const direction = labelDirection(text);
+  const canvasEl = ctx.canvas as HTMLCanvasElement | undefined;
+  if (canvasEl?.setAttribute) canvasEl.setAttribute("dir", direction);
+  ctx.save();
+  ctx.direction = direction;
+  ctx.fillStyle = contrastingPlate(ink);
+  ctx.fillRect(0, 0, w, h);
+
+  const layout = layoutLabelLines(text, Math.max(8, w * 0.86), h * (typeMark ? 0.78 : 0.58), (line, px) => {
     ctx.font = `${weight} ${px}px ${family}`;
+    return ctx.measureText(line).width;
+  });
+  if (!layout.text) {
+    ctx.restore();
+    return layout;
   }
-  return px;
+
+  const textShare = typeMark ? 0.78 : 0.58;
+  const textHeight = h * textShare;
+  const textTop = h - h * 0.06 - textHeight;
+  if (!typeMark) {
+    const markBox = Math.min(w * 0.62, Math.max(8, textTop * 0.9));
+    ctx.save();
+    ctx.translate((w - markBox) / 2, Math.max(h * 0.045, (textTop - markBox) / 2));
+    drawFrame(ctx, spec.frame, markBox, ink);
+    drawMark(ctx, spec.mark, spec.font, text, markBox, ink);
+    ctx.restore();
+  } else if (spec.frame !== "none") {
+    ctx.strokeStyle = ink;
+    ctx.lineWidth = Math.max(1.5, Math.min(w, h) * 0.012);
+    const m = Math.min(w, h) * 0.055;
+    ctx.strokeRect(m, m, w - m * 2, h - m * 2);
+  }
+
+  ctx.direction = layout.direction;
+  ctx.font = `${weight} ${layout.px}px ${family}`;
+  ctx.fillStyle = ink;
+  ctx.strokeStyle = ink;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  const leading = layout.px * 1.16;
+  const block = layout.lines.length * leading;
+  let y = textTop + (textHeight - block) / 2 + leading * 0.5;
+  for (const line of layout.lines) {
+    ctx.direction = layout.direction;
+    ctx.fillText(line, w / 2, y);
+    y += leading;
+  }
+  if (spec.mark === "horizon") {
+    ctx.lineWidth = Math.max(1.5, h * 0.012);
+    ctx.beginPath();
+    ctx.moveTo(w * 0.18, Math.min(h - h * 0.08, y));
+    ctx.lineTo(w * 0.82, Math.min(h - h * 0.08, y));
+    ctx.stroke();
+  }
+  ctx.restore();
+  return layout;
 }
 
 export function drawLogo(spec: Pick<LogoSpec, "mark" | "font" | "frame">, text: string, ink: string, size: number, height?: number): HTMLCanvasElement {
@@ -260,33 +726,7 @@ export function drawLogo(spec: Pick<LogoSpec, "mark" | "font" | "frame">, text: 
   canvas.height = h;
   const ctx = canvas.getContext("2d");
   if (!ctx) return canvas;
-  const plate = plateColor(ink);
-  const word = letters(text).slice(0, 12);
-  const family = inkFont(spec.font, text);
-  ctx.fillStyle = plate;
-  ctx.fillRect(0, 0, w, h);
-  ctx.fillStyle = ink;
-  ctx.strokeStyle = ink;
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.direction = /[\u0590-\u05FF]/.test(word) ? "rtl" : "ltr";
-
-  // Draw the mark in a square so a wide label cannot squash a diamond into a bracket.
-  const side = Math.min(w, h);
-  const ox = (w - side) / 2;
-  const oy = (h - side) / 2;
-  ctx.save();
-  ctx.translate(ox, oy);
-  drawFrame(ctx, spec.frame, side, ink);
-  drawMark(ctx, spec.mark, spec.font, text, side, ink);
-  ctx.restore();
-  if (spec.mark === "word" || spec.mark === "horizon") return canvas;
-  ctx.fillStyle = ink;
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.direction = /[\u0590-\u05FF]/.test(word) ? "rtl" : "ltr";
-  fitWord(ctx, word, family, side * (word.length > 8 ? 0.12 : 0.16), side * 0.78);
-  ctx.fillText(word, w / 2, Math.min(h - side * 0.08, oy + side * 0.86));
+  paintLabel(ctx, spec, text, ink, w, h);
   return canvas;
 }
 

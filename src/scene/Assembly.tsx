@@ -1,4 +1,4 @@
-import { useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useContext, useEffect, useLayoutEffect, useMemo, useRef, type ReactNode } from "react";
 import { useFrame } from "@react-three/fiber";
 import { RoundedBox } from "@react-three/drei";
 import * as THREE from "three";
@@ -7,7 +7,9 @@ import { computeFit } from "../model/fit.ts";
 import { isGlass } from "../model/materials.ts";
 import type { BoxForm, PartKey, PumpStyle } from "../model/types.ts";
 import { buildBottleGeometry, buildCapGeometry, buildLabelPatch } from "../geometry/sweep.ts";
-import { logoTexture } from "../geometry/logos.ts";
+import { FOIL_ENV_FLOOR, labelEmissive, labelFinish, labelInk } from "../geometry/logos.ts";
+import type { LogoApplication } from "../model/types.ts";
+import { copyLabelCanvas, LabelPaintProvider, useLabelMaps, useSharedLabelCanvas } from "./labelPaint.ts";
 import { useLab } from "../store/labStore.ts";
 import { latheGeometry, latheProfile } from "../import/lathe.ts";
 import { clickPart, doubleClickPart, markPartPointer, swapFlashOn } from "./focusClick.ts";
@@ -262,6 +264,7 @@ export function Assembly() {
   });
 
   return (
+    <LabelPaintProvider>
     <Clock.Provider value={clock}>
       <BoxPart />
       <BottlePart />
@@ -277,6 +280,7 @@ export function Assembly() {
       <Shadow fitWidth={fit.bottleW} />
       <Turntable />
     </Clock.Provider>
+    </LabelPaintProvider>
   );
 }
 
@@ -601,6 +605,64 @@ function Actuator({
   );
 }
 
+function LabelFinishMaterial({
+  map,
+  mask,
+  emissiveMap,
+  ink,
+  application,
+  overlay = false,
+}: {
+  map: THREE.Texture;
+  mask: THREE.Texture | null;
+  emissiveMap: THREE.Texture | null;
+  ink: string;
+  application: LogoApplication;
+  overlay?: boolean;
+}) {
+  const finish = labelFinish(application);
+  const flat = finish.metalness === 0 && finish.bumpScale === 0;
+  if (flat || !mask) {
+    return (
+      <meshBasicMaterial
+        map={map}
+        toneMapped={false}
+        transparent={overlay}
+        depthWrite={!overlay}
+        polygonOffset={!overlay}
+        polygonOffsetFactor={-4}
+        polygonOffsetUnits={-4}
+      />
+    );
+  }
+  // Roughness is multiplied by the map. The uniform stays 1 so the plate (green = 1) stays matte
+  // and the ink uses labelFinish().roughness, stored in that channel. Metalness uses the blue channel.
+  // Foil keeps an environment floor and a small ink-coloured emissive so the face stays the ink colour
+  // when the studio behind the camera is dark. The emissive map is black on the plate.
+  const envMapIntensity = application === "foil" ? Math.max(finish.envMapIntensity, FOIL_ENV_FLOOR) : finish.envMapIntensity;
+  return (
+    <meshStandardMaterial
+      map={map}
+      metalness={finish.metalness}
+      metalnessMap={mask}
+      roughness={1}
+      roughnessMap={mask}
+      bumpMap={finish.bumpScale !== 0 ? mask : undefined}
+      bumpScale={finish.bumpScale}
+      envMapIntensity={envMapIntensity}
+      emissive={labelEmissive(ink, application)}
+      emissiveIntensity={finish.emissive}
+      emissiveMap={finish.emissive > 0 ? emissiveMap ?? undefined : undefined}
+      toneMapped={finish.metalness < 0.5}
+      transparent={overlay}
+      depthWrite={!overlay}
+      polygonOffset={!overlay}
+      polygonOffsetFactor={-4}
+      polygonOffsetUnits={-4}
+    />
+  );
+}
+
 function LabelPart() {
   const design = useLab((s) => s.design);
   const stage = useLab((s) => s.stage);
@@ -609,35 +671,10 @@ function LabelPart() {
   const bottle = bottleById(design.bottle.variantId);
   const spec = logoById(design.label.variantId);
   const fit = computeFit(design, false);
-  const ink = useMemo(() => inkFor(spec.application, design.label.color), [spec.application, design.label.color]);
-  const [fontTick, setFontTick] = useState(0);
-  useEffect(() => {
-    let live = true;
-    const fonts = document.fonts;
-    if (!fonts) return undefined;
-    void fonts.ready.then(() => {
-      if (live) setFontTick(1);
-    });
-    return () => {
-      live = false;
-    };
-  }, []);
-  
-  const canvas = useMemo(() => {
-    const aspect = fit.labelW / Math.max(4, fit.labelH);
-    const width = 2048;
-    const height = Math.max(128, Math.round(width / Math.min(6, Math.max(0.45, aspect))));
-    return logoTexture(spec, design.label.text, ink, width, height);
-  }, [spec, design.label.text, ink, fontTick, fit.labelW, fit.labelH]);
-  const texture = useMemo(() => {
-    const map = new THREE.CanvasTexture(canvas);
-    map.colorSpace = THREE.SRGBColorSpace;
-    map.anisotropy = 16;
-    map.flipY = true;
-    map.needsUpdate = true;
-    return map;
-  }, [canvas]);
-  useEffect(() => () => texture.dispose(), [texture]);
+  const ink = labelInk(design.label.color, spec.application);
+  const shared = useSharedLabelCanvas();
+  const canvas = useMemo(() => shared ?? document.createElement("canvas"), [shared]);
+  const { color: texture, mask, emissive } = useLabelMaps(canvas, ink, spec.application);
   const plate = useDisposable(() => buildLabelPatch({
     height: design.bottle.heightMm,
     width: design.bottle.widthMm,
@@ -656,25 +693,11 @@ function LabelPart() {
   return (
     <PartShell part="label" index={4} home={[0, fit.labelY, fit.labelZ]} explode={fit.explode.label} visible={design.label.visible && onStage} variantKey={spec.id + design.label.text + bottle.id}>
       <mesh geometry={plate} renderOrder={8}>
-        <meshBasicMaterial map={texture} toneMapped={false} polygonOffset polygonOffsetFactor={-4} polygonOffsetUnits={-4} />
+        <LabelFinishMaterial map={texture} mask={mask} emissiveMap={emissive} ink={ink} application={spec.application} />
         <GoldRim part="label" stamp={spec.id + design.label.text} />
       </mesh>
     </PartShell>
   );
-}
-
-function relativeLuminance(hex: string): number {
-  const color = new THREE.Color(hex);
-  const lin = (channel: number) => (channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4);
-  return 0.2126 * lin(color.r) + 0.7152 * lin(color.g) + 0.0722 * lin(color.b);
-}
-
-function inkFor(application: string, plate: string): string {
-  const lum = relativeLuminance(plate);
-  if (application === "foil") return "#fff6e4";
-  if (application === "emboss") return lum > 0.62 ? "#6d583c" : "#f6f1e6";
-  if (application === "engrave") return lum > 0.45 ? "#241c14" : "#0c0b0a";
-  return lum > 0.55 ? "#221910" : "#f4eee4";
 }
 
 function BoxPart() {
@@ -695,22 +718,23 @@ function BoxPart() {
 
 function BrandPlate({ w, y, z }: { w: number; y: number; z: number }) {
   const blueprint = useLab((s) => s.blueprint);
-  const text = useLab((s) => s.design.label.text);
   const variantId = useLab((s) => s.design.label.variantId);
-  const tex = useMemo(() => {
-    const planeW = Math.min(w * 0.48, 52);
-    const canvas = logoTexture(logoById(variantId), text, "#f6f1e6", 1024, Math.max(96, Math.round(1024 * 18 / planeW)));
-    const texture = new THREE.CanvasTexture(canvas);
-    texture.colorSpace = THREE.SRGBColorSpace;
-    texture.anisotropy = 4;
-    return texture;
-  }, [text, variantId, w]);
-  useEffect(() => () => tex.dispose(), [tex]);
+  const color = useLab((s) => s.design.label.color);
+  const spec = logoById(variantId);
+  const ink = labelInk(color, spec.application);
+  const shared = useSharedLabelCanvas();
+  const planeW = Math.min(w * 0.48, 52);
+  const plateH = Math.max(96, Math.round(1024 * 18 / planeW));
+  const canvas = useMemo(
+    () => (shared ? copyLabelCanvas(shared, 1024, plateH) : document.createElement("canvas")),
+    [shared, plateH],
+  );
+  const { color: tex, mask, emissive } = useLabelMaps(canvas, ink, spec.application);
   if (blueprint) return null;
   return (
     <mesh position={[0, y, z]}>
-      <planeGeometry args={[Math.min(w * 0.48, 52), 18]} />
-      <meshBasicMaterial map={tex} transparent toneMapped={false} depthWrite={false} />
+      <planeGeometry args={[planeW, 18]} />
+      <LabelFinishMaterial map={tex} mask={mask} emissiveMap={emissive} ink={ink} application={spec.application} overlay />
     </mesh>
   );
 }

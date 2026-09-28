@@ -20,6 +20,7 @@ import { tx } from "../i18n/copy.ts";
 import { isVariantPart, syncRegistry, type SupplierPack } from "../import/registry.ts";
 import { apiClient } from "../api/client.ts";
 import type { BudgetBrief, PriceOverride } from "../budget/types.ts";
+import { clampLabelText } from "../geometry/logos.ts";
 
 export type LabMode = "assemble" | "explode" | "dimensions" | "compare";
 export type ViewPreset = "home" | "front" | "three" | "top" | "side";
@@ -280,9 +281,12 @@ function applyOne(design: Design, command: LabCommand, ui: { explode: number; mo
     case "fill":
       design.liquid.fill = clamp(command.value, 0.05, 0.95);
       break;
-    case "text":
-      design.label.text = command.text.slice(0, 32);
+    case "text": {
+      const text = clampLabelText(command.text);
+      design.label.text = text;
+      design.label.visible = text.length > 0 ? true : design.label.visible;
       break;
+    }
     case "explode":
       ui.explode = command.value ? 1 : 0;
       ui.mode = command.value ? "explode" : ui.mode === "explode" ? "assemble" : ui.mode;

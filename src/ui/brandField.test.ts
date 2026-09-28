@@ -111,7 +111,7 @@ describe("brand field hint", () => {
 
     useLab.getState().applyCommands([{ type: "text", text: "NOIR" }]);
     expect(useLab.getState().design.label.text).toBe("NOIR");
-    expect(useLab.getState().design.label.visible).toBe(false);
+    expect(useLab.getState().design.label.visible).toBe(true);
     expect(brandHintText(useLab.getState().design.label.text, he)).toBe("");
     expect(fieldMarkup(useLab.getState().design.label.text)).not.toContain('class="brand-hint"');
 

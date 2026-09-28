@@ -11,6 +11,14 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@fontsource/cinzel": "^5.3.0",
+    "@fontsource/cormorant-garamond": "^5.3.0",
+    "@fontsource/great-vibes": "^5.3.0",
+    "@fontsource/heebo": "^5.3.0",
+    "@fontsource/inter": "^5.3.0",
+    "@fontsource/italiana": "^5.3.0",
+    "@fontsource/share-tech-mono": "^5.3.0",
+    "@fontsource/syne": "^5.3.0",
     "@react-three/drei": "^10.7.9",
     "@react-three/fiber": "^9.8.1",
     "@react-three/postprocessing": "^3.1.3",

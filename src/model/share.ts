@@ -1,4 +1,8 @@
+import { clampLabelText } from "../geometry/logos.ts";
 import { listFor } from "./catalog.ts";
+import { logoApplication } from "./catalog.ts";
+import { legacyLabelInk } from "../geometry/logos.ts";
+import { LAB_PERSIST_VERSION } from "../store/hydrate.ts";
 import { createDefaultDesign } from "./design.ts";
 import { FINISHES } from "./materials.ts";
 import { NECKS } from "./necks.ts";
@@ -106,7 +110,7 @@ export function mergeShareDesign(input: unknown): Design | null {
       variantId: label ? pickVariant(label, "label", base.label.variantId) : base.label.variantId,
       finish: label ? pickFinish(label, "finish", base.label.finish) : base.label.finish,
       color: label ? pickColor(label, "color", base.label.color) : base.label.color,
-      text: label && typeof label.text === "string" ? label.text.slice(0, 32) : base.label.text,
+      text: label && typeof label.text === "string" ? clampLabelText(label.text) : base.label.text,
       scale: label ? pickNumber(label, "scale", base.label.scale, 0.55, 1.6) : base.label.scale,
       visible: label ? pickBool(label, "visible", base.label.visible) : base.label.visible,
     },
@@ -146,11 +150,18 @@ export function mergeShareDesign(input: unknown): Design | null {
     const step = source.step;
     if (typeof step === "number" && Number.isInteger(step) && step >= 0 && step <= 7) design.step = step;
   }
+  if (label && !Object.hasOwn(source, "version")) {
+    const stored = label.color;
+    if (typeof stored === "string" && HEX_COLOR.test(stored)) {
+      const application = logoApplication(design.label.variantId);
+      if (application) design.label.color = legacyLabelInk(application, design.label.color);
+    }
+  }
   return design;
 }
 
 export function encodeShareDesign(design: Design): string {
-  const json = JSON.stringify(design);
+  const json = JSON.stringify({ ...design, version: LAB_PERSIST_VERSION });
   return btoa(unescape(encodeURIComponent(json))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
 }
 
