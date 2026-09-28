@@ -1,4 +1,5 @@
 import { useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import DOMPurify from "dompurify";
 import { partLabel, tx } from "../i18n/copy.ts";
 import { cropPage } from "../import/crop.ts";
 import { parsePackFile } from "../import/supplierDb.ts";
@@ -128,22 +129,27 @@ export function SupplierImport() {
   }
 
   function commit() {
-    const supplier = name.trim() || (lang === "he" ? "ספק" : "Supplier");
+    const rawName = name.trim() || (lang === "he" ? "ספק" : "Supplier");
+    const supplier = DOMPurify.sanitize(rawName);
     const id = `sup-${Date.now().toString(36)}`;
-    const parts = rows.map((row, index) => ({
-      ...partFromDraft({ ...row, code: row.code || `${row.kind}-${index + 1}` }, { id, name: supplier }, index),
-      color: row.color || "#c4a15a",
-      thumb: row.thumb,
-      neck: row.neck,
-      widthMm: Number(row.widthMm) || 30,
-      heightMm: Number(row.heightMm) || 30,
-      depthMm: Number(row.depthMm) || Number(row.widthMm) || 30,
-      capacityMl: row.capacityMl,
-      profile: row.profile,
-      kind: row.kind,
-      code: row.code || `${row.kind}-${index + 1}`,
-      name: `${row.code || row.kind} · ${supplier}`,
-    }));
+    const parts = rows.map((row, index) => {
+      const safeCode = DOMPurify.sanitize(row.code || `${row.kind}-${index + 1}`);
+      const safeName = `${safeCode} · ${supplier}`;
+      return {
+        ...partFromDraft({ ...row, code: safeCode }, { id, name: supplier }, index),
+        color: row.color || "#c4a15a",
+        thumb: row.thumb,
+        neck: row.neck,
+        widthMm: Number(row.widthMm) || 30,
+        heightMm: Number(row.heightMm) || 30,
+        depthMm: Number(row.depthMm) || Number(row.widthMm) || 30,
+        capacityMl: row.capacityMl,
+        profile: row.profile,
+        kind: row.kind,
+        code: safeCode,
+        name: safeName,
+      };
+    });
     upsertSupplier({ id, name: supplier, createdAt: Date.now(), parts });
   }
 

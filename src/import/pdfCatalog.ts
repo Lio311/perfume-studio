@@ -1,6 +1,8 @@
 import { getDocument, GlobalWorkerOptions, type PDFDocumentProxy } from "pdfjs-dist";
 import workerSrc from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 
+import DOMPurify from "dompurify";
+
 export interface CatalogPageImage {
   page: number;
   text: string;
@@ -19,7 +21,11 @@ function ensureWorker(): void {
 
 function linesFrom(items: Array<{ str: string; transform: number[] }>): string {
   const rows = items.filter((item) => item.str.trim());
-  rows.sort((a, b) => b.transform[5] - a.transform[5] || a.transform[4] - b.transform[4]);
+  rows.sort((a, b) => {
+    const diffY = b.transform[5] - a.transform[5];
+    if (Math.abs(diffY) <= 3) return a.transform[4] - b.transform[4];
+    return diffY;
+  });
   const lines: string[] = [];
   let currentY = Number.POSITIVE_INFINITY;
   let line: string[] = [];
@@ -34,7 +40,7 @@ function linesFrom(items: Array<{ str: string; transform: number[] }>): string {
     }
   }
   if (line.length) lines.push(line.join(" "));
-  return lines.join("\n");
+  return DOMPurify.sanitize(lines.join("\n"));
 }
 
 export async function readPdfCatalog(data: ArrayBuffer): Promise<CatalogPageImage[]> {

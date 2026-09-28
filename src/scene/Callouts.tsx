@@ -209,10 +209,22 @@ export function Callouts() {
       };
       tag.style.left = `${entry.x}px`;
       tag.style.top = `${entry.y}px`;
-      const name = entry.item.dim ? "" : `<b>${entry.item.title}</b>`;
-      const detail = entry.item.detail ? `<span dir="ltr">${entry.item.detail}</span>` : "";
-      const html = `${name}${detail}`;
-      if (tag.innerHTML !== html) tag.innerHTML = html;
+      const expectedText = (entry.item.dim ? "" : entry.item.title) + "|" + (entry.item.detail || "");
+      if (tag.dataset.content !== expectedText) {
+        tag.dataset.content = expectedText;
+        tag.innerHTML = "";
+        if (!entry.item.dim && entry.item.title) {
+          const b = document.createElement("b");
+          b.textContent = entry.item.title;
+          tag.appendChild(b);
+        }
+        if (entry.item.detail) {
+          const span = document.createElement("span");
+          span.dir = "ltr";
+          span.textContent = entry.item.detail;
+          tag.appendChild(span);
+        }
+      }
       const width = tag.offsetWidth || 80;
       const endX = entry.item.side < 0 ? entry.x + width : entry.x - width;
       if (!point || entry.item.dim) return;

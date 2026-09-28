@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useEffect } from "react";
 import * as THREE from "three";
 import type { FinishId } from "../model/types.ts";
 import { isGlass } from "../model/materials.ts";
@@ -142,6 +142,17 @@ export function FinishMaterial({
   const wood = useMemo(() => (finish === "wood" ? woodMap() : null), [finish]);
   const leather = useMemo(() => (finish === "leather" ? leatherBump() : null), [finish]);
   const paper = useMemo(() => (finish === "matteBlack" ? mattePaper(color) : null), [finish, color]);
+
+  useEffect(() => {
+    return () => {
+      if (wood) wood.dispose();
+      if (leather) leather.dispose();
+      if (paper) {
+        paper.map.dispose();
+        paper.bump.dispose();
+      }
+    };
+  }, [wood, leather, paper]);
   const blueprint = useLab((s) => s.blueprint);
   const glassLike = glass && isGlass(finish);
   const metal = finish === "gold" || finish === "silver" || finish === "rose";

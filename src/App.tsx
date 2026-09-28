@@ -43,10 +43,25 @@ export default function App() {
   const setModal = useLab((s) => s.setModal);
   const toast = useLab((s) => s.toast);
   const [hintOn, setHintOn] = useState(true);
+  const [swapping, setSwapping] = useState(false);
+
+  const sig = `${design.bottle.variantId}|${design.cap.variantId}|${design.pump.variantId}|${design.collar.variantId}|${design.label.variantId}|${design.box.variantId}`;
+  const seen = useRef(sig);
+  useEffect(() => {
+    if (voice !== 3) {
+      seen.current = sig;
+      return;
+    }
+    if (seen.current === sig) return;
+    seen.current = sig;
+    setSwapping(true);
+    const timer = window.setTimeout(() => setSwapping(false), 480);
+    return () => window.clearTimeout(timer);
+  }, [sig, voice]);
 
   useEffect(() => {
     applyTheme(theme);
-  }, [theme]);
+  }, []);
 
   useEffect(() => {
     void loadPacks().then((packs) => {
@@ -160,7 +175,7 @@ export default function App() {
   }, [cycle, helpOpen, lang, modal, mode, palette, present, redo, resetView, setHelp, setModal, setMode, setPalette, setPresent, showFull, undo]);
 
   return (
-    <div className={present ? "app is-present" : "app"} data-voice={voice}>
+    <div className={`app ${present ? "is-present" : ""} ${swapping ? "is-swapping" : ""}`.trim()} data-voice={voice}>
       <LabCanvas />
       <div className="vignette" />
       <div className="grain" />
@@ -220,27 +235,6 @@ export default function App() {
       <CommandPalette />
       <ShortcutHelp />
       <Modals />
-      <SwapFlash />
     </div>
   );
-}
-
-function SwapFlash() {
-  const voice = useLab((s) => s.voice);
-  const design = useLab((s) => s.design);
-  const sig = `${design.bottle.variantId}|${design.cap.variantId}|${design.pump.variantId}|${design.collar.variantId}|${design.label.variantId}|${design.box.variantId}`;
-  const seen = useRef(sig);
-  useEffect(() => {
-    if (voice !== 3) {
-      seen.current = sig;
-      return;
-    }
-    if (seen.current === sig) return;
-    seen.current = sig;
-    const root = document.querySelector(".app");
-    root?.classList.add("is-swapping");
-    const timer = window.setTimeout(() => root?.classList.remove("is-swapping"), 480);
-    return () => window.clearTimeout(timer);
-  }, [sig, voice]);
-  return null;
 }

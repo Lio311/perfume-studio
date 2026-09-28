@@ -445,8 +445,8 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   padding: 2px 6px;
   border-radius: 999px;
   border: 1px solid rgba(214, 178, 106, 0.45);
-  background: rgba(8, 10, 14, 0.88);
-  color: #f6edd8;
+  background: var(--panel);
+  color: var(--text);
   font-family: var(--num);
   font-size: 12px;
   letter-spacing: 0.03em;
@@ -461,7 +461,7 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   overflow: auto;
   padding: 16px;
   z-index: 20;
-  background: #12141c;
+  background: var(--panel);
 }
 .compare-stage header { display: flex; justify-content: space-between; align-items: center; }
 .compare-stage header button { border: 0; background: transparent; color: var(--text); font-size: 22px; }
@@ -499,8 +499,8 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   padding: 3px 8px;
   border-radius: 999px;
   border: 1px solid rgba(214, 178, 106, 0.45);
-  background: rgba(10, 11, 14, 0.72);
-  color: #f3e6cc;
+  background: var(--panel);
+  color: var(--accent-2);
   font-size: 12px;
   white-space: nowrap;
   letter-spacing: 0.04em;
@@ -525,7 +525,7 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   overflow: auto;
   padding: 18px;
   border-radius: 18px;
-  background: #12141c;
+  background: var(--panel);
   border: 1px solid var(--line);
   box-shadow: var(--shadow);
 }
@@ -606,7 +606,7 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   min-width: 200px;
   padding: 12px;
   border-radius: 14px;
-  background: #12141c;
+  background: var(--panel);
   border: 1px solid var(--line);
   box-shadow: var(--shadow);
 }
@@ -616,11 +616,11 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 .photo-canvas { width: 100%; margin-top: 10px; border-radius: 12px; background: #1a1c24; touch-action: none; cursor: crosshair; }
 .temp-badge { display: block; color: var(--accent); font-style: normal; font-size: 10px; }
 .dim-readout {
-  color: #f3e6cc;
+  color: var(--accent-2);
   font-family: var(--num);
   font-size: 12px;
   white-space: nowrap;
-  background: rgba(8, 10, 14, 0.72);
+  background: var(--panel);
   border: 1px solid rgba(214, 178, 106, 0.45);
   border-radius: 999px;
   padding: 2px 6px;
@@ -960,16 +960,16 @@ html[data-theme="dark"] .app[data-voice="3"] .sonic-bar {
   padding: 8px 8px 8px 16px;
   border-radius: 999px;
   border: 1px solid rgba(214, 178, 106, 0.35);
-  background: rgba(12, 14, 18, 0.78);
+  background: var(--panel);
   backdrop-filter: blur(16px);
-  color: #f6edd8;
+  color: var(--text);
 }
 .present-bar button {
   border: 0;
   border-radius: 999px;
   padding: 6px 14px;
-  background: rgba(214, 178, 106, 0.18);
-  color: #f6edd8;
+  background: var(--fill);
+  color: var(--text);
 }
 .present-bar span { letter-spacing: 0.18em; font-size: 11px; color: var(--muted); }
 .timeline {
@@ -1119,3 +1119,4 @@ html[data-theme="light"] .grain { opacity: 0.018; mix-blend-mode: multiply; }
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; animation: none !important; }
 }
+

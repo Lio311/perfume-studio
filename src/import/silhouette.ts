@@ -14,12 +14,23 @@ export interface Silhouette {
 export function segmentSilhouette(image: ImageData, threshold: number): Silhouette {
   const { width, height, data } = image;
   const mask = new Uint8Array(width * height);
-  const corners = [0, width - 1, (height - 1) * width, width * height - 1];
   let bg = 0;
-  for (const index of corners) {
-    bg += data[index * 4] * 0.3 + data[index * 4 + 1] * 0.59 + data[index * 4 + 2] * 0.11;
+  let count = 0;
+  for (let x = 0; x < width; x += 1) {
+    const top = x;
+    const bottom = (height - 1) * width + x;
+    bg += data[top * 4] * 0.3 + data[top * 4 + 1] * 0.59 + data[top * 4 + 2] * 0.11;
+    bg += data[bottom * 4] * 0.3 + data[bottom * 4 + 1] * 0.59 + data[bottom * 4 + 2] * 0.11;
+    count += 2;
   }
-  bg /= corners.length;
+  for (let y = 1; y < height - 1; y += 1) {
+    const left = y * width;
+    const right = y * width + width - 1;
+    bg += data[left * 4] * 0.3 + data[left * 4 + 1] * 0.59 + data[left * 4 + 2] * 0.11;
+    bg += data[right * 4] * 0.3 + data[right * 4 + 1] * 0.59 + data[right * 4 + 2] * 0.11;
+    count += 2;
+  }
+  bg /= count;
   const gate = Math.max(6, threshold);
   for (let index = 0; index < width * height; index += 1) {
     const r = data[index * 4];

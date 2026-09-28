@@ -1,3 +1,4 @@
+import DOMPurify from "dompurify";
 import type { SupplierPack } from "./registry.ts";
 
 const DB_NAME = "perfume-lab-suppliers";
@@ -58,9 +59,13 @@ export function parsePackFile(text: string): SupplierPack | null {
     if (!value || typeof value.name !== "string" || !Array.isArray(value.parts)) return null;
     return {
       id: value.id || `pack-${Date.now().toString(36)}`,
-      name: value.name,
+      name: DOMPurify.sanitize(value.name),
       createdAt: value.createdAt || Date.now(),
-      parts: value.parts.filter((part) => part && typeof part.id === "string" && typeof part.kind === "string"),
+      parts: value.parts.filter((part) => part && typeof part.id === "string" && typeof part.kind === "string").map(part => ({
+        ...part,
+        name: DOMPurify.sanitize(part.name || ""),
+        code: DOMPurify.sanitize(part.code || ""),
+      })),
     };
   } catch {
     return null;

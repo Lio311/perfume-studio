@@ -88,4 +88,14 @@ describe("parseCatalogPages", () => {
     syncRegistry([{ id: "aurora", name: "Aurora Closures", createdAt: 1, parts: [part] }]);
     expect(capById(part.id)).toMatchObject({ heightMm: 35, widthMm: 30 });
   });
+
+  it("handles relaxed regexes and tolerance for measurements", () => {
+    const items = parseCatalogPages([{
+      page: 1,
+      text: "CAP-001 cap\n ⌀: 30.5mm H = 40 mm\n\nBTL-002 glass bottle\n20x30x40\n50ml\n\nLBL-003 Sticker\nW=35 H=45"
+    }]);
+    expect(items.find(i => i.code === "CAP-001")).toMatchObject({ widthMm: 30.5, heightMm: 40 });
+    expect(items.find(i => i.code === "BTL-002")).toMatchObject({ widthMm: 20, heightMm: 30, depthMm: 40, capacityMl: 50 });
+    expect(items.find(i => i.code === "LBL-003")).toMatchObject({ widthMm: 35, heightMm: 45 });
+  });
 });

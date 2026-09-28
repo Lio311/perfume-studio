@@ -122,7 +122,7 @@ function readMeasures(text: string): Measures {
   if (dia) found.dia = asMm(parseNum(dia[1]), dia[2]);
   const height = text.match(new RegExp(`(?:height|גובה|ارتفاع)\\s*[:=]?\\s*${NUM}\\s*(mm|cm|מ״מ|מ"מ|ממ)?|\\bH\\s*[:=]?\\s*${NUM}\\s*(mm|cm|מ״מ|מ"מ|ממ)?`, "i"));
   if (height) found.h = asMm(parseNum(height[1] || height[3]), height[2] || height[4]);
-  const width = text.match(new RegExp(`(?:width|רוחב|عرض)\\s*[:=]?\\s*${NUM}\\s*(mm|cm|מ״מ|מ"מ|ממ)?|\\bW\\s*[:=]?\\s*${NUM}\\s*(mm|cm|מ״מ|מ"מ|ממ)?`, "i"));
+  const width = text.match(new RegExp(`(?:width|רוחב|عرض)\\s*[:=]?\\s*${NUM}\\s*(mm|cm|מ״מ|מ"מ|ממ)?|\\b[WL]\\s*[:=]?\\s*${NUM}\\s*(mm|cm|מ״מ|מ"מ|ממ)?`, "i"));
   if (width) found.w = asMm(parseNum(width[1] || width[3]), width[2] || width[4]);
   const depth = text.match(new RegExp(`(?:depth|עומק|عمق)\\s*[:=]?\\s*${NUM}\\s*(mm|cm|מ״מ|מ"מ|ממ)?|\\bD\\s*[:=]?\\s*${NUM}\\s*(mm|cm|מ״מ|מ"מ|ממ)?`, "i"));
   if (depth) found.d = asMm(parseNum(depth[1] || depth[3]), depth[2] || depth[4]);
@@ -195,7 +195,7 @@ function blocksOf(text: string): string[] {
     };
     for (const line of lines) {
       const starts = /^(?:cap|closure|box|carton|bottle|pump|label|sticker|collar|zamac|surlyn|פקק|קופסה|בקבוק|מדבקה|غطاء|علبة)/i.test(line)
-        || /^[A-Z]{1,6}-\d{2,}/.test(line);
+        || /^[A-Z]{1,6}\s*-\s*\d{2,}/.test(line);
       const soFar = current.join(" ");
       if (starts && current.length && (detectKind(soFar) || hasMeasure(soFar))) flush();
       current.push(line);

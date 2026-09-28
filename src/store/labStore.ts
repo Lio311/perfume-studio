@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { produce } from "immer";
 import { applyLook, applyVariant, createDefaultDesign, estimateMl, LOOKS } from "../model/design.ts";
 import { BOTTLES } from "../model/bottles.ts";
 import { CAPS } from "../model/caps.ts";
@@ -8,12 +9,13 @@ import { BOXES, COLLARS, PUMPS } from "../model/hardware.ts";
 import { cycleId } from "../model/catalog.ts";
 import { LIQUID_PALETTE, finishById } from "../model/materials.ts";
 import type { Design, FinishId, NeckId, PartKey, VariantPart } from "../model/types.ts";
-import type { ThemeId } from "../theme/themes.ts";
+import { type ThemeId, applyTheme } from "../theme/themes.ts";
 import type { Lang } from "../model/types.ts";
 import type { LabCommand } from "../parser/interpret.ts";
 import { parseVoiceParam, readVoiceParam, type VoiceVariant } from "../audio/wake.ts";
 import { deletePack, savePack } from "../import/supplierDb.ts";
 import { syncRegistry, type SupplierPack } from "../import/registry.ts";
+import { apiClient } from "../api/client.ts";
 
 export type LabMode = "assemble" | "explode" | "dimensions" | "compare";
 export type ViewPreset = "home" | "front" | "three" | "top" | "side";
@@ -352,17 +354,17 @@ export const useLab = create<LabState>()(
       hover: (part, x = 0, y = 0) => set({ hovered: part ? { part, x, y } : null }),
       patch: (part, partial) =>
         set((state) => {
-          const next = structuredClone(state.design);
-          const target = next[part] as unknown as Record<string, unknown>;
-          Object.assign(target, partial);
-          if (part === "box" && ("heightMm" in partial || "widthMm" in partial || "depthMm" in partial) && !("linked" in partial)) {
-            next.box.linked = false;
-          }
-          return state.gesturing ? { design: next } : { design: next, past: [...state.past, structuredClone(state.design)].slice(-30), future: [] };
+          const next = produce(state.design, (draft) => {
+            const target = draft[part] as unknown as Record<string, unknown>;
+            Object.assign(target, partial);
+            if (part === "box" && ("heightMm" in partial || "widthMm" in partial || "depthMm" in partial) && !("linked" in partial)) {
+              draft.box.linked = false;
+            }
+          });
+          return state.gesturing ? { design: next } : { design: next, past: [...state.past, state.design].slice(-30), future: [] };
         }),
       applyCommands: (commands, options) =>
         set((state) => {
-          const design = structuredClone(state.design);
           const ui = {
             explode: state.explode,
             mode: state.mode,
@@ -371,9 +373,14 @@ export const useLab = create<LabState>()(
             selected: state.selected,
             focusToken: state.focusToken,
           };
-          for (const command of commands) applyOne(design, command, ui);
+          
+          const design = produce(state.design, (draft) => {
+            for (const command of commands) applyOne(draft, command, ui);
+          });
+          
           const quiet = options?.quiet;
-          const changed = JSON.stringify(design) !== JSON.stringify(state.design) || ui.explode !== state.explode || ui.mode !== state.mode;
+          const designChanged = design !== state.design;
+          
           return {
             design,
             explode: ui.explode,
@@ -384,8 +391,8 @@ export const useLab = create<LabState>()(
             focusToken: quiet ? state.focusToken : ui.focusToken,
             sideOpen: ui.selected ? true : state.sideOpen,
             aimed: quiet ? state.aimed : ui.focusToken !== state.focusToken ? true : state.aimed,
-            past: changed ? [...state.past, structuredClone(state.design)].slice(-30) : state.past,
-            future: changed ? [] : state.future,
+            past: designChanged ? [...state.past, state.design].slice(-30) : state.past,
+            future: designChanged ? [] : state.future,
           };
         }),
       cycle: (dir, part) => {
@@ -426,27 +433,27 @@ export const useLab = create<LabState>()(
           const previous = state.past[state.past.length - 1];
           const note = state.lang === "he" ? "בוטל" : "Undone";
           if (!previous) return { toast: state.lang === "he" ? "אין מה לבטל" : "Nothing to undo" };
-          return { design: structuredClone(previous), past: state.past.slice(0, -1), future: [structuredClone(state.design), ...state.future].slice(0, 30), toast: note };
+          return { design: previous, past: state.past.slice(0, -1), future: [state.design, ...state.future].slice(0, 30), toast: note };
         }),
       redo: () =>
         set((state) => {
           const next = state.future[0];
           const note = state.lang === "he" ? "חזר" : "Redone";
           if (!next) return { toast: state.lang === "he" ? "אין מה לחזור" : "Nothing to redo" };
-          return { design: structuredClone(next), future: state.future.slice(1), past: [...state.past, structuredClone(state.design)].slice(-30), toast: note };
+          return { design: next, future: state.future.slice(1), past: [...state.past, state.design].slice(-30), toast: note };
         }),
       beginGesture: () =>
-        set((state) => (state.gesturing ? state : { gesturing: true, past: [...state.past, structuredClone(state.design)].slice(-30), future: [] })),
+        set((state) => (state.gesturing ? state : { gesturing: true, past: [...state.past, state.design].slice(-30), future: [] })),
       endGesture: () => set({ gesturing: false }),
       restoreDesign: (design) =>
         set((state) => ({
-          design: structuredClone(design),
-          past: [...state.past, structuredClone(state.design)].slice(-30),
+          design: design,
+          past: [...state.past, state.design].slice(-30),
           future: [],
         })),
       duplicateDesign: () =>
         set((state) => ({
-          saved: [{ id: uid("cfg"), name: state.lang === "he" ? "עותק" : "Copy", design: structuredClone(state.design), thumb: "", createdAt: Date.now() }, ...state.saved].slice(0, 24),
+          saved: [{ id: uid("cfg"), name: state.lang === "he" ? "עותק" : "Copy", design: state.design, thumb: "", createdAt: Date.now() }, ...state.saved].slice(0, 24),
         })),
       toggleRotate: () => set((state) => ({ autoRotate: !state.autoRotate })),
       resetView: () =>
@@ -457,23 +464,47 @@ export const useLab = create<LabState>()(
           aimed: false,
           solo: null,
         })),
-      setTheme: (theme) => set({ theme }),
+      setTheme: (theme) => { applyTheme(theme); set({ theme }); },
       setLang: (lang) => set({ lang }),
       setLibraryOpen: (libraryOpen) => set({ libraryOpen }),
       setSideOpen: (sideOpen) => set({ sideOpen }),
       setModal: (modal) => set({ modal }),
       pushChat: (message) => set((state) => ({ chat: [...state.chat, message].slice(-40) })),
-      saveDesign: (name, thumb) =>
+      saveDesign: async (name, thumb) => {
+        const id = uid("cfg");
+        const newDesign = { id, name: name.trim() || "סקיצה", design: get().design, thumb, createdAt: Date.now() };
         set((state) => ({
-          saved: [{ id: uid("cfg"), name: name.trim() || "סקיצה", design: structuredClone(state.design), thumb, createdAt: Date.now() }, ...state.saved].slice(0, 24),
+          saved: [newDesign, ...state.saved].slice(0, 24),
           modal: null,
-        })),
-      loadDesign: (id) => {
+        }));
+        try {
+          await apiClient.post("/designs", newDesign);
+        } catch (e) {
+          console.error("Failed to save design to backend", e);
+        }
+      },
+      loadDesign: async (id) => {
+        try {
+          const loaded = await apiClient.get<SavedDesign>(`/designs/${id}`);
+          if (loaded && loaded.design) {
+            set((state) => ({ design: loaded.design, modal: null, focusToken: state.focusToken + 1 }));
+            return;
+          }
+        } catch (e) {
+          console.error("Failed to load design from backend", e);
+        }
         const found = get().saved.find((item) => item.id === id);
         if (!found) return;
-        set((state) => ({ design: structuredClone(found.design), modal: null, focusToken: state.focusToken + 1 }));
+        set((state) => ({ design: found.design, modal: null, focusToken: state.focusToken + 1 }));
       },
-      deleteDesign: (id) => set((state) => ({ saved: state.saved.filter((item) => item.id !== id), compareIds: state.compareIds.filter((item) => item !== id) })),
+      deleteDesign: async (id) => {
+        set((state) => ({ saved: state.saved.filter((item) => item.id !== id), compareIds: state.compareIds.filter((item) => item !== id) }));
+        try {
+          await apiClient.delete(`/designs/${id}`);
+        } catch (e) {
+          console.error("Failed to delete design from backend", e);
+        }
+      },
       toggleCompare: (id) =>
         set((state) => {
           const has = state.compareIds.includes(id);

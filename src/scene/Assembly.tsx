@@ -49,6 +49,13 @@ function PartShell({
   }, []);
 
   useEffect(() => {
+    return () => {
+      line.geometry.dispose();
+      (line.material as THREE.Material).dispose();
+    };
+  }, [line]);
+
+  useEffect(() => {
     pop.current = 1.04;
   }, [variantKey]);
 
@@ -128,15 +135,19 @@ function PartShell({
         const shader = mat as THREE.ShaderMaterial;
         if (shader.uniforms?.uFade) {
           shader.uniforms.uFade.value = THREE.MathUtils.damp(shader.uniforms.uFade.value, ghostTarget, 7, dt);
-          mat.transparent = true;
-          mat.depthWrite = shader.uniforms.uFade.value > 0.55;
+          if (!mat.transparent) mat.transparent = true;
+          const newDepthWrite = shader.uniforms.uFade.value > 0.55;
+          if (mat.depthWrite !== newDepthWrite) mat.depthWrite = newDepthWrite;
           continue;
         }
         if (mat.userData.baseOpacity === undefined) mat.userData.baseOpacity = mat.opacity;
         const target = ghost ? 0.1 : (mat.userData.baseOpacity as number);
-        mat.transparent = ghost || (mat.userData.baseOpacity as number) < 0.999;
-        mat.opacity = THREE.MathUtils.damp(mat.opacity, target, 7, dt);
-        mat.depthWrite = mat.opacity > 0.5;
+        const newTransparent = ghost || (mat.userData.baseOpacity as number) < 0.999;
+        if (mat.transparent !== newTransparent) mat.transparent = newTransparent;
+        const newOpacity = THREE.MathUtils.damp(mat.opacity, target, 7, dt);
+        if (Math.abs(mat.opacity - newOpacity) > 0.001) mat.opacity = newOpacity;
+        const newDepthWrite = mat.opacity > 0.5;
+        if (mat.depthWrite !== newDepthWrite) mat.depthWrite = newDepthWrite;
       }
     });
   });
@@ -187,6 +198,18 @@ function GoldRim({ part, stamp, hull = true }: { part: PartKey; stamp: string; h
   useLayoutEffect(() => {
     built.current = "";
   }, [stamp]);
+  useEffect(() => {
+    return () => {
+      if (!ref.current) return;
+      for (const child of ref.current.children) {
+        const line = child as THREE.LineSegments;
+        const mesh = ref.current.parent as THREE.Mesh | undefined;
+        if (line.geometry && line.geometry !== mesh?.geometry) line.geometry.dispose();
+        const material = (child as THREE.Mesh).material as THREE.Material | undefined;
+        material?.dispose();
+      }
+    };
+  }, []);
   useFrame(() => {
     const group = ref.current;
     const mesh = group?.parent as THREE.Mesh | undefined;
@@ -294,6 +317,9 @@ function Shadow({ fitWidth }: { fitWidth: number }) {
     texture.colorSpace = THREE.NoColorSpace;
     return texture;
   }, []);
+  useEffect(() => {
+    if (map) return () => map.dispose();
+  }, [map]);
   if (!map) return null;
   return (
     <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.05, 0]}>

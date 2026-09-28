@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { Grid, TrackballControls } from "@react-three/drei";
+import { Grid, OrbitControls } from "@react-three/drei";
 import * as THREE from "three";
 import { themes } from "../theme/themes.ts";
 import { useLab } from "../store/labStore.ts";
@@ -8,7 +8,7 @@ import { takeShot } from "./capture.ts";
 import type { PartKey } from "../model/types.ts";
 import type { ViewPreset } from "../store/labStore.ts";
 import { Assembly } from "./Assembly.tsx";
-import { clearPartPointer, consumePartPointer, releaseFocus } from "./focusClick.ts";
+import { releaseFocus } from "./focusClick.ts";
 import { assemblyBounds, fitPose, FOCUS_FILL, orbitLimits, partBounds, readStageFrame } from "./framing.ts";
 import { cameraProbe, sceneSpan } from "./limits.ts";
 import { clampPolarOffset, decayGlide, emptyGlide, polarAngle, poseBroken, pushGlide, takeStep, type Glide } from "./orbitGlide.ts";
@@ -52,10 +52,12 @@ function clampOrbit(camera: THREE.Camera, target: THREE.Vector3, radius: number)
   camera.position.copy(target).add(OFFSET);
 }
 
+let slotWidth = 0;
+let slotHeight = 0;
+
 function frameSignature(width: number, height: number): string {
   const state = useLab.getState();
   const design = state.design;
-  const slot = document.querySelector(".stage-slot")?.getBoundingClientRect();
   return [
     (Math.round(state.explode * 20) / 20).toFixed(2),
     state.present ? 1 : 0,
@@ -64,8 +66,8 @@ function frameSignature(width: number, height: number): string {
     state.theme,
     width,
     height,
-    Math.round(slot?.width ?? 0),
-    Math.round(slot?.height ?? 0),
+    Math.round(slotWidth),
+    Math.round(slotHeight),
     design.bottle.widthMm,
     design.bottle.heightMm,
     design.bottle.depthMm,
@@ -509,17 +511,16 @@ function CameraRig() {
   }, []);
 
   return (
-    <TrackballControls
+    <OrbitControls
       makeDefault
       target={ORBIT_TARGET}
-      staticMoving={false}
-      dynamicDampingFactor={0.72}
+      enableDamping
+      dampingFactor={0.05}
       rotateSpeed={0.38}
       zoomSpeed={0.26}
       panSpeed={0.42}
       minDistance={48}
       maxDistance={2200}
-      cursorZoom
       onStart={() => {
         dragging.current = true;
         if (mode.current === "anim") {
@@ -541,37 +542,6 @@ function CameraRig() {
       }}
     />
   );
-}
-
-function StageBlank() {
-  const gl = useThree((s) => s.gl);
-  useEffect(() => {
-    const el = gl.domElement;
-    let x = 0;
-    let y = 0;
-    let armed = false;
-    const down = (event: PointerEvent) => {
-      if (event.button !== 0) return;
-      clearPartPointer();
-      armed = true;
-      x = event.clientX;
-      y = event.clientY;
-    };
-    const up = (event: PointerEvent) => {
-      if (!armed || event.button !== 0) return;
-      armed = false;
-      const moved = Math.hypot(event.clientX - x, event.clientY - y) > 6;
-      if (consumePartPointer() || moved) return;
-      releaseFocus();
-    };
-    el.addEventListener("pointerdown", down, true);
-    el.addEventListener("pointerup", up);
-    return () => {
-      el.removeEventListener("pointerdown", down, true);
-      el.removeEventListener("pointerup", up);
-    };
-  }, [gl]);
-  return null;
 }
 
 function StageFog() {
@@ -644,7 +614,6 @@ function Stage() {
       )}
       {dark && voice === 3 && <CinematicFloor />}
       <Assembly />
-      <StageBlank />
       <CameraRig />
       <VoiceGrade />
     </>
@@ -652,12 +621,24 @@ function Stage() {
 }
 
 export function LabCanvas() {
+  useEffect(() => {
+    const el = document.querySelector(".stage-slot");
+    if (!el) return;
+    const observer = new ResizeObserver((entries) => {
+      slotWidth = entries[0].contentRect.width;
+      slotHeight = entries[0].contentRect.height;
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
   return (
     <Canvas
       className="stage-canvas"
       dpr={[1, 2]}
       camera={{ position: [120, 150, 640], fov: 30, near: 0.5, far: 5000 }}
       gl={{ antialias: true, alpha: false, preserveDrawingBuffer: true, powerPreference: "high-performance", localClippingEnabled: true }}
+      onPointerMissed={() => releaseFocus()}
     >
       <Stage />
     </Canvas>

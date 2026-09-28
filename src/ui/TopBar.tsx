@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { flushSync } from "react-dom";
 import { tx } from "../i18n/copy.ts";
 import { bottleById } from "../model/catalog.ts";
 import { estimateMl } from "../model/design.ts";
@@ -103,7 +104,7 @@ export function TopBar() {
   }, [menu]);
 
   return (
-    <header className="topbar" dir="rtl">
+    <header className="topbar" dir={lang === "he" ? "rtl" : "ltr"}>
       <div className="brand">
         <strong>{t.brandLine}</strong>
         <p className="spec">
@@ -137,7 +138,19 @@ export function TopBar() {
               <button type="button" className={quality === "medium" ? "is-on" : ""} onClick={() => { setQuality("medium"); setMenu(null); }}>{t.qualityMed}</button>
             </div>
             <button type="button" className={`text-btn blueprint-btn ${blueprint ? "is-on" : ""}`} aria-pressed={blueprint} onClick={() => { setBlueprint(!blueprint); setMenu(null); }}>{t.blueprint}</button>
-            <button type="button" className="text-btn" onClick={() => { setTheme(theme === "dark" ? "light" : "dark"); setMenu(null); }}>
+            <button type="button" className="text-btn" onClick={() => {
+              const toggle = () => {
+                setTheme(theme === "dark" ? "light" : "dark");
+                setMenu(null);
+              };
+              if (document.startViewTransition) {
+                document.startViewTransition(() => {
+                  flushSync(toggle);
+                });
+              } else {
+                toggle();
+              }
+            }}>
               {theme === "dark" ? t.themeToLight : t.themeToDark}
             </button>
           </div>
