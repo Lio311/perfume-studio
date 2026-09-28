@@ -85,9 +85,13 @@ export function Library() {
   return (
     <aside className={`panel library ${open ? "is-open" : ""}`} dir={lang === "he" ? "rtl" : "ltr"}>
       <div className="panel-head">
-        <h2>{t.library}</h2>
+        <h2>
+          {t.library}
+          <span className="count" style={{ marginInlineStart: "8px", fontWeight: "normal" }}>
+            ({tab === "pending" ? pending.length + suppliers.reduce((sum, pack) => sum + pack.parts.length, 0) : tab === "liquid" ? LIQUID_PALETTE.length : items.length})
+          </span>
+        </h2>
         <button type="button" className="library-close" onClick={() => useLab.getState().setLibraryOpen(false)} aria-label={t.close}>×</button>
-        <span className="count">{tab === "pending" ? pending.length + suppliers.reduce((sum, pack) => sum + pack.parts.length, 0) : tab === "liquid" ? LIQUID_PALETTE.length : items.length}</span>
         <button type="button" className="text-btn" onClick={() => randomize()}>{t.random}</button>
       </div>
       <input className="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t.search} />
