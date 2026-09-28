@@ -353,7 +353,7 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 .modal-actions .is-primary { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
 .budget-meter {
   position: absolute;
-  bottom: 24px;
+  top: 80px;
   inset-inline-start: 24px;
   z-index: 6;
   width: min(340px, calc(100% - 210px));
