@@ -80,7 +80,6 @@ interface LabState {
   compareIds: string[];
   voice: VoiceVariant;
   soundOn: boolean;
-  quality: "high" | "medium";
   stage: StageMode;
   blueprint: boolean;
   fullToken: number;
@@ -126,7 +125,6 @@ interface LabState {
   removeSupplier: (id: string) => void;
   setVoice: (voice: VoiceVariant) => void;
   setSoundOn: (on: boolean) => void;
-  setQuality: (quality: "high" | "medium") => void;
   setStage: (stage: StageMode) => void;
   setBlueprint: (on: boolean) => void;
   showFull: () => void;
@@ -320,7 +318,6 @@ export const useLab = create<LabState>()(
       explode: 0,
       toast: "",
       exporting: false,
-      quality: "high",
       viewPreset: "home",
       past: [],
       future: [],
@@ -538,7 +535,6 @@ export const useLab = create<LabState>()(
         set({ voice });
       },
       setSoundOn: (soundOn) => set({ soundOn }),
-      setQuality: (quality) => set({ quality }),
       setStage: (stage) =>
         set((state) => ({
           stage,

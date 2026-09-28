@@ -19,8 +19,6 @@ export function TopBar() {
   const future = useLab((s) => s.future.length);
   const setLang = useLab((s) => s.setLang);
   const setTheme = useLab((s) => s.setTheme);
-  const quality = useLab((s) => s.quality);
-  const setQuality = useLab((s) => s.setQuality);
   const setMode = useLab((s) => s.setMode);
   const stage = useLab((s) => s.stage);
   const blueprint = useLab((s) => s.blueprint);
@@ -133,10 +131,6 @@ export function TopBar() {
         {menu === "view" && (
           <div className="menu-pop">
             <VoiceSwitch />
-            <div className="voice-switch" role="group" aria-label={t.quality}>
-              <button type="button" className={quality === "high" ? "is-on" : ""} onClick={() => { setQuality("high"); setMenu(null); }}>{t.qualityHigh}</button>
-              <button type="button" className={quality === "medium" ? "is-on" : ""} onClick={() => { setQuality("medium"); setMenu(null); }}>{t.qualityMed}</button>
-            </div>
             <button type="button" className={`text-btn blueprint-btn ${blueprint ? "is-on" : ""}`} aria-pressed={blueprint} onClick={() => { setBlueprint(!blueprint); setMenu(null); }}>{t.blueprint}</button>
             <div className="voice-switch" role="group">
               <button type="button" className={theme === "light" ? "is-on" : ""} onClick={() => {

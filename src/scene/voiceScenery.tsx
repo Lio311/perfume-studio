@@ -239,9 +239,9 @@ function GradeWatch({ onFail }: { onFail: () => void }) {
 function GradePasses() {
   const voice = useLab((s) => s.voice);
   const theme = useLab((s) => s.theme);
-  const quality = useLab((s) => s.quality);
-  const samples = quality === "high" ? 4 : 2;
-  const smooth = quality === "high" ? <SMAA preset={SMAAPreset.HIGH} /> : null;
+  
+  const samples = 4;
+  const smooth = <SMAA preset={SMAAPreset.HIGH} />;
   if (theme === "light" || voice === 1) {
     return (
       <EffectComposer enableNormalPass={false} multisampling={samples}>

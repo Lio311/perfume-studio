@@ -597,13 +597,13 @@ function LabelPart() {
       live = false;
     };
   }, []);
-  const quality = useLab((s) => s.quality);
+  
   const canvas = useMemo(() => {
     const aspect = fit.labelW / Math.max(4, fit.labelH);
-    const width = quality === "high" ? 2048 : 1280;
+    const width = 2048;
     const height = Math.max(128, Math.round(width / Math.min(6, Math.max(0.45, aspect))));
     return logoTexture(spec, design.label.text, ink, width, height);
-  }, [spec, design.label.text, ink, fontTick, fit.labelW, fit.labelH, quality]);
+  }, [spec, design.label.text, ink, fontTick, fit.labelW, fit.labelH]);
   const texture = useMemo(() => {
     const map = new THREE.CanvasTexture(canvas);
     map.colorSpace = THREE.SRGBColorSpace;

@@ -17,19 +17,19 @@ export function Exposure() {
 }
 
 export function PixelRatio() {
-  const quality = useLab((s) => s.quality);
+  
   const gl = useThree((s) => s.gl);
   useLayoutEffect(() => {
-    const cap = quality === "high" ? 2 : 1.5;
+    const cap = 2;
     gl.setPixelRatio(Math.min(window.devicePixelRatio || 1, cap));
-  }, [gl, quality]);
+  }, [gl]);
   return null;
 }
 
 export function StudioEnv() {
-  const quality = useLab((s) => s.quality);
+  
   const theme = useLab((s) => s.theme);
-  const resolution = quality === "high" ? 256 : 128;
+  const resolution = 256;
   const dark = theme === "dark";
   return (
     <Environment frames={1} resolution={resolution} environmentIntensity={dark ? 1.15 : 1.2}>
@@ -67,7 +67,7 @@ export function StudioLights() {
 }
 
 export function StageFloor() {
-  const quality = useLab((s) => s.quality);
+  
   const theme = useLab((s) => s.theme);
   const voice = useLab((s) => s.voice);
   const explode = useLab((s) => s.explode);
@@ -76,7 +76,7 @@ export function StageFloor() {
   if (!light && voice === 2) return null;
   return (
     <>
-      {quality === "high" && (
+      {true && (
         <ContactShadows
           key={bucket}
           position={[0, 0.04, 0]}
