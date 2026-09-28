@@ -13,13 +13,10 @@ import {
   labelInk,
   labelTypeface,
   layoutLabelLines,
-<<<<<<< HEAD
   cartonMarkSize,
   cartonTextAspect,
   paintCartonMark,
-=======
   cartonMarkPlate,
->>>>>>> origin/cursor/unboxing-reland-5528
   paintLabel,
   paintLabelEmissive,
   paintLabelSurface,
