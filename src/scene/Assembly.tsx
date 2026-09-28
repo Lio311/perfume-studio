@@ -350,6 +350,7 @@ function BottlePart() {
         neckR: fit.neckR,
         profile: spec.profile,
         shoulder: spec.shoulder,
+        finishMm: spec.finishMm,
       }),
     [design.bottle.heightMm, design.bottle.widthMm, design.bottle.depthMm, design.bottle.neck, spec],
   );
@@ -386,6 +387,7 @@ function LiquidPart() {
         neckR: Math.max(3, fit.neckR - 1.2),
         profile: spec.profile,
         shoulder: spec.shoulder,
+        finishMm: spec.finishMm,
         inset: 2.4,
         closedTop: true,
         limitY: surface,
@@ -512,7 +514,7 @@ function PumpPart() {
           <FinishMaterial finish={design.pump.finish} color={design.pump.color} />
           <GoldRim part="pump" stamp={`${spec.id}:lathe`} />
         </mesh>
-        <HitProxy radius={Math.max(8, fit.actuatorR * 2)} height={fit.actuatorH + 10} />
+        <HitProxy radius={Math.max(8, Math.max(fit.actuatorR, fit.headR) * 2)} height={fit.actuatorH + 10} />
       </PartShell>
     );
   }
@@ -521,8 +523,8 @@ function PumpPart() {
       <mesh geometry={tube} position={[0, -1, 0]}>
         <FinishMaterial finish={design.pump.finish} color={design.pump.color} />
       </mesh>
-      <HitProxy radius={Math.max(8, fit.actuatorR * 2.2)} height={fit.actuatorH + 12} />
-      <Actuator style={spec.style} height={fit.actuatorH} radius={fit.actuatorR} nozzle={fit.nozzle} finish={design.pump.finish} color={design.pump.color} />
+      <HitProxy radius={Math.max(8, Math.max(fit.actuatorR, fit.headR) * 2.2)} height={fit.actuatorH + 12} />
+      <Actuator style={spec.style} height={fit.actuatorH} radius={fit.actuatorR} head={fit.headR} nozzle={fit.nozzle} finish={design.pump.finish} color={design.pump.color} seat={spec.style === "crimp" ? fit.neckR : 0} />
     </PartShell>
   );
 }
@@ -531,25 +533,40 @@ function Actuator({
   style,
   height,
   radius,
+  head,
   nozzle,
   finish,
   color,
+  seat = 0,
 }: {
   style: PumpStyle;
   height: number;
   radius: number;
+  /** Button radius. Crimp heads come from the catalog, else 0.9 of the neck. */
+  head: number;
   nozzle: number;
   finish: Parameters<typeof FinishMaterial>[0]["finish"];
   color: string;
+  /** Neck radius. The stem is the only part that enters the bore. */
+  seat?: number;
 }) {
   const r = radius;
   const h = height;
+  const crimp = style === "crimp" && seat > 0;
+  const stem = Math.min(seat * 0.42, 3.1);
   return (
     <group>
-      <mesh position={[0, 0.4, 0]}>
-        <cylinderGeometry args={[r * 0.55, r * 0.7, 1.4, 24]} />
-        <FinishMaterial finish={finish} color={color} />
-      </mesh>
+      {crimp ? (
+        <mesh position={[0, 0.15, 0]}>
+          <cylinderGeometry args={[stem, stem * 0.82, 1.5, 24]} />
+          <FinishMaterial finish={finish} color={color} />
+        </mesh>
+      ) : (
+        <mesh position={[0, 0.4, 0]}>
+          <cylinderGeometry args={[r * 0.55, r * 0.7, 1.4, 24]} />
+          <FinishMaterial finish={finish} color={color} />
+        </mesh>
+      )}
       {style === "dome" || style === "soft" ? (
         <mesh position={[0, h * 0.55, 0]} scale={[1, style === "soft" ? 0.8 : 0.9, 1]}>
           <sphereGeometry args={[r, 64, 40]} />
@@ -557,8 +574,15 @@ function Actuator({
           <GoldRim part="pump" stamp={`${style}-${h.toFixed(1)}`} />
         </mesh>
       ) : (
-        <mesh position={[0, h / 2, 0]}>
-          <cylinderGeometry args={[style === "flat" ? r * 1.15 : r, style === "shroud" ? r * 1.05 : r * 0.92, h, style === "screw" ? 48 : 80]} />
+        <mesh position={[0, crimp ? (h + 0.12) / 2 : h / 2, 0]}>
+          <cylinderGeometry
+            args={[
+              style === "flat" ? head * 1.15 : head,
+              style === "shroud" ? head * 1.05 : crimp ? head : head * 0.92,
+              crimp ? Math.max(1, h - 0.12) : h,
+              style === "screw" ? 48 : 80,
+            ]}
+          />
           <FinishMaterial finish={finish} color={color} />
           <GoldRim part="pump" stamp={`${style}-${h.toFixed(1)}`} />
         </mesh>
@@ -570,7 +594,7 @@ function Actuator({
             <FinishMaterial finish={finish} color={color} />
           </mesh>
         ))}
-      <mesh position={[r * 0.2, h * 0.55, r * 0.35]} rotation={[Math.PI / 2, 0, 0]}>
+      <mesh position={[head * 0.12, h * 0.62, crimp ? head * 0.78 : r * 0.35]} rotation={[Math.PI / 2, 0, 0]}>
         <cylinderGeometry args={[0.7, 0.9, nozzle, 24]} />
         <FinishMaterial finish={finish} color={color} />
       </mesh>
@@ -726,6 +750,7 @@ function LabelPart() {
     neckR: fit.neckR,
     profile: bottle.profile,
     shoulder: bottle.shoulder,
+    finishMm: bottle.finishMm,
     yCenter: fit.labelY,
     patchH: fit.labelH,
     patchW: fit.labelW,

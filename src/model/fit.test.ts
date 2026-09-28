@@ -53,6 +53,7 @@ describe("label plate fit", () => {
         neckR: fit.neckR,
         profile: bottle.profile,
         shoulder: bottle.shoulder,
+        finishMm: bottle.finishMm,
         yCenter: fit.labelY,
         patchH: fit.labelH,
         patchW: fit.labelW,
@@ -81,6 +82,7 @@ describe("label plate fit", () => {
       bottle.profile,
       bottle.shoulder,
       neckRadius(bottle.neck),
+      bottle.finishMm,
     );
     expect(fit.labelW).toBeLessThanOrEqual(mid.rx * 1.72 + 0.05);
     expect(fit.labelW).toBeGreaterThan(mid.rx * 1.6);

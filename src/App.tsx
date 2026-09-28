@@ -4,8 +4,9 @@ import { applyTheme } from "./theme/themes.ts";
 import { partLabel, tx, wizardTitle } from "./i18n/copy.ts";
 import { pngDownloadName } from "./ui/pngName.ts";
 import { useLab } from "./store/labStore.ts";
-import { applyIncomingShareHash, respondToLocation } from "./model/share.ts";
-import { backSurface, handleHistoryPop, syncHistoryTrap, type BackAction, type Trap } from "./nav/backHistory.ts";
+import { applyIncomingShareHash, invalidShareMessage, missingPartsMessage, respondToLocation } from "./model/share.ts";
+import { backSurface, handleHistoryPop, syncHistoryTrap, wizardStepAfterPop, type BackAction, type Trap } from "./nav/backHistory.ts";
+import { clipToast } from "./ui/toast.ts";
 import { TopBar } from "./ui/TopBar.tsx";
 import { Library } from "./ui/Library.tsx";
 import { Inspector } from "./ui/Inspector.tsx";
@@ -18,16 +19,26 @@ import { Modals } from "./ui/Modals.tsx";
 import { stopSpeaking } from "./audio/speech.ts";
 import { loadPacks } from "./import/supplierDb.ts";
 
-function applyBackAction(action: Exclude<BackAction, "leave">) {
+function applyBackAction(action: Exclude<BackAction, "leave">, trap: Trap) {
   const lab = useLab.getState();
   if (action === "modal") lab.setModal(null);
   else if (action === "present") lab.setPresent(false);
   else if (action === "overlays") {
     lab.setPalette(false);
     lab.setHelp(false);
-  } else if (action === "selection") lab.showFull();
+  }   else if (action === "selection") lab.showFull();
+  else if (action === "share") lab.setShareUrl("");
   else if (action === "stage") lab.setStage("bottle");
-  else if (action === "mode") {
+  else if (action === "wizard") {
+    const step = wizardStepAfterPop(history, trap);
+    if (step === null) return;
+    const design = useLab.getState().design;
+    if ((design.step ?? 0) === step) return;
+    useLab.setState({
+      design: { ...design, step },
+      stage: step === 6 ? "box" : "bottle",
+    });
+  } else if (action === "mode") {
     // Zero before setMode so the assemble tween does not leave explode open and re-arm history.
     useLab.setState({ explode: 0 });
     lab.setMode("assemble");
@@ -66,6 +77,7 @@ export default function App() {
   const stage = useLab((s) => s.stage);
   const explode = useLab((s) => s.explode);
   const wizardStep = useLab((s) => s.design.step);
+  const shareUrl = useLab((s) => s.shareUrl);
   const trapRef = useRef<Trap>({ armed: false });
   const [hintOn, setHintOn] = useState(true);
   const [shareLock, setShareLock] = useState(() => location.hash.startsWith("#d="));
@@ -120,10 +132,10 @@ export default function App() {
         baseline: () => useLab.getState().design,
         noteMissing: (ids) => {
           const lang = useLab.getState().lang;
-          const list = ids.join(", ");
-          useLab.setState({
-            toast: lang === "he" ? `חלקים מהקישור לא נמצאו: ${list}` : `Parts from the link were not found: ${list}`,
-          });
+          useLab.setState({ toast: clipToast(missingPartsMessage(lang, ids)) });
+        },
+        noteInvalid: () => {
+          useLab.setState({ toast: invalidShareMessage(useLab.getState().lang) });
         },
         apply: (design) => useLab.setState({ design }),
         replaceState: (state, title, url) => history.replaceState(state, title, url),
@@ -142,7 +154,7 @@ export default function App() {
         applyShare,
         back: () => {
           useLab.getState().applyVoiceParam(new URLSearchParams(location.search).get("voice"));
-          handleHistoryPop(history, surface(), applyBackAction, surface, trap);
+          handleHistoryPop(history, surface(), (action) => applyBackAction(action, trap), surface, trap);
         },
       });
     };
@@ -165,7 +177,7 @@ export default function App() {
 
   useEffect(() => {
     syncHistoryTrap(history, backSurface(useLab.getState()), trapRef.current);
-  }, [aimed, explode, helpOpen, modal, mode, palette, present, solo, stage, wizardStep]);
+  }, [aimed, explode, helpOpen, modal, mode, palette, present, shareUrl, solo, stage, wizardStep]);
 
   useEffect(() => {
     const fade = () => setHintOn(false);
@@ -305,7 +317,13 @@ export default function App() {
           <ChatPanel />
         </div>
       </div>
-      {toast && <div className="toast">{toast}</div>}
+      {shareLock && (
+        <div className="share-wait" role="status" dir={lang === "he" ? "rtl" : "ltr"}>
+          <span className="share-wait-spin" aria-hidden />
+          <span>{lang === "he" ? "טוען עיצוב" : "Loading design"}</span>
+        </div>
+      )}
+      {toast && <div className="toast" dir={lang === "he" ? "rtl" : "ltr"}>{clipToast(toast)}</div>}
       {hovered && !present && (
         <div className="tip" style={{ left: hovered.x, top: hovered.y }}>
           {partLabel[lang][hovered.part]}

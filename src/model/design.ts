@@ -15,7 +15,7 @@ export function createDefaultDesign(): Design {
       heightMm: bottle.heightMm,
       widthMm: bottle.widthMm,
       depthMm: bottle.depthMm,
-      visible: false,
+      visible: true,
     },
     cap: {
       variantId: cap.id,

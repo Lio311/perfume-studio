@@ -67,7 +67,7 @@ function strokePath(ctx: CanvasRenderingContext2D, pts: Array<{ x: number; y: nu
 function bottleThumb(id: string): string {
   return lineThumb((ctx, w, h) => {
     const spec = bottleById(id);
-    const pts = bottleOutline(spec.heightMm, spec.widthMm, spec.profile, spec.shoulder, neckRadius(spec.neck));
+    const pts = bottleOutline(spec.heightMm, spec.widthMm, spec.profile, spec.shoulder, neckRadius(spec.neck), 28, spec.finishMm);
     strokePath(ctx, pts, w, h);
     const grad = ctx.createLinearGradient(0, 0, w, h);
     grad.addColorStop(0, "rgba(240, 232, 216, 0.16)");

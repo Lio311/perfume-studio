@@ -1,9 +1,9 @@
 import type { BoxSpec, CollarSpec, PumpSpec } from "./types.ts";
 
 export const PUMPS: PumpSpec[] = [
-  { id: "pump-crimp", name: { he: "קרימפ", en: "Crimp pump" }, style: "crimp", actuatorHeightMm: 14, radiusFactor: 0.55, nozzleMm: 4.2, tags: ["crimp", "קרימפ", "standard", "סטנדרט", "pump", "משאבה"], model: { type: "procedural" } },
-  { id: "pump-crimp-short", name: { he: "קרימפ נמוך", en: "Short crimp" }, style: "crimp", actuatorHeightMm: 10, radiusFactor: 0.5, nozzleMm: 3.4, tags: ["crimp", "קרימפ", "short", "נמוך"], model: { type: "procedural" } },
-  { id: "pump-crimp-tall", name: { he: "קרימפ גבוה", en: "Tall crimp" }, style: "crimp", actuatorHeightMm: 18, radiusFactor: 0.58, nozzleMm: 5, tags: ["crimp", "קרימפ", "tall", "גבוה"], model: { type: "procedural" } },
+  { id: "pump-crimp", name: { he: "קרימפ", en: "Crimp pump" }, style: "crimp", actuatorHeightMm: 14, radiusFactor: 0.9, nozzleMm: 4.2, tags: ["crimp", "קרימפ", "standard", "סטנדרט", "pump", "משאבה"], model: { type: "procedural" } },
+  { id: "pump-crimp-short", name: { he: "קרימפ נמוך", en: "Short crimp" }, style: "crimp", actuatorHeightMm: 10, radiusFactor: 0.9, nozzleMm: 3.4, tags: ["crimp", "קרימפ", "short", "נמוך"], model: { type: "procedural" } },
+  { id: "pump-crimp-tall", name: { he: "קרימפ גבוה", en: "Tall crimp" }, style: "crimp", actuatorHeightMm: 18, radiusFactor: 0.9, nozzleMm: 5, tags: ["crimp", "קרימפ", "tall", "גבוה"], model: { type: "procedural" } },
   { id: "pump-screw", name: { he: "הברגה", en: "Screw pump" }, style: "screw", actuatorHeightMm: 16, radiusFactor: 0.62, nozzleMm: 4.5, tags: ["screw", "הברגה", "בורג"], model: { type: "procedural" } },
   { id: "pump-screw-low", name: { he: "הברגה נמוכה", en: "Low screw" }, style: "screw", actuatorHeightMm: 12, radiusFactor: 0.6, nozzleMm: 3.6, tags: ["screw", "הברגה", "short"], model: { type: "procedural" } },
   { id: "pump-luxury", name: { he: "מעטפת יוקרה", en: "Luxury shroud" }, style: "shroud", actuatorHeightMm: 18, radiusFactor: 0.85, nozzleMm: 3.2, tags: ["luxury", "יוקרה", "shroud", "מעטפת", "collar"], model: { type: "procedural" } },

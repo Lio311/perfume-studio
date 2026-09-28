@@ -1,3 +1,5 @@
+import { NECKS, neckRadius } from "./necks.ts";
+import { glassFinishMm } from "./sample.ts";
 import type { BottleSpec, NeckId, ProfileName, SectionKind } from "./types.ts";
 
 function ml(section: SectionKind, h: number, w: number, d: number): number {
@@ -38,6 +40,7 @@ function bottle(
     supplier,
     model: { type: "procedural" },
     capacityMl: capacity ?? ml(section, h, w, d),
+    finishMm: glassFinishMm(h, w, profile, shoulder, neckRadius(neck), NECKS[neck].crimpMm),
   };
 }
 

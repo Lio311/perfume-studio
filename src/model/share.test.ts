@@ -2,7 +2,7 @@ import { describe, expect, it, afterEach } from "vitest";
 import { setImportedCatalog } from "./catalog.ts";
 import { createDefaultDesign } from "./design.ts";
 import { computeFit } from "./fit.ts";
-import { applyIncomingShareHash, applyShareHash, decodeShareDesign, encodeShareDesign, mergeShareDesign, respondToLocation } from "./share.ts";
+import { applyIncomingShareHash, applyShareHash, decodeShareDesign, encodeShareDesign, invalidShareMessage, mergeShareDesign, missingPartsMessage, respondToLocation } from "./share.ts";
 import type { BottleSpec } from "./types.ts";
 
 describe("share links", () => {
@@ -213,6 +213,7 @@ describe("share links", () => {
       release = resolve;
     });
     const seen: string[] = [];
+    const missing: string[][] = [];
     const design = createDefaultDesign();
     design.bottle.variantId = "supplier-flask";
     const hash = `#d=${encodeShareDesign(design)}`;
@@ -222,14 +223,21 @@ describe("share links", () => {
       ready,
       baseline: () => anchor,
       apply: (next) => seen.push(next.bottle.variantId),
+      noteMissing: (ids) => missing.push(ids),
       replaceState: () => undefined,
     });
+    // Let the early malformed check run. Packs are still unloaded, so the link must not be applied yet.
     await Promise.resolve();
+    await Promise.resolve();
+    expect(seen).toEqual([]);
+    await new Promise((resolve) => setTimeout(resolve, 30));
     expect(seen).toEqual([]);
     setImportedCatalog({ bottles: [flask], caps: [], labels: [], pumps: [], collars: [], boxes: [] });
     release();
     await pending;
     expect(seen).toEqual(["supplier-flask"]);
+    expect(missing).toEqual([]);
+    setImportedCatalog({ bottles: [], caps: [], labels: [], pumps: [], collars: [], boxes: [] });
   });
 
   it("applies a share hash when packs do not load in time and notes the missing part", async () => {
@@ -320,6 +328,79 @@ describe("share links", () => {
       back: () => calls.push("back"),
     });
     expect(calls).toEqual(["share", "share", "back"]);
+  });
+
+  it("rejects a garbage share hash, keeps the saved design, and clears the hash", () => {
+    const calls: string[] = [];
+    let applied = false;
+    const state = { lab: 1, step: 2 };
+    const ok = applyShareHash({
+      hash: "#d=garbage%%%123",
+      pathname: "/lab",
+      search: "?voice=1",
+      state,
+      apply: () => {
+        applied = true;
+      },
+      replaceState: (next, _title, url) => calls.push(`${JSON.stringify(next)} ${url}`),
+      noteInvalid: () => calls.push("invalid"),
+    });
+    expect(ok).toBe(false);
+    expect(applied).toBe(false);
+    expect(calls).toEqual([`${JSON.stringify(state)} /lab?voice=1`, "invalid"]);
+    expect(invalidShareMessage("he")).toBe("הקישור לא תקין, נטען העיצוב האחרון");
+    expect(invalidShareMessage("en")).toBe("This link is invalid, your last design was loaded");
+    expect(missingPartsMessage("he", ["cara-50", "pump-1"])).toBe("חלקים מהקישור לא נמצאו: \u2068cara-50\u2069, \u2068pump-1\u2069");
+    expect(missingPartsMessage("en", ["cara-50"])).toBe("Parts from the link were not found: \u2068cara-50\u2069");
+  });
+
+  it("rejects a valid share hash truncated by 10 characters", () => {
+    const encoded = encodeShareDesign(createDefaultDesign());
+    expect(encoded.length).toBeGreaterThan(10);
+    const calls: string[] = [];
+    let applied = false;
+    const ok = applyShareHash({
+      hash: `#d=${encoded.slice(0, -10)}`,
+      pathname: "/",
+      search: "",
+      state: null,
+      apply: () => {
+        applied = true;
+      },
+      replaceState: (_state, _title, url) => calls.push(url),
+      noteInvalid: () => calls.push("invalid"),
+    });
+    expect(ok).toBe(false);
+    expect(applied).toBe(false);
+    expect(decodeShareDesign(encoded.slice(0, -10))).toBeNull();
+    expect(calls).toEqual(["/", "invalid"]);
+  });
+
+  it("clears a garbage hash before waiting for supplier packs", async () => {
+    let applied = false;
+    let invalid = false;
+    let cleared = "";
+    const started = Date.now();
+    await applyIncomingShareHash({
+      read: () => ({ hash: "#d=garbage%%%123", pathname: "/lab", search: "", state: { lab: 1 } }),
+      ready: new Promise(() => undefined),
+      hydrated: Promise.resolve(),
+      timeoutMs: 5000,
+      baseline: () => createDefaultDesign(),
+      apply: () => {
+        applied = true;
+      },
+      noteInvalid: () => {
+        invalid = true;
+      },
+      replaceState: (_state, _title, url) => {
+        cleared = url;
+      },
+    });
+    expect(Date.now() - started).toBeLessThan(1000);
+    expect(applied).toBe(false);
+    expect(invalid).toBe(true);
+    expect(cleared).toBe("/lab");
   });
 
   it("decodes a hash that is missing padding", () => {

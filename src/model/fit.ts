@@ -1,7 +1,7 @@
 import { labelPatchExtent } from "../geometry/sweep.ts";
 import { bottleById, boxById, capById, collarById, logoById, pumpById } from "./catalog.ts";
 import { NECKS, neckRadius } from "./necks.ts";
-import { bottleRadii } from "./sample.ts";
+import { bottleRadii, neckFinishMm } from "./sample.ts";
 import type { Design, PartKey } from "./types.ts";
 
 export interface Fit {
@@ -19,6 +19,8 @@ export interface Fit {
   pumpBase: number;
   actuatorH: number;
   actuatorR: number;
+  /** Crimp button radius. Other pumps use the actuator radius. */
+  headR: number;
   nozzle: number;
   capBottom: number;
   capH: number;
@@ -35,6 +37,28 @@ export interface Fit {
   boxZ: number;
   anchors: Record<PartKey, [number, number, number]>;
   explode: Record<PartKey, [number, number, number]>;
+}
+
+function definedSize(value: number | undefined): value is number {
+  return value != null && value > 0;
+}
+
+/**
+ * Crimp button radius. A pump width wins over a radius factor. A collar
+ * radius factor is used only when the pump sets neither. A collar width is
+ * the collar's own diameter, not the button. With no catalog size, the
+ * button is 0.9 of the neck, or the actuator when that is already wider.
+ */
+export function crimpHeadRadius(
+  neckR: number,
+  actuatorR: number,
+  pump: { widthMm?: number; radiusFactor?: number },
+  collar: { radiusFactor?: number },
+): number {
+  if (definedSize(pump.widthMm)) return pump.widthMm / 2;
+  if (definedSize(pump.radiusFactor)) return neckR * pump.radiusFactor;
+  if (definedSize(collar.radiusFactor)) return neckR * collar.radiusFactor;
+  return Math.max(actuatorR, neckR * 0.9);
 }
 
 export function computeFit(design: Design, exploded = false): Fit {
@@ -57,8 +81,19 @@ export function computeFit(design: Design, exploded = false): Fit {
   const collarHeight = stockFerrule
     ? Math.min(ferrule.heightMaxMm, Math.max(ferrule.heightMinMm, collar.heightMm))
     : collar.heightMm;
-  const collarBottom = bottleH - Math.min(collarHeight * 0.72, neck.crimpMm * 0.85);
-  const collarTop = collarBottom + collarHeight;
+  // The lip is the top of the glass. The straight finish hangs below it.
+  const lip = bottleH;
+  const overlap = Math.min(collarHeight * 0.72, neck.crimpMm * 0.85);
+  let collarBottom = lip - overlap;
+  let collarTop = collarBottom + collarHeight;
+  if (pump.style === "crimp") {
+    // A crimp ferrule has no screw skirt. Sink it as far as the straight
+    // finish allows, so a tall finish ends at the lip instead of a pedestal.
+    const finish = neckFinishMm(bottleH, neckR, bottle.finishMm);
+    const sunk = Math.min(collarHeight, Math.max(overlap, finish - 0.5));
+    collarBottom = lip - sunk;
+    collarTop = collarBottom + collarHeight;
+  }
 
   const capH = design.cap.heightMm;
   const capW = Math.max(design.cap.widthMm, (collarOuter + cap.overhangMm) * 2);
@@ -68,10 +103,15 @@ export function computeFit(design: Design, exploded = false): Fit {
   const fullActuator = pump.actuatorHeightMm;
   const actuatorH =
     exploded || !design.cap.visible ? fullActuator : Math.min(fullActuator, Math.max(7, capH - 3.2));
-  const actuatorR = Math.max(neckR * pump.radiusFactor, neckR * 0.42);
+  const actuatorR = definedSize(pump.radiusFactor)
+    ? Math.max(neckR * pump.radiusFactor, neckR * 0.42)
+    : neckR * 0.42;
+  const headR = pump.style === "crimp" ? crimpHeadRadius(neckR, actuatorR, pump, collar) : actuatorR;
   const nozzle =
     exploded || !design.cap.visible ? pump.nozzleMm : Math.min(pump.nozzleMm, Math.max(2.2, capW / 2 - actuatorR - 0.4));
-  const pumpBase = collarTop - 0.3;
+  // A crimp pump has no screw skirt, so its base is the glass lip. A screw
+  // pump stands on the collar that carries the thread, a little above the lip.
+  const pumpBase = pump.style === "crimp" ? lip : collarTop - 0.3;
 
   const shoulderY = bottleH * (1 - bottle.shoulder) - 4;
   const fractions: Record<typeof logo.plate, [number, number]> = {
@@ -87,7 +127,7 @@ export function computeFit(design: Design, exploded = false): Fit {
   const squareMark = logo.mark === "diamond" || logo.mark === "seal" || logo.mark === "crest" || logo.plate === "diamond" || logo.plate === "circle" || logo.plate === "square";
   const [baseW, baseH] = squareMark ? [0.5, 0.56] : fractions[logo.plate];
   const labelY = Math.max(12, shoulderY * 0.46);
-  const face = bottleRadii(labelY, bottleH, bottleW, bottleD, bottle.profile, bottle.shoulder, neckR);
+  const face = bottleRadii(labelY, bottleH, bottleW, bottleD, bottle.profile, bottle.shoulder, neckR, bottle.finishMm);
   const desiredW = logo.widthMm ? Math.min(bottleW - 2, logo.widthMm) : bottleW * baseW * design.label.scale;
   const desiredH = logo.heightMm ?? shoulderY * baseH * design.label.scale;
   const extent = labelPatchExtent({
@@ -100,6 +140,7 @@ export function computeFit(design: Design, exploded = false): Fit {
     neckR,
     profile: bottle.profile,
     shoulder: bottle.shoulder,
+    finishMm: bottle.finishMm,
     yCenter: labelY,
     patchH: desiredH,
     patchW: desiredW,
@@ -161,6 +202,7 @@ export function computeFit(design: Design, exploded = false): Fit {
     pumpBase,
     actuatorH,
     actuatorR,
+    headR,
     nozzle,
     capBottom,
     capH,
