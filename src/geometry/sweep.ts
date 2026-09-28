@@ -267,6 +267,30 @@ export function buildCapGeometry(
 
 type LabelPatchArgs = SweepArgs & { yCenter: number; patchH: number; patchW: number };
 
+/** Widest horizontal half-chord of the patch at this angular span. The mesh uses the same Y steps. */
+function widestAbsX(
+  args: LabelPatchArgs,
+  y0: number,
+  y1: number,
+  height: number,
+  width: number,
+  depth: number,
+  neckR: number,
+  span: number,
+): number {
+  let maxAbsX = 0;
+  const steps = 28;
+  for (let i = 0; i <= steps; i += 1) {
+    const y = y0 + ((y1 - y0) * i) / steps;
+    const sample = bottleRadii(y, height, width, depth, args.profile, args.shoulder, neckR, args.finishMm);
+    for (const ang of [Math.PI / 2 - span, Math.PI / 2 + span]) {
+      const [x] = sectionPoint(args.section, ang, sample.rx, sample.rz, args.softness, sample.morph, y);
+      maxAbsX = Math.max(maxAbsX, Math.abs(x));
+    }
+  }
+  return maxAbsX;
+}
+
 function prepareLabelPatch(args: LabelPatchArgs) {
   const height = Math.max(12, args.height);
   const width = Math.max(10, args.width);
@@ -281,8 +305,10 @@ function prepareLabelPatch(args: LabelPatchArgs) {
   let hi = Math.PI * 0.46;
   for (let i = 0; i < 14; i += 1) {
     const span = (lo + hi) / 2;
-    const [x] = sectionPoint(args.section, Math.PI / 2 - span, midSample.rx, midSample.rz, args.softness, midSample.morph, mid);
-    if (Math.abs(x) < half) lo = span;
+    // Size the span from the widest row, not the midline, so a round bottle
+    // does not draw a plate wider than the width fit reported.
+    const edge = widestAbsX(args, y0, y1, height, width, depth, neckR, span);
+    if (edge < half) lo = span;
     else hi = span;
   }
   return { height, width, depth, neckR, y0, y1, mid, midSample, half, span: lo };
@@ -291,16 +317,7 @@ function prepareLabelPatch(args: LabelPatchArgs) {
 /** Width and height of the decal that `buildLabelPatch` will actually draw. */
 export function labelPatchExtent(args: LabelPatchArgs): { width: number; height: number } {
   const prep = prepareLabelPatch(args);
-  let maxAbsX = 0;
-  const steps = 8;
-  for (let i = 0; i <= steps; i += 1) {
-    const y = prep.y0 + ((prep.y1 - prep.y0) * i) / steps;
-    const sample = bottleRadii(y, prep.height, prep.width, prep.depth, args.profile, args.shoulder, prep.neckR, args.finishMm);
-    for (const ang of [Math.PI / 2 - prep.span, Math.PI / 2 + prep.span]) {
-      const [x] = sectionPoint(args.section, ang, sample.rx, sample.rz, args.softness, sample.morph, y);
-      maxAbsX = Math.max(maxAbsX, Math.abs(x));
-    }
-  }
+  const maxAbsX = widestAbsX(args, prep.y0, prep.y1, prep.height, prep.width, prep.depth, prep.neckR, prep.span);
   return { width: maxAbsX * 2, height: prep.y1 - prep.y0 };
 }
 
