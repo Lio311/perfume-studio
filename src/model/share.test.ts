@@ -2,7 +2,7 @@ import { describe, expect, it, afterEach } from "vitest";
 import { setImportedCatalog } from "./catalog.ts";
 import { createDefaultDesign } from "./design.ts";
 import { computeFit } from "./fit.ts";
-import { applyIncomingShareHash, applyShareHash, decodeShareDesign, encodeShareDesign, invalidShareMessage, mergeShareDesign, respondToLocation } from "./share.ts";
+import { applyIncomingShareHash, applyShareHash, decodeShareDesign, encodeShareDesign, invalidShareMessage, mergeShareDesign, missingPartsMessage, respondToLocation } from "./share.ts";
 import type { BottleSpec } from "./types.ts";
 
 describe("share links", () => {
@@ -342,6 +342,8 @@ describe("share links", () => {
     expect(calls).toEqual([`${JSON.stringify(state)} /lab?voice=1`, "invalid"]);
     expect(invalidShareMessage("he")).toBe("הקישור לא תקין, נטען העיצוב האחרון");
     expect(invalidShareMessage("en")).toBe("This link is invalid, your last design was loaded");
+    expect(missingPartsMessage("he", ["cara-50", "pump-1"])).toBe("חלקים מהקישור לא נמצאו: \u2068cara-50\u2069, \u2068pump-1\u2069");
+    expect(missingPartsMessage("en", ["cara-50"])).toBe("Parts from the link were not found: \u2068cara-50\u2069");
   });
 
   it("rejects a valid share hash truncated by 10 characters", () => {

@@ -485,8 +485,38 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   color: var(--accent-2);
   font-size: 13px;
   text-align: center;
+  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+.share-fallback {
+  position: fixed;
+  bottom: 108px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 61;
+  width: min(40rem, calc(100vw - 32px));
+  padding: 8px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--line-strong);
+  background: var(--panel-2);
+}
+.share-fallback textarea {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  resize: none;
+  border: 0;
+  background: transparent;
+  color: var(--accent-2);
+  font-size: 12px;
+  line-height: 1.45;
+  text-align: left;
+  direction: ltr;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  overflow: hidden;
 }
 .share-wait {
   position: fixed;

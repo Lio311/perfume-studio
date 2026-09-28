@@ -4,7 +4,7 @@ import { applyTheme } from "./theme/themes.ts";
 import { partLabel, tx, wizardTitle } from "./i18n/copy.ts";
 import { pngDownloadName } from "./ui/pngName.ts";
 import { useLab } from "./store/labStore.ts";
-import { applyIncomingShareHash, invalidShareMessage, respondToLocation } from "./model/share.ts";
+import { applyIncomingShareHash, invalidShareMessage, missingPartsMessage, respondToLocation } from "./model/share.ts";
 import { backSurface, handleHistoryPop, syncHistoryTrap, wizardStepAfterPop, type BackAction, type Trap } from "./nav/backHistory.ts";
 import { clipToast } from "./ui/toast.ts";
 import { TopBar } from "./ui/TopBar.tsx";
@@ -30,6 +30,7 @@ function applyBackAction(action: Exclude<BackAction, "leave">, trap: Trap) {
   else if (action === "stage") lab.setStage("bottle");
   else if (action === "wizard") {
     const step = wizardStepAfterPop(history, trap);
+    if (step === null) return;
     const design = useLab.getState().design;
     if ((design.step ?? 0) === step) return;
     useLab.setState({
@@ -129,10 +130,7 @@ export default function App() {
         baseline: () => useLab.getState().design,
         noteMissing: (ids) => {
           const lang = useLab.getState().lang;
-          const list = ids.join(", ");
-          useLab.setState({
-            toast: clipToast(lang === "he" ? `חלקים מהקישור לא נמצאו: ${list}` : `Parts from the link were not found: ${list}`),
-          });
+          useLab.setState({ toast: clipToast(missingPartsMessage(lang, ids)) });
         },
         noteInvalid: () => {
           useLab.setState({ toast: invalidShareMessage(useLab.getState().lang) });

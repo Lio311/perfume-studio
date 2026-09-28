@@ -32,6 +32,7 @@ export function TopBar() {
   const setLibraryOpen = useLab((s) => s.setLibraryOpen);
   const setSideOpen = useLab((s) => s.setSideOpen);
   const [notice, setNotice] = useState("");
+  const [shareUrl, setShareUrl] = useState("");
   const [menu, setMenu] = useState<null | "view" | "export">(null);
   const t = tx(lang);
   const ml = estimateMl(design);
@@ -51,12 +52,19 @@ export function TopBar() {
   function share() {
     const hash = encodeShareDesign(design);
     const url = `${location.origin}${location.pathname}${location.search}#d=${hash}`;
-    void navigator.clipboard?.writeText(url).then(
+    const write = navigator.clipboard?.writeText?.(url);
+    if (!write) {
+      setShareUrl(url);
+      setMenu(null);
+      return;
+    }
+    void write.then(
       () => {
+        setShareUrl("");
         setNotice(t.shared);
         window.setTimeout(() => setNotice(""), 1800);
       },
-      () => setNotice(clipToast(url)),
+      () => setShareUrl(url),
     );
     setMenu(null);
   }
@@ -165,6 +173,11 @@ export function TopBar() {
         <button type="button" className="text-btn panel-toggle" onClick={() => setSideOpen(!sideOpen)}>{t.properties}</button>
       </div>
       {notice && <div className="toast" dir={lang === "he" ? "rtl" : "ltr"}>{clipToast(notice)}</div>}
+      {shareUrl && (
+        <form className="share-fallback" dir="ltr" onSubmit={(event) => event.preventDefault()}>
+          <textarea readOnly rows={Math.max(4, Math.ceil(shareUrl.length / 52))} value={shareUrl} aria-label={t.share} onFocus={(event) => event.currentTarget.select()} />
+        </form>
+      )}
     </header>
   );
 }

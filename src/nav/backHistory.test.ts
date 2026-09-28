@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { mergeShareDesign } from "../model/share.ts";
 import {
   backAction,
   backSurface,
@@ -57,6 +58,11 @@ function createHistory() {
         return;
       }
       index -= 1;
+      onPop();
+    },
+    forward() {
+      if (index >= entries.length - 1) return;
+      index += 1;
       onPop();
     },
   };
@@ -163,6 +169,7 @@ describe("browser back", () => {
           applied.push(action);
           if (action === "wizard") {
             const step = wizardStepAfterPop(history, trap);
+            if (step === null) return;
             surface.current = { ...surface.current, step, wizard: step < 7 };
           } else if (action === "modal") {
             surface.current = { ...surface.current, modal: false };
@@ -278,6 +285,7 @@ describe("browser back", () => {
         (action) => {
           if (action === "wizard") {
             const step = wizardStepAfterPop(history, trap);
+            if (step === null) return;
             surface.current = { ...surface.current, step, wizard: step < 7 };
           } else if (action === "stage") {
             surface.current = { ...surface.current, stage: "bottle" };
@@ -356,5 +364,152 @@ describe("browser back", () => {
     expect(history.left).toBe(true);
     expect(history.pushCount).toBe(1);
     expect(trap.armed).toBe(false);
+  });
+
+  function boxSurface(design: { step?: number }) {
+    return backSurface({
+      modal: null,
+      present: false,
+      palette: false,
+      help: false,
+      solo: null,
+      aimed: false,
+      stage: "box",
+      mode: "assemble",
+      explode: 0,
+      design,
+    });
+  }
+
+  it("treats a missing step as finished, so back from the box closes the stage", () => {
+    const shared = mergeShareDesign({ bottle: {} });
+    expect(shared?.step).toBeUndefined();
+    const shareLoaded = boxSurface(shared ?? {});
+    const hydrated = boxSurface({});
+    expect(shareLoaded.wizard).toBe(false);
+    expect(hydrated.wizard).toBe(false);
+    expect(backAction(shareLoaded)).toBe("stage");
+    expect(backAction(hydrated)).toBe("stage");
+
+    for (const initial of [shareLoaded, hydrated]) {
+      const { history, popWith } = createHistory();
+      const trap: Trap = { armed: false };
+      const surface = { current: initial };
+      syncHistoryTrap(history, surface.current, trap);
+      expect(history.state).toEqual({ lab: 1 });
+      popWith(() => {
+        handleHistoryPop(
+          history,
+          surface.current,
+          (action) => {
+            if (action === "stage") surface.current = { ...surface.current, stage: "bottle" };
+          },
+          () => surface.current,
+          trap,
+        );
+      });
+      history.back();
+      expect(surface.current.stage).toBe("bottle");
+      expect(backAction(surface.current)).toBe("leave");
+      expect(history.left).toBe(false);
+      history.back();
+      expect(history.left).toBe(true);
+    }
+  });
+
+  it("skips a guard revealed under the next wizard step, including forward onto that guard", () => {
+    const { history, popWith } = createHistory();
+    const trap: Trap = { armed: false };
+    const surface = { current: idle({ wizard: true, step: 0 }) };
+    syncHistoryTrap(history, surface.current, trap);
+    bindWizard(history, popWith, surface, trap);
+
+    surface.current = { ...surface.current, step: 2 };
+    syncHistoryTrap(history, surface.current, trap);
+    surface.current = { ...surface.current, aimed: true };
+    syncHistoryTrap(history, surface.current, trap);
+    expect(history.state).toEqual({ lab: 1 });
+    surface.current = { ...surface.current, aimed: false };
+    syncHistoryTrap(history, surface.current, trap);
+    expect(history.state).toEqual({ lab: 1 });
+
+    surface.current = { ...surface.current, step: 3 };
+    syncHistoryTrap(history, surface.current, trap);
+    expect(history.state).toEqual({ lab: 1, step: 3 });
+
+    history.back();
+    expect(surface.current.step).toBe(2);
+    expect(history.state).toEqual({ lab: 1, step: 2 });
+
+    history.forward();
+    expect(surface.current.step).toBe(3);
+    expect(history.state).toEqual({ lab: 1, step: 3 });
+    expect(history.left).toBe(false);
+  });
+
+  function jumpBack(to: number, surface: { current: BackSurface }, history: HistoryLike, trap: Trap) {
+    surface.current = { ...surface.current, step: to, wizard: to < 7, stage: "bottle", modal: false, aimed: false, solo: false };
+    syncHistoryTrap(history, surface.current, trap);
+  }
+
+  it("drops stale higher entries when a new design returns to step 0", () => {
+    const { history, popWith } = createHistory();
+    const trap: Trap = { armed: false };
+    const surface = { current: idle({ wizard: true, step: 0 }) };
+    syncHistoryTrap(history, surface.current, trap);
+    const applied = bindWizard(history, popWith, surface, trap);
+    surface.current = { ...surface.current, step: 6 };
+    syncHistoryTrap(history, surface.current, trap);
+    jumpBack(0, surface, history, trap);
+    expect(history.length).toBe(2);
+    expect(applied).toEqual([]);
+    history.forward();
+    expect(surface.current.step).toBe(0);
+    expect(history.state).toBeNull();
+    history.back();
+    expect(history.left).toBe(true);
+    expect(surface.current.step).toBe(0);
+  });
+
+  it("drops stale higher entries when reset returns to step 0", () => {
+    const { history, popWith } = createHistory();
+    const trap: Trap = { armed: false };
+    const surface = { current: idle({ wizard: true, step: 0 }) };
+    syncHistoryTrap(history, surface.current, trap);
+    bindWizard(history, popWith, surface, trap);
+    surface.current = { ...surface.current, step: 4 };
+    syncHistoryTrap(history, surface.current, trap);
+    // resetToFreshDesign replaces the design with a step-0 bottle and clears overlays.
+    surface.current = idle({ wizard: true, step: 0, stage: "bottle", mode: "assemble", explode: 0 });
+    syncHistoryTrap(history, surface.current, trap);
+    expect(history.length).toBe(2);
+    expect(surface.current.step).toBe(0);
+    history.forward();
+    expect(surface.current.step).toBe(0);
+    history.back();
+    expect(history.left).toBe(true);
+  });
+
+  it("drops stale higher entries when chat jumps the wizard backward", () => {
+    const { history, popWith } = createHistory();
+    const trap: Trap = { armed: false };
+    const surface = { current: idle({ wizard: true, step: 0 }) };
+    syncHistoryTrap(history, surface.current, trap);
+    bindWizard(history, popWith, surface, trap);
+    surface.current = { ...surface.current, step: 4 };
+    syncHistoryTrap(history, surface.current, trap);
+    jumpBack(2, surface, history, trap);
+    expect(history.state).toEqual({ lab: 1, step: 2 });
+    expect(history.length).toBe(4);
+    history.forward();
+    expect(surface.current.step).toBe(2);
+    expect(history.state).toEqual({ lab: 1, step: 2 });
+    history.back();
+    expect(surface.current.step).toBe(1);
+    expect(history.left).toBe(false);
+    history.back();
+    expect(surface.current.step).toBe(0);
+    history.back();
+    expect(history.left).toBe(true);
   });
 });

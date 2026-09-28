@@ -177,40 +177,45 @@ export function droppedVariantIds(input: unknown, design: Design): string[] {
   return missing;
 }
 
-export function decodeShareDesign(hash: string): Design | null {
+function readSharePayload(payload: string): { raw: unknown; design: Design } | null {
   try {
-    return mergeShareDesign(parseShareJson(hash));
+    const raw = parseShareJson(payload);
+    const design = mergeShareDesign(raw);
+    if (!design) return null;
+    return { raw, design };
   } catch {
     return null;
   }
+}
+
+export function decodeShareDesign(hash: string): Design | null {
+  return readSharePayload(hash)?.design ?? null;
+}
+
+/** Isolate each id so a Hebrew sentence does not reorder the Latin text. */
+export function missingPartsMessage(lang: "he" | "en", ids: string[]): string {
+  const list = ids.map((id) => `\u2068${id}\u2069`).join(", ");
+  return lang === "he" ? `חלקים מהקישור לא נמצאו: ${list}` : `Parts from the link were not found: ${list}`;
 }
 
 export function invalidShareMessage(lang: "he" | "en"): string {
   return lang === "he" ? "הקישור לא תקין, נטען העיצוב האחרון" : "This link is invalid, your last design was loaded";
 }
 
-/** A `#d=` payload that cannot become a design. Null when the hash is not a share link or it decoded. */
-function invalidSharePayload(hash: string): boolean {
-  if (!hash.startsWith("#d=")) return false;
-  try {
-    return mergeShareDesign(parseShareJson(hash.slice(3))) === null;
-  } catch {
-    return true;
-  }
+function readShareHash(hash: string): { raw: unknown; design: Design } | "invalid" | "none" {
+  if (!hash.startsWith("#d=")) return "none";
+  return readSharePayload(hash.slice(3)) ?? "invalid";
 }
 
-function clearInvalidShare(options: {
-  hash: string;
+function rejectInvalidShare(options: {
+  state: unknown;
   pathname: string;
   search: string;
-  state: unknown;
   replaceState: (state: unknown, title: string, url: string) => void;
   noteInvalid?: () => void;
-}): boolean {
-  if (!invalidSharePayload(options.hash)) return false;
+}) {
   options.replaceState(options.state, "", `${options.pathname}${options.search}`);
   options.noteInvalid?.();
-  return true;
 }
 
 /** How long a share link waits for IndexedDB before applying with the catalog already loaded. */
@@ -252,10 +257,15 @@ export function applyIncomingShareHash(options: {
   return settleWithin(hydrated, timeoutMs).then(() => {
     if (options.cancelled?.()) return false;
     const loc = options.read();
-    if (!loc.hash.startsWith("#d=")) return false;
+    const read = readShareHash(loc.hash);
+    if (read === "none") return false;
     // A broken payload does not need the supplier catalog. Clear it before the pack wait.
-    if (clearInvalidShare({ ...loc, replaceState: options.replaceState, noteInvalid: options.noteInvalid })) return false;
+    if (read === "invalid") {
+      rejectInvalidShare({ ...loc, replaceState: options.replaceState, noteInvalid: options.noteInvalid });
+      return false;
+    }
     const snapshot = options.baseline();
+    const capturedHash = loc.hash;
     return settleWithin(options.ready, timeoutMs).then(() => {
       if (options.cancelled?.()) return false;
       const next = options.read();
@@ -264,16 +274,23 @@ export function applyIncomingShareHash(options: {
         options.replaceState(next.state, "", `${next.pathname}${next.search}`);
         return false;
       }
-      return applyShareHash({
-        hash: next.hash,
-        pathname: next.pathname,
-        search: next.search,
-        state: next.state,
-        apply: options.apply,
-        replaceState: options.replaceState,
-        noteMissing: options.noteMissing,
-        noteInvalid: options.noteInvalid,
-      });
+      if (next.hash !== capturedHash) {
+        return applyShareHash({
+          hash: next.hash,
+          pathname: next.pathname,
+          search: next.search,
+          state: next.state,
+          apply: options.apply,
+          replaceState: options.replaceState,
+          noteMissing: options.noteMissing,
+          noteInvalid: options.noteInvalid,
+        });
+      }
+      const missing = droppedVariantIds(read.raw, read.design);
+      if (missing.length) options.noteMissing?.(missing);
+      options.apply(read.design);
+      options.replaceState(next.state, "", `${next.pathname}${next.search}`);
+      return true;
     });
   });
 }
@@ -307,19 +324,15 @@ export function applyShareHash(options: {
   noteMissing?: (ids: string[]) => void;
   noteInvalid?: () => void;
 }): boolean {
-  if (!options.hash.startsWith("#d=")) return false;
-  if (clearInvalidShare(options)) return false;
-  let raw: unknown;
-  try {
-    raw = parseShareJson(options.hash.slice(3));
-  } catch {
+  const read = readShareHash(options.hash);
+  if (read === "none") return false;
+  if (read === "invalid") {
+    rejectInvalidShare(options);
     return false;
   }
-  const design = mergeShareDesign(raw);
-  if (!design) return false;
-  const missing = droppedVariantIds(raw, design);
+  const missing = droppedVariantIds(read.raw, read.design);
   if (missing.length) options.noteMissing?.(missing);
-  options.apply(design);
+  options.apply(read.design);
   options.replaceState(options.state, "", `${options.pathname}${options.search}`);
   return true;
 }
