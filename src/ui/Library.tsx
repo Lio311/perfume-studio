@@ -183,11 +183,7 @@ export function Library() {
               }} />
             </label>
           </div>
-          <label className="slider" style={{ marginTop: "16px" }}>
-            <span>{lang === "he" ? "מילוי" : "Fill Level"}</span>
-            <span>{Math.round(design.liquid.fill * 100)}%</span>
-            <input type="range" min="0" max="1" step="0.01" value={design.liquid.fill} onChange={(event) => patch("liquid", { fill: parseFloat(event.target.value), visible: true })} />
-          </label>
+
           {glassOpacity !== null && (
             <label className="slider" style={{ marginTop: "16px" }}>
               <span>{lang === "he" ? "אטימות זכוכית" : "Glass Opacity"}</span>
