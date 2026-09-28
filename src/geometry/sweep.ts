@@ -13,6 +13,8 @@ export interface SweepArgs {
   neckR: number;
   profile: Parameters<typeof bottleRadii>[4];
   shoulder: number;
+  /** Straight finish under the lip. Omit to keep the short classic neck. */
+  finishMm?: number;
   inset?: number;
   closedTop?: boolean;
   /** Stop the sweep here, still using `height` for the profile. Keeps liquid inside the glass. */
@@ -101,7 +103,7 @@ export function buildBottleGeometry(args: SweepArgs): THREE.BufferGeometry {
 
   const ringAt = (y: number, rxOverride?: number, rzOverride?: number, morphOverride?: number) => {
     const start = positions.length / 3;
-    const sample = bottleRadii(clamp(y, 0, height), height, width, depth, args.profile, args.shoulder, neckR);
+    const sample = bottleRadii(clamp(y, 0, height), height, width, depth, args.profile, args.shoulder, neckR, args.finishMm);
     const rx = rxOverride ?? sample.rx;
     const rz = rzOverride ?? sample.rz;
     const morph = morphOverride ?? sample.morph;
@@ -128,7 +130,7 @@ export function buildBottleGeometry(args: SweepArgs): THREE.BufferGeometry {
   const floor = args.inset && args.inset > 0 ? Math.min(topY * 0.12, Math.max(3.2, args.inset * 1.5)) : 0;
   const ringInset = (y: number) => {
     if (!args.inset || y > floor + 4) return ringAt(y);
-    const sample = bottleRadii(clamp(y, 0, height), height, width, depth, args.profile, args.shoulder, neckR);
+    const sample = bottleRadii(clamp(y, 0, height), height, width, depth, args.profile, args.shoulder, neckR, args.finishMm);
     const tuck = 0.9;
     return ringAt(y, sample.rx * tuck, sample.rz * tuck, sample.morph);
   };
@@ -147,7 +149,7 @@ export function buildBottleGeometry(args: SweepArgs): THREE.BufferGeometry {
   for (let a = 0; a < aSteps; a++) indices.push(bottomCenter, first + a, first + a + 1);
 
   if (args.closedTop) {
-    const cap = bottleRadii(clamp(topY, 0, height), height, width, depth, args.profile, args.shoulder, neckR);
+    const cap = bottleRadii(clamp(topY, 0, height), height, width, depth, args.profile, args.shoulder, neckR, args.finishMm);
     const dome = Math.min(2.6, Math.max(1.2, topY * 0.055));
     const rings = 8;
     let ring = prev;
@@ -272,7 +274,7 @@ export function buildLabelPatch(args: SweepArgs & { yCenter: number; patchH: num
   const y0 = Math.max(2.5, args.yCenter - args.patchH / 2);
   const y1 = Math.min(height - 2, Math.max(y0 + 4, args.yCenter + args.patchH / 2));
   const mid = (y0 + y1) / 2;
-  const midSample = bottleRadii(mid, height, width, depth, args.profile, args.shoulder, neckR);
+  const midSample = bottleRadii(mid, height, width, depth, args.profile, args.shoulder, neckR, args.finishMm);
   const half = Math.min(Math.max(6, args.patchW / 2), midSample.rx * 0.86);
   let lo = 0.08;
   let hi = Math.PI * 0.46;
@@ -283,7 +285,7 @@ export function buildLabelPatch(args: SweepArgs & { yCenter: number; patchH: num
     else hi = span;
   }
   const span = lo;
-  const anchor = bottleRadii(args.yCenter, height, width, depth, args.profile, args.shoulder, neckR);
+  const anchor = bottleRadii(args.yCenter, height, width, depth, args.profile, args.shoulder, neckR, args.finishMm);
   const ySteps = 28;
   const aSteps = 64;
   
@@ -302,12 +304,12 @@ export function buildLabelPatch(args: SweepArgs & { yCenter: number; patchH: num
   
   const yArcLengths = [0];
   let totalYArc = 0;
-  let prevMidSample = bottleRadii(y0, height, width, depth, args.profile, args.shoulder, neckR);
+  let prevMidSample = bottleRadii(y0, height, width, depth, args.profile, args.shoulder, neckR, args.finishMm);
   let [prevMidX, prevMidZ] = sectionPoint(args.section, Math.PI / 2, prevMidSample.rx, prevMidSample.rz, args.softness, prevMidSample.morph, y0);
   let prevY = y0;
   for (let yi = 1; yi <= ySteps; yi += 1) {
     const y = y0 + ((y1 - y0) * yi) / ySteps;
-    const sample = bottleRadii(y, height, width, depth, args.profile, args.shoulder, neckR);
+    const sample = bottleRadii(y, height, width, depth, args.profile, args.shoulder, neckR, args.finishMm);
     const [mx, mz] = sectionPoint(args.section, Math.PI / 2, sample.rx, sample.rz, args.softness, sample.morph, y);
     const dist = Math.sqrt((mx - prevMidX) ** 2 + (mz - prevMidZ) ** 2 + (y - prevY) ** 2);
     totalYArc += dist;
@@ -322,7 +324,7 @@ export function buildLabelPatch(args: SweepArgs & { yCenter: number; patchH: num
   const indices: number[] = [];
   for (let yi = 0; yi <= ySteps; yi += 1) {
     const y = y0 + ((y1 - y0) * yi) / ySteps;
-    const sample = bottleRadii(y, height, width, depth, args.profile, args.shoulder, neckR);
+    const sample = bottleRadii(y, height, width, depth, args.profile, args.shoulder, neckR, args.finishMm);
     for (let ai = 0; ai <= aSteps; ai += 1) {
       const ang = Math.PI / 2 - span + ((ai / aSteps) * span * 2);
       const [x, z] = sectionPoint(args.section, ang, sample.rx, sample.rz, args.softness, sample.morph, y);

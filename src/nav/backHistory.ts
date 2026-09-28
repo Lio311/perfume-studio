@@ -2,10 +2,27 @@ export interface HistoryLike {
   readonly state: unknown;
   pushState(data: unknown, unused: string): void;
   back(): void;
+  forward(): void;
 }
 
 export interface Trap {
   armed: boolean;
+  /** Wizard step represented by the entry under the in-app layers. Set on the first sync of a page load. */
+  baselineStep?: number;
+  /** Wizard step last accounted for. Forward changes above this push one history entry each. */
+  wizardStep?: number;
+  /** True after this page load has pushed at least one wizard step entry. */
+  wizardPushed?: boolean;
+  /** Discarding history entries above a step the UI already jumped back to. */
+  dropping?: boolean;
+  dropTarget?: number;
+  /** The push that cut the forward list is being undone so it does not stay current. */
+  neutralizing?: boolean;
+  /** A forward landing on a stale entry is being undone. */
+  bounce?: boolean;
+  /** Mirror of entries pushed on this page, so a pop can tell Back from Forward. */
+  stack?: unknown[];
+  index?: number;
 }
 
 export interface BackSurface {
@@ -18,8 +35,15 @@ export interface BackSurface {
   stage: "bottle" | "box" | "together";
   mode: string;
   explode: number;
-  /** The wizard is choosing the stage, including the carton step. Back must not undo that. */
+  /** The copy-failed share URL is on screen. Back closes it before a wizard step. */
+  shareLink: boolean;
+  /**
+   * The wizard is choosing the stage, including the carton step.
+   * That stage is not its own Back layer. Wizard steps above 0 are.
+   */
   wizard: boolean;
+  /** Current wizard step. 0 is the bottle step and is not a history layer by itself. */
+  step: number;
 }
 
 export type BackAction =
@@ -27,8 +51,10 @@ export type BackAction =
   | "present"
   | "overlays"
   | "selection"
+  | "share"
   | "stage"
   | "mode"
+  | "wizard"
   | "leave";
 
 export const LAB_HISTORY_STATE = { lab: 1 } as const;
@@ -37,14 +63,100 @@ export function isLabHistory(state: unknown): boolean {
   return !!state && typeof state === "object" && (state as { lab?: unknown }).lab === 1;
 }
 
+/** Step stored on a wizard history entry. Overlay guards have no step. */
+export function historyWizardStep(state: unknown): number | undefined {
+  if (!isLabHistory(state)) return undefined;
+  const step = (state as { step?: unknown }).step;
+  return typeof step === "number" && Number.isInteger(step) && step >= 0 && step <= 7 ? step : undefined;
+}
+
+function isOverlayGuard(state: unknown): boolean {
+  return isLabHistory(state) && historyWizardStep(state) === undefined;
+}
+
+function sameState(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  if (!isLabHistory(a) || !isLabHistory(b)) return false;
+  return historyWizardStep(a) === historyWizardStep(b) && isOverlayGuard(a) === isOverlayGuard(b);
+}
+
+function ensureStack(trap: Trap, current: unknown) {
+  if (trap.stack) return;
+  trap.stack = [current];
+  trap.index = 0;
+}
+
+function push(history: HistoryLike, trap: Trap, data: unknown) {
+  ensureStack(trap, history.state);
+  const index = trap.index ?? 0;
+  trap.stack!.splice(index + 1);
+  trap.stack!.push(data);
+  trap.index = index + 1;
+  history.pushState(data, "");
+  trap.armed = true;
+}
+
+/** A step above the one on screen, or a guard left behind after the overlay closed. */
+function staleEntry(state: unknown, target: number): boolean {
+  if (isOverlayGuard(state)) return true;
+  const step = historyWizardStep(state);
+  return typeof step === "number" && step > target;
+}
+
+type PopDir = "back" | "forward" | "unknown";
+
+function isShareGuard(state: unknown): boolean {
+  return isLabHistory(state) && (state as { share?: unknown }).share === 1;
+}
+
+/**
+ * Direction of one pop.
+ * Entries this page pushed are matched against the mirror.
+ * After a reload the mirror is only the current entry, so the step stored on the revealed entry decides:
+ * a higher step is Forward, a lower step is Back. Unknown is not treated as Back.
+ */
+function notePop(trap: Trap, state: unknown, fromStep: number | undefined): PopDir {
+  const stack = trap.stack;
+  const index = trap.index ?? 0;
+  if (stack) {
+    if (index > 0 && sameState(stack[index - 1], state)) {
+      trap.index = index - 1;
+      return "back";
+    }
+    if (index + 1 < stack.length && sameState(stack[index + 1], state)) {
+      trap.index = index + 1;
+      return "forward";
+    }
+  }
+  const revealed = historyWizardStep(state);
+  if (typeof fromStep === "number" && typeof revealed === "number" && revealed !== fromStep) {
+    return revealed > fromStep ? "forward" : "back";
+  }
+  return "unknown";
+}
+
+/**
+ * Step to show after Back pops a wizard entry.
+ * The revealed entry carries the step. The original document entry does not, so the page-load step is used.
+ * A guard is not a wizard step.
+ */
+export function wizardStepAfterPop(history: HistoryLike, trap: Trap): number | null {
+  if (isOverlayGuard(history.state)) return null;
+  const revealed = historyWizardStep(history.state);
+  if (typeof revealed === "number") return revealed;
+  return trap.baselineStep ?? 0;
+}
+
 /** One browser Back consumes the top in-app layer. `leave` means the visit itself should end. */
 export function backAction(surface: BackSurface): BackAction {
   if (surface.modal) return "modal";
   if (surface.present) return "present";
+  if (surface.shareLink) return "share";
   if (surface.palette || surface.help) return "overlays";
   if (surface.solo || surface.aimed) return "selection";
   if (surface.stage !== "bottle" && !surface.wizard) return "stage";
   if (surface.mode !== "assemble" || surface.explode > 0.02) return "mode";
+  if (surface.wizard && surface.step > 0) return "wizard";
   return "leave";
 }
 
@@ -59,9 +171,11 @@ export function backSurface(state: {
   mode: string;
   explode: number;
   design: { step?: number };
+  shareUrl?: string;
 }): BackSurface {
-  const step = state.design.step;
-  const wizard = typeof step === "number" && Number.isInteger(step) && step >= 0 && step < 7;
+  const raw = state.design.step;
+  const known = typeof raw === "number" && Number.isInteger(raw) && raw >= 0 && raw <= 7;
+  const wizard = known && raw < 7;
   return {
     modal: Boolean(state.modal),
     present: state.present,
@@ -72,24 +186,113 @@ export function backSurface(state: {
     stage: state.stage,
     mode: state.mode,
     explode: state.explode,
+    shareLink: Boolean(state.shareUrl),
     wizard,
+    step: wizard ? raw : 0,
   };
 }
 
-/** Push a single guard entry while some in-app layer is open. Never push when the lab is idle. */
-export function syncHistoryTrap(history: HistoryLike, surface: BackSurface, trap: Trap): void {
-  if (backAction(surface) === "leave") return;
-  if (isLabHistory(history.state)) {
+function finishDrop(history: HistoryLike, surface: BackSurface, trap: Trap) {
+  if (!isLabHistory(history.state) && surface.step < (trap.baselineStep ?? surface.step)) {
+    trap.baselineStep = surface.step;
+  }
+  trap.wizardStep = surface.step;
+  const action = backAction(surface);
+  const index = trap.index ?? 0;
+  const hasForward = (trap.stack?.length ?? 0) > index + 1;
+  if ((action === "leave" || action === "wizard") && hasForward) {
+    // Cut steps above this one. Step back onto the entry that already matches, so the cut is only a forward stub.
+    trap.neutralizing = true;
+    trap.dropping = false;
+    push(history, trap, { lab: 1, step: surface.step });
+    history.back();
+    return;
+  }
+  trap.dropping = false;
+  if (action === "leave" || action === "wizard") {
+    trap.armed = action === "wizard";
+    return;
+  }
+  if (isOverlayGuard(history.state)) {
     trap.armed = true;
     return;
   }
-  history.pushState(LAB_HISTORY_STATE, "");
-  trap.armed = true;
+  push(history, trap, LAB_HISTORY_STATE);
+}
+
+function skipGuard(history: HistoryLike, dir: PopDir) {
+  if (dir === "forward") history.forward();
+  else history.back();
+}
+
+function applyWizard(apply: (action: "wizard") => void, readAfter: () => BackSurface, trap: Trap) {
+  apply("wizard");
+  const after = readAfter();
+  trap.wizardStep = after.step;
+  trap.armed = backAction(after) !== "leave";
+}
+
+/**
+ * Push one history entry per wizard step moved forward.
+ * A dialog or a selected part pushes a single guard above those steps, so Back closes it first.
+ * A jump back (new design, reset, chat, or the in-app Back) drops entries above the new step
+ * so browser Back cannot walk forward through them.
+ * Never push when the lab is idle, and never push the step that was already on screen at load.
+ */
+export function syncHistoryTrap(history: HistoryLike, surface: BackSurface, trap: Trap): void {
+  ensureStack(trap, history.state);
+  if (!surface.shareLink && isShareGuard(history.state) && !trap.dropping && !trap.bounce && !trap.neutralizing) {
+    trap.bounce = true;
+    history.back();
+    return;
+  }
+  if (trap.baselineStep === undefined) {
+    trap.baselineStep = surface.step;
+    trap.wizardStep = surface.step;
+  }
+
+  const recorded = trap.wizardStep ?? trap.baselineStep ?? 0;
+  if (surface.step < recorded) {
+    if (!trap.wizardPushed) trap.baselineStep = surface.step;
+    if (!trap.dropping && staleEntry(history.state, surface.step)) {
+      trap.dropping = true;
+      trap.dropTarget = surface.step;
+      trap.wizardStep = surface.step;
+      history.back();
+      return;
+    }
+    trap.wizardStep = surface.step;
+  } else if (surface.wizard && surface.step > recorded) {
+    for (let step = recorded + 1; step <= surface.step; step += 1) {
+      push(history, trap, { lab: 1, step });
+    }
+    trap.wizardStep = surface.step;
+    trap.wizardPushed = true;
+    trap.armed = true;
+  }
+
+  const action = backAction(surface);
+  if (action === "share") {
+    if (!isShareGuard(history.state)) push(history, trap, { lab: 1, share: 1 });
+    trap.armed = true;
+    return;
+  }
+  if (action === "wizard") {
+    trap.armed = true;
+    return;
+  }
+  if (action === "leave") return;
+  if (isOverlayGuard(history.state)) {
+    trap.armed = true;
+    return;
+  }
+  push(history, trap, LAB_HISTORY_STATE);
 }
 
 /**
  * Handle one `popstate`.
- * A consumed layer re-arms the guard only when another layer is still open.
+ * Modals, presentation, search, help, and part selection close before a wizard step changes.
+ * A wizard Back lands on the previous step. A higher step or a closed overlay's guard is skipped.
  * An idle pop does not push. If that pop only removed our guard, `history.back()` continues off the site.
  */
 export function handleHistoryPop(
@@ -99,18 +302,79 @@ export function handleHistoryPop(
   readAfter: () => BackSurface,
   trap: Trap,
 ): void {
+  const dir = notePop(trap, history.state, surface.step);
+  if (trap.bounce) {
+    trap.bounce = false;
+    return;
+  }
+  if (trap.neutralizing) {
+    trap.neutralizing = false;
+    trap.dropping = false;
+    const after = readAfter();
+    trap.wizardStep = after.step;
+    trap.armed = backAction(after) !== "leave";
+    return;
+  }
+  if (trap.dropping) {
+    const target = trap.dropTarget ?? 0;
+    if (staleEntry(history.state, target)) {
+      history.back();
+      return;
+    }
+    finishDrop(history, readAfter(), trap);
+    return;
+  }
+
   const action = backAction(surface);
   if (action === "leave") {
+    // Forward from step 0 only reveals entries this jump already cut. Undo that move.
+    if (dir === "forward") {
+      trap.bounce = true;
+      history.back();
+      return;
+    }
+    // Stale wizard entries are not layers. Skip them, then leave in the same gesture.
+    if (isLabHistory(history.state)) {
+      trap.armed = true;
+      history.back();
+      return;
+    }
     if (!trap.armed) return;
     trap.armed = false;
     history.back();
     return;
   }
-  apply(action);
-  if (backAction(readAfter()) === "leave") {
-    trap.armed = false;
+  if (action === "wizard") {
+    if (isOverlayGuard(history.state)) {
+      skipGuard(history, dir);
+      return;
+    }
+    const revealed = historyWizardStep(history.state);
+    if (typeof revealed === "number" && revealed === surface.step) {
+      if (dir === "forward") trap.bounce = true;
+      history.back();
+      return;
+    }
+    if (typeof revealed === "number") {
+      const forwardMove = dir === "forward";
+      if (forwardMove && revealed > surface.step) applyWizard(apply, readAfter, trap);
+      else if (dir !== "forward" && revealed < surface.step) applyWizard(apply, readAfter, trap);
+      else if (forwardMove) history.forward();
+      else if (dir === "back") history.back();
+      return;
+    }
+    const baseline = trap.baselineStep ?? 0;
+    if (dir !== "forward" && baseline < surface.step) applyWizard(apply, readAfter, trap);
+    else if (dir === "forward") history.forward();
     return;
   }
-  history.pushState(LAB_HISTORY_STATE, "");
-  trap.armed = true;
+  apply(action);
+  const after = readAfter();
+  const next = backAction(after);
+  if (next === "leave" || next === "wizard") {
+    trap.armed = next === "wizard";
+    if (next === "wizard") trap.wizardStep = after.step;
+    return;
+  }
+  push(history, trap, LAB_HISTORY_STATE);
 }

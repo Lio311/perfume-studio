@@ -67,7 +67,7 @@ export function buildSpecHtml(design: Design, lang: Lang, render: string): strin
     ${row(lang === "he" ? "צוואר" : "Neck", `${design.bottle.neck} · EN 14849`)}
     ${row(lang === "he" ? "חבק פנימי / חיצוני / גובה" : "Ferrule ID / OD / height", ferrule)}
     ${row(lang === "he" ? "פקק" : "Cap", `${sized(cap.name[lang], fit, (part) => `${part.capW.toFixed(1)} × ${part.capD.toFixed(1)} × ${part.capH.toFixed(1)} mm`)} · ${design.cap.finish}`)}
-    ${row(lang === "he" ? "משאבה" : "Pump", sized(pump.name[lang], fit, (part) => `Ø${(part.actuatorR * 2).toFixed(1)} mm`))}
+    ${row(lang === "he" ? "משאבה" : "Pump", sized(pump.name[lang], fit, (part) => `Ø${(part.headR * 2).toFixed(1)} mm`))}
     ${row(lang === "he" ? "צווארון" : "Collar", sized(collar.name[lang], fit, (part) => `Ø${(part.collarOuter * 2).toFixed(1)} / Ø${(part.collarInner * 2).toFixed(1)} × ${part.collarHeight.toFixed(1)} mm`))}
     ${row(lang === "he" ? "סימון" : "Mark", `${logo.name[lang]} · ${design.label.text}`)}
     ${row(lang === "he" ? "קופסה" : "Box", sized(box.name[lang], fit, (part) => `${part.boxW.toFixed(1)} × ${part.boxD.toFixed(1)} × ${part.boxH.toFixed(1)} mm`))}

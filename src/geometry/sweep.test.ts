@@ -26,6 +26,7 @@ describe("bottle shell, liquid and label share one profile", () => {
         neckR,
         profile: bottle.profile,
         shoulder: bottle.shoulder,
+        finishMm: bottle.finishMm,
       };
       const glass = buildBottleGeometry(args);
       const fill = Math.min(bottle.heightMm - 6, Math.max(8, bottle.heightMm * 0.62));
