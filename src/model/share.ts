@@ -1,9 +1,7 @@
-import { clampLabelText } from "../geometry/logos.ts";
-import { listFor } from "./catalog.ts";
-import { logoApplication } from "./catalog.ts";
-import { legacyLabelInk } from "../geometry/logos.ts";
+import { clampLabelText, legacyLabelInk } from "../geometry/logos.ts";
 import { LAB_PERSIST_VERSION } from "../store/hydrate.ts";
 import { hydrateBox } from "./boxFields.ts";
+import { listFor, logoApplication } from "./catalog.ts";
 import { createDefaultDesign, hydrateDesign } from "./design.ts";
 import { FINISHES } from "./materials.ts";
 import { NECKS } from "./necks.ts";

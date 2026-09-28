@@ -75,8 +75,10 @@ export function assemblyBounds(design: Design, explode: number, stage: StageMode
     expandFrame(box, frame, explode, 4);
     box.max.y += explode * fit.boxH * 0.42;
     if (lidOpen) {
-      box.max.y += fit.boxH * 0.85;
-      box.min.z -= fit.boxD * 0.55;
+      box.max.y += fit.boxH * 0.95;
+      box.min.z -= fit.boxD * 0.4;
+      box.max.z += fit.boxD * 0.75;
+      box.max.x += fit.boxW * 0.9;
       box.expandByPoint(new THREE.Vector3(0, fit.bottleH + 12, 0));
     }
     return box;
@@ -119,8 +121,10 @@ export function partBounds(design: Design, explode: number, part: PartKey, stage
   box.max.z = Math.max(box.max.z, cz + minHalf);
   if (stage === "box" && part === "box") box.max.y += explode * fit.boxH * 0.28;
   if (lidOpen && part === "box") {
-    box.max.y += fit.boxH * 0.85;
-    box.min.z -= fit.boxD * 0.55;
+    box.max.y += fit.boxH * 0.95;
+    box.min.z -= fit.boxD * 0.4;
+    box.max.z += fit.boxD * 0.75;
+    box.max.x += fit.boxW * 0.9;
   }
   return box;
 }

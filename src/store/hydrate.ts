@@ -4,6 +4,7 @@ import { clampLabelText, legacyLabelInk } from "../geometry/logos.ts";
 import { BOTTLES } from "../model/bottles.ts";
 import { normalizeCurrency, sanitizeSupplierPrice } from "../model/price.ts";
 import { CAPS } from "../model/caps.ts";
+import { hydrateBox } from "../model/boxFields.ts";
 import { createDefaultDesign } from "../model/design.ts";
 import { BOXES } from "../model/hardware.ts";
 import { FINISHES } from "../model/materials.ts";
@@ -374,6 +375,13 @@ function sanitizeBox(raw: unknown, fallback: BoxState): BoxState {
   });
 }
 
+/** Keep the pack fields `sanitizeBox` does not know about, then let the box validator clamp them. */
+function packedBox(raw: unknown, fallback: BoxState): BoxState {
+  const safe = sanitizeBox(raw, fallback);
+  if (!isRecord(raw)) return hydrateBox(safe);
+  return hydrateBox({ ...(raw as Partial<BoxState>), ...safe });
+}
+
 function sanitizeLiquid(raw: unknown, fallback: LiquidState): LiquidState {
   if (!isRecord(raw)) return { ...fallback };
   return {
@@ -399,7 +407,7 @@ export function sanitizeDesign(input: unknown): Design {
       label: sanitizeLabel(own(input, "label"), defaults.label),
       pump: sanitizePump(own(input, "pump"), defaults.pump),
       collar: sanitizeCollar(own(input, "collar"), defaults.collar),
-      box: sanitizeBox(own(input, "box"), defaults.box),
+      box: packedBox(own(input, "box"), defaults.box),
       liquid: sanitizeLiquid(own(input, "liquid"), defaults.liquid),
     };
     if (Object.hasOwn(input, "step")) {

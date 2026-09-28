@@ -436,7 +436,7 @@ describe("saved design hydration", () => {
     expect(Object.keys(partial).sort()).toEqual(["brief", "chat", "compareIds", "design", "lang", "pending", "saved", "theme"]);
   });
 
-  it("reloads a fully configured box and leaves cutaway, quality, and the tier lock behind", async () => {
+  it("reloads a fully configured box and leaves cutaway, quality, tier lock, and pack notices behind", async () => {
     const design = createDefaultDesign();
     design.box = hydrateBox({
       variantId: "box-rigid",
@@ -502,12 +502,14 @@ describe("saved design hydration", () => {
       quality: "high",
       tierLock: true,
       shareUrl: "https://example.test/#d=1",
+      packNotices: [{ kind: "dropped", ref: "x" }],
     });
     expect(partial.brief).toEqual({ title: "קופסה" });
     expect("cutaway" in partial).toBe(false);
     expect("quality" in partial).toBe(false);
     expect("tierLock" in partial).toBe(false);
     expect("shareUrl" in partial).toBe(false);
+    expect("packNotices" in partial).toBe(false);
 
     const mem: Record<string, string> = {};
     vi.stubGlobal("localStorage", {
@@ -526,6 +528,7 @@ describe("saved design hydration", () => {
     expect(raw).toContain("notch");
     expect(raw).not.toContain("tierLock");
     expect(raw).not.toContain("cutaway");
+    expect(raw).not.toContain("packNotices");
 
     const loaded = await storage.getItem("perfume-lab-v1");
     const live = { ...slice(), cutaway: false, quality: "fallback" as const, tierLock: false };

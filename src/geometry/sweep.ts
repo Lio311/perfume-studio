@@ -303,7 +303,7 @@ function prepareLabelPatch(args: LabelPatchArgs) {
   const half = Math.min(Math.max(6, args.patchW / 2), midSample.rx * 0.86);
   let lo = 0.08;
   let hi = Math.PI * 0.46;
-  for (let i = 0; i < 14; i += 1) {
+  for (let i = 0; i < 16; i += 1) {
     const span = (lo + hi) / 2;
     // Size the span from the widest row, not the midline, so a round bottle
     // does not draw a plate wider than the width fit reported.
