@@ -5,8 +5,43 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>מעבדת הבושם — Perfume Lab</title>
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect fill='%2306070b' width='32' height='32'/%3E%3Cpath d='M16 4l8 12-8 12-8-12z' fill='none' stroke='%23D6B26A' stroke-width='1.2'/%3E%3C/svg%3E" />
+    <style>
+      html, body { margin: 0; height: 100%; background: #06070b; }
+      .studio-splash {
+        position: fixed;
+        inset: 0;
+        z-index: 80;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 14px;
+        background: #06070b;
+        color: #ede8dd;
+        font-family: "Segoe UI", Helvetica, Arial, sans-serif;
+        transition: opacity 0.45s ease;
+      }
+      #studio-splash { z-index: 100; }
+      .studio-splash.is-out { opacity: 0; pointer-events: none; }
+      .studio-splash-mark {
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        border: 2px solid rgba(237, 232, 221, 0.22);
+        border-top-color: #ede8dd;
+        animation: studio-splash-spin 0.8s linear infinite;
+      }
+      .studio-splash p { margin: 0; font-size: 15px; line-height: 1.4; }
+      .studio-splash-en { color: #8f8c86; font-size: 13px; }
+      @keyframes studio-splash-spin { to { transform: rotate(360deg); } }
+    </style>
   </head>
   <body>
+    <div id="studio-splash" class="studio-splash" role="status" aria-live="polite">
+      <div class="studio-splash-mark" aria-hidden="true"></div>
+      <p class="studio-splash-he">טוען את הסטודיו…</p>
+      <p class="studio-splash-en">Loading studio…</p>
+    </div>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

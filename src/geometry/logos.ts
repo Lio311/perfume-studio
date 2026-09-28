@@ -1,4 +1,3 @@
-import * as THREE from "three";
 import type { LogoApplication, LogoFont, LogoFrame, LogoMark, LogoSpec } from "../model/types.ts";
 
 const TYPEFACE: Record<LogoFont, string> = {
@@ -293,15 +292,46 @@ export function labelFontFamily(font: LogoFont, text: string): string {
 const DARK_PLATE = "#16130f";
 const LIGHT_PLATE = "#f7f2e8";
 
-function parsedColor(input: string): THREE.Color {
-  try {
-    return new THREE.Color(input);
-  } catch {
-    return new THREE.Color(0);
-  }
+/** sRGB byte to the linear channel THREE.Color stores. Matches ColorManagement in three r152+. */
+function srgbChannelToLinear(channel: number): number {
+  return channel < 0.04045 ? channel * 0.0773993808 : (channel * 0.9478672986 + 0.0521327014) ** 2.4;
 }
 
-/** WCAG relative luminance. THREE.Color components are already linear. */
+function linearFromBytes(red: number, green: number, blue: number): { r: number; g: number; b: number } {
+  return {
+    r: srgbChannelToLinear(red / 255),
+    g: srgbChannelToLinear(green / 255),
+    b: srgbChannelToLinear(blue / 255),
+  };
+}
+
+/**
+ * Linear channels for a CSS colour, matching THREE.Color.
+ * An unknown colour stays white, which is what THREE.Color leaves in place when setStyle fails.
+ */
+function parsedColor(input: string): { r: number; g: number; b: number } {
+  const value = input.trim();
+  const short = /^#([0-9a-f]{3})$/i.exec(value);
+  if (short) {
+    const hex = short[1];
+    return linearFromBytes(
+      Number.parseInt(hex[0] + hex[0], 16),
+      Number.parseInt(hex[1] + hex[1], 16),
+      Number.parseInt(hex[2] + hex[2], 16),
+    );
+  }
+  const long = /^#([0-9a-f]{6})$/i.exec(value);
+  if (long) {
+    const hex = Number.parseInt(long[1], 16);
+    return linearFromBytes((hex >> 16) & 255, (hex >> 8) & 255, hex & 255);
+  }
+  const rgb = /^rgba?\(\s*([0-9.]+)\s*,\s*([0-9.]+)\s*,\s*([0-9.]+)/i.exec(value);
+  if (rgb) return linearFromBytes(Number(rgb[1]), Number(rgb[2]), Number(rgb[3]));
+  if (value.toLowerCase() === "black") return { r: 0, g: 0, b: 0 };
+  return { r: 1, g: 1, b: 1 };
+}
+
+/** WCAG relative luminance. Channels are linear, matching THREE.Color. */
 export function relativeLuminance(color: string): number {
   const parsed = parsedColor(color);
   return 0.2126 * parsed.r + 0.7152 * parsed.g + 0.0722 * parsed.b;

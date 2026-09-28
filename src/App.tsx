@@ -1,28 +1,31 @@
-import { useEffect, useRef, useState } from "react";
-import { BudgetBrief } from "./ui/BudgetBrief.tsx";
-import { BudgetMeter } from "./ui/BudgetMeter.tsx";
-import { SavingsPanel } from "./ui/BudgetSuggestions.tsx";
-import { LabCanvas } from "./scene/LabCanvas.tsx";
-import { applyTheme } from "./theme/themes.ts";
-import { partLabel, tx, wizardTitle } from "./i18n/copy.ts";
-import { pngDownloadName } from "./ui/pngName.ts";
-import { useLab } from "./store/labStore.ts";
-import { applyIncomingShareHash, invalidShareMessage, missingPartsMessage, respondToLocation } from "./model/share.ts";
-import { backSurface, handleHistoryPop, syncHistoryTrap, wizardStepAfterPop, type BackAction, type Trap } from "./nav/backHistory.ts";
-import { clipToast } from "./ui/toast.ts";
-import { TopBar } from "./ui/TopBar.tsx";
-import { Library } from "./ui/Library.tsx";
-import { Inspector } from "./ui/Inspector.tsx";
-import { Crumb, Dock, Timeline } from "./ui/Dock.tsx";
-import { CommandPalette, Intro, ShortcutHelp } from "./ui/Palette.tsx";
-import { requestShot } from "./scene/capture.ts";
-import { CompareBoard } from "./ui/CompareBoard.tsx";
-import { Modals } from "./ui/Modals.tsx";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
+import { noteAppMounted } from "./boot/splash.ts";
 import { stopSpeaking } from "./audio/speech.ts";
+import { partLabel, tx, wizardTitle } from "./i18n/copy.ts";
 import { acknowledgePackLoads, adoptLoadedSuppliers, loadPacks } from "./import/supplierDb.ts";
 import { isKnownPack, withInnerStructure } from "./model/boxFields.ts";
 import { packById } from "./model/closures/registry.ts";
 import { hydrateDesign } from "./model/design.ts";
+import { applyIncomingShareHash, invalidShareMessage, missingPartsMessage, respondToLocation } from "./model/share.ts";
+import { backSurface, handleHistoryPop, syncHistoryTrap, wizardStepAfterPop, type BackAction, type Trap } from "./nav/backHistory.ts";
+import { requestShot } from "./scene/capture.ts";
+import { useLab } from "./store/labStore.ts";
+import { applyTheme } from "./theme/themes.ts";
+import { BudgetBrief } from "./ui/BudgetBrief.tsx";
+import { BudgetMeter } from "./ui/BudgetMeter.tsx";
+import { Crumb, Dock, Timeline } from "./ui/Dock.tsx";
+import { Inspector } from "./ui/Inspector.tsx";
+import { Library } from "./ui/Library.tsx";
+import { CommandPalette, Intro, ShortcutHelp } from "./ui/Palette.tsx";
+import { pngDownloadName } from "./ui/pngName.ts";
+import { StudioSplash } from "./ui/StudioSplash.tsx";
+import { clipToast } from "./ui/toast.ts";
+import { TopBar } from "./ui/TopBar.tsx";
+
+const LabCanvas = lazy(() => import("./scene/LabCanvas.tsx").then((mod) => ({ default: mod.LabCanvas })));
+const SavingsPanel = lazy(() => import("./ui/BudgetSuggestions.tsx").then((mod) => ({ default: mod.SavingsPanel })));
+const Modals = lazy(() => import("./ui/Modals.tsx").then((mod) => ({ default: mod.Modals })));
+const CompareBoard = lazy(() => import("./ui/CompareBoard.tsx").then((mod) => ({ default: mod.CompareBoard })));
 
 function applyBackAction(action: Exclude<BackAction, "leave">, trap: Trap) {
   const lab = useLab.getState();
@@ -93,6 +96,10 @@ export default function App() {
   const [savingsOpen, setSavingsOpen] = useState(false);
   const step = design.step ?? 7;
   const prevStep = useRef(step);
+
+  useEffect(() => {
+    noteAppMounted();
+  }, []);
 
   const sig = `${design.bottle.variantId}|${design.cap.variantId}|${design.pump.variantId}|${design.collar.variantId}|${design.label.variantId}|${design.box.variantId}`;
   const seen = useRef(sig);
@@ -353,7 +360,9 @@ export default function App() {
 
   return (
     <div className={`app ${present ? "is-present" : ""} ${swapping ? "is-swapping" : ""} ${shareLock ? "is-share-lock" : ""}`.trim()} data-voice={voice} inert={shareLock ? true : undefined}>
-      <LabCanvas />
+      <Suspense fallback={<StudioSplash />}>
+        <LabCanvas />
+      </Suspense>
       <div className="vignette" />
       <div className="grain" />
       <Intro />
@@ -405,7 +414,11 @@ export default function App() {
               <button type="button" onClick={() => setPresent(false)}>{t.presentExit}</button>
             </div>
           )}
-          {mode === "compare" && <CompareBoard />}
+          {mode === "compare" && (
+            <Suspense fallback={null}>
+              <CompareBoard />
+            </Suspense>
+          )}
           <Timeline />
           <Dock />
         </div>
@@ -428,9 +441,17 @@ export default function App() {
       )}
       <CommandPalette />
       <ShortcutHelp />
-      <Modals />
+      {modal && (
+        <Suspense fallback={null}>
+          <Modals />
+        </Suspense>
+      )}
       <BudgetBrief />
-      <SavingsPanel open={savingsOpen} onClose={() => setSavingsOpen(false)} />
+      {savingsOpen && (
+        <Suspense fallback={null}>
+          <SavingsPanel open onClose={() => setSavingsOpen(false)} />
+        </Suspense>
+      )}
     </div>
   );
 }

@@ -15,6 +15,7 @@ import { clampPolarOffset, decayGlide, emptyGlide, PAN_SPEED, PAN_STEP, PITCH_ST
 import { Exposure, PixelRatio, StageFloor, StudioEnv, StudioLights } from "./studio.tsx";
 import { CinematicFloor, EnergyRings, ParticleField, VoiceGrade } from "./voiceScenery.tsx";
 import { webglAvailable } from "./webgl.ts";
+import { noteStudioFrame } from "../boot/splash.ts";
 import { clearSceneError, contextLostSuppressed, noteRenderer, StageFallback, WebglBoundary, WebglFallback } from "../ui/FallbackScreen.tsx";
 
 const VIEW_DIR: Record<ViewPreset | "three", THREE.Vector3> = {
@@ -624,6 +625,7 @@ function Stage() {
       )}
       {dark && voice === 3 && <CinematicFloor />}
       <Assembly />
+      <FirstFrameSignal />
       <CameraRig />
       <VoiceGrade />
       <Tier />
@@ -631,6 +633,16 @@ function Stage() {
       <FpsProbe />
     </>
   );
+}
+
+function FirstFrameSignal() {
+  const sent = useRef(false);
+  useFrame(() => {
+    if (sent.current) return;
+    sent.current = true;
+    noteStudioFrame();
+  });
+  return null;
 }
 
 function Tier() {
@@ -675,6 +687,9 @@ function FpsProbe() {
 export function LabCanvas() {
   const [supported, setSupported] = useState(() => webglAvailable());
   const [lost, setLost] = useState(false);
+  useEffect(() => {
+    if (!supported || lost) noteStudioFrame();
+  }, [supported, lost]);
   const retryWebgl = () => {
     clearSceneError();
     setLost(false);

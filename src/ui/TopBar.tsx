@@ -8,7 +8,6 @@ import { requestShot } from "../scene/capture.ts";
 import { useLab, type LabMode } from "../store/labStore.ts";
 import { pngDownloadName } from "./pngName.ts";
 import { clipToast } from "./toast.ts";
-import { downloadSpec } from "./specSheet.ts";
 import { encodeShareDesign } from "../model/share.ts";
 
 const MODES: LabMode[] = ["assemble", "explode", "dimensions"];
@@ -95,9 +94,11 @@ export function TopBar() {
   }
 
   function exportSpec() {
-    downloadSpec(design, lang);
-    setNotice(t.specSaved);
-    window.setTimeout(() => setNotice(""), 1600);
+    void import("./specSheet.ts").then(({ downloadSpec }) => {
+      downloadSpec(design, lang);
+      setNotice(t.specSaved);
+      window.setTimeout(() => setNotice(""), 1600);
+    });
     setMenu(null);
   }
 

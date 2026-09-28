@@ -1,4 +1,4 @@
-import { labelPatchExtent } from "../geometry/sweep.ts";
+import { labelPatchExtent } from "../geometry/labelPatch.ts";
 import { envelopeFromDesign } from "./boxFields.ts";
 import { bottleById, capById, collarById, logoById, pumpById } from "./catalog.ts";
 import { NECKS, neckRadius, neckStandard } from "./necks.ts";
