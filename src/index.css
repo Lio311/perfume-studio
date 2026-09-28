@@ -489,6 +489,10 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+body:has(.share-fallback) .toast {
+  bottom: auto;
+  top: 96px;
+}
 .share-fallback {
   position: fixed;
   bottom: 108px;
@@ -517,6 +521,7 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   overflow: hidden;
+  field-sizing: content;
 }
 .share-wait {
   position: fixed;

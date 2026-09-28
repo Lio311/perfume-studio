@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { flushSync } from "react-dom";
 import { tx } from "../i18n/copy.ts";
 import { bottleById } from "../model/catalog.ts";
@@ -53,8 +54,12 @@ export function TopBar() {
     const hash = encodeShareDesign(design);
     const url = `${location.origin}${location.pathname}${location.search}#d=${hash}`;
     const write = navigator.clipboard?.writeText?.(url);
-    if (!write) {
+    const showLink = () => {
       setShareUrl(url);
+      setNotice(lang === "he" ? "לא הצלחנו להעתיק. בחרו את הקישור והעתיקו אותו" : "Could not copy. Select the link and copy it");
+    };
+    if (!write) {
+      showLink();
       setMenu(null);
       return;
     }
@@ -64,7 +69,7 @@ export function TopBar() {
         setNotice(t.shared);
         window.setTimeout(() => setNotice(""), 1800);
       },
-      () => setShareUrl(url),
+      showLink,
     );
     setMenu(null);
   }
@@ -172,11 +177,15 @@ export function TopBar() {
         <button type="button" className="text-btn panel-toggle" onClick={() => setLibraryOpen(!libraryOpen)}>{t.library}</button>
         <button type="button" className="text-btn panel-toggle" onClick={() => setSideOpen(!sideOpen)}>{t.properties}</button>
       </div>
-      {notice && <div className="toast" dir={lang === "he" ? "rtl" : "ltr"}>{clipToast(notice)}</div>}
-      {shareUrl && (
+      {notice && createPortal(
+        <div className="toast" dir={lang === "he" ? "rtl" : "ltr"}>{clipToast(notice)}</div>,
+        document.body,
+      )}
+      {shareUrl && createPortal(
         <form className="share-fallback" dir="ltr" onSubmit={(event) => event.preventDefault()}>
-          <textarea readOnly rows={Math.max(4, Math.ceil(shareUrl.length / 52))} value={shareUrl} aria-label={t.share} onFocus={(event) => event.currentTarget.select()} />
-        </form>
+          <textarea readOnly rows={Math.max(4, Math.ceil(shareUrl.length / 84))} value={shareUrl} aria-label={t.share} onFocus={(event) => event.currentTarget.select()} />
+        </form>,
+        document.body,
       )}
     </header>
   );

@@ -45,11 +45,14 @@ describe("share clipboard fallback", () => {
       await Promise.resolve();
     });
 
-    const field = host.querySelector("textarea");
+    const field = document.querySelector<HTMLTextAreaElement>(".share-fallback textarea");
     expect(field).toBeTruthy();
     expect(field?.readOnly).toBe(true);
     expect(field?.value).toBe(url);
     expect(field?.value.length).toBeGreaterThan(TOAST_MAX);
-    expect(host.querySelector(".toast")).toBeNull();
+    const toast = document.querySelector(".toast");
+    expect(toast?.textContent).toBe("לא הצלחנו להעתיק. בחרו את הקישור והעתיקו אותו");
+    expect(toast?.textContent?.includes(url)).toBe(false);
+    expect((toast?.textContent ?? "").length).toBeLessThan(TOAST_MAX);
   });
 });
