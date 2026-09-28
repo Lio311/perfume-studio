@@ -567,7 +567,20 @@ export const useLab = create<LabState>()(
         return { ok: true };
       },
       newDesign: () => {
-        set({ design: createDefaultDesign(), past: [], future: [], modal: null });
+        set((state) => ({
+          design: createDefaultDesign(),
+          past: [],
+          future: [],
+          modal: null,
+          selected: null,
+          aimed: false,
+          solo: null,
+          mode: "assemble",
+          stage: "bottle",
+          present: false,
+          explode: 0,
+          fullToken: state.fullToken + 1,
+        }));
       },
       loadDesign: async (id) => {
         try {
