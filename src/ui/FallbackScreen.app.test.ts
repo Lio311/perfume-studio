@@ -4,6 +4,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { SUPPLIER_DB_NAME } from "../import/supplierDb.ts";
 import { createDefaultDesign } from "../model/design.ts";
+import { createLabStorage, resumeLabStorageWrites } from "../store/hydrate.ts";
 import { useLab } from "../store/labStore.ts";
 import {
   AppErrorBoundary,
@@ -48,6 +49,7 @@ function clickLabel(el: HTMLElement, label: string) {
 describe("app error boundary", () => {
   afterEach(() => {
     installSceneProbe(null);
+    resumeLabStorageWrites();
     useLab.setState({ lang: "he" });
     vi.restoreAllMocks();
   });
@@ -89,7 +91,24 @@ describe("app error boundary", () => {
   it("asks before clearing design keys and leaves supplier storage alone", () => {
     const reload = vi.fn();
     vi.spyOn(console, "error").mockImplementation(() => undefined);
-    localStorage.setItem(DESIGN_STORAGE_KEY, JSON.stringify({ design: { bottle: {}, cap: {} } }));
+    const saved = [{ id: "cfg-1", name: "נואר", design: createDefaultDesign(), thumb: "", createdAt: 4 }];
+    const chat = [{ id: "c1", role: "user", text: "שלום" }];
+    const pending = [{ id: "p1", name: "photo", category: "cap", files: [], createdAt: 3 }];
+    localStorage.setItem(DESIGN_STORAGE_KEY, JSON.stringify({
+      state: {
+        design: { bottle: { variantId: "diamond-50", visible: true } },
+        theme: "light",
+        lang: "en",
+        chat,
+        saved,
+        pending,
+        past: [createDefaultDesign()],
+        future: [createDefaultDesign()],
+        brief: { title: "עבודה" },
+      },
+      version: 4,
+    }));
+    localStorage.setItem("perfume-lab-draft", "1");
     localStorage.setItem(SUPPLIER_DB_NAME, "{\"packs\":[1]}");
     localStorage.setItem("token", "keep-me");
     const view = mount(createElement(AppErrorBoundary, null, createElement(Boom)));
@@ -98,6 +117,9 @@ describe("app error boundary", () => {
     expect(localStorage.getItem(SUPPLIER_DB_NAME)).toBe("{\"packs\":[1]}");
     expect(reload).not.toHaveBeenCalled();
     expect(view.el.textContent).toContain("לאפס את העיצוב?");
+    expect(view.el.textContent).toContain("הסקיצות השמורות");
+    expect(view.el.textContent).toContain("הצ'אט");
+    expect(view.el.textContent).toContain("ההעלאות");
     expect(view.el.textContent).toContain("קטלוגי הספקים נשארים");
 
     clickLabel(view.el, "ביטול");
@@ -110,7 +132,35 @@ describe("app error boundary", () => {
     clickLabel(view.el, "כן, אפס");
     Object.defineProperty(location, "reload", { configurable: true, value: original });
     expect(reload).toHaveBeenCalledOnce();
-    expect(localStorage.getItem(DESIGN_STORAGE_KEY)).toBeNull();
+    const stored = JSON.parse(localStorage.getItem(DESIGN_STORAGE_KEY) ?? "{}") as {
+      state: {
+        design: { bottle: { variantId: string; visible: boolean }; step?: number };
+        chat: unknown;
+        saved: unknown;
+        pending: unknown;
+        past: unknown[];
+        future: unknown[];
+        theme: string;
+        lang: string;
+        brief: { title: string };
+      };
+      version: number;
+    };
+    expect(stored.version).toBe(5);
+    expect(stored.state.design.bottle.variantId).toBe("cara-50");
+    expect(stored.state.design.bottle.visible).toBe(true);
+    expect(stored.state.chat).toEqual(chat);
+    expect(stored.state.saved).toEqual(saved);
+    expect(stored.state.pending).toEqual(pending);
+    expect(stored.state.past).toEqual([]);
+    expect(stored.state.future).toEqual([]);
+    expect(stored.state.theme).toBe("dark");
+    expect(stored.state.lang).toBe("he");
+    expect(stored.state.brief).toEqual({ title: "עבודה" });
+    expect(localStorage.getItem("perfume-lab-draft")).toBeNull();
+    const kept = localStorage.getItem(DESIGN_STORAGE_KEY);
+    createLabStorage().setItem(DESIGN_STORAGE_KEY, { state: { design: { bottle: { variantId: "wiped" } } }, version: 5 });
+    expect(localStorage.getItem(DESIGN_STORAGE_KEY)).toBe(kept);
     expect(localStorage.getItem(SUPPLIER_DB_NAME)).toBe("{\"packs\":[1]}");
     expect(localStorage.getItem("token")).toBe("keep-me");
     const fresh = createDefaultDesign();
@@ -155,7 +205,9 @@ describe("app error boundary", () => {
       await useLab.persist.rehydrate();
     });
     const design = useLab.getState().design;
-    expect(design).toEqual(createDefaultDesign());
+    const fresh = createDefaultDesign();
+    delete fresh.step;
+    expect(design).toEqual(fresh);
     const view = mount(createElement(AppErrorBoundary, null, createElement(Signature)));
     expect(view.el.textContent).toContain("cara-50|cap-cube-tall|pump-crimp|col-crimp|lg-foil-diamond|box-rigid");
     expect(view.el.textContent).not.toContain("איפוס עיצוב");

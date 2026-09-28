@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createDefaultDesign } from "../model/design.ts";
 import type { Design } from "../model/types.ts";
-import { mergePersistedLab, migratePersisted, readStorageValue, sanitizeDesign, type HydratedSlice } from "./hydrate.ts";
+import { createLabStorage, mergePersistedLab, migratePersisted, partializeLabState, readStorageValue, sanitizeDesign, type HydratedSlice } from "./hydrate.ts";
 import { useLab } from "./labStore.ts";
 
 function slice(design: Design = createDefaultDesign()): HydratedSlice {
@@ -50,7 +50,10 @@ describe("saved design hydration", () => {
   it("fills a partial design and an empty design from defaults", () => {
     const current = slice();
     const empty = mergePersistedLab({ design: {} }, current);
-    expect(empty.design).toEqual(createDefaultDesign());
+    const fresh = createDefaultDesign();
+    delete fresh.step;
+    expect(empty.design).toEqual(fresh);
+    expect(empty.design.step).toBeUndefined();
 
     const partial = mergePersistedLab({ design: { bottle: {}, cap: {} } }, current);
     expect(partial.design.bottle).toEqual(createDefaultDesign().bottle);
@@ -82,6 +85,7 @@ describe("saved design hydration", () => {
       slice(),
     );
     const defaults = createDefaultDesign();
+    delete defaults.step;
     expect(merged.design.bottle.variantId).toBe("cara-50");
     expect(merged.design.bottle.heightMm).toBe(defaults.bottle.heightMm);
     expect(merged.design.bottle.visible).toBe(true);
@@ -116,7 +120,8 @@ describe("saved design hydration", () => {
     expect(merged.design.bottle).toEqual(createDefaultDesign().bottle);
     expect(merged.design.cap.variantId).toBe("cap-crystal");
     expect(merged.design.cap.finish).toBe("silver");
-    expect(merged.design.cap.heightMm).toBe(createDefaultDesign().cap.heightMm);
+    expect(merged.design.cap.heightMm).toBe(34);
+    expect(merged.design.cap.widthMm).toBe(26);
   });
 
   it("ignores invalid JSON", () => {
@@ -178,6 +183,7 @@ describe("saved design hydration", () => {
     expect(parsed).toEqual({ state: { design: { bottle: {}, cap: {} } } });
     const merged = mergePersistedLab(parsed?.state, slice());
     const defaults = createDefaultDesign();
+    delete defaults.step;
     expect(merged.design).toEqual(defaults);
     const ids = [merged.design.bottle, merged.design.cap, merged.design.pump, merged.design.collar, merged.design.label, merged.design.box].map((part) => part.variantId);
     expect(ids).toEqual(["cara-50", "cap-cube-tall", "pump-crimp", "col-crimp", "lg-foil-diamond", "box-rigid"]);
@@ -221,7 +227,9 @@ describe("saved design hydration", () => {
     expect(merged.design.bottle).toEqual(bottle);
     expect(merged.design.label).toEqual(label);
     expect(merged.design.cap).toEqual(defaults.cap);
-    expect(merged.design.pump).toEqual(defaults.pump);
+    expect(merged.design.pump.variantId).toBe("missing-pump");
+    expect(merged.design.pump.visible).toBe(true);
+    expect(merged.design.pump.finish).toBe(defaults.pump.finish);
     expect(merged.design.collar).toEqual(defaults.collar);
     expect(merged.design.box).toEqual(defaults.box);
     expect(merged.design.liquid).toEqual(defaults.liquid);
@@ -293,8 +301,145 @@ describe("saved design hydration", () => {
     expect(useLab.persist.hasHydrated()).toBe(true);
     expect(finished.length).toBe(before + 2);
     expect(finished.at(-1)).toBe(true);
-    expect(useLab.getState().design).toEqual(createDefaultDesign());
+    const fresh = createDefaultDesign();
+    delete fresh.step;
+    expect(useLab.getState().design).toEqual(fresh);
     unsub();
+  });
+
+  it("keeps a well-formed imported id through hydration and a second load", async () => {
+    const importedBottle = {
+      variantId: "pack-bouteille-12",
+      neck: "FEA15" as const,
+      finish: "clear" as const,
+      color: "#445566",
+      heightMm: 88,
+      widthMm: 42,
+      depthMm: 28,
+      visible: true,
+    };
+    const savedDesign = createDefaultDesign();
+    savedDesign.bottle = importedBottle;
+    savedDesign.pump = { ...savedDesign.pump, variantId: "pack-pump-3", visible: true };
+    const saved = { id: "cfg-pack", name: "ספק", design: savedDesign, thumb: "", createdAt: 8 };
+    const memory = new Map<string, string>();
+    vi.stubGlobal("localStorage", {
+      getItem: (key: string) => memory.get(key) ?? null,
+      setItem: (key: string, value: string) => {
+        memory.set(key, value);
+      },
+      removeItem: (key: string) => {
+        memory.delete(key);
+      },
+      key: (index: number) => [...memory.keys()][index] ?? null,
+      get length() {
+        return memory.size;
+      },
+    });
+    memory.set("perfume-lab-v1", JSON.stringify({
+      state: {
+        design: { bottle: importedBottle, pump: savedDesign.pump },
+        saved: [saved],
+        past: [{ bottle: importedBottle }],
+      },
+      version: 4,
+    }));
+    await useLab.persist.rehydrate();
+    expect(useLab.getState().design.bottle).toEqual(importedBottle);
+    expect(useLab.getState().design.pump.variantId).toBe("pack-pump-3");
+    expect(useLab.getState().saved[0]?.design.bottle.variantId).toBe("pack-bouteille-12");
+    const written = JSON.parse(memory.get("perfume-lab-v1") ?? "{}") as { state: { design: { bottle: { variantId: string } } }; version: number };
+    expect(written.version).toBe(5);
+    expect(written.state.design.bottle.variantId).toBe("pack-bouteille-12");
+    await useLab.persist.rehydrate();
+    expect(useLab.getState().design.bottle.variantId).toBe("pack-bouteille-12");
+    expect(useLab.getState().saved[0]?.design.pump.variantId).toBe("pack-pump-3");
+  });
+
+  it("shows the untouched Cara 50 from a version 4 blob", () => {
+    const hidden = migratePersisted({
+      design: { bottle: { variantId: "cara-50", visible: false }, step: 0 },
+    }, 4) as { design: { bottle: { visible: boolean } } };
+    expect(hidden.design.bottle.visible).toBe(true);
+
+    const missingStep = migratePersisted({
+      design: { bottle: { variantId: "cara-50", visible: false } },
+    }, 4) as { design: { bottle: { visible: boolean } } };
+    expect(missingStep.design.bottle.visible).toBe(true);
+
+    const chosen = migratePersisted({
+      design: { bottle: { variantId: "cara-50", visible: false }, step: 3 },
+    }, 4) as { design: { bottle: { visible: boolean } } };
+    expect(chosen.design.bottle.visible).toBe(false);
+
+    const other = migratePersisted({
+      design: { bottle: { variantId: "diamond-50", visible: false }, step: 0 },
+    }, 4) as { design: { bottle: { visible: boolean } } };
+    expect(other.design.bottle.visible).toBe(false);
+
+    const current = migratePersisted({
+      design: { bottle: { variantId: "cara-50", visible: false }, step: 0 },
+    }, 5) as { design: { bottle: { visible: boolean } } };
+    expect(current.design.bottle.visible).toBe(false);
+  });
+
+  it("keeps unknown top-level fields and a null slot falls back", () => {
+    const merged = mergePersistedLab(
+      { brief: { title: "עבודה" }, priceOverrides: { cara: 12 }, exchangeRates: { USD: 3.7 }, design: { bottle: null, cap: null } },
+      slice(),
+    );
+    const extra = merged as HydratedSlice & {
+      brief: { title: string };
+      priceOverrides: { cara: number };
+      exchangeRates: { USD: number };
+    };
+    expect(extra.brief).toEqual({ title: "עבודה" });
+    expect(extra.priceOverrides).toEqual({ cara: 12 });
+    expect(extra.exchangeRates).toEqual({ USD: 3.7 });
+    expect(merged.design.bottle.variantId).toBe("cara-50");
+    expect(merged.design.bottle.visible).toBe(true);
+    expect(merged.design.cap.variantId).toBe("cap-cube-tall");
+    expect("modal" in mergePersistedLab({ modal: "save", design: {} }, slice())).toBe(false);
+
+    const partial = partializeLabState({
+      ...slice(),
+      brief: { title: "עבודה" },
+      selected: "bottle",
+      undo: () => undefined,
+    });
+    expect(partial.brief).toEqual({ title: "עבודה" });
+    expect("selected" in partial).toBe(false);
+    expect("undo" in partial).toBe(false);
+    expect(partial.design).toEqual(slice().design);
+  });
+
+  it("fills a known bottle from its own spec and does not reopen the wizard when step is missing", () => {
+    const design = sanitizeDesign({
+      bottle: { variantId: "diamond-50", visible: true, finish: "tinted", color: "#112233" },
+      cap: { heightMm: 26, widthMm: 26, finish: "silver", color: "#d5d8de", visible: true },
+    });
+    expect(design.bottle.variantId).toBe("diamond-50");
+    expect(design.bottle.heightMm).toBe(104);
+    expect(design.bottle.widthMm).toBe(50);
+    expect(design.bottle.depthMm).toBe(50);
+    expect(design.bottle.neck).toBe("FEA15");
+    expect(design.bottle.finish).toBe("tinted");
+    expect(design.cap.variantId).toBe("cap-sphere");
+    expect(design.step).toBeUndefined();
+  });
+
+  it("rethrows a storage write after logging it", () => {
+    const storage = createLabStorage();
+    const error = new Error("quota");
+    vi.stubGlobal("localStorage", {
+      setItem: () => {
+        throw error;
+      },
+    });
+    const spy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    expect(() => storage.setItem("perfume-lab-v1", { state: {}, version: 5 })).toThrow(error);
+    expect(spy).toHaveBeenCalledWith(error);
+    spy.mockRestore();
   });
 
   it("migrates a partial legacy blob without throwing", () => {

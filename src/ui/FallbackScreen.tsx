@@ -1,6 +1,7 @@
 import { Component, useLayoutEffect, useState, type ErrorInfo, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { SUPPLIER_DB_NAME } from "../import/supplierDb.ts";
+import { pauseLabStorageWrites, readStorageValue, resetPersistedPayload } from "../store/hydrate.ts";
 import { useLab } from "../store/labStore.ts";
 import { webglAvailable } from "../scene/webgl.ts";
 import type { Lang } from "../model/types.ts";
@@ -31,7 +32,7 @@ const COPY: Record<Lang, {
     appBody: "אירעה שגיאה בטעינת העיצוב. רענון שומר את העיצוב. איפוס מוחק אותו ומתחיל מחדש.",
     reload: "רענון",
     resetDesign: "איפוס עיצוב",
-    appConfirmBody: "האיפוס מוחק את העיצוב השמור ומרענן. קטלוגי הספקים נשארים.",
+    appConfirmBody: "האיפוס מחזיר את העיצוב, את מצב הממשק ואת היסטוריית הביטול, ואז מרענן. הסקיצות השמורות, הצ'אט וההעלאות נשארים. קטלוגי הספקים נשארים.",
     reset: "איפוס",
     retry: "נסו שוב",
     confirmTitle: "לאפס את העיצוב?",
@@ -48,7 +49,7 @@ const COPY: Record<Lang, {
     appBody: "Something went wrong while loading the design. Reload keeps it. Reset clears it and starts over.",
     reload: "Reload",
     resetDesign: "Reset design",
-    appConfirmBody: "Reset clears the saved design and reloads. Supplier catalogs stay.",
+    appConfirmBody: "Reset restores the design, UI state, and undo history, then reloads. Saved sketches, chat, and uploads stay. Supplier catalogs stay.",
     reset: "Reset",
     retry: "Try again",
     confirmTitle: "Reset this design?",
@@ -261,12 +262,23 @@ export function reloadKeepingDesign(reload: () => void = () => location.reload()
   reload();
 }
 
-/** Clears design and UI localStorage keys, then reloads. Does not open IndexedDB. */
+/** Writes a trimmed lab blob, drops other UI keys, and reloads. Saved sketches, chat, and uploads stay. */
 export function resetDesignAndReload(reload: () => void = () => location.reload()): void {
+  pauseLabStorageWrites();
   try {
-    if (typeof localStorage !== "undefined") clearPerfumeLabStorage(localStorage);
-  } catch {
-    // Private mode can throw. Reload still drops the broken session.
+    if (typeof localStorage !== "undefined") {
+      const parsed = readStorageValue(localStorage.getItem(DESIGN_STORAGE_KEY));
+      const payload = resetPersistedPayload(parsed?.state);
+      localStorage.setItem(DESIGN_STORAGE_KEY, JSON.stringify(payload));
+      const keys: string[] = [];
+      for (let i = 0; i < localStorage.length; i += 1) {
+        const key = localStorage.key(i);
+        if (key && key !== DESIGN_STORAGE_KEY && isResetStorageKey(key)) keys.push(key);
+      }
+      for (const key of keys) localStorage.removeItem(key);
+    }
+  } catch (error) {
+    console.error(error);
   }
   reload();
 }
