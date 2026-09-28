@@ -3,7 +3,7 @@ import type { Lang, PartKey } from "../model/types.ts";
 const he = {
   appHe: "מעבדת הבושם",
   appEn: "Perfume Lab",
-  brandLine: "PERFUME LAB · מעבדת בקבוקים",
+  brandLine: "PERFUME LAB",
   kicker: "Private label",
   project: "פרויקט",
   library: "ספרייה",
@@ -328,7 +328,7 @@ const he = {
 const en: typeof he = {
   appHe: "מעבדת הבושם",
   appEn: "Perfume Lab",
-  brandLine: "PERFUME LAB · Bottle atelier",
+  brandLine: "PERFUME LAB",
   kicker: "Private label",
   project: "Project",
   library: "Library",

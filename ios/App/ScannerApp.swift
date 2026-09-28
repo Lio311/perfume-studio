@@ -1,5 +1,4 @@
 import SwiftUI
-import PackKit
 
 @main
 struct ScannerApp: App {

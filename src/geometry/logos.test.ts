@@ -16,6 +16,7 @@ import {
   cartonMarkSize,
   cartonTextAspect,
   paintCartonMark,
+  cartonMarkPlate,
   paintLabel,
   paintLabelEmissive,
   paintLabelSurface,
@@ -245,6 +246,17 @@ describe("label text layout", () => {
   it("repaints only when a new face loads", () => {
     expect(shouldRepaintLabel(true)).toBe(false);
     expect(shouldRepaintLabel(false)).toBe(true);
+  });
+
+  it("keeps the carton plaque clear unless print has a plate colour", () => {
+    expect(cartonMarkPlate("foil", "#111111")).toBe("clear");
+    expect(cartonMarkPlate("emboss", "#111111")).toBe("clear");
+    expect(cartonMarkPlate("engrave", "#111111")).toBe("clear");
+    expect(cartonMarkPlate("decal", null)).toBe("clear");
+    expect(cartonMarkPlate("decal", "  ")).toBe("clear");
+    expect(cartonMarkPlate("print", "")).toBe("clear");
+    expect(cartonMarkPlate("print", "#f4efe6")).toBe("#f4efe6");
+    expect(cartonMarkPlate("decal", "#f4efe6")).toBe("#f4efe6");
   });
 
   it("paints carton foil and engrave on a clear ground, and keeps a plate only for print", () => {

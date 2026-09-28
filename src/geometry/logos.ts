@@ -683,6 +683,18 @@ function fitWord(ctx: CanvasRenderingContext2D, word: string, family: string, ma
 
 const TYPE_MARKS = new Set<LogoSpec["mark"]>(["word", "horizon", "stacked", "vertical", "numeral"]);
 
+/**
+ * Ground behind carton ink.
+ * Flat print is `decal`. Foil, emboss, and engrave stay clear.
+ * Print keeps an opaque plate only when a plate colour is set.
+ */
+export function cartonMarkPlate(application: LogoApplication | "print", plateColour?: string | null): string | "clear" {
+  const print = application === "decal" || application === "print";
+  if (!print) return "clear";
+  const colour = plateColour?.trim() ?? "";
+  return colour ? colour : "clear";
+}
+
 export function paintLabel(
   ctx: CanvasRenderingContext2D,
   spec: Pick<LogoSpec, "mark" | "font" | "frame">,
@@ -690,6 +702,7 @@ export function paintLabel(
   ink: string,
   w: number,
   h: number,
+  plate: "contrast" | "clear" | string = "contrast",
 ): LabelLineLayout {
   const family = labelFontFamily(spec.font, text);
   const weight = labelFontWeight(spec.font, text);
@@ -699,8 +712,12 @@ export function paintLabel(
   if (canvasEl?.setAttribute) canvasEl.setAttribute("dir", direction);
   ctx.save();
   ctx.direction = direction;
-  ctx.fillStyle = contrastingPlate(ink);
-  ctx.fillRect(0, 0, w, h);
+  if (plate === "clear") {
+    ctx.clearRect(0, 0, w, h);
+  } else {
+    ctx.fillStyle = plate === "contrast" ? contrastingPlate(ink) : plate;
+    ctx.fillRect(0, 0, w, h);
+  }
 
   const layout = layoutLabelLines(text, Math.max(8, w * 0.86), h * (typeMark ? 0.78 : 0.58), (line, px) => {
     ctx.font = `${weight} ${px}px ${family}`;
