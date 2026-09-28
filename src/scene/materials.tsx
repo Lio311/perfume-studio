@@ -1,7 +1,7 @@
 import { useMemo, useEffect } from "react";
 import * as THREE from "three";
 import type { FinishId } from "../model/types.ts";
-import { DEFAULT_GLASS_OPACITY, glassTransmission, isGlass, renderedGlassOpacity } from "../model/materials.ts";
+import { DEFAULT_GLASS_OPACITY, glassDrawTransmission, isGlass, renderedGlassOpacity } from "../model/materials.ts";
 import { leatherBump, woodMap } from "../geometry/textures.ts";
 import { useLab } from "../store/labStore.ts";
 
@@ -124,7 +124,7 @@ function ClearGlass({ opacity = DEFAULT_GLASS_OPACITY.clear }: { opacity?: numbe
       polygonOffsetUnits={-1}
       uniforms={uniforms}
       uniforms-uFade-value={userFade}
-      userData-opacitySetting={userFade}
+      userData-glassBody={true}
       vertexShader={CLEAR_VERT}
       fragmentShader={CLEAR_FRAG}
     />
@@ -171,12 +171,9 @@ export function FinishMaterial({
   let materialTransmission = 0;
   if (glassLike) {
     materialOpacity = renderedGlassOpacity(finish, opacity) ?? 1.0;
-    if (opacity !== undefined) {
-      // Pure alpha blending so the liquid stays visible and 100% reads as a solid colour.
-      materialTransmission = 0;
-    } else {
-      materialTransmission = Math.max(0.01, glassTransmission(finish));
-    }
+    // transmission 0 is the owner's flat-alpha slider. It applies only below the
+    // finish default, so a value sitting on that default keeps refraction.
+    materialTransmission = glassDrawTransmission(finish, opacity);
   }
 
   if (blueprint) {
@@ -209,12 +206,12 @@ export function FinishMaterial({
       clearcoat={clear || finish === "tinted" ? 1 : metal ? 0.65 : 0.04}
       clearcoatRoughness={metal ? 0.12 : 0.04}
       attenuationColor={clear ? "#fff8ee" : color}
-      attenuationDistance={clear ? 160 : finish === "tinted" ? 36 : 36}
+      attenuationDistance={clear ? 160 : 36}
       envMapIntensity={metal ? 1.65 : glassLike ? 1.7 : finish === "matteBlack" ? 0.28 : 0.7}
       specularIntensity={glassLike || metal ? 1 : 0.3}
       transparent={glassLike}
       opacity={materialOpacity}
-      userData-opacitySetting={glassLike ? materialOpacity : undefined}
+      userData-glassBody={glassLike ? true : undefined}
       depthWrite={!glassLike}
       side={THREE.FrontSide}
     />

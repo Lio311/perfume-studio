@@ -9,8 +9,22 @@ export interface OpacityFadeState {
 }
 
 /**
- * Per-frame ghost fade composed with the material's current opacity.
- *
+ * Bottle glass, every frame. `previousBase` is the value a reused material may
+ * still be holding from the first time it was seen (including 0). It is ignored:
+ * the design's current setting is the base, and the ghost fade multiplies that.
+ */
+export function glassOpacityThisFrame(
+  previousBase: number | undefined,
+  setting: number,
+  ghost: boolean,
+): { baseOpacity: number; target: number } {
+  void previousBase;
+  const baseOpacity = setting;
+  return { baseOpacity, target: ghost ? baseOpacity * GHOST_FADE : baseOpacity };
+}
+
+/**
+ * Per-frame ghost fade for materials that are not the bottle-glass slider.
  * Slider-driven materials publish `opacitySetting`. That base follows the
  * setting whenever it changes, instead of being snapshotted on the first frame,
  * and the ghost fade multiplies it. Other materials keep the original fade:

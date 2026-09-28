@@ -1,5 +1,33 @@
 import { describe, expect, it } from "vitest";
-import { GHOST_FADE, materialOpacityTarget } from "./materialFade.ts";
+import { clearGlassFade } from "../model/materials.ts";
+import { GHOST_FADE, glassOpacityThisFrame, materialOpacityTarget } from "./materialFade.ts";
+
+describe("glassOpacityThisFrame", () => {
+  it("follows a later slider value on a reused material instead of the first baseOpacity", () => {
+    const first = glassOpacityThisFrame(undefined, 0.32, false);
+    expect(first.baseOpacity).toBeCloseTo(0.32);
+    expect(first.target).toBeCloseTo(0.32);
+
+    const moved = glassOpacityThisFrame(first.baseOpacity, 0.1, false);
+    expect(moved.baseOpacity).toBeCloseTo(0.1);
+    expect(moved.target).toBeCloseTo(0.1);
+
+    const fromZero = glassOpacityThisFrame(0, 0.45, false);
+    expect(fromZero.baseOpacity).toBeCloseTo(0.45);
+    expect(fromZero.target).toBeCloseTo(0.45);
+  });
+
+  it("keeps clear-glass uFade on the slider instead of damping it back to 1", () => {
+    const fade = clearGlassFade(0.5);
+    expect(fade).toBeCloseTo(0.5 / 0.14);
+    const frame = glassOpacityThisFrame(1, fade, false);
+    expect(frame.target).toBeCloseTo(fade);
+    expect(frame.target).not.toBeCloseTo(1);
+    const ghosted = glassOpacityThisFrame(frame.baseOpacity, fade, true);
+    expect(ghosted.baseOpacity).toBeCloseTo(fade);
+    expect(ghosted.target).toBeCloseTo(fade * GHOST_FADE);
+  });
+});
 
 describe("materialOpacityTarget", () => {
   it("respects a new clear-glass slider value instead of the first snapshot", () => {

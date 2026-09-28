@@ -106,16 +106,32 @@ describe("spec sheet HTML escaping", () => {
     const design = createDefaultDesign();
     design.bottle.finish = "tinted";
     design.bottle.color = "#112233";
-    design.bottle.opacity = 0.4;
+    design.bottle.opacity = 0.1;
     design.liquid.color = "#abcdef";
     design.liquid.fill = 0.5;
     const html = buildSpecHtml(design, "en", "data:image/png;base64,AAAA");
     const glass = html.match(/<th>Glass<\/th><td>(.*?)<\/td>/);
     const liquid = html.match(/<th>Liquid<\/th><td>(.*?)<\/td>/);
-    const rendered = renderedGlassOpacity("tinted", 0.4);
-    expect(rendered).toBeCloseTo(0.15 + 0.85 * 0.4);
+    const rendered = renderedGlassOpacity("tinted", 0.1);
+    expect(rendered).toBeCloseTo(0.15 + 0.85 * 0.1);
     expect(glass?.[1]).toBe(`Tinted · #112233 · ${Math.round((rendered ?? 0) * 100)}%`);
     expect(liquid?.[1]).toBe("50% · #abcdef");
+  });
+
+  it("prints the refractive slider percent when tinted opacity is at or above the default", () => {
+    const atDefault = createDefaultDesign();
+    atDefault.bottle.finish = "tinted";
+    atDefault.bottle.color = "#112233";
+    atDefault.bottle.opacity = 0.32;
+    const atHtml = buildSpecHtml(atDefault, "en", "data:image/png;base64,AAAA");
+    expect(atHtml.match(/<th>Glass<\/th><td>(.*?)<\/td>/)?.[1]).toBe("Tinted · #112233 · 32%");
+
+    const above = createDefaultDesign();
+    above.bottle.finish = "tinted";
+    above.bottle.color = "#112233";
+    above.bottle.opacity = 0.4;
+    const aboveHtml = buildSpecHtml(above, "en", "data:image/png;base64,AAAA");
+    expect(aboveHtml.match(/<th>Glass<\/th><td>(.*?)<\/td>/)?.[1]).toBe("Tinted · #112233 · 40%");
   });
 
   it("uses the shared clear-glass default and skips opacity on metal or opaque finishes", () => {
