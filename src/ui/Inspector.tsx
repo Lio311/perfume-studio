@@ -6,7 +6,7 @@ import { NECK_IDS } from "../model/necks.ts";
 import { setUnboxingMuted, useUnboxingTrack } from "../audio/unboxingTrack.ts";
 import { listClosures } from "../model/closures/registry.ts";
 import { INSERT_MATERIALS, OUTER_WRAPS } from "../model/boxFields.ts";
-import type { FinishId, InsertMaterial, InsertOrientation, NeckId, OuterWrap, PartKey } from "../model/types.ts";
+import type { BoxLatch, FinishId, InsertMaterial, InsertOrientation, NeckId, OuterWrap, PartKey } from "../model/types.ts";
 import { partLabel, tx } from "../i18n/copy.ts";
 import { useLab } from "../store/labStore.ts";
 import { BrandTextField, labelVisibleAfterTextChange } from "./brandField.tsx";
@@ -284,16 +284,101 @@ function BoxPack() {
     tissue: t.wrapTissue,
   };
   const orient = box.insert?.orientation ?? "standing";
+  const specs = listClosures();
+  const current = specs.find((spec) => spec.id === box.structure);
+  const latchLabel: Record<BoxLatch, string> = { magnet: t.latchMagnet, ribbon: t.latchRibbon, none: t.latchNone };
   return (
     <div className="box-pack" data-box-pack>
       <h3>{t.closure}</h3>
       <div className="chips">
-        {listClosures().map((spec) => (
-          <button key={spec.id} type="button" className={box.closure === spec.id ? "chip is-on" : "chip"} onClick={() => patch("box", { closure: spec.id })}>
-            {lang === "he" ? spec.label.he : spec.label.en}
+        {specs.map((spec) => (
+          <button
+            key={spec.preset.id}
+            type="button"
+            className={box.structure === spec.id ? "chip is-on" : "chip"}
+            onClick={() => patch("box", { structure: spec.id, latch: spec.preset.latch })}
+          >
+            {lang === "he" ? spec.preset.label.he : spec.preset.label.en}
           </button>
         ))}
       </div>
+      {current && current.latches.length > 1 && (
+        <>
+          <h3>{t.latch}</h3>
+          <div className="chips">
+            {current.latches.map((id) => (
+              <button
+                key={id}
+                type="button"
+                className={box.latch === id ? "chip is-on" : "chip"}
+                onClick={() => patch("box", { latch: id })}
+              >
+                {latchLabel[id]}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+      {current?.liftOff && box.liftOff && (
+        <>
+          <h3>{t.lidFit}</h3>
+          <div className="chips">
+            {current.liftOff.variants.map((variant) => (
+              <button
+                key={variant.id}
+                type="button"
+                className={box.liftOff.variant === variant.id ? "chip is-on" : "chip"}
+                onClick={() => patch("box", { liftOff: { ...box.liftOff, variant: variant.id } })}
+              >
+                {lang === "he" ? variant.label.he : variant.label.en}
+              </button>
+            ))}
+          </div>
+          {box.liftOff.variant === "shoulder-neck" && (
+            <DimFields
+              fields={[
+                {
+                  label: t.neckHeight,
+                  value: box.liftOff.neckMm,
+                  min: current.liftOff.neckMm[0],
+                  max: current.liftOff.neckMm[1],
+                  onChange: (neckMm) => patch("box", { liftOff: { ...box.liftOff, neckMm } }),
+                },
+              ]}
+            />
+          )}
+          {box.liftOff.variant !== "telescope-full" && (
+            <DimFields
+              fields={[
+                {
+                  label: t.lidDepth,
+                  value: box.liftOff.lidDepthMm,
+                  min: current.liftOff.lidDepthMm[0],
+                  max: current.liftOff.lidDepthMm[1],
+                  onChange: (lidDepthMm) => patch("box", { liftOff: { ...box.liftOff, lidDepthMm } }),
+                },
+              ]}
+            />
+          )}
+        </>
+      )}
+      {current?.pulls && (
+        <>
+          <h3>{t.drawerPull}</h3>
+          <div className="chips">
+            {current.pulls.map((id) => (
+              <button
+                key={id}
+                type="button"
+                className={box.drawerPull === id ? "chip is-on" : "chip"}
+                onClick={() => patch("box", { drawerPull: id === "ribbon" || id === "notch" ? id : "none" })}
+              >
+                {id === "ribbon" ? t.pullRibbon : id === "notch" ? t.thumbNotch : t.latchNone}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
       <h3>{t.insert}</h3>
       <div className="chips">
         {INSERT_MATERIALS.map((id) => (

@@ -2,7 +2,7 @@ import type { ReactElement } from "react";
 import type * as THREE from "three";
 import type { ClosureDims, ClosureSpec } from "../../model/closures/types.ts";
 import type { Fit } from "../../model/fit.ts";
-import type { BoxForm } from "../../model/types.ts";
+import type { BoxForm, BoxLatch, DrawerPull } from "../../model/types.ts";
 
 export type GroupBind = (id: string) => (node: THREE.Group | null) => void;
 
@@ -14,6 +14,8 @@ export interface ClosureBuildProps {
   bind: GroupBind;
   ribbon: boolean;
   pullTab: boolean;
+  latch: BoxLatch;
+  drawerPull: DrawerPull;
 }
 
 export type ClosureBuilder = (props: ClosureBuildProps) => ReactElement;

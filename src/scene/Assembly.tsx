@@ -918,8 +918,8 @@ function BoxFormMesh({
     const state = useLab.getState();
     state.setBoxOpen(!state.boxOpen);
   };
-  const closure = useLab((s) => s.design.box.closure ?? "lift-off");
-  const legacyForm = (form === "tube" || form === "plinth") && closure === closureForForm(form);
+  const structure = useLab((s) => s.design.box.structure ?? "lift-off");
+  const legacyForm = (form === "tube" || form === "plinth") && structure === closureForForm(form).structure;
   if (!legacyForm) return <ClosureBox form={form} fit={fit} />;
   if (form === "tube") {
     return (

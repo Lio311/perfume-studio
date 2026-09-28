@@ -189,6 +189,33 @@ export function Ribbon({ w, h, d, y }: { w: number; h: number; d: number; y: num
   );
 }
 
+export function Magnet({ position, rotation }: { position: [number, number, number]; rotation?: [number, number, number] }) {
+  return (
+    <mesh position={position} rotation={rotation}>
+      <cylinderGeometry args={[2.3, 2.3, 1.15, 16]} />
+      <meshStandardMaterial color="#2a2d33" metalness={0.86} roughness={0.22} />
+    </mesh>
+  );
+}
+
+export function PullRibbon({ y, z }: { y: number; z: number }) {
+  return (
+    <mesh position={[0, y, z]} rotation={[0, 0, Math.PI]}>
+      <torusGeometry args={[8, 0.85, 10, 28, Math.PI]} />
+      <meshStandardMaterial color="#8d1d32" roughness={0.42} />
+    </mesh>
+  );
+}
+
+export function ThumbNotch({ y, z }: { y: number; z: number }) {
+  return (
+    <mesh position={[0, y, z]} rotation={[Math.PI / 2, 0, 0]}>
+      <circleGeometry args={[7.5, 20, Math.PI, Math.PI]} />
+      <meshStandardMaterial color="#12141a" roughness={0.92} />
+    </mesh>
+  );
+}
+
 export function PullTab({ w, z }: { w: number; z: number }) {
   return (
     <mesh position={[0, 0, z]}>

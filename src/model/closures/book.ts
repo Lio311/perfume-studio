@@ -1,9 +1,12 @@
-import { fixedChannel, STANDARD_DIMS, type ClosureSpec } from "./types.ts";
+import { fixedChannel, STANDARD_DIMS, linearMotion, type ClosureSpec } from "./types.ts";
 
+/** Book style / flip box. The cover hinges on the side spine. The preset latch is a magnet. */
 const spec: ClosureSpec = {
   id: "book",
   order: 5,
-  label: { he: "ספר", en: "Book" },
+  label: { he: "סגנון ספר", en: "Book style" },
+  preset: { id: "book", label: { he: "ספר", en: "Book" }, latch: "magnet" },
+  latches: ["magnet", "ribbon", "none"],
   forms: ["coffret"],
   baseHFactor: 0.68,
   dims: STANDARD_DIMS,
@@ -12,6 +15,7 @@ const spec: ClosureSpec = {
       id: "spine",
       pivot: (dims) => [-dims.w / 2, dims.h, 0],
       channels: [fixedChannel("rotate", "z", 0, 1.35, 0, 1.5)],
+      motion: linearMotion("power2.inOut"),
     },
   ],
   stages: [{ id: "open-cover", groups: ["spine"] }],

@@ -1,9 +1,12 @@
-import { sizedChannel, STANDARD_DIMS, type ClosureSpec } from "./types.ts";
+import { sizedChannel, STANDARD_DIMS, linearMotion, type ClosureSpec } from "./types.ts";
 
+/** Tray-and-sleeve. The sleeve slides off; the tray stays put. */
 const spec: ClosureSpec = {
   id: "sleeve",
   order: 3,
-  label: { he: "שרוול", en: "Sleeve" },
+  label: { he: "מגש ושרוול", en: "Tray and sleeve" },
+  preset: { id: "sleeve", label: { he: "הזזה", en: "Slide" }, latch: "none" },
+  latches: ["ribbon", "none"],
   forms: ["sleeve"],
   baseHFactor: 0.68,
   dims: STANDARD_DIMS,
@@ -11,6 +14,7 @@ const spec: ClosureSpec = {
     {
       id: "sleeve",
       pivot: (dims) => [0, dims.h / 2, 0],
+      motion: linearMotion("power2.inOut"),
       channels: [
         sizedChannel(
           "translate",

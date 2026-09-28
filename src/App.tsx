@@ -18,7 +18,8 @@ import { CompareBoard } from "./ui/CompareBoard.tsx";
 import { Modals } from "./ui/Modals.tsx";
 import { stopSpeaking } from "./audio/speech.ts";
 import { acknowledgePackLoads, adoptLoadedSuppliers, loadPacks } from "./import/supplierDb.ts";
-import { isClosure } from "./model/boxFields.ts";
+import { isKnownPack } from "./model/boxFields.ts";
+import { packById } from "./model/closures/registry.ts";
 import { hydrateDesign } from "./model/design.ts";
 
 function applyBackAction(action: Exclude<BackAction, "leave">, trap: Trap) {
@@ -106,8 +107,8 @@ export default function App() {
   }, [theme]);
 
   useEffect(() => {
-    document.documentElement.dataset.pose = `${stage}:${boxOpen ? "open" : "closed"}:${design.box.closure}:${quality}`;
-  }, [stage, boxOpen, design.box.closure, quality]);
+    document.documentElement.dataset.pose = `${stage}:${boxOpen ? "open" : "closed"}:${design.box.structure}:${quality}`;
+  }, [stage, boxOpen, design.box.structure, quality]);
 
   useEffect(() => {
     let cancelled = false;
@@ -193,10 +194,19 @@ export default function App() {
   useEffect(() => {
     const applyShot = () => {
       const params = new URLSearchParams(location.search);
-      const closure = params.get("closure");
-      if (!isClosure(closure)) return;
+      const closure = params.get("closure") ?? params.get("structure");
+      if (!isKnownPack(closure)) return;
+      const choice = packById(closure);
+      if (!choice) return;
       const design = hydrateDesign(useLab.getState().design);
-      design.box.closure = closure;
+      design.box.structure = choice.structure.id;
+      design.box.latch = choice.latch;
+      const variant = params.get("variant");
+      if (variant && choice.structure.liftOff?.variants.some((item) => item.id === variant)) {
+        design.box.liftOff = { ...design.box.liftOff, variant };
+      }
+      const pull = params.get("pull");
+      if (pull === "ribbon" || pull === "notch" || pull === "none") design.box.drawerPull = pull;
       design.box.visible = true;
       design.bottle.visible = true;
       design.cap.visible = true;

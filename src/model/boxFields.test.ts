@@ -38,9 +38,12 @@ function cavityInput(overrides: Partial<CavityInput> = {}): CavityInput {
 }
 
 describe("box pack defaults and migration", () => {
-  it("opens a new design on a lift-off lid and a standing insert", () => {
+  it("opens a new design on a shoulder-neck lift-off and a standing insert", () => {
     const box = createDefaultDesign().box;
-    expect(box.closure).toBe("lift-off");
+    expect(box.structure).toBe("lift-off");
+    expect(box.latch).toBe("none");
+    expect(box.liftOff).toEqual({ variant: "shoulder-neck", neckMm: 14, lidDepthMm: 28 });
+    expect(box.drawerPull).toBe("none");
     expect(box.insert.orientation).toBe("standing");
     expect(box.material).toBe("rigid");
     expect(validateBoxFields(box)).toEqual([]);
@@ -61,25 +64,51 @@ describe("box pack defaults and migration", () => {
     const box = hydrateBox(legacy);
     expect(warn).not.toHaveBeenCalled();
     warn.mockRestore();
-    expect(box.closure).toBe("lift-off");
+    expect(box.structure).toBe("lift-off");
+    expect(box.latch).toBe("none");
+    expect(box.liftOff.variant).toBe("shoulder-neck");
     expect(box.insert.orientation).toBe("standing");
     expect(box.insert.material).toBe("eva");
     expect(box.outerWrap).toBe("none");
     expect(box.ribbon).toBe(false);
     expect(validateBoxFields(box)).toEqual([]);
     const design = hydrateDesign({ ...createDefaultDesign(), box: legacy as BoxState });
-    expect(design.box.closure).toBe("lift-off");
+    expect(design.box.structure).toBe("lift-off");
     expect(design.box.insert.orientation).toBe("standing");
   });
 
-  it("maps a catalog form onto the closure when that box is chosen", () => {
+  it("maps a saved magnetic closure onto a hinged lid with a magnet, without a warning", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const box = hydrateBox({ closure: "magnetic" });
+    expect(warn).not.toHaveBeenCalled();
+    warn.mockRestore();
+    expect(box.structure).toBe("hinged-lid");
+    expect(box.latch).toBe("magnet");
+    const book = hydrateBox({ closure: "book" });
+    expect(book.structure).toBe("book");
+    expect(book.latch).toBe("magnet");
+  });
+
+  it("drops a magnet latch that the sleeve cannot use", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const box = hydrateBox({ structure: "sleeve", latch: "magnet" });
+    expect(box.structure).toBe("sleeve");
+    expect(box.latch).toBe("none");
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("sleeve"));
+    warn.mockRestore();
+  });
+
+  it("maps a catalog form onto the structure and its preset latch", () => {
     const design = createDefaultDesign();
     applyVariant(design, "box", "box-magnetic");
-    expect(design.box.closure).toBe("magnetic");
+    expect(design.box.structure).toBe("hinged-lid");
+    expect(design.box.latch).toBe("magnet");
     applyVariant(design, "box", "box-drawer");
-    expect(design.box.closure).toBe("drawer");
+    expect(design.box.structure).toBe("drawer");
+    expect(design.box.latch).toBe("none");
     applyVariant(design, "box", "box-coffret");
-    expect(design.box.closure).toBe("book");
+    expect(design.box.structure).toBe("book");
+    expect(design.box.latch).toBe("magnet");
     expect(design.box.insert.orientation).toBe("standing");
   });
 });
@@ -87,15 +116,25 @@ describe("box pack defaults and migration", () => {
 describe("box field validation", () => {
   it("rejects unknown enums and sizes outside the range", () => {
     const box = createDefaultDesign().box;
-    const bad = validateBoxFields({ ...box, closure: "hinge" as BoxState["closure"], boardMm: 12, insert: { ...box.insert, clearanceMm: 0 } });
-    expect(bad.map((issue) => issue.path)).toEqual(expect.arrayContaining(["closure", "boardMm", "insert"]));
+    const bad = validateBoxFields({
+      ...box,
+      structure: "hinge",
+      latch: "magnet",
+      boardMm: 12,
+      liftOff: { variant: "no-such", neckMm: 1, lidDepthMm: 400 },
+      drawerPull: "loop" as BoxState["drawerPull"],
+      insert: { ...box.insert, clearanceMm: 0 },
+    });
+    expect(bad.map((issue) => issue.path)).toEqual(expect.arrayContaining(["structure", "boardMm", "insert", "liftOff", "drawerPull"]));
+    const sleeve = validateBoxFields({ ...box, structure: "sleeve", latch: "magnet" });
+    expect(sleeve.map((issue) => issue.path)).toContain("latch");
   });
 
   it("clamps an out-of-range board back into the legal range", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    const box = hydrateBox({ ...createDefaultDesign().box, boardMm: 20, closure: "nope" as BoxState["closure"] });
+    const box = hydrateBox({ ...createDefaultDesign().box, boardMm: 20, structure: "nope" });
     expect(box.boardMm).toBe(4.5);
-    expect(box.closure).toBe("lift-off");
+    expect(box.structure).toBe("lift-off");
     expect(warn).toHaveBeenCalledWith(expect.stringContaining("nope"));
     warn.mockRestore();
     expect(validateBoxFields(box)).toEqual([]);
@@ -153,7 +192,10 @@ describe("insert cavity", () => {
 describe("share link", () => {
   it("round-trips the new fields and still reads a link that omits them", () => {
     const design = createDefaultDesign();
-    design.box.closure = "book";
+    design.box.structure = "book";
+    design.box.latch = "magnet";
+    design.box.liftOff = { variant: "telescope-partial", neckMm: 18, lidDepthMm: 36 };
+    design.box.drawerPull = "ribbon";
     design.box.ribbon = true;
     design.box.pullTab = true;
     design.box.outerWrap = "tissue";
@@ -162,7 +204,10 @@ describe("share link", () => {
     design.box.wrap = { color: "#6b3c32", finish: "velvet" };
     design.box.insert = { material: "velvet-foam", orientation: "lying", clearanceMm: 3.5 };
     const back = decodeShare(encodeShare(design));
-    expect(back?.box.closure).toBe("book");
+    expect(back?.box.structure).toBe("book");
+    expect(back?.box.latch).toBe("magnet");
+    expect(back?.box.liftOff).toEqual({ variant: "telescope-partial", neckMm: 18, lidDepthMm: 36 });
+    expect(back?.box.drawerPull).toBe("ribbon");
     expect(back?.box.ribbon).toBe(true);
     expect(back?.box.pullTab).toBe(true);
     expect(back?.box.outerWrap).toBe("tissue");
@@ -183,7 +228,9 @@ describe("share link", () => {
       visible: legacy.box.visible,
     };
     const restored = decodeShare(encodeShare({ ...legacy, box: oldBox as Design["box"] }));
-    expect(restored?.box.closure).toBe("lift-off");
+    expect(restored?.box.structure).toBe("lift-off");
+    expect(restored?.box.liftOff.variant).toBe("shoulder-neck");
+    expect(restored?.box.drawerPull).toBe("none");
     expect(restored?.box.insert.orientation).toBe("standing");
     expect(restored?.bottle.variantId).toBe(legacy.bottle.variantId);
     expect(decodeShare("%%%")).toBeNull();

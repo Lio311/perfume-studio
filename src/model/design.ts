@@ -150,7 +150,9 @@ export function applyVariant(design: Design, kind: string, id: string): void {
   }
   const box = boxById(id);
   design.box.variantId = box.id;
-  design.box.closure = closureForForm(box.form);
+  const pack = closureForForm(box.form);
+  design.box.structure = pack.structure;
+  design.box.latch = pack.latch;
   const extra = importedMeta(id);
   if (extra) {
     design.box.widthMm = extra.widthMm;

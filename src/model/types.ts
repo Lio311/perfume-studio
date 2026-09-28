@@ -262,8 +262,29 @@ export interface CollarState {
   visible: boolean;
 }
 
-/** Closure id. The registry in `src/model/closures/` is the list, not a union in this file. */
-export type BoxClosure = string;
+/**
+ * Structure id. The registry in `src/model/closures/` is the list, not a union in this file.
+ * A magnet is a latch, not one of these ids.
+ */
+export type BoxStructure = string;
+
+/** How the carton stays shut. Magnet is valid only on the structures that say so. */
+export type BoxLatch = "magnet" | "ribbon" | "none";
+
+/** Lift-off variant id. Legal values live on the lift-off registry entry. */
+export type LiftOffVariant = string;
+
+export interface LiftOffState {
+  /** shoulder-neck, telescope-full, or telescope-partial. */
+  variant: LiftOffVariant;
+  /** Visible inner neck between the lid and the base, millimetres. Shoulder-neck uses this. */
+  neckMm: number;
+  /** How far the lid comes down, millimetres. */
+  lidDepthMm: number;
+}
+
+/** Matchbox drawer pull. None, a ribbon loop, or a thumb notch. */
+export type DrawerPull = "none" | "ribbon" | "notch";
 
 export type BoxBoard = "rigid" | "carton";
 
@@ -296,7 +317,11 @@ export interface BoxState {
   depthMm: number;
   linked: boolean;
   visible: boolean;
-  closure: BoxClosure;
+  /** Hinged lid, lift-off, sleeve, drawer, book, or a later registry id. */
+  structure: BoxStructure;
+  latch: BoxLatch;
+  liftOff: LiftOffState;
+  drawerPull: DrawerPull;
   /** Greyboard / carton caliper. */
   boardMm: number;
   material: BoxBoard;

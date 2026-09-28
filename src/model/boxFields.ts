@@ -6,18 +6,20 @@
 import { bottleById, capById, collarById, pumpById } from "./catalog.ts";
 import { NECKS, neckRadius } from "./necks.ts";
 import { bottleRadii, capRadius } from "./sample.ts";
-import { closureById, listClosures, resolveClosure } from "./closures/registry.ts";
-import type { ClosureDimsRange } from "./closures/types.ts";
+import { closureById, listClosures, packById, resolveClosure } from "./closures/registry.ts";
+import type { ClosureDimsRange, ClosureSpec } from "./closures/types.ts";
 import type {
   BoxBoard,
-  BoxClosure,
   BoxForm,
   BoxInsert,
+  BoxLatch,
   BoxState,
   CapProfileName,
   Design,
+  DrawerPull,
   InsertMaterial,
   InsertOrientation,
+  LiftOffState,
   OuterWrap,
   ProfileName,
   WrapFinish,
@@ -37,11 +39,16 @@ export const BOX_RANGES = {
   heightMm: [48, 320] as const,
 };
 
+export const LATCHES = ["magnet", "ribbon", "none"] as const;
+
 export const DEFAULT_BOX_PACK: Pick<
   BoxState,
-  "closure" | "boardMm" | "material" | "wrap" | "ribbon" | "pullTab" | "outerWrap" | "insert"
+  "structure" | "latch" | "liftOff" | "drawerPull" | "boardMm" | "material" | "wrap" | "ribbon" | "pullTab" | "outerWrap" | "insert"
 > = {
-  closure: "lift-off",
+  structure: "lift-off",
+  latch: "none",
+  liftOff: { variant: "shoulder-neck", neckMm: 14, lidDepthMm: 28 },
+  drawerPull: "none",
   boardMm: 2.2,
   material: "rigid",
   wrap: { color: "#14161c", finish: "soft-touch" },
@@ -110,18 +117,20 @@ export interface BoxEnvelope {
   cavity: CavitySpec;
 }
 
-export function closureForForm(form: BoxForm): BoxClosure {
+export function closureForForm(form: BoxForm): { structure: string; latch: BoxLatch } {
   const match = listClosures().find((spec) => spec.forms.includes(form));
-  return match?.id ?? "lift-off";
+  if (!match) return { structure: "lift-off", latch: "none" };
+  return { structure: match.id, latch: match.preset.latch };
 }
 
-export function isClosure(value: unknown): value is BoxClosure {
-  return typeof value === "string" && Boolean(closureById(value));
+/** A structure id, a preset id, or a legacy closure id such as "magnetic". Does not warn. */
+export function isKnownPack(value: unknown): value is string {
+  return typeof value === "string" && value.length > 0 && Boolean(packById(value));
 }
 
-function limitsFor(closure: unknown): ClosureDimsRange {
-  if (typeof closure === "string") {
-    const spec = closureById(closure);
+function limitsFor(structure: unknown): ClosureDimsRange {
+  if (typeof structure === "string") {
+    const spec = closureById(structure);
     if (spec) return spec.dims;
   }
   return {
@@ -129,6 +138,68 @@ function limitsFor(closure: unknown): ClosureDimsRange {
     depthMm: BOX_RANGES.depthMm,
     heightMm: BOX_RANGES.heightMm,
   };
+}
+
+function liftSpec(): ClosureSpec["liftOff"] {
+  return closureById("lift-off")?.liftOff;
+}
+
+const latchWarned = new Set<string>();
+const variantWarned = new Set<string>();
+const pullWarned = new Set<string>();
+
+function resolveLatch(spec: ClosureSpec, value: unknown): BoxLatch {
+  const fallback = spec.latches.includes(spec.preset.latch) ? spec.preset.latch : "none";
+  if (value === undefined || value === null || value === "") return fallback;
+  if (typeof value !== "string" || !(LATCHES as readonly string[]).includes(value)) {
+    if (typeof value === "string" && value && !latchWarned.has(value)) {
+      latchWarned.add(value);
+      console.warn(`Unknown box latch "${value}". Using ${fallback}.`);
+    }
+    return fallback;
+  }
+  const latch = value as BoxLatch;
+  if (spec.latches.includes(latch)) return latch;
+  const key = `${spec.id}:${latch}`;
+  if (!latchWarned.has(key)) {
+    latchWarned.add(key);
+    console.warn(`Latch "${latch}" is not valid on "${spec.id}". Using ${fallback}.`);
+  }
+  return fallback;
+}
+
+function resolveLiftOff(raw: Partial<LiftOffState> | null | undefined): LiftOffState {
+  const spec = liftSpec();
+  const defaults = spec?.defaults ?? DEFAULT_BOX_PACK.liftOff;
+  const variants = spec?.variants.map((item) => item.id) ?? [defaults.variant];
+  let variant = defaults.variant;
+  if (typeof raw?.variant === "string" && raw.variant) {
+    if (variants.includes(raw.variant)) variant = raw.variant;
+    else if (!variantWarned.has(raw.variant)) {
+      variantWarned.add(raw.variant);
+      console.warn(`Unknown lift-off variant "${raw.variant}". Using ${defaults.variant}.`);
+    }
+  }
+  const neck = spec?.neckMm ?? [6, 36];
+  const lid = spec?.lidDepthMm ?? [12, 160];
+  const neckMm = typeof raw?.neckMm === "number" && Number.isFinite(raw.neckMm) ? raw.neckMm : defaults.neckMm;
+  const lidDepthMm = typeof raw?.lidDepthMm === "number" && Number.isFinite(raw.lidDepthMm) ? raw.lidDepthMm : defaults.lidDepthMm;
+  return {
+    variant,
+    neckMm: clamp(neckMm, neck[0], neck[1]),
+    lidDepthMm: clamp(lidDepthMm, lid[0], lid[1]),
+  };
+}
+
+function resolveDrawerPull(value: unknown): DrawerPull {
+  const pulls = closureById("drawer")?.pulls ?? ["none", "ribbon", "notch"];
+  if (value === undefined || value === null || value === "") return "none";
+  if (typeof value === "string" && pulls.includes(value)) return value as DrawerPull;
+  if (typeof value === "string" && value && !pullWarned.has(value)) {
+    pullWarned.add(value);
+    console.warn(`Unknown drawer pull "${value}". Using none.`);
+  }
+  return "none";
 }
 
 function inEnum(list: readonly string[], value: unknown): boolean {
@@ -153,7 +224,23 @@ export function validateBoxFields(box: Partial<BoxState> | null | undefined): Fi
     issues.push({ path: "box", message: "missing" });
     return issues;
   }
-  if (!isClosure(box.closure)) issues.push({ path: "closure", message: "enum" });
+  const spec = typeof box.structure === "string" ? closureById(box.structure) : undefined;
+  if (!spec) issues.push({ path: "structure", message: "enum" });
+  if (!inEnum(LATCHES, box.latch)) issues.push({ path: "latch", message: "enum" });
+  else if (spec && !spec.latches.includes(box.latch as BoxLatch)) issues.push({ path: "latch", message: "latch" });
+  const lift = liftSpec();
+  const liftOff = box.liftOff;
+  if (
+    !liftOff ||
+    !lift ||
+    !lift.variants.some((item) => item.id === liftOff.variant) ||
+    !inRange(liftOff.neckMm, lift.neckMm[0], lift.neckMm[1]) ||
+    !inRange(liftOff.lidDepthMm, lift.lidDepthMm[0], lift.lidDepthMm[1])
+  ) {
+    issues.push({ path: "liftOff", message: "liftOff" });
+  }
+  const pulls = closureById("drawer")?.pulls ?? ["none"];
+  if (!inEnum(pulls, box.drawerPull)) issues.push({ path: "drawerPull", message: "enum" });
   if (!inRange(box.boardMm, BOX_RANGES.boardMm[0], BOX_RANGES.boardMm[1])) issues.push({ path: "boardMm", message: "range" });
   if (!inEnum(BOX_BOARDS, box.material)) issues.push({ path: "material", message: "enum" });
   if (!box.wrap || !HEX.test(box.wrap.color ?? "") || !inEnum(WRAP_FINISHES, box.wrap.finish)) {
@@ -171,7 +258,7 @@ export function validateBoxFields(box: Partial<BoxState> | null | undefined): Fi
   ) {
     issues.push({ path: "insert", message: "insert" });
   }
-  const limits = limitsFor(box.closure);
+  const limits = limitsFor(box.structure);
   if (box.widthMm !== undefined && !inRange(box.widthMm, limits.widthMm[0], limits.widthMm[1])) {
     issues.push({ path: "widthMm", message: "range" });
   }
@@ -184,8 +271,10 @@ export function validateBoxFields(box: Partial<BoxState> | null | undefined): Fi
   return issues;
 }
 
-export function hydrateBox(box: Partial<BoxState> | null | undefined): BoxState {
+export function hydrateBox(box: (Partial<BoxState> & { closure?: unknown }) | null | undefined): BoxState {
   const raw = box ?? {};
+  const named = typeof raw.structure === "string" && raw.structure ? raw.structure : raw.closure;
+  const spec = resolveClosure(typeof named === "string" && named ? named : undefined);
   const wrap = raw.wrap;
   const insert = raw.insert;
   const color = HEX.test(raw.color ?? "") ? raw.color! : "#14161c";
@@ -201,7 +290,10 @@ export function hydrateBox(box: Partial<BoxState> | null | undefined): BoxState 
     heightMm: clamp(height, BOX_RANGES.heightMm[0], BOX_RANGES.heightMm[1]),
     linked: raw.linked !== false,
     visible: raw.visible === true,
-    closure: resolveClosure(raw.closure).id,
+    structure: spec.id,
+    latch: resolveLatch(spec, raw.latch),
+    liftOff: resolveLiftOff(raw.liftOff),
+    drawerPull: resolveDrawerPull(raw.drawerPull),
     boardMm:
       typeof raw.boardMm === "number" && Number.isFinite(raw.boardMm)
         ? clamp(raw.boardMm, BOX_RANGES.boardMm[0], BOX_RANGES.boardMm[1])
@@ -355,6 +447,6 @@ export function cavityFromDesign(design: Design, orientation?: InsertOrientation
 
 export function envelopeFromDesign(design: Design): BoxEnvelope {
   const pack = hydrateBox(design.box);
-  const spec = closureById(pack.closure) ?? closureById("lift-off");
+  const spec = closureById(pack.structure) ?? closureById("lift-off");
   return deriveEnvelope(cavityFromDesign(design), pack.boardMm, spec?.dims);
 }
