@@ -1,7 +1,8 @@
 import { describe, expect, it, afterEach } from "vitest";
 import { setImportedCatalog } from "./catalog.ts";
 import { createDefaultDesign } from "./design.ts";
-import { applyShareHash, decodeShareDesign, encodeShareDesign, mergeShareDesign } from "./share.ts";
+import { computeFit } from "./fit.ts";
+import { applyIncomingShareHash, applyShareHash, decodeShareDesign, encodeShareDesign, mergeShareDesign, respondToLocation } from "./share.ts";
 import type { BottleSpec } from "./types.ts";
 
 describe("share links", () => {
@@ -52,7 +53,7 @@ describe("share links", () => {
     expect(decoded?.label.scale).toBe(defaults.label.scale);
     expect(decoded?.label.visible).toBe(true);
     expect(decoded?.label.variantId).toBe(defaults.label.variantId);
-    expect(decoded?.step).toBe(0);
+    expect(decoded?.step).toBeUndefined();
   });
 
   it("returns null for malformed hashes and non-design payloads", () => {
@@ -141,16 +142,28 @@ describe("share links", () => {
     expect(decoded?.box.depthMm).toBe(140);
     expect(decoded?.label.scale).toBe(1.6);
     expect(decoded?.label.text).toHaveLength(32);
-    expect(decoded?.liquid.fill).toBe(0.95);
+    expect(decoded?.liquid.fill).toBe(1);
+    expect(mergeShareDesign({ liquid: { fill: 0 } })?.liquid.fill).toBe(0);
+    expect(mergeShareDesign({ liquid: { fill: 1 } })?.liquid.fill).toBe(1);
   });
 
-  it("accepts an integer step from 0 to 7 and falls back otherwise", () => {
+  it("rejects prototype neck names instead of storing them", () => {
+    const defaults = createDefaultDesign();
+    const decoded = mergeShareDesign({ bottle: { neck: "constructor" } });
+    expect(decoded?.bottle.neck).toBe(defaults.bottle.neck);
+    expect(mergeShareDesign({ bottle: { neck: "toString" } })?.bottle.neck).toBe(defaults.bottle.neck);
+    expect(() => {
+      if (decoded) computeFit(decoded);
+    }).not.toThrow();
+  });
+
+  it("accepts an integer step from 0 to 7 and leaves an invalid step unset", () => {
     expect(mergeShareDesign({ bottle: {}, step: 4 })?.step).toBe(4);
     expect(mergeShareDesign({ bottle: {}, step: 0 })?.step).toBe(0);
     expect(mergeShareDesign({ bottle: {}, step: 7 })?.step).toBe(7);
-    expect(mergeShareDesign({ bottle: {}, step: 8 })?.step).toBe(0);
-    expect(mergeShareDesign({ bottle: {}, step: -1 })?.step).toBe(0);
-    expect(mergeShareDesign({ bottle: {}, step: 1.5 })?.step).toBe(0);
+    expect(mergeShareDesign({ bottle: {}, step: 8 })?.step).toBeUndefined();
+    expect(mergeShareDesign({ bottle: {}, step: -1 })?.step).toBeUndefined();
+    expect(mergeShareDesign({ bottle: {}, step: 1.5 })?.step).toBeUndefined();
     expect(mergeShareDesign({ bottle: {} })?.step).toBeUndefined();
   });
 
@@ -176,6 +189,86 @@ describe("share links", () => {
     });
     expect(applied).toBe(true);
     expect(calls).toEqual([{ state, url: "/lab?voice=1" }]);
+  });
+
+  it("waits for async supplier packs before applying a share hash", async () => {
+    const flask = {
+      id: "supplier-flask",
+      name: { he: "ספק", en: "Supplier" },
+      section: "rect",
+      profile: "cara",
+      shoulder: 0.2,
+      heightMm: 80,
+      widthMm: 40,
+      depthMm: 30,
+      neck: "FEA15",
+      softness: 0,
+      faceted: false,
+      tags: ["imported"],
+      model: { type: "procedural" },
+      capacityMl: 50,
+    } satisfies BottleSpec;
+    let release: () => void = () => undefined;
+    const ready = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const seen: string[] = [];
+    const design = createDefaultDesign();
+    design.bottle.variantId = "supplier-flask";
+    const hash = `#d=${encodeShareDesign(design)}`;
+    const pending = applyIncomingShareHash({
+      read: () => ({ hash, pathname: "/lab", search: "", state: { lab: 1 } }),
+      ready,
+      apply: (next) => seen.push(next.bottle.variantId),
+      replaceState: () => undefined,
+    });
+    await Promise.resolve();
+    expect(seen).toEqual([]);
+    setImportedCatalog({ bottles: [flask], caps: [], labels: [], pumps: [], collars: [], boxes: [] });
+    release();
+    await pending;
+    expect(seen).toEqual(["supplier-flask"]);
+  });
+
+  it("applies a pasted #d= hash and does not treat it as Back", async () => {
+    const calls: string[] = [];
+    await respondToLocation({
+      kind: "hash",
+      hash: "#d=abc",
+      applyShare: async () => {
+        calls.push("share");
+        return true;
+      },
+      back: () => calls.push("back"),
+    });
+    await respondToLocation({
+      kind: "pop",
+      hash: "#d=abc",
+      applyShare: async () => {
+        calls.push("share");
+        return true;
+      },
+      back: () => calls.push("back"),
+    });
+    await respondToLocation({
+      kind: "hash",
+      hash: "",
+      applyShare: async () => {
+        calls.push("share");
+        return false;
+      },
+      back: () => calls.push("back"),
+    });
+    await respondToLocation({
+      kind: "pop",
+      hash: "",
+      applyShare: async () => {
+        calls.push("share");
+        return false;
+      },
+      back: () => calls.push("back"),
+    });
+    expect(calls).toEqual(["share", "share", "back"]);
   });
 
   it("decodes a hash that is missing padding", () => {

@@ -4,7 +4,7 @@ import { applyTheme } from "./theme/themes.ts";
 import { partLabel, tx, wizardTitle } from "./i18n/copy.ts";
 import { pngDownloadName } from "./ui/pngName.ts";
 import { useLab } from "./store/labStore.ts";
-import { applyShareHash } from "./model/share.ts";
+import { applyIncomingShareHash, respondToLocation } from "./model/share.ts";
 import { backSurface, handleHistoryPop, syncHistoryTrap, type BackAction, type Trap } from "./nav/backHistory.ts";
 import { TopBar } from "./ui/TopBar.tsx";
 import { Library } from "./ui/Library.tsx";
@@ -65,6 +65,7 @@ export default function App() {
   const toast = useLab((s) => s.toast);
   const stage = useLab((s) => s.stage);
   const explode = useLab((s) => s.explode);
+  const wizardStep = useLab((s) => s.design.step);
   const trapRef = useRef<Trap>({ armed: false });
   const [hintOn, setHintOn] = useState(true);
   const [swapping, setSwapping] = useState(false);
@@ -88,34 +89,58 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    void loadPacks().then((packs) => {
+    let cancelled = false;
+    const ready = loadPacks().then((packs) => {
+      if (cancelled) return;
       if (packs.length && useLab.getState().suppliers.length === 0) useLab.getState().setSuppliers(packs);
     }).catch(() => undefined);
-  }, []);
-
-  useEffect(() => {
-    applyShareHash({
-      hash: location.hash,
-      pathname: location.pathname,
-      search: location.search,
-      state: history.state,
+    const applyShare = () => applyIncomingShareHash({
+      read: () => ({
+        hash: location.hash,
+        pathname: location.pathname,
+        search: location.search,
+        state: history.state,
+      }),
+      ready,
+      cancelled: () => cancelled,
       apply: (design) => useLab.setState({ design }),
       replaceState: (state, title, url) => history.replaceState(state, title, url),
     });
+    void applyShare();
     const trap = trapRef.current;
     const surface = () => backSurface(useLab.getState());
     syncHistoryTrap(history, surface(), trap);
     const onPop = () => {
-      useLab.getState().applyVoiceParam(new URLSearchParams(location.search).get("voice"));
-      handleHistoryPop(history, surface(), applyBackAction, surface, trap);
+      void respondToLocation({
+        kind: "pop",
+        hash: location.hash,
+        applyShare,
+        back: () => {
+          useLab.getState().applyVoiceParam(new URLSearchParams(location.search).get("voice"));
+          handleHistoryPop(history, surface(), applyBackAction, surface, trap);
+        },
+      });
+    };
+    const onHash = () => {
+      void respondToLocation({
+        kind: "hash",
+        hash: location.hash,
+        applyShare,
+        back: () => undefined,
+      });
     };
     window.addEventListener("popstate", onPop);
-    return () => window.removeEventListener("popstate", onPop);
+    window.addEventListener("hashchange", onHash);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("popstate", onPop);
+      window.removeEventListener("hashchange", onHash);
+    };
   }, []);
 
   useEffect(() => {
     syncHistoryTrap(history, backSurface(useLab.getState()), trapRef.current);
-  }, [aimed, explode, helpOpen, modal, mode, palette, present, solo, stage]);
+  }, [aimed, explode, helpOpen, modal, mode, palette, present, solo, stage, wizardStep]);
 
   useEffect(() => {
     const fade = () => setHintOn(false);

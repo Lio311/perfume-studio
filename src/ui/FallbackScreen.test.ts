@@ -5,11 +5,16 @@ import { useLab } from "../store/labStore.ts";
 import { DesignFallback, WebglFallback, isWebglFailure, sceneFallbackFor } from "./FallbackScreen.tsx";
 
 describe("scene fallback", () => {
-  it("treats a fit crash as a design error with reset, and a context failure as WebGL", () => {
+  it("treats a fit crash as a design error only when the design fails and WebGL is alive", () => {
     const fit = new TypeError("Cannot read properties of undefined (reading 'ferrule')");
+    const alive = { webglOk: true, contextLost: false, designOk: false };
     expect(isWebglFailure(fit)).toBe(false);
-    expect(sceneFallbackFor(fit)).toEqual({ kind: "design", reset: true });
-    expect(sceneFallbackFor(new Error("Error creating WebGL context."))).toEqual({ kind: "webgl", reset: false });
+    expect(sceneFallbackFor(fit, alive)).toEqual({ kind: "design", reset: true });
+    expect(sceneFallbackFor(new Error("Error creating WebGL context."), alive)).toEqual({ kind: "webgl", reset: false });
+    const gpu = new TypeError("Cannot read properties of null (reading 'precision')");
+    expect(sceneFallbackFor(gpu, { webglOk: true, contextLost: false, designOk: true })).toEqual({ kind: "webgl", reset: false });
+    expect(sceneFallbackFor(new Error("Array buffer allocation failed"), { webglOk: false, contextLost: false, designOk: true })).toEqual({ kind: "webgl", reset: false });
+    expect(sceneFallbackFor(fit, { webglOk: true, contextLost: true, designOk: false })).toEqual({ kind: "webgl", reset: false });
   });
 
   it("shows a reset control for a design crash and none for WebGL", () => {

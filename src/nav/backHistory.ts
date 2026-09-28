@@ -18,6 +18,8 @@ export interface BackSurface {
   stage: "bottle" | "box" | "together";
   mode: string;
   explode: number;
+  /** The wizard is choosing the stage, including the carton step. Back must not undo that. */
+  wizard: boolean;
 }
 
 export type BackAction =
@@ -41,7 +43,7 @@ export function backAction(surface: BackSurface): BackAction {
   if (surface.present) return "present";
   if (surface.palette || surface.help) return "overlays";
   if (surface.solo || surface.aimed) return "selection";
-  if (surface.stage !== "bottle") return "stage";
+  if (surface.stage !== "bottle" && !surface.wizard) return "stage";
   if (surface.mode !== "assemble" || surface.explode > 0.02) return "mode";
   return "leave";
 }
@@ -56,7 +58,10 @@ export function backSurface(state: {
   stage: "bottle" | "box" | "together";
   mode: string;
   explode: number;
+  design: { step?: number };
 }): BackSurface {
+  const step = state.design.step;
+  const wizard = typeof step === "number" && Number.isInteger(step) && step >= 0 && step < 7;
   return {
     modal: Boolean(state.modal),
     present: state.present,
@@ -67,6 +72,7 @@ export function backSurface(state: {
     stage: state.stage,
     mode: state.mode,
     explode: state.explode,
+    wizard,
   };
 }
 

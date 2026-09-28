@@ -55,7 +55,8 @@ function pickVariant(source: Record<string, unknown>, kind: VariantPart, fallbac
 
 function pickNeck(source: Record<string, unknown>, fallback: NeckId): NeckId {
   const value = source.neck;
-  return typeof value === "string" && value in NECKS ? (value as NeckId) : fallback;
+  // `in` walks the prototype, so "constructor" and "toString" would pass and later throw in computeFit.
+  return typeof value === "string" && Object.hasOwn(NECKS, value) ? (value as NeckId) : fallback;
 }
 
 function partRecord(value: unknown): Record<string, unknown> | null {
@@ -65,14 +66,14 @@ function partRecord(value: unknown): Record<string, unknown> | null {
 /**
  * Build a full design from a share payload.
  * Missing parts, unknown keys, and invalid values keep the current defaults.
- * Numbers use the same ranges as the chat commands. A missing `step` stays unset
- * so an older link does not reopen the wizard.
+ * Numbers use the same ranges as the chat commands, except liquid fill, which follows
+ * the 0–1 slider. A missing or invalid `step` stays unset so the wizard does not reopen.
  */
 export function mergeShareDesign(input: unknown): Design | null {
   if (!isRecord(input)) return null;
   const source = safeRecord(input);
-  const hasPart = PART_KEYS.some((key) => key in source);
-  if (!hasPart && !("step" in source)) return null;
+  const hasPart = PART_KEYS.some((key) => Object.hasOwn(source, key));
+  if (!hasPart && !Object.hasOwn(source, "step")) return null;
   const base = createDefaultDesign();
   const bottle = partRecord(source.bottle);
   const cap = partRecord(source.cap);
@@ -133,7 +134,7 @@ export function mergeShareDesign(input: unknown): Design | null {
     },
     liquid: {
       color: liquid ? pickColor(liquid, "color", base.liquid.color) : base.liquid.color,
-      fill: liquid ? pickNumber(liquid, "fill", base.liquid.fill, 0.05, 0.95) : base.liquid.fill,
+      fill: liquid ? pickNumber(liquid, "fill", base.liquid.fill, 0, 1) : base.liquid.fill,
       visible: liquid ? pickBool(liquid, "visible", base.liquid.visible) : base.liquid.visible,
     },
   };
@@ -141,9 +142,9 @@ export function mergeShareDesign(input: unknown): Design | null {
   const opacity = bottle?.opacity;
   if (typeof opacity === "number" && Number.isFinite(opacity)) design.bottle.opacity = clamp(opacity, 0, 1);
 
-  if ("step" in source) {
+  if (Object.hasOwn(source, "step")) {
     const step = source.step;
-    design.step = typeof step === "number" && Number.isInteger(step) && step >= 0 && step <= 7 ? step : base.step;
+    if (typeof step === "number" && Number.isInteger(step) && step >= 0 && step <= 7) design.step = step;
   }
   return design;
 }
@@ -162,6 +163,48 @@ export function decodeShareDesign(hash: string): Design | null {
   } catch {
     return null;
   }
+}
+
+/** Read the current location after `ready` (supplier packs) and apply a `#d=` hash. */
+export function applyIncomingShareHash(options: {
+  read: () => { hash: string; pathname: string; search: string; state: unknown };
+  ready: Promise<void>;
+  cancelled?: () => boolean;
+  apply: (design: Design) => void;
+  replaceState: (state: unknown, title: string, url: string) => void;
+}): Promise<boolean> {
+  return options.ready.then(() => {
+    if (options.cancelled?.()) return false;
+    const loc = options.read();
+    if (!loc.hash.startsWith("#d=")) return false;
+    applyShareHash({
+      hash: loc.hash,
+      pathname: loc.pathname,
+      search: loc.search,
+      state: loc.state,
+      apply: options.apply,
+      replaceState: options.replaceState,
+    });
+    return true;
+  });
+}
+
+/**
+ * A pasted `#d=` arrives as `hashchange` (and sometimes `popstate`).
+ * Apply the link. Do not run the Back handler for that navigation.
+ * A hashchange that is not a share link is ignored. A pop without `#d=` is Back.
+ */
+export async function respondToLocation(options: {
+  kind: "pop" | "hash";
+  hash: string;
+  applyShare: () => Promise<boolean>;
+  back: () => void;
+}): Promise<void> {
+  if (options.hash.startsWith("#d=")) {
+    await options.applyShare();
+    return;
+  }
+  if (options.kind === "pop") options.back();
 }
 
 /** Apply a `#d=` hash, then strip it without pushing a history entry. */

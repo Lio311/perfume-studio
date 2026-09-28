@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   backAction,
+  backSurface,
   handleHistoryPop,
   syncHistoryTrap,
   type BackSurface,
@@ -19,6 +20,7 @@ function idle(over: Partial<BackSurface> = {}): BackSurface {
     stage: "bottle",
     mode: "assemble",
     explode: 0,
+    wizard: false,
     ...over,
   };
 }
@@ -88,6 +90,40 @@ describe("browser back", () => {
     history.back();
     expect(history.left).toBe(true);
     expect(history.pushCount).toBe(0);
+  });
+
+  it("does not treat the carton stage as a back layer while the wizard is on the box step", () => {
+    expect(backAction(idle({ stage: "box", wizard: true }))).toBe("leave");
+    expect(backAction(idle({ stage: "together", wizard: true }))).toBe("leave");
+    expect(backAction(idle({ stage: "box" }))).toBe("stage");
+    const surface = backSurface({
+      modal: null,
+      present: false,
+      palette: false,
+      help: false,
+      solo: null,
+      aimed: false,
+      stage: "box",
+      mode: "assemble",
+      explode: 0,
+      design: { step: 6 },
+    });
+    expect(surface.wizard).toBe(true);
+    expect(backAction(surface)).toBe("leave");
+    const finished = backSurface({
+      modal: null,
+      present: false,
+      palette: false,
+      help: false,
+      solo: null,
+      aimed: false,
+      stage: "together",
+      mode: "assemble",
+      explode: 0,
+      design: { step: 7 },
+    });
+    expect(finished.wizard).toBe(false);
+    expect(backAction(finished)).toBe("stage");
   });
 
   it("does not treat a wizard step as a back layer", () => {
