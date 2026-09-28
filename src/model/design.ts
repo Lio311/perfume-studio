@@ -24,7 +24,7 @@ export function createDefaultDesign(): Design {
       color: "#e6cc98",
       heightMm: 34.5,
       widthMm: 30,
-      visible: false,
+      visible: true,
     },
     label: {
       variantId: "lg-foil-diamond",
@@ -32,19 +32,19 @@ export function createDefaultDesign(): Design {
       color: "#e6cc98",
       text: "",
       scale: 1,
-      visible: false,
+      visible: true,
     },
     pump: {
       variantId: "pump-crimp",
       finish: "gold",
       color: "#e6cc98",
-      visible: false,
+      visible: true,
     },
     collar: {
       variantId: "col-crimp",
       finish: "gold",
       color: "#e6cc98",
-      visible: false,
+      visible: true,
     },
     box: {
       variantId: box.id,
@@ -54,7 +54,7 @@ export function createDefaultDesign(): Design {
       widthMm: 78,
       depthMm: 68,
       linked: true,
-      visible: false,
+      visible: true,
     },
     liquid: {
       color: "#c98a2b",
