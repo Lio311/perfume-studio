@@ -169,10 +169,10 @@ export function FinishMaterial({
   let materialTransmission = 0;
   if (glassLike) {
     if (opacity !== undefined) {
-      // Map opacity 0-1 to reasonable alpha blending limits so it never completely disappears (invisible)
-      // and transitions smoothly to solid plastic.
+      // Use pure alpha blending for the opacity slider to ensure the liquid is visible
+      // and the diffuse color becomes fully solid at 100%.
       materialOpacity = 0.15 + opacity * 0.85;
-      materialTransmission = Math.max(0.01, 0.95 - opacity * 0.94);
+      materialTransmission = 0;
     } else {
       materialOpacity = effectiveGlassOpacity(finish) ?? 1.0;
       materialTransmission = Math.max(0.01, glassTransmission(finish));
