@@ -75,6 +75,20 @@ describe("spec sheet HTML escaping", () => {
     expect(html).toContain("Supplier specification");
   });
 
+  it("does not treat inherited keys as a neck", () => {
+    for (const neck of ["constructor", "__proto__"] as const) {
+      const design = createDefaultDesign();
+      design.bottle.neck = neck as NeckId;
+      const html = buildSpecHtml(design, "en", "data:image/png;base64,AAAA");
+      expect(html).toContain(`${neck} · EN 14849`);
+      for (const label of ["Cap", "Pump", "Collar", "Box", "Ferrule ID / OD / height"]) {
+        const cell = html.match(new RegExp(`<th>${label}</th><td>(.*?)</td>`));
+        expect(cell?.[1], `${neck} ${label}`).toContain("—");
+        expect(cell?.[1], `${neck} ${label}`).not.toContain("0.0");
+      }
+    }
+  });
+
   it("prints an em dash instead of zero sizes when the neck is unknown", () => {
     const design = createDefaultDesign();
     design.bottle.neck = "FEA15<img>" as NeckId;

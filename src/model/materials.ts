@@ -61,14 +61,40 @@ export function isGlass(id: FinishId): boolean {
   return finishById(id).group === "glass";
 }
 
-/** Slider defaults for clear / frosted / tinted glass. Shared by the wizard and the spec. */
-export const DEFAULT_GLASS_OPACITY = {
-  clear: 0.14,
-  frosted: 0.45,
-  tinted: 0.32,
-} as const;
+type GlassFinish = "clear" | "frosted" | "tinted";
+
+/**
+ * Opacity and the transmission used when that finish has no explicit opacity.
+ * Transmission stays next to opacity so the two cannot be edited apart.
+ */
+const GLASS_FINISH_DEFAULTS: Record<GlassFinish, { opacity: number; transmission: number }> = {
+  clear: { opacity: 0.14, transmission: 0.15 },
+  frosted: { opacity: 0.45, transmission: 0.35 },
+  tinted: { opacity: 0.32, transmission: 0.55 },
+};
+
+/** Slider defaults for clear / frosted / tinted glass. Shared by the wizard, spec, and renderer. */
+export const DEFAULT_GLASS_OPACITY: Record<GlassFinish, number> = {
+  clear: GLASS_FINISH_DEFAULTS.clear.opacity,
+  frosted: GLASS_FINISH_DEFAULTS.frosted.opacity,
+  tinted: GLASS_FINISH_DEFAULTS.tinted.opacity,
+};
+
+function glassFinish(finish: FinishId): GlassFinish | null {
+  if (finish === "clear" || finish === "frosted" || finish === "tinted") return finish;
+  return null;
+}
 
 export function effectiveGlassOpacity(finish: FinishId, opacity?: number): number | null {
-  if (finish !== "clear" && finish !== "frosted" && finish !== "tinted") return null;
-  return opacity ?? DEFAULT_GLASS_OPACITY[finish];
+  const glass = glassFinish(finish);
+  if (!glass) return null;
+  return opacity ?? DEFAULT_GLASS_OPACITY[glass];
+}
+
+/** Explicit opacity uses `1 - opacity`. Otherwise the transmission stored with that finish's default opacity. */
+export function glassTransmission(finish: FinishId, opacity?: number): number {
+  const glass = glassFinish(finish);
+  if (!glass) return 0;
+  if (opacity !== undefined) return 1 - opacity;
+  return GLASS_FINISH_DEFAULTS[glass].transmission;
 }

@@ -24,7 +24,8 @@ export function buildSpecHtml(design: Design, lang: Lang, render: string): strin
   const collar = collarById(design.collar.variantId);
   const logo = logoById(design.label.variantId);
   const box = boxById(design.box.variantId);
-  const neck = NECKS[design.bottle.neck];
+  const neckId = design.bottle.neck;
+  const neck = Object.hasOwn(NECKS, neckId) ? NECKS[neckId] : null;
   const fit = neck ? computeFit(design, false) : null;
   const supplier = bottle.supplier;
   const title = lang === "he" ? "מפרט לספק" : "Supplier specification";

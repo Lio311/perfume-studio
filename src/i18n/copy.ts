@@ -269,7 +269,7 @@ const en: typeof he = {
   next: "Next",
   prev: "Previous",
   finish: "Finish",
-  color: "Colour",
+  color: "Color",
   height: "Height",
   width: "Width",
   depth: "Depth",
