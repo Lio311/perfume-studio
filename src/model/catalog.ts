@@ -15,6 +15,19 @@ export interface ImportedCatalog {
 
 const imported: ImportedCatalog = { bottles: [], caps: [], labels: [], pumps: [], collars: [], boxes: [] };
 
+const builtinIds = new Set<string>([
+  ...BOTTLES.map((item) => item.id),
+  ...CAPS.map((item) => item.id),
+  ...LOGOS.map((item) => item.id),
+  ...PUMPS.map((item) => item.id),
+  ...COLLARS.map((item) => item.id),
+  ...BOXES.map((item) => item.id),
+]);
+
+export function isBuiltinCatalogId(id: string): boolean {
+  return builtinIds.has(id);
+}
+
 export function setImportedCatalog(next: ImportedCatalog): void {
   imported.bottles = next.bottles;
   imported.caps = next.caps;

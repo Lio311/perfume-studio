@@ -1,7 +1,17 @@
+import DOMPurify from "dompurify";
 import { clearLatheProfiles, setLatheProfile } from "./lathe.ts";
+import type { PackNotice } from "./notices.ts";
 import { setImportedCatalog } from "../model/catalog.ts";
+import { isNeckId } from "../model/necks.ts";
+import type { SupplierPrice } from "../model/price.ts";
 import type { BottleSpec, BoxSpec, CapProfileName, CapSpec, CollarSpec, FinishId, LogoSpec, NeckId, PumpSpec, SectionKind, VariantPart } from "../model/types.ts";
 import type { DraftItem, ImportProfile } from "./parseCatalog.ts";
+
+const PART_KINDS = ["bottle", "cap", "label", "pump", "collar", "box"] as const;
+
+export function isVariantPart(value: unknown): value is VariantPart {
+  return typeof value === "string" && (PART_KINDS as readonly string[]).includes(value);
+}
 
 export interface SupplierPart {
   id: string;
@@ -19,6 +29,8 @@ export interface SupplierPart {
   page: number;
   /** Normalised half-profile. Present for photo-revolved parts. */
   lathe?: number[];
+  /** Checked by `sanitizeSupplierPrice`. Absent when the pack omitted it or the value was invalid. */
+  price?: SupplierPrice;
 }
 
 export interface SupplierPack {
@@ -26,6 +38,21 @@ export interface SupplierPack {
   name: string;
   createdAt: number;
   parts: SupplierPart[];
+  /** Absent on v1 packs. Kept on import and written back on export. */
+  version?: number;
+  /** How the pack was produced, such as "pdf", "photo", "scan", or "manual". */
+  source?: string;
+  /** Supplier contact block. Stored and exported; the lab does not read it yet. */
+  supplier?: Record<string, unknown>;
+  /**
+   * Parts the load view hid. Not part of the stored record and not written on export.
+   * Present only on the in-memory view returned by `loadPacks`.
+   */
+  hiddenParts?: Array<{ id: string; code: string; name: string; he: string; en: string }>;
+  /**
+   * The stored record failed as a whole. In-memory only, and not a dropped part on export.
+   */
+  unreadable?: true;
 }
 
 export interface ImportedMeta {
@@ -45,14 +72,30 @@ export function importedMeta(id: string): ImportedMeta | undefined {
   return meta.get(id);
 }
 
+/** Same slug the lab uses for a part id. `A-1` and `a 1` collapse to one id. */
+export function codeSlug(code: string): string {
+  return code.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+}
+
+/** Sanitised code and the slug that becomes the part id, including the item-N fallback. */
+export function preparedPartCode(code: string, kind: string, index: number): { code: string; slug: string } {
+  const raw = code || `${kind}-${index + 1}`;
+  const sanitized = DOMPurify.sanitize(raw);
+  return { code: sanitized, slug: codeSlug(sanitized) || `item-${index + 1}` };
+}
+
+/** Final part id: supplier id plus the sanitised slug. */
+export function generatedPartId(supplierId: string, code: string, kind: string, index: number): string {
+  return `${supplierId}-${preparedPartCode(code, kind, index).slug}`;
+}
+
 export function partFromDraft(draft: DraftItem, supplier: { id: string; name: string }, index: number): SupplierPart {
-  const code = draft.code || `${draft.kind}-${index + 1}`;
-  const safe = code.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || `item-${index + 1}`;
+  const prepared = preparedPartCode(draft.code, draft.kind, index);
   return {
-    id: `${supplier.id}-${safe}`,
+    id: `${supplier.id}-${prepared.slug}`,
     kind: draft.kind,
-    code,
-    name: `${code} · ${supplier.name}`,
+    code: prepared.code,
+    name: `${prepared.code} · ${supplier.name}`,
     neck: draft.neck,
     widthMm: draft.widthMm,
     heightMm: draft.heightMm,
@@ -84,9 +127,17 @@ function capSection(profile: ImportProfile): SectionKind {
   return profile === "cube" ? "rect" : "circle";
 }
 
-export function syncRegistry(packs: SupplierPack[]): void {
+function readNeck(neck: unknown, ref: string, notices: PackNotice[]): NeckId | null {
+  if (neck == null) return null;
+  if (isNeckId(neck)) return neck;
+  notices.push({ type: "badNeck", ref, neck: String(neck) });
+  return null;
+}
+
+export function syncRegistry(packs: SupplierPack[]): PackNotice[] {
   meta.clear();
   clearLatheProfiles();
+  const notices: PackNotice[] = [];
   const bottles: BottleSpec[] = [];
   const caps: CapSpec[] = [];
   const labels: LogoSpec[] = [];
@@ -95,10 +146,17 @@ export function syncRegistry(packs: SupplierPack[]): void {
   const boxes: BoxSpec[] = [];
   for (const pack of packs) {
     for (const part of pack.parts) {
+      const kind: unknown = part.kind;
+      if (!isVariantPart(kind)) {
+        notices.push({ type: "unknownKind", ref: part.code || part.id, kind: String(part.kind) });
+        continue;
+      }
+      const neck = readNeck(part.neck, part.code || part.id, notices);
+      const listed = neck === part.neck ? part : { ...part, neck };
       meta.set(part.id, {
         color: part.color,
         thumb: part.thumb,
-        neck: part.neck,
+        neck,
         widthMm: part.widthMm,
         heightMm: part.heightMm,
         depthMm: part.depthMm,
@@ -107,8 +165,8 @@ export function syncRegistry(packs: SupplierPack[]): void {
       });
       if (part.lathe) setLatheProfile(part.id, { radii: part.lathe });
       const name = { he: part.name, en: part.name };
-      const shared = tags(part, pack);
-      if (part.kind === "bottle") {
+      const shared = tags(listed, pack);
+      if (kind === "bottle") {
         bottles.push({
           id: part.id,
           name,
@@ -118,7 +176,7 @@ export function syncRegistry(packs: SupplierPack[]): void {
           heightMm: part.heightMm,
           widthMm: part.widthMm,
           depthMm: part.depthMm,
-          neck: part.neck ?? "FEA15",
+          neck: neck ?? "FEA15",
           softness: part.profile === "rect-bottle" ? 0.35 : 0.8,
           faceted: false,
           tags: shared,
@@ -126,7 +184,7 @@ export function syncRegistry(packs: SupplierPack[]): void {
           model: { type: "procedural" },
           capacityMl: part.capacityMl ?? Math.max(5, Math.round(part.widthMm * part.depthMm * part.heightMm / 1000)),
         });
-      } else if (part.kind === "cap") {
+      } else if (kind === "cap") {
         caps.push({
           id: part.id,
           name,
@@ -141,7 +199,7 @@ export function syncRegistry(packs: SupplierPack[]): void {
           tags: shared,
           model: { type: "procedural" },
         });
-      } else if (part.kind === "label") {
+      } else if (kind === "label") {
         labels.push({
           id: part.id,
           name,
@@ -155,7 +213,7 @@ export function syncRegistry(packs: SupplierPack[]): void {
           widthMm: part.widthMm,
           heightMm: part.heightMm,
         });
-      } else if (part.kind === "pump") {
+      } else if (kind === "pump") {
         pumps.push({
           id: part.id,
           name,
@@ -166,7 +224,7 @@ export function syncRegistry(packs: SupplierPack[]): void {
           tags: shared,
           model: { type: "procedural" },
         });
-      } else if (part.kind === "collar") {
+      } else if (kind === "collar") {
         collars.push({
           id: part.id,
           name,
@@ -178,7 +236,7 @@ export function syncRegistry(packs: SupplierPack[]): void {
           tags: shared,
           model: { type: "procedural" },
         });
-      } else {
+      } else if (kind === "box") {
         boxes.push({
           id: part.id,
           name,
@@ -192,6 +250,7 @@ export function syncRegistry(packs: SupplierPack[]): void {
     }
   }
   setImportedCatalog({ bottles, caps, labels, pumps, collars, boxes });
+  return notices;
 }
 
 export function finishFromColor(hex: string, kind: VariantPart): FinishId {

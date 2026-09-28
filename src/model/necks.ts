@@ -31,6 +31,15 @@ export const NECKS: Record<NeckId, NeckStandard> = {
 
 export const NECK_IDS = Object.keys(NECKS) as NeckId[];
 
+export function isNeckId(id: unknown): id is NeckId {
+  return typeof id === "string" && Object.prototype.hasOwnProperty.call(NECKS, id);
+}
+
+/** Known FEA standard, or FEA 15 when the id is missing or unsupported. */
+export function neckStandard(id: unknown): NeckStandard {
+  return isNeckId(id) ? NECKS[id] : NECKS.FEA15;
+}
+
 export function neckRadius(id: NeckId): number {
-  return NECKS[id].diameterMm / 2;
+  return neckStandard(id).diameterMm / 2;
 }
