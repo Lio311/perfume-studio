@@ -33,7 +33,7 @@ This project is built using modern web and 3D technologies:
 
 - **Single Engine, Multiple Themes**: A single configurator engine drives everything. URL parameters (`?voice=1`) dynamically change the lighting, environment, and post-processing without duplicating the underlying catalog or fit rules.
 - **Rendering Quality**: 
-  - Clear glass on the high tier is a physical material (transmission, thickness, IOR). The opacity slider and the tint color drive transmission and attenuation. The fallback tier keeps the fresnel shader, and that shader uses the same opacity and tint, with environment-style reflections, so software renderers stay readable.
+  - Clear glass on the high tier is a MeshPhysicalMaterial (thickness, IOR, clearcoat, roughness) drawn on top of the opacity slider. The slider keeps transmission at 0 and sets opacity to `0.15 + value * 0.85`, the same alpha blend as tinted and frosted glass, so the liquid stays visible and 100% is a solid colour. The fallback tier keeps the fresnel shader, and that shader uses the same opacity curve and the tint colour.
   - High tier adds highlight-only bloom, soft contact shadows, and a higher pixel ratio. Fallback skips bloom, uses a baked contact shadow, and caps the pixel ratio. Phones start on fallback. Studio light is a procedural softbox environment plus a rim light, with no remote HDRI.
   - Polished metal is high metalness and low roughness. Paper and velvet wraps use resized ambientCG maps. Velvet adds a sheen on top of the cloth map.
 - **Approved dependencies**:

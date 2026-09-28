@@ -94,7 +94,7 @@ export function effectiveGlassOpacity(finish: FinishId, opacity?: number): numbe
   return opacity ?? DEFAULT_GLASS_OPACITY[glass];
 }
 
-/** Explicit opacity uses `1 - opacity`. Otherwise the transmission stored with that finish's default opacity. */
+/** Transmission stored with a finish when the opacity slider is unset. The slider itself forces transmission to 0 in the renderer. */
 export function glassTransmission(finish: FinishId, opacity?: number): number {
   const glass = glassFinish(finish);
   if (!glass) return 0;

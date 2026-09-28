@@ -623,6 +623,7 @@ function Stage() {
       <CameraRig />
       <VoiceGrade />
       <Tier />
+      <ScreenTarget />
       <FpsProbe />
     </>
   );
@@ -642,6 +643,16 @@ function Tier() {
       {quality === "high" ? <AdaptiveDpr pixelated /> : null}
     </PerformanceMonitor>
   );
+}
+
+/** Leaving the high tier unmounts the bloom composer, which can leave the renderer on an offscreen target. */
+function ScreenTarget() {
+  const quality = useLab((s) => s.quality);
+  const gl = useThree((s) => s.gl);
+  useFrame(() => {
+    if (quality !== "high") gl.setRenderTarget(null);
+  }, -1);
+  return null;
 }
 
 function FpsProbe() {

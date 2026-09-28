@@ -1,5 +1,6 @@
-import { useMemo, useEffect } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
+import { useFrame } from "@react-three/fiber";
 import type { BoxBoard, FinishId, WrapFinish } from "../model/types.ts";
 import { effectiveGlassOpacity, glassTransmission, isGlass } from "../model/materials.ts";
 import { leatherBump, woodMap } from "../geometry/textures.ts";
@@ -112,22 +113,33 @@ const CLEAR_FRAG = `
     vec3 color = mix(env * 0.55, tint, fres);
     color += vec3(1.0) * spec * 0.9;
     float cover = 0.15 + clamp(uOpacity, 0.0, 1.0) * 0.85;
-    float alpha = mix(0.02 + fres * 0.78 + spec * 0.42, cover, cover);
-    gl_FragColor = vec4(color, clamp(alpha, 0.0, 1.0) * uFade);
+    gl_FragColor = vec4(color, cover * uFade);
   }
 `;
 
 function ClearGlass({ opacity = 0.14, color = "#f4f0e8" }: { opacity?: number; color?: string }) {
+  const ref = useRef<THREE.ShaderMaterial>(null);
   const uniforms = useMemo(
     () => ({ uFade: { value: 1 }, uOpacity: { value: opacity }, uTint: { value: new THREE.Color(color) } }),
     [],
   );
-  useEffect(() => {
-    uniforms.uOpacity.value = opacity;
-    uniforms.uTint.value.set(color);
-  }, [opacity, color, uniforms]);
+  const opacityRef = useRef(opacity);
+  const colorRef = useRef(color);
+  opacityRef.current = opacity;
+  colorRef.current = color;
+  // Fiber copies uniforms onto the material, so slider changes have to write that copy.
+  useFrame(() => {
+    const material = ref.current;
+    if (!material?.uniforms?.uOpacity) return;
+    const amount = opacityRef.current;
+    uniforms.uOpacity.value = amount;
+    material.uniforms.uOpacity.value = amount;
+    uniforms.uTint.value.set(colorRef.current);
+    material.uniforms.uTint.value.set(colorRef.current);
+  });
   return (
     <shaderMaterial
+      ref={ref}
       transparent
       depthWrite={false}
       depthTest
