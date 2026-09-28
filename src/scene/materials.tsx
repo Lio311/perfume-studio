@@ -131,11 +131,13 @@ function ClearGlass() {
 export function FinishMaterial({
   finish,
   color,
+  opacity,
   flat = false,
   glass = false,
 }: {
   finish: FinishId;
   color: string;
+  opacity?: number;
   flat?: boolean;
   glass?: boolean;
 }) {
@@ -185,7 +187,7 @@ export function FinishMaterial({
         finish === "wood" ? 0.7 :
         0.84
       }
-      transmission={glassLike ? (clear ? 0.15 : finish === "frosted" ? 0.35 : 0.55) : 0}
+      transmission={glassLike ? (opacity !== undefined ? 1 - opacity : clear ? 0.15 : finish === "frosted" ? 0.35 : 0.55) : 0}
       thickness={glassLike ? (finish === "tinted" ? 4.2 : 2.8) : 0}
       ior={clear ? 1.52 : 1.5}
       clearcoat={clear || finish === "tinted" ? 1 : metal ? 0.65 : 0.04}
@@ -195,7 +197,7 @@ export function FinishMaterial({
       envMapIntensity={metal ? 1.65 : glassLike ? 1.7 : finish === "matteBlack" ? 0.28 : 0.7}
       specularIntensity={glassLike || metal ? 1 : 0.3}
       transparent={glassLike}
-      opacity={glassLike ? (clear ? 0.14 : finish === "frosted" ? 0.45 : 0.32) : 1}
+      opacity={glassLike ? (opacity !== undefined ? opacity : clear ? 0.14 : finish === "frosted" ? 0.45 : 0.32) : 1}
       depthWrite={!glassLike}
       side={THREE.FrontSide}
     />

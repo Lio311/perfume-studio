@@ -355,7 +355,7 @@ function BottlePart() {
   return (
     <PartShell part="bottle" index={5} home={[0, 0, 0]} explode={[0, 0, 0]} visible={design.bottle.visible && onStage} variantKey={spec.id}>
       <mesh geometry={geo} renderOrder={2}>
-        <FinishMaterial finish={design.bottle.finish} color={design.bottle.color} flat={spec.faceted} glass />
+        <FinishMaterial finish={design.bottle.finish} color={design.bottle.color} opacity={design.bottle.opacity} flat={spec.faceted} glass />
         <GoldRim part="bottle" stamp={spec.id + design.bottle.finish} hull={!isGlass(design.bottle.finish)} />
       </mesh>
     </PartShell>

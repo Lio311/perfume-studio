@@ -111,18 +111,20 @@ export function Library() {
       {query.trim() && tab !== "liquid" && tab !== "pending" && (
         <p className="hint">{lang === "he" ? `${items.length} תואמים ל-${query.trim()}` : `${items.length} match ${query.trim()}`}</p>
       )}
-      <div className="tabs" role="tablist">
-        {activeTabs.map((key) => (
-          <button key={key} type="button" role="tab" data-part={key} aria-selected={tab === key} className={tab === key ? "is-on" : ""} onClick={() => {
-            setTab(key);
-            if (isWizard && key !== "pending") {
-              useLab.getState().setStage(key === "box" ? "box" : "bottle");
-            }
-          }}>
-            {key === "pending" ? t.pending : key === "liquid" ? partLabel[lang].liquid : partLabel[lang][key]}
-          </button>
-        ))}
-      </div>
+      {!isWizard && (
+        <div className="tabs" role="tablist">
+          {activeTabs.map((key) => (
+            <button key={key} type="button" role="tab" data-part={key} aria-selected={tab === key} className={tab === key ? "is-on" : ""} onClick={() => {
+              setTab(key);
+              if (isWizard && key !== "pending") {
+                useLab.getState().setStage(key === "box" ? "box" : "bottle");
+              }
+            }}>
+              {key === "pending" ? t.pending : key === "liquid" ? partLabel[lang].liquid : partLabel[lang][key]}
+            </button>
+          ))}
+        </div>
+      )}
       {suppliers.length > 0 && tab !== "liquid" && tab !== "pending" && (
         <div className="supplier-row">
           <button type="button" className={supplier === "all" ? "is-on" : ""} onClick={() => setSupplier("all")}>{t.supplierAll}</button>
@@ -184,6 +186,13 @@ export function Library() {
             <span>{Math.round(design.liquid.fill * 100)}%</span>
             <input type="range" min="0" max="1" step="0.01" value={design.liquid.fill} onChange={(event) => patch("liquid", { fill: parseFloat(event.target.value), visible: true })} />
           </label>
+          {["clear", "frosted", "tinted"].includes(design.bottle.finish) && (
+            <label className="slider" style={{ marginTop: "16px" }}>
+              <span>{lang === "he" ? "אטימות זכוכית" : "Glass Opacity"}</span>
+              <span>{Math.round((design.bottle.opacity ?? (design.bottle.finish === "clear" ? 0.14 : design.bottle.finish === "frosted" ? 0.45 : 0.32)) * 100)}%</span>
+              <input type="range" min="0" max="1" step="0.01" value={design.bottle.opacity ?? (design.bottle.finish === "clear" ? 0.14 : design.bottle.finish === "frosted" ? 0.45 : 0.32)} onChange={(event) => patch("bottle", { opacity: parseFloat(event.target.value) })} />
+            </label>
+          )}
         </div>
       ) : tab === "pending" ? (
         <div className="pending-list">
