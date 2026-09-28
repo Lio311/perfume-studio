@@ -315,7 +315,7 @@ function SpecCard({ part }: { part: PartKey }) {
             ? `Ø${(fit.actuatorR * 2).toFixed(1)} × ${fit.actuatorH.toFixed(1)}`
             : part === "label"
               ? `${fit.labelW.toFixed(1)} × ${fit.labelH.toFixed(1)}`
-              : `${Math.round(design.liquid.fill * 100)}%`;
+              : `${lang === "he" ? "מילוי" : "Fill"} ${Math.round(design.liquid.fill * 100)}%`;
   const neck = part === "box" || part === "label" || part === "liquid" ? "—" : design.bottle.neck;
   const grams = estimateGrams(part, design, fit);
   return (
@@ -323,9 +323,9 @@ function SpecCard({ part }: { part: PartKey }) {
       <h3>{t.specTitle}</h3>
       <dl>
         <div><dt>{t.material}</dt><dd>{finish ? finish.name[lang] : partLabel[lang].liquid}</dd></div>
-        <div><dt>{t.dimensions}</dt><dd dir="ltr">{dims} mm</dd></div>
+        <div><dt>{t.dimensions}</dt><dd dir="ltr">{part === "liquid" ? dims : `${dims} ${lang === "he" ? "מ״מ" : "mm"}`}</dd></div>
         <div><dt>{t.neck}</dt><dd dir="ltr">{neck}</dd></div>
-        <div><dt>{t.weight}</dt><dd dir="ltr">{grams} g</dd></div>
+        <div><dt>{t.weight}</dt><dd dir="ltr">{grams} {lang === "he" ? "ג׳" : "g"}</dd></div>
         <div><dt>{t.moq}</dt><dd dir="ltr">{t.moqValue}</dd></div>
       </dl>
     </article>

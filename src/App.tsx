@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { LabCanvas } from "./scene/LabCanvas.tsx";
 import { applyTheme } from "./theme/themes.ts";
 import { partLabel, tx } from "./i18n/copy.ts";
@@ -41,6 +41,8 @@ export default function App() {
   const design = useLab((s) => s.design);
   const modal = useLab((s) => s.modal);
   const setModal = useLab((s) => s.setModal);
+  const toast = useLab((s) => s.toast);
+  const [hintOn, setHintOn] = useState(true);
 
   useEffect(() => {
     applyTheme(theme);
@@ -53,13 +55,50 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    const sync = () => {
+    const hash = location.hash.startsWith("#d=") ? location.hash.slice(3) : "";
+    if (hash) {
+      try {
+        const json = decodeURIComponent(escape(atob(hash.replace(/-/g, "+").replace(/_/g, "/"))));
+        const design = JSON.parse(json);
+        if (design?.bottle && design?.cap) useLab.setState({ design });
+      } catch {
+        // A shared link that cannot be read stays on the current design.
+      }
+    }
+    if (!history.state || !(history.state as { lab?: number }).lab) history.pushState({ lab: 1 }, "");
+    const onPop = () => {
       const value = new URLSearchParams(location.search).get("voice");
       useLab.getState().applyVoiceParam(value);
+      const lab = useLab.getState();
+      if (lab.modal) lab.setModal(null);
+      else if (lab.present) lab.setPresent(false);
+      else if (lab.palette || lab.help) {
+        lab.setPalette(false);
+        lab.setHelp(false);
+      } else if (lab.solo || lab.aimed) lab.showFull();
+      else if (lab.stage !== "bottle") lab.setStage("bottle");
+      else if (lab.mode !== "assemble" || lab.explode > 0.02) lab.setMode("assemble");
+      history.pushState({ lab: 1 }, "");
     };
-    window.addEventListener("popstate", sync);
-    return () => window.removeEventListener("popstate", sync);
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
   }, []);
+
+  useEffect(() => {
+    const fade = () => setHintOn(false);
+    window.addEventListener("pointerdown", fade, { once: true });
+    window.addEventListener("wheel", fade, { once: true });
+    return () => {
+      window.removeEventListener("pointerdown", fade);
+      window.removeEventListener("wheel", fade);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!toast) return undefined;
+    const timer = window.setTimeout(() => useLab.setState({ toast: "" }), 1600);
+    return () => window.clearTimeout(timer);
+  }, [toast]);
 
   useEffect(() => () => stopSpeaking(), [voice]);
 
@@ -82,6 +121,10 @@ export default function App() {
         }
         if (modal) {
           setModal(null);
+          return;
+        }
+        if (mode === "compare") {
+          setMode("assemble");
           return;
         }
         if (!typing) showFull();
@@ -126,7 +169,7 @@ export default function App() {
         <TopBar />
         <Library />
         <div className="stage-slot">
-          <p className="hint-strip" dir={lang === "he" ? "rtl" : "ltr"}>
+          <p className={hintOn ? "hint-strip" : "hint-strip is-faded"} dir={lang === "he" ? "rtl" : "ltr"}>
             <b>{voice === 1 ? t.look1 : voice === 2 ? t.look2 : t.look3}</b>
             <span>·</span>
             {t.hintDrag}
@@ -145,12 +188,17 @@ export default function App() {
             <div className="present-bar" dir={lang === "he" ? "rtl" : "ltr"}>
               <strong>{design.label.text}</strong>
               <span>PERFUME LAB</span>
-              <button type="button" onClick={() => requestShot((url) => {
-                const link = document.createElement("a");
-                link.href = url;
-                link.download = "perfume-lab.png";
-                link.click();
-              })}>{t.export}</button>
+              <button type="button" onClick={() => {
+                useLab.setState({ exporting: true });
+                requestShot((url) => {
+                  useLab.setState({ exporting: false });
+                  const link = document.createElement("a");
+                  link.href = url;
+                  const day = new Date().toISOString().slice(0, 10);
+                  link.download = `${design.label.text || "OUD"}_${day}.png`;
+                  link.click();
+                });
+              }}>{t.export}</button>
               <button type="button" onClick={() => setPresent(false)}>{t.presentExit}</button>
             </div>
           )}
@@ -163,7 +211,8 @@ export default function App() {
           <ChatPanel />
         </div>
       </div>
-      {hovered && (
+      {toast && <div className="toast">{toast}</div>}
+      {hovered && !present && (
         <div className="tip" style={{ left: hovered.x, top: hovered.y }}>
           {partLabel[lang][hovered.part]}
         </div>

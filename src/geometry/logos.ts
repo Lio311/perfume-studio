@@ -267,29 +267,22 @@ export function drawLogo(spec: Pick<LogoSpec, "mark" | "font" | "frame">, text: 
   ctx.textBaseline = "middle";
   ctx.direction = /[\u0590-\u05FF]/.test(word) ? "rtl" : "ltr";
 
-  // A wide plaque must keep the word's own aspect. A square texture stretched
-  // across that plaque turned the letters into a black smear.
-  if (w > h * 1.35) {
-    const inset = Math.max(3, h * 0.1);
-    ctx.globalAlpha = 0.7;
-    ctx.lineWidth = Math.max(2, h * 0.035);
-    ctx.strokeRect(inset, inset, w - inset * 2, h - inset * 2);
-    ctx.globalAlpha = 1;
-    fitWord(ctx, word, family, h * 0.62, w - inset * 4);
-    ctx.fillText(word, w / 2, h / 2);
-    return canvas;
-  }
-
-  drawFrame(ctx, spec.frame, w, ink);
-  drawMark(ctx, spec.mark, spec.font, text, w, ink);
-  ctx.fillStyle = plate;
-  ctx.fillRect(0, h * 0.62, w, h * 0.38);
+  // Draw the mark in a square so a wide label cannot squash a diamond into a bracket.
+  const side = Math.min(w, h);
+  const ox = (w - side) / 2;
+  const oy = Math.max(0, (h - side) * 0.04);
+  ctx.save();
+  ctx.translate(ox, oy);
+  drawFrame(ctx, spec.frame, side, ink);
+  drawMark(ctx, spec.mark, spec.font, text, side, ink);
+  ctx.restore();
+  if (spec.mark === "word" || spec.mark === "horizon") return canvas;
   ctx.fillStyle = ink;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.direction = /[\u0590-\u05FF]/.test(word) ? "rtl" : "ltr";
-  fitWord(ctx, word, family, h * (word.length > 6 ? 0.16 : 0.22), w * 0.84);
-  ctx.fillText(word, w / 2, h * 0.8);
+  fitWord(ctx, word, family, side * (word.length > 8 ? 0.12 : 0.16), side * 0.78);
+  ctx.fillText(word, w / 2, Math.min(h - side * 0.08, oy + side * 0.86));
   return canvas;
 }
 

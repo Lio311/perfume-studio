@@ -179,10 +179,65 @@ export function FinishMaterial({
       attenuationDistance={clear ? 160 : finish === "tinted" ? 22 : 36}
       envMapIntensity={metal ? 1.65 : glassLike ? 1.7 : finish === "matteBlack" ? 0.28 : 0.7}
       specularIntensity={glassLike || metal ? 1 : 0.3}
-      transparent
+      transparent={glassLike}
       opacity={glassLike ? (clear ? 0.14 : finish === "frosted" ? 0.45 : 0.32) : 1}
       depthWrite={!glassLike}
       side={THREE.FrontSide}
+    />
+  );
+}
+
+const JUICE_VERT = `
+  varying vec3 vNormal;
+  varying vec3 vWorld;
+  varying float vY;
+  void main() {
+    vec4 world = modelMatrix * vec4(position, 1.0);
+    vWorld = world.xyz;
+    vY = position.y;
+    vNormal = normalize(mat3(modelMatrix) * normal);
+    gl_Position = projectionMatrix * viewMatrix * world;
+  }
+`;
+
+const JUICE_FRAG = `
+  varying vec3 vNormal;
+  varying vec3 vWorld;
+  varying float vY;
+  uniform vec3 uColor;
+  uniform float uFade;
+  uniform float uTop;
+  void main() {
+    vec3 N = normalize(vNormal);
+    vec3 V = normalize(cameraPosition - vWorld);
+    float ndv = max(dot(N, V), 0.0);
+    float fres = pow(1.0 - ndv, 1.8);
+    float meniscus = smoothstep(uTop - 3.2, uTop - 0.4, vY) * (1.0 - smoothstep(uTop - 0.2, uTop + 1.4, vY));
+    vec3 deep = uColor * vec3(0.55, 0.42, 0.32);
+    vec3 color = mix(deep, uColor, 0.45 + ndv * 0.55);
+    color = mix(color, min(uColor * 1.35, vec3(1.0)), meniscus * 0.55);
+    float alpha = mix(0.62, 0.22, fres);
+    alpha = mix(alpha, 0.16, meniscus * 0.7);
+    gl_FragColor = vec4(color, clamp(alpha, 0.12, 0.68) * uFade);
+  }
+`;
+
+export function JuiceMaterial({ color, top }: { color: string; top: number }) {
+  const uniforms = useMemo(
+    () => ({ uColor: { value: new THREE.Color(color) }, uFade: { value: 1 }, uTop: { value: top } }),
+    [color, top],
+  );
+  return (
+    <shaderMaterial
+      transparent
+      depthWrite
+      side={THREE.FrontSide}
+      polygonOffset
+      polygonOffsetFactor={1}
+      polygonOffsetUnits={1}
+      uniforms={uniforms}
+      vertexShader={JUICE_VERT}
+      fragmentShader={JUICE_FRAG}
     />
   );
 }

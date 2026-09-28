@@ -11,7 +11,7 @@ import { logoTexture } from "../geometry/logos.ts";
 import { useLab } from "../store/labStore.ts";
 import { latheGeometry, latheProfile } from "../import/lathe.ts";
 import { clickPart, doubleClickPart, markPartPointer, swapFlashOn } from "./focusClick.ts";
-import { FinishMaterial } from "./materials.tsx";
+import { FinishMaterial, JuiceMaterial } from "./materials.tsx";
 import { Callouts } from "./Callouts.tsx";
 import { explodeLocal } from "./explodeCurve.ts";
 import { PartGuides, posedFrame, turntableHome } from "./Guides.tsx";
@@ -89,6 +89,8 @@ function PartShell({
       tx = park[0];
       ty = park[1];
       tz = park[2];
+    } else if (state.stage === "box" && part !== "box") {
+      ty += 8;
     }
     const yaw = isolated ? 0 : local * 0.14 * (index % 2 === 0 ? 1 : -1);
     group.rotation.y = THREE.MathUtils.damp(group.rotation.y, yaw, 5, dt);
@@ -179,7 +181,7 @@ function PartShell({
   );
 }
 
-function GoldRim({ part, stamp }: { part: PartKey; stamp: string }) {
+function GoldRim({ part, stamp, hull = true }: { part: PartKey; stamp: string; hull?: boolean }) {
   const ref = useRef<THREE.Group>(null);
   const built = useRef("");
   useLayoutEffect(() => {
@@ -198,18 +200,21 @@ function GoldRim({ part, stamp }: { part: PartKey; stamp: string }) {
         material?.dispose();
       }
       group.clear();
-      const hull = new THREE.Mesh(
-        mesh.geometry,
-        new THREE.MeshBasicMaterial({ color: "#C4A15A", side: THREE.BackSide, toneMapped: false, transparent: true, opacity: 0.9 }),
-      );
-      hull.scale.setScalar(1.006);
-      hull.userData.keepSolid = true;
+      if (hull) {
+        const shell = new THREE.Mesh(
+          mesh.geometry,
+          new THREE.MeshBasicMaterial({ color: "#C4A15A", side: THREE.BackSide, toneMapped: false, transparent: true, opacity: 0.9 }),
+        );
+        shell.scale.setScalar(1.006);
+        shell.userData.keepSolid = true;
+        group.add(shell);
+      }
       const edges = new THREE.LineSegments(
-        new THREE.EdgesGeometry(mesh.geometry, 26),
-        new THREE.LineBasicMaterial({ color: "#D6B26A", toneMapped: false }),
+        new THREE.EdgesGeometry(mesh.geometry, 42),
+        new THREE.LineBasicMaterial({ color: "#D6B26A", transparent: true, opacity: hull ? 1 : 0.85, toneMapped: false }),
       );
       edges.userData.keepSolid = true;
-      group.add(hull, edges);
+      group.add(edges);
     }
     const state = useLab.getState();
     group.visible = (state.aimed && state.selected === part) || swapFlashOn(part);
@@ -300,7 +305,9 @@ function Shadow({ fitWidth }: { fitWidth: number }) {
 
 function BottlePart() {
   const design = useLab((s) => s.design);
-  const onStage = useLab((s) => s.stage) !== "box";
+  const stage = useLab((s) => s.stage);
+  const boxOpen = useLab((s) => s.boxOpen);
+  const onStage = stage !== "box" || boxOpen;
   const spec = bottleById(design.bottle.variantId);
   const fit = computeFit(design, false);
   const geo = useDisposable(
@@ -322,7 +329,7 @@ function BottlePart() {
     <PartShell part="bottle" index={5} home={[0, 0, 0]} explode={[0, 0, 0]} visible={design.bottle.visible && onStage} variantKey={spec.id}>
       <mesh geometry={geo} renderOrder={2}>
         <FinishMaterial finish={design.bottle.finish} color={design.bottle.color} flat={spec.faceted} glass />
-        <GoldRim part="bottle" stamp={spec.id + design.bottle.finish} />
+        <GoldRim part="bottle" stamp={spec.id + design.bottle.finish} hull={!isGlass(design.bottle.finish)} />
       </mesh>
     </PartShell>
   );
@@ -330,7 +337,9 @@ function BottlePart() {
 
 function LiquidPart() {
   const design = useLab((s) => s.design);
-  const onStage = useLab((s) => s.stage) !== "box";
+  const stage = useLab((s) => s.stage);
+  const boxOpen = useLab((s) => s.boxOpen);
+  const onStage = stage !== "box" || boxOpen;
   const spec = bottleById(design.bottle.variantId);
   const fit = computeFit(design, false);
   const surface = Math.min(
@@ -349,7 +358,7 @@ function LiquidPart() {
         neckR: Math.max(3, fit.neckR - 1.2),
         profile: spec.profile,
         shoulder: spec.shoulder,
-        inset: 1.5,
+        inset: 2.4,
         closedTop: true,
         limitY: surface,
       }),
@@ -358,27 +367,17 @@ function LiquidPart() {
   return (
     <PartShell part="liquid" index={5} home={[0, 0, 0]} explode={[0, 0, 0]} visible={design.liquid.visible && design.bottle.visible && onStage} variantKey={spec.id + design.liquid.color + surface.toFixed(1)}>
       <mesh geometry={geo} renderOrder={1}>
-        <meshStandardMaterial
-          color={design.liquid.color}
-          emissive={design.liquid.color}
-          emissiveIntensity={0.42}
-          roughness={0.22}
-          metalness={0.02}
-          transparent
-          depthWrite
-          polygonOffset
-          polygonOffsetFactor={1}
-          polygonOffsetUnits={1}
-        />
+        <JuiceMaterial color={design.liquid.color} top={surface} />
       </mesh>
-      <pointLight position={[0, Math.max(8, surface * 0.55), 0]} color={design.liquid.color} intensity={3.2} distance={70} decay={2} />
     </PartShell>
   );
 }
 
 function CapPart() {
   const design = useLab((s) => s.design);
-  const onStage = useLab((s) => s.stage) !== "box";
+  const stage = useLab((s) => s.stage);
+  const boxOpen = useLab((s) => s.boxOpen);
+  const onStage = stage !== "box" || boxOpen;
   const spec = capById(design.cap.variantId);
   const fit = computeFit(design, false);
   const radii = latheProfile(spec.id)?.radii;
@@ -391,7 +390,7 @@ function CapPart() {
   const glass = isGlass(design.cap.finish);
   return (
     <PartShell part="cap" index={1} home={[0, fit.capBottom, 0]} explode={fit.explode.cap} visible={design.cap.visible && onStage} variantKey={spec.id}>
-      <mesh geometry={geo}>
+      <mesh geometry={geo} renderOrder={6}>
         <FinishMaterial finish={design.cap.finish} color={design.cap.color} flat={spec.faceted} glass={glass} />
         <GoldRim part="cap" stamp={`${spec.id}:${fit.capW.toFixed(1)}:${fit.capH.toFixed(1)}`} />
       </mesh>
@@ -399,9 +398,20 @@ function CapPart() {
   );
 }
 
+function HitProxy({ radius, height }: { radius: number; height: number }) {
+  return (
+    <mesh position={[0, height / 2, 0]}>
+      <cylinderGeometry args={[Math.max(8, radius), Math.max(8, radius), Math.max(14, height), 12]} />
+      <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+    </mesh>
+  );
+}
+
 function CollarPart() {
   const design = useLab((s) => s.design);
-  const onStage = useLab((s) => s.stage) !== "box";
+  const stage = useLab((s) => s.stage);
+  const boxOpen = useLab((s) => s.boxOpen);
+  const onStage = stage !== "box" || boxOpen;
   const spec = collarById(design.collar.variantId);
   const fit = computeFit(design, false);
   const radii = latheProfile(spec.id)?.radii;
@@ -413,16 +423,18 @@ function CollarPart() {
   if (radii && radii.length > 3) {
     return (
       <PartShell part="collar" index={3} home={[0, fit.collarBottom, 0]} explode={fit.explode.collar} visible={design.collar.visible && onStage} variantKey={spec.id + design.bottle.neck}>
-        <mesh geometry={lathe}>
+        <mesh geometry={lathe} renderOrder={4}>
           <FinishMaterial finish={design.collar.finish} color={design.collar.color} />
           <GoldRim part="collar" stamp={`${spec.id}:lathe`} />
         </mesh>
+        <HitProxy radius={fit.collarOuter + 3} height={fit.collarHeight + 6} />
       </PartShell>
     );
   }
   return (
     <PartShell part="collar" index={3} home={[0, fit.collarBottom, 0]} explode={fit.explode.collar} visible={design.collar.visible && onStage} variantKey={spec.id + design.bottle.neck}>
-      <mesh position={[0, y, 0]}>
+      <HitProxy radius={fit.collarOuter + 3} height={fit.collarHeight + 6} />
+      <mesh position={[0, y, 0]} renderOrder={4}>
         <cylinderGeometry args={[fit.collarOuter, fit.collarOuter - spec.flareMm * 0.15, fit.collarHeight, spec.knurl ? 48 : 96, 1]} />
         <FinishMaterial finish={design.collar.finish} color={design.collar.color} flat={spec.knurl} />
         <GoldRim part="collar" stamp={spec.id + design.bottle.neck} />
@@ -445,7 +457,9 @@ function CollarPart() {
 
 function PumpPart() {
   const design = useLab((s) => s.design);
-  const onStage = useLab((s) => s.stage) !== "box";
+  const stage = useLab((s) => s.stage);
+  const boxOpen = useLab((s) => s.boxOpen);
+  const onStage = stage !== "box" || boxOpen;
   const spec = pumpById(design.pump.variantId);
   const exploded = useLab((s) => s.explode) > 0.45;
   const fit = computeFit(design, exploded || !design.cap.visible);
@@ -466,10 +480,11 @@ function PumpPart() {
   if (radii && radii.length > 3) {
     return (
       <PartShell part="pump" index={2} home={[0, fit.pumpBase, 0]} explode={fit.explode.pump} visible={design.pump.visible && onStage} variantKey={spec.id}>
-        <mesh geometry={lathe}>
+        <mesh geometry={lathe} renderOrder={5}>
           <FinishMaterial finish={design.pump.finish} color={design.pump.color} />
           <GoldRim part="pump" stamp={`${spec.id}:lathe`} />
         </mesh>
+        <HitProxy radius={Math.max(8, fit.actuatorR * 2)} height={fit.actuatorH + 10} />
       </PartShell>
     );
   }
@@ -478,6 +493,7 @@ function PumpPart() {
       <mesh geometry={tube} position={[0, -1, 0]}>
         <FinishMaterial finish={design.pump.finish} color={design.pump.color} />
       </mesh>
+      <HitProxy radius={Math.max(8, fit.actuatorR * 2.2)} height={fit.actuatorH + 12} />
       <Actuator style={spec.style} height={fit.actuatorH} radius={fit.actuatorR} nozzle={fit.nozzle} finish={design.pump.finish} color={design.pump.color} />
     </PartShell>
   );
@@ -536,7 +552,9 @@ function Actuator({
 
 function LabelPart() {
   const design = useLab((s) => s.design);
-  const onStage = useLab((s) => s.stage) !== "box";
+  const stage = useLab((s) => s.stage);
+  const boxOpen = useLab((s) => s.boxOpen);
+  const onStage = stage !== "box" || boxOpen;
   const bottle = bottleById(design.bottle.variantId);
   const spec = logoById(design.label.variantId);
   const fit = computeFit(design, false);
@@ -612,7 +630,8 @@ function BoxPart() {
   const stage = useLab((s) => s.stage);
   const spec = boxById(design.box.variantId);
   const fit = computeFit(design, false);
-  const home: [number, number, number] = stage === "box" ? [0, 0, 0] : [fit.boxX, 0, fit.boxZ];
+  const beside = fit.bottleW * 0.5 + fit.boxW * 0.5 + 32;
+  const home: [number, number, number] = stage === "box" ? [0, 0, 0] : stage === "together" ? [-beside, 0, 6] : [fit.boxX, 0, fit.boxZ];
   const burst: [number, number, number] = stage === "box" ? [0, 0, 0] : fit.explode.box;
   const shown = stage === "box" || (stage === "together" && design.box.visible);
   return (
@@ -644,7 +663,7 @@ function BrandPlate({ w, y, z }: { w: number; y: number; z: number }) {
   );
 }
 
-const LINING = "#e7e4df";
+const LINING = "#d7d0c6";
 
 function facePanel(width: number, height: number, thickness: number, radius: number): THREE.BufferGeometry {
   const shape = new THREE.Shape();
@@ -758,7 +777,7 @@ function BottleTray({ w, d, holeW, holeD, y }: { w: number; d: number; holeW: nu
     const ry = Math.min(hd * 0.78, Math.max(8, holeD / 2));
     hole.absellipse(0, 0, rx, ry, 0, Math.PI * 2, true, 0);
     shape.holes.push(hole);
-    const extruded = new THREE.ExtrudeGeometry(shape, { depth: 5.2, bevelEnabled: true, bevelThickness: 0.35, bevelSize: 0.45, bevelSegments: 2, curveSegments: 48 });
+    const extruded = new THREE.ExtrudeGeometry(shape, { depth: 16, bevelEnabled: true, bevelThickness: 0.4, bevelSize: 0.55, bevelSegments: 2, curveSegments: 48 });
     extruded.rotateX(-Math.PI / 2);
     extruded.computeVertexNormals();
     return extruded;

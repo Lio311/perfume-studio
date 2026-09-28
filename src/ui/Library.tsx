@@ -86,10 +86,14 @@ export function Library() {
     <aside className={`panel library ${open ? "is-open" : ""}`} dir={lang === "he" ? "rtl" : "ltr"}>
       <div className="panel-head">
         <h2>{t.library}</h2>
+        <button type="button" className="library-close" onClick={() => useLab.getState().setLibraryOpen(false)} aria-label={t.close}>×</button>
         <span className="count">{tab === "pending" ? pending.length + suppliers.reduce((sum, pack) => sum + pack.parts.length, 0) : tab === "liquid" ? LIQUID_PALETTE.length : items.length}</span>
         <button type="button" className="text-btn" onClick={() => randomize()}>{t.random}</button>
       </div>
       <input className="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t.search} />
+      {query.trim() && tab !== "liquid" && tab !== "pending" && (
+        <p className="hint">{lang === "he" ? `${items.length} תואמים ל-${query.trim()}` : `${items.length} match ${query.trim()}`}</p>
+      )}
       <div className="tabs" role="tablist">
         {TABS.map((key) => (
           <button key={key} type="button" role="tab" data-part={key} aria-selected={tab === key} className={tab === key ? "is-on" : ""} onClick={() => setTab(key)}>

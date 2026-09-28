@@ -63,6 +63,23 @@ export function createDefaultDesign(): Design {
   };
 }
 
+/** A square overcap on a round neck clips the collar. Swap in a cylinder and keep the finish. */
+function seatCap(design: Design): void {
+  const bottle = bottleById(design.bottle.variantId);
+  const cap = capById(design.cap.variantId);
+  const round = bottle.section === "circle" || bottle.section === "oval";
+  const block = cap.section === "rect" || cap.section === "squircle" || cap.section === "diamond";
+  if (!round || !block) return;
+  const finish = design.cap.finish;
+  const color = design.cap.color;
+  const next = capById("cap-cyl-32");
+  design.cap.variantId = next.id;
+  design.cap.heightMm = next.heightMm;
+  design.cap.widthMm = next.widthMm;
+  design.cap.finish = finish;
+  design.cap.color = color;
+}
+
 function paintImported(design: Design, kind: VariantPart, id: string): void {
   const extra = importedMeta(id);
   if (!extra) return;
@@ -98,6 +115,7 @@ export function applyVariant(design: Design, kind: VariantPart, id: string): voi
     design.bottle.widthMm = spec.widthMm;
     design.bottle.depthMm = spec.depthMm;
     paintImported(design, kind, spec.id);
+    seatCap(design);
     return;
   }
   if (kind === "cap") {

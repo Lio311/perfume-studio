@@ -83,7 +83,8 @@ export function computeFit(design: Design, exploded = false): Fit {
     square: [0.48, 0.48],
     slim: [0.78, 0.16],
   };
-  const [fw, fh] = fractions[logo.plate];
+  const squareMark = logo.mark === "diamond" || logo.mark === "seal" || logo.mark === "crest" || logo.plate === "diamond" || logo.plate === "circle" || logo.plate === "square";
+  const [fw, fh] = squareMark ? [0.5, 0.56] : fractions[logo.plate];
   const labelY = Math.max(12, shoulderY * 0.46);
   const face = bottleRadii(labelY, bottleH, bottleW, bottleD, bottle.profile, bottle.shoulder, neckR);
   const labelW = Math.min(
@@ -94,7 +95,7 @@ export function computeFit(design: Design, exploded = false): Fit {
     Math.max(8, shoulderY * 0.72),
     logo.heightMm ? logo.heightMm : shoulderY * fh * design.label.scale,
   );
-  const labelZ = face.rz + 2.4;
+  const labelZ = face.rz + 0.45;
 
   const contentH = bottleH + Math.max(0, capBottom + capH - bottleH);
   const contentW = Math.max(bottleW, capW);
@@ -119,16 +120,17 @@ export function computeFit(design: Design, exploded = false): Fit {
     box: [boxX, boxH * 0.45, boxZ],
   };
 
-  const gap = (height: number) => Math.max(6, height * 0.35);
-  const collarLift = gap(collarHeight);
-  const pumpLift = collarLift + gap(Math.max(8, actuatorH));
-  const capLift = pumpLift + gap(capH);
+  // Each part clears the one it covers: gap plus the height of the part inside it.
+  const sep = (height: number) => Math.max(18, height * 0.42);
+  const collarLift = sep(collarHeight);
+  const pumpLift = collarLift + sep(Math.max(12, fullActuator * 0.5));
+  const capLift = pumpLift + fullActuator + sep(Math.min(capH, 40));
   const explode: Record<PartKey, [number, number, number]> = {
-    box: [-10, 0, -16],
+    box: [-18, 0, -28],
     cap: [0, capLift, 0],
     pump: [0, pumpLift, 0],
     collar: [0, collarLift, 0],
-    label: [0, 4, gap(labelH)],
+    label: [0, 0, Math.max(28, labelH * 0.85)],
     bottle: [0, 0, 0],
     liquid: [0, 0, 0],
   };

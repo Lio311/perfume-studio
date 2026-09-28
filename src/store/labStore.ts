@@ -85,13 +85,15 @@ interface LabState {
   aimed: boolean;
   solo: PartKey | null;
   present: boolean;
+  exporting: boolean;
   palette: boolean;
   help: boolean;
   boxOpen: boolean;
   select: (part: PartKey | null) => void;
   hover: (part: PartKey | null, x?: number, y?: number) => void;
   patch: (part: PartKey, partial: Record<string, unknown>) => void;
-  applyCommands: (commands: LabCommand[]) => void;
+  applyCommands: (commands: LabCommand[], options?: { quiet?: boolean }) => void;
+  toast: string;
   cycle: (dir: number, part?: VariantPart) => void;
   randomize: () => void;
   setMode: (mode: LabMode) => void;
@@ -269,14 +271,53 @@ function applyOne(design: Design, command: LabCommand, ui: { explode: number; mo
   }
 }
 
+let explodeRaf = 0;
+
+function cancelExplodeTween() {
+  if (explodeRaf) cancelAnimationFrame(explodeRaf);
+  explodeRaf = 0;
+}
+
+function writeExplode(amount: number, holdAssemble: boolean) {
+  useLab.setState((state) => {
+    const explode = clamp(amount, 0, 1);
+    const mode: LabMode =
+      holdAssemble && state.mode === "assemble"
+        ? "assemble"
+        : state.mode === "compare" || state.mode === "dimensions"
+          ? state.mode
+          : explode < 0.02
+            ? "assemble"
+            : "explode";
+    return { explode, mode };
+  });
+}
+
+function tweenExplode(to: number, ms: number) {
+  cancelExplodeTween();
+  const from = useLab.getState().explode;
+  const holdAssemble = useLab.getState().mode === "assemble";
+  const start = performance.now();
+  const step = (now: number) => {
+    const t = Math.min(1, (now - start) / ms);
+    const eased = 1 - (1 - t) ** 3;
+    writeExplode(from + (to - from) * eased, holdAssemble);
+    if (t < 1) explodeRaf = requestAnimationFrame(step);
+    else explodeRaf = 0;
+  };
+  explodeRaf = requestAnimationFrame(step);
+}
+
 export const useLab = create<LabState>()(
   persist(
     (set, get) => ({
       design: createDefaultDesign(),
       selected: null,
       hovered: null,
-      mode: "explode",
-      explode: 0.25,
+      mode: "assemble",
+      explode: 0,
+      toast: "",
+      exporting: false,
       quality: "high",
       viewPreset: "home",
       past: [],
@@ -319,7 +360,7 @@ export const useLab = create<LabState>()(
           }
           return state.gesturing ? { design: next } : { design: next, past: [...state.past, structuredClone(state.design)].slice(-30), future: [] };
         }),
-      applyCommands: (commands) =>
+      applyCommands: (commands, options) =>
         set((state) => {
           const design = structuredClone(state.design);
           const ui = {
@@ -331,13 +372,20 @@ export const useLab = create<LabState>()(
             focusToken: state.focusToken,
           };
           for (const command of commands) applyOne(design, command, ui);
+          const quiet = options?.quiet;
+          const changed = JSON.stringify(design) !== JSON.stringify(state.design) || ui.explode !== state.explode || ui.mode !== state.mode;
           return {
             design,
-            ...ui,
+            explode: ui.explode,
+            mode: ui.mode,
+            autoRotate: ui.autoRotate,
+            viewToken: ui.viewToken,
+            selected: ui.selected,
+            focusToken: quiet ? state.focusToken : ui.focusToken,
             sideOpen: ui.selected ? true : state.sideOpen,
-            aimed: ui.focusToken !== state.focusToken ? true : state.aimed,
-            past: [...state.past, structuredClone(state.design)].slice(-30),
-            future: [],
+            aimed: quiet ? state.aimed : ui.focusToken !== state.focusToken ? true : state.aimed,
+            past: changed ? [...state.past, structuredClone(state.design)].slice(-30) : state.past,
+            future: changed ? [] : state.future,
           };
         }),
       cycle: (dir, part) => {
@@ -354,30 +402,38 @@ export const useLab = create<LabState>()(
         get().applyCommands([{ type: "cycle", part: kind, dir: dir > 0 ? 1 : -1 }, { type: "select", part: kind }]);
       },
       randomize: () => get().applyCommands([{ type: "random" }]),
-      setMode: (mode) =>
-        set(() => {
-          if (mode === "assemble") return { mode, explode: 0 };
-          return { mode };
-        }),
-      setExplode: (amount) =>
-        set((state) => {
-          const explode = clamp(amount, 0, 1);
-          const mode: LabMode =
-            state.mode === "compare" || state.mode === "dimensions" ? state.mode : explode < 0.02 ? "assemble" : "explode";
-          return { explode, mode };
-        }),
+      setMode: (mode) => {
+        if (mode === "assemble") {
+          set({ mode: "assemble" });
+          tweenExplode(0, 450);
+          return;
+        }
+        if (mode === "explode") {
+          set({ mode: "explode" });
+          const current = get().explode;
+          tweenExplode(current < 0.5 ? 0.6 : Math.max(current, 0.6), 650);
+          return;
+        }
+        set({ mode });
+      },
+      setExplode: (amount) => {
+        cancelExplodeTween();
+        writeExplode(clamp(amount, 0, 1), false);
+      },
       setView: (viewPreset) => set((state) => ({ viewPreset, viewToken: state.viewToken + 1 })),
       undo: () =>
         set((state) => {
           const previous = state.past[state.past.length - 1];
-          if (!previous) return state;
-          return { design: structuredClone(previous), past: state.past.slice(0, -1), future: [structuredClone(state.design), ...state.future].slice(0, 30) };
+          const note = state.lang === "he" ? "בוטל" : "Undone";
+          if (!previous) return { toast: state.lang === "he" ? "אין מה לבטל" : "Nothing to undo" };
+          return { design: structuredClone(previous), past: state.past.slice(0, -1), future: [structuredClone(state.design), ...state.future].slice(0, 30), toast: note };
         }),
       redo: () =>
         set((state) => {
           const next = state.future[0];
-          if (!next) return state;
-          return { design: structuredClone(next), future: state.future.slice(1), past: [...state.past, structuredClone(state.design)].slice(-30) };
+          const note = state.lang === "he" ? "חזר" : "Redone";
+          if (!next) return { toast: state.lang === "he" ? "אין מה לחזור" : "Nothing to redo" };
+          return { design: structuredClone(next), future: state.future.slice(1), past: [...state.past, structuredClone(state.design)].slice(-30), toast: note };
         }),
       beginGesture: () =>
         set((state) => (state.gesturing ? state : { gesturing: true, past: [...state.past, structuredClone(state.design)].slice(-30), future: [] })),

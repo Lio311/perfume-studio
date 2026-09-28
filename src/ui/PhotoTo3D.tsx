@@ -198,9 +198,14 @@ export function PhotoTo3D() {
                 {NECKS.map((item) => <option key={item} value={item}>{item}</option>)}
               </select>
             </label>
-            <label>{t.height}<input type="number" value={height} min={8} max={80} onChange={(event) => setHeight(Number(event.target.value) || 8)} /></label>
-            <label>{t.diameter}<input type="number" value={diameter} min={10} max={60} onChange={(event) => setDiameter(Number(event.target.value) || 10)} /></label>
-            {shape && <p className="hint" dir="ltr">{shape.color}</p>}
+            <label>{t.height} ({lang === "he" ? "מ״מ" : "mm"})<input type="number" value={height} min={8} max={80} onChange={(event) => setHeight(Number(event.target.value) || 8)} /></label>
+            <label>{t.diameter} ({lang === "he" ? "מ״מ" : "mm"})<input type="number" value={diameter} min={10} max={60} onChange={(event) => setDiameter(Number(event.target.value) || 10)} /></label>
+            {shape && (
+              <p className="hint color-swatch" dir="ltr">
+                <i style={{ background: shape.color }} />
+                {shape.color}
+              </p>
+            )}
             {busy && <p className="hint">…</p>}
             <button type="button" className="spec-export" data-seat-photo disabled={!shape} onClick={commit}>{t.placeOnBottle}</button>
           </div>

@@ -1,4 +1,6 @@
 import { interpretCommand } from "../parser/interpreter.ts";
+import { markSwap } from "../scene/focusClick.ts";
+import type { PartKey } from "../model/types.ts";
 import { useLab } from "../store/labStore.ts";
 import { speak } from "./speech.ts";
 
@@ -18,7 +20,10 @@ export async function submitUtterance(utterance: string, options: { speak: boole
     collarId: design.collar.variantId,
     boxId: design.box.variantId,
   });
-  applyCommands(result.commands);
+  applyCommands(result.commands, { quiet: true });
+  const touched = result.commands.find((command) => "part" in command && command.part);
+  const part = touched && "part" in touched ? (touched.part as PartKey) : null;
+  if (part) markSwap(part);
   pushChat({ id: `l-${Date.now()}`, role: "lab", he: result.reply.he, en: result.reply.en, snapshot });
   if (!options.speak) return;
   const hebrew = options.hebrew || lang === "he";

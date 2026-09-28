@@ -21,7 +21,6 @@ export function Dock() {
   const voice = useLab((s) => s.voice);
   const setExplode = useLab((s) => s.setExplode);
   const setView = useLab((s) => s.setView);
-  const aimed = useLab((s) => s.aimed);
   const selected = useLab((s) => s.selected);
   const solo = useLab((s) => s.solo);
   const present = useLab((s) => s.present);
@@ -37,17 +36,21 @@ export function Dock() {
   const resetView = useLab((s) => s.resetView);
   return (
     <div className="dock" dir={lang === "he" ? "rtl" : "ltr"}>
-      <span className="dock-label">{t.explode}</span>
-      <bdi className="dock-pct" dir="ltr">{Math.round(explode * 100)}%</bdi>
-      <input
-        type="range"
-        min={0}
-        max={1}
-        step={0.01}
-        value={explode}
-        aria-label={t.explode}
-        onChange={(event) => setExplode(Number(event.target.value))}
-      />
+      {stage !== "box" && (
+        <>
+          <span className="dock-label">{t.explode}</span>
+          <bdi className="dock-pct" dir="ltr">{Math.round(explode * 100)}%</bdi>
+          <input
+            type="range"
+            min={0}
+            max={1}
+            step={0.01}
+            value={explode}
+            aria-label={t.explode}
+            onChange={(event) => setExplode(Number(event.target.value))}
+          />
+        </>
+      )}
       {mode === "dimensions" && (
         <div className="presets" dir="ltr">
           {(["mm", "cm", "in"] as const).map((unit) => (
@@ -69,7 +72,7 @@ export function Dock() {
           {t.isolate}
         </button>
       )}
-      {(aimed || solo) && (
+      {solo && (
         <button type="button" data-back onClick={() => showFull()}>
           {t.back}
         </button>
@@ -124,10 +127,12 @@ export function Timeline() {
   const t = tx(lang);
   const explode = useLab((s) => s.explode);
   const setExplode = useLab((s) => s.setExplode);
+  const select = useLab((s) => s.select);
   const solo = useLab((s) => s.solo);
+  const stage = useLab((s) => s.stage);
   const play = useRef(0);
   useEffect(() => () => window.cancelAnimationFrame(play.current), []);
-  if (solo) return null;
+  if (solo || stage === "box") return null;
   function run() {
     const start = performance.now();
     const tick = (now: number) => {
@@ -144,7 +149,7 @@ export function Timeline() {
       <div className="timeline-track" dir="ltr">
         <i style={{ width: `${Math.round(explode * 100)}%` }} />
         {STEPS.map((step) => (
-          <button key={step.part} type="button" style={{ left: `${step.at * 100}%` }} className={explode >= step.at - 0.04 ? "is-on" : ""} onClick={() => setExplode(step.at)}>
+          <button key={step.part} type="button" style={{ left: `${step.at * 100}%` }} className={explode >= step.at - 0.04 ? "is-on" : ""} onClick={() => select(step.part)}>
             {partLabel[lang][step.part]}
           </button>
         ))}

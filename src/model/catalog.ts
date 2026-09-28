@@ -92,10 +92,28 @@ function toEntry(kind: VariantPart) {
   };
 }
 
+const QUERY_ALIASES: Record<string, string[]> = {
+  "זהב": ["gold", "זהב", "gilt"],
+  "gold": ["gold", "זהב", "gilt"],
+  "כסף": ["silver", "כסף"],
+  "silver": ["silver", "כסף"],
+  "כדור": ["ball", "sphere", "כדור", "dome"],
+  "ball": ["ball", "sphere", "כדור"],
+  "עגול": ["round", "circle", "עגול", "cylinder"],
+  "round": ["round", "circle", "עגול"],
+};
+
 export function entryMatches(entry: CatalogEntry, query: string): boolean {
   const q = query.trim().toLowerCase();
   if (!q) return true;
   const tight = q.replace(/\s+/g, "");
+  const fea = /^(?:fea\s*)?(13|15|17|18|20)$/.exec(tight);
+  if (fea) {
+    const n = fea[1];
+    return entry.hay.includes(`fea${n}`) || entry.hay.includes(`fea ${n}`);
+  }
+  const aliases = QUERY_ALIASES[q] ?? QUERY_ALIASES[tight];
+  if (aliases) return aliases.some((word) => entry.hay.includes(word));
   return entry.hay.includes(q) || entry.hay.replace(/\s+/g, "").includes(tight);
 }
 

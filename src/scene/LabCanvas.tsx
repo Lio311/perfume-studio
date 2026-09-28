@@ -57,7 +57,8 @@ function frameSignature(width: number, height: number): string {
   const design = state.design;
   const slot = document.querySelector(".stage-slot")?.getBoundingClientRect();
   return [
-    state.explode.toFixed(3),
+    (Math.round(state.explode * 20) / 20).toFixed(2),
+    state.present ? 1 : 0,
     state.viewPreset,
     state.voice,
     state.theme,
@@ -209,7 +210,9 @@ function CameraRig() {
       framed.y = Math.max(framed.y, 0.72);
       framed.normalize();
     }
-    const pose = poseFor(framed);
+    const present = state.present;
+    const exploded = state.explode > 0.12 && !state.aimed && !state.solo;
+    const pose = poseFor(framed, undefined, present ? 0.58 : exploded ? 0.72 : undefined);
     goalPos.current.copy(pose.position);
     goalTarget.current.copy(pose.target);
     if (pullBack > 1) {
@@ -226,7 +229,7 @@ function CameraRig() {
   };
 
   useLayoutEffect(() => {
-    camera.position.set(120, 150, 640);
+    camera.position.set(220, 340, 1280);
     camera.lookAt(0, 48, 0);
   }, [camera]);
 
@@ -585,7 +588,9 @@ function Stage() {
   const blueprint = useLab((s) => s.blueprint);
   const stage = useLab((s) => s.stage);
   const dark = theme.id === "dark";
-  const showGrid = blueprint || (dark && voice !== 2);
+  const present = useLab((s) => s.present);
+  const exporting = useLab((s) => s.exporting);
+  const showGrid = !present && !exporting && (blueprint || (dark && voice !== 2));
   const grid = !dark
     ? { cell: theme.scene.gridCell, section: theme.scene.gridSection }
     : blueprint

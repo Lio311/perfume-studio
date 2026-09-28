@@ -117,5 +117,11 @@ describe("parser", () => {
     expect(interpretUtterance("FEA 18", ctx).commands).toEqual(
       expect.arrayContaining([expect.objectContaining({ type: "neck", neck: "FEA18" })]),
     );
+    expect(interpretUtterance("שנה לוגו ל-NOIR", ctx).commands).toEqual(
+      expect.arrayContaining([expect.objectContaining({ type: "text", text: "NOIR" })]),
+    );
+    const grown = interpretUtterance('תגדיל את הבקבוק ל-100 מ"ל', ctx).commands;
+    expect(grown.some((command) => command.type === "nudge")).toBe(false);
+    expect(grown).toEqual(expect.arrayContaining([expect.objectContaining({ type: "variant", part: "bottle" })]));
   });
 });

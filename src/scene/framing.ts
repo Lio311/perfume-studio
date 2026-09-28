@@ -50,8 +50,8 @@ export function readStageFrame(canvas: HTMLCanvasElement): StageFrame {
   const stageWidth = slot && slot.width > 80 ? slot.width : width * 0.6;
   const stageHeight = slot && slot.height > 80 ? slot.height : height * 0.76;
   const gutter = gutterFor(stageWidth);
-  const openTop = stageTop + 28;
-  const openHeight = Math.max(120, stageHeight - 28 - 76);
+  const openTop = stageTop + 36;
+  const openHeight = Math.max(120, stageHeight - 36 - 108);
   return { width, height, stageLeft, stageTop, stageWidth, stageHeight, gutter, openTop, openHeight };
 }
 
@@ -77,15 +77,18 @@ export function assemblyBounds(design: Design, explode: number, stage: StageMode
     if (lidOpen) {
       box.max.y += fit.boxH * 0.85;
       box.min.z -= fit.boxD * 0.55;
+      box.expandByPoint(new THREE.Vector3(0, fit.bottleH + 12, 0));
     }
     return box;
   }
   for (const part of PARTS) {
     if (!design[part].visible) continue;
     if (part === "liquid" && !design.bottle.visible) continue;
-    // The carton is a separate product. Framing it would shrink the glass.
-    if (part === "box") continue;
-    expandFrame(box, frameFor(part, fit), explode);
+    if (part === "box" && stage !== "together") continue;
+    const frame = part === "box" && stage === "together"
+      ? { ...frameFor(part, fit), home: [-(fit.bottleW * 0.5 + fit.boxW * 0.5 + 32), 0, 6] as [number, number, number], explode: [0, 0, 0] as [number, number, number] }
+      : frameFor(part, fit);
+    expandFrame(box, frame, explode);
   }
   if (box.isEmpty()) box.set(new THREE.Vector3(-30, 0, -30), new THREE.Vector3(30, 80, 30));
   box.expandByPoint(new THREE.Vector3(0, 0, 0));
@@ -133,15 +136,15 @@ function cornersOf(box: THREE.Box3): THREE.Vector3[] {
   return points;
 }
 
-const FILL = 0.63;
-export const FOCUS_FILL = 0.64;
+const FILL = 0.66;
+export const FOCUS_FILL = 0.6;
 
 export function safeRect(frame: StageFrame): { left: number; right: number; top: number; bottom: number; width: number; height: number } {
-  const gutter = Math.min(frame.gutter, 88) * 0.42;
+  const gutter = Math.min(frame.gutter, 96) * 0.55;
   const left = frame.stageLeft + gutter;
   const right = frame.stageLeft + frame.stageWidth - gutter;
-  const top = frame.openTop + 4;
-  const bottom = frame.openTop + frame.openHeight - 4;
+  const top = frame.openTop + 16;
+  const bottom = frame.openTop + frame.openHeight - 18;
   return { left, right, top, bottom, width: Math.max(80, right - left), height: Math.max(80, bottom - top) };
 }
 
@@ -237,7 +240,7 @@ export function fitPose(
   }
 
   const radius = bounds.getBoundingSphere(new THREE.Sphere()).radius;
-  best = Math.max(best, radius * 1.15);
+  best = Math.max(best, radius * 1.12);
   const position = target.clone().addScaledVector(dir, best);
   return { position, target };
 }

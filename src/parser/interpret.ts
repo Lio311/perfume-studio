@@ -481,8 +481,15 @@ export function interpretUtterance(input: string, ctx: InterpretContext): Interp
   }
 
   const quoted = input.match(/[""«]([^""»]+)[""»]/);
-  if (quoted?.[1] && (uniqueParts.includes("label") || /כיתוב|טקסט|text|label/.test(text))) {
-    commands.push({ type: "text", text: quoted[1].trim() });
+  const spoken = input
+    .replace(/[\u0591-\u05C7]/g, "")
+    .replace(/[׳'"`״-]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  const logoTo = spoken.match(/(?:שנה |תשנה |החלף |change |set )?(?:את )?(?:הלוגו|לוגו|logo|label|כיתוב|הכיתוב|טקסט|text) (?:ל |to )([A-Za-z0-9\u0590-\u05FF][A-Za-z0-9\u0590-\u05FF ]{0,24})/i);
+  const logoWords = quoted?.[1]?.trim() || logoTo?.[1]?.trim();
+  if (logoWords && (uniqueParts.includes("label") || /לוגו|כיתוב|טקסט|text|label|logo/.test(text))) {
+    commands.push({ type: "text", text: logoWords.replace(/\s+$/g, "") });
   }
 
   for (const tag of tags) {
@@ -526,8 +533,10 @@ export function interpretUtterance(input: string, ctx: InterpretContext): Interp
     for (const part of visParts) commands.push({ type: "visible", part, visible: show && !hide });
   }
 
+  const sized = Boolean(vol);
   for (const action of actions) {
     const part = variantPart(uniqueParts[0] ?? (tags[0]?.part as PartKey | undefined), ctx.selected && ctx.selected !== "liquid" ? ctx.selected : "bottle");
+    if (sized && (action.action === "bigger" || action.action === "taller" || action.action === "smaller" || action.action === "shorter")) continue;
     if (action.action === "bigger") commands.push({ type: "nudge", part, axis: "both", delta: 8 });
     if (action.action === "taller") commands.push({ type: "nudge", part, axis: "height", delta: 8 });
     if (action.action === "smaller") commands.push({ type: "nudge", part, axis: "both", delta: -8 });

@@ -14,7 +14,7 @@ let partPointer = false;
 let swapFlash: { part: PartKey; until: number } | null = null;
 
 export function markSwap(part: PartKey) {
-  swapFlash = { part, until: performance.now() + 280 };
+  swapFlash = { part, until: performance.now() + 700 };
 }
 
 export function swapFlashOn(part: PartKey): boolean {

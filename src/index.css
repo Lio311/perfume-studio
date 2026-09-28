@@ -29,8 +29,8 @@
 }
 
 * { box-sizing: border-box; }
-html, body, #root { height: 100%; margin: 0; max-width: 100%; }
-body { overflow: hidden; background: var(--bg); }
+html, body, #root { height: 100%; margin: 0; max-width: 100%; overscroll-behavior: none; }
+body { overflow: hidden; background: var(--bg); overscroll-behavior-x: none; }
 button, input, select { font: inherit; color: inherit; }
 button { cursor: pointer; }
 button:focus-visible, input:focus-visible, select:focus-visible {
@@ -94,6 +94,8 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 }
 
 .topbar {
+  position: relative;
+  z-index: 12;
   grid-column: 1 / -1;
   display: flex;
   flex-wrap: wrap;
@@ -179,9 +181,9 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   background: rgba(255, 255, 255, 0.7);
 }
 
-.tabs { display: flex; gap: 6px; overflow: auto; padding: 10px 0 8px; scrollbar-width: none; scroll-behavior: smooth; overscroll-behavior: contain; scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; touch-action: pan-x; }
+.tabs { display: flex; flex-wrap: wrap; gap: 6px; overflow: visible; padding: 10px 0 8px; }
 .tabs button { scroll-snap-align: start; }
-.cat-row { display: flex; gap: 6px; overflow-x: auto; padding: 0 0 8px; scrollbar-width: none; scroll-behavior: smooth; scroll-snap-type: x mandatory; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; touch-action: pan-x; }
+.cat-row { display: flex; flex-wrap: wrap; gap: 6px; overflow: visible; padding: 0 0 8px; }
 .cat-row button { scroll-snap-align: start; flex: 0 0 auto; border: 1px solid var(--line); background: transparent; color: var(--muted); white-space: nowrap; padding: 5px 10px; border-radius: 999px; font-size: 12px; transition: background 180ms ease, color 180ms ease, transform 180ms ease; }
 .cat-row button.is-on { color: var(--bg); border-color: var(--text); background: var(--text); }
 .cat-row button:hover { transform: translateY(-1px); }
@@ -255,6 +257,7 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 .part-title strong { display: block; font-family: var(--display); font-size: 22px; font-weight: 600; }
 .cycle-btns, .segments { display: flex; gap: 6px; }
 .props h3 { margin: 14px 0 8px; font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted); font-weight: 500; }
+[dir="rtl"] h3, [dir="rtl"] .dock-label, [dir="rtl"] .kicker, [dir="rtl"] .props h3 { letter-spacing: 0; }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .chip {
   display: inline-flex;
@@ -285,7 +288,7 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 .supplier summary { cursor: pointer; }
 .hide, .fit { margin-top: 12px; }
 
-.transcript { flex: 1; overflow: auto; display: flex; flex-direction: column; gap: 8px; padding: 8px 0; }
+.transcript { flex: 1; overflow: auto; display: flex; flex-direction: column; gap: 8px; padding: 8px 0 28px; }
 .msg { margin: 0; padding: 8px 10px; border-radius: 12px; font-size: 13.5px; line-height: 1.45; max-width: 95%; }
 .msg.user { align-self: flex-end; background: var(--fill); border: 1px solid var(--line); }
 .msg.lab { align-self: flex-start; color: var(--accent-2); }
@@ -410,17 +413,21 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 }
 .hint-strip {
   position: absolute;
-  top: 6px;
+  top: 8px;
   left: 50%;
   transform: translateX(-50%);
+  z-index: 1;
   display: flex;
   gap: 8px;
   margin: 0;
+  max-width: calc(100% - 24px);
   color: var(--muted);
   font-size: 12px;
   white-space: nowrap;
   pointer-events: none;
+  transition: opacity 600ms ease;
 }
+.hint-strip.is-faded { opacity: 0; }
 .dock-pct { font-family: var(--num); font-size: 12px; color: var(--accent-2); min-width: 36px; }
 .msg-row { display: flex; align-items: flex-start; gap: 6px; }
 .msg-row.user { align-self: flex-end; }
@@ -461,10 +468,10 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 .compare-stage h2 { margin: 0 0 8px; font-family: var(--display); font-size: 18px; }
 .toast {
   position: fixed;
-  bottom: 28px;
+  bottom: 108px;
   left: 50%;
   transform: translateX(-50%);
-  z-index: 9;
+  z-index: 60;
   padding: 8px 14px;
   border-radius: 999px;
   border: 1px solid var(--line-strong);
@@ -592,7 +599,7 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   position: absolute;
   top: calc(100% + 8px);
   inset-inline-end: 0;
-  z-index: 30;
+  z-index: 40;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -619,11 +626,18 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   padding: 2px 6px;
 }
 .file-btn input { display: none; }
+.library-close { display: none; border: 0; background: transparent; color: var(--text); font-size: 22px; line-height: 1; }
+.color-swatch { display: flex; align-items: center; gap: 8px; }
+.color-swatch i { width: 14px; height: 14px; border-radius: 50%; border: 1px solid var(--line); display: inline-block; }
+.photo-modal { max-height: 90vh; overflow: auto; }
 @media (max-width: 800px) {
   .photo-body { grid-template-columns: 1fr; }
   .dock { min-width: 0; }
   .brand { min-width: 0; }
   .topbar { gap: 8px; }
+  .hint-strip, .timeline { display: none; }
+  .library-close { display: inline-flex; margin-inline-start: auto; }
+  .panel-head { display: flex; align-items: center; gap: 8px; }
 }
 @media (max-width: 1080px) {
   .chrome { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); max-width: 100vw; }
@@ -937,14 +951,25 @@ html[data-theme="dark"] .app[data-voice="3"] .sonic-bar {
 .present-bar {
   position: absolute;
   top: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 8;
   display: flex;
   align-items: center;
-  gap: 16px;
-  padding: 8px 16px;
+  gap: 12px;
+  padding: 8px 8px 8px 16px;
   border-radius: 999px;
-  background: rgba(10, 10, 12, 0.42);
-  backdrop-filter: blur(18px);
-  z-index: 5;
+  border: 1px solid rgba(214, 178, 106, 0.35);
+  background: rgba(12, 14, 18, 0.78);
+  backdrop-filter: blur(16px);
+  color: #f6edd8;
+}
+.present-bar button {
+  border: 0;
+  border-radius: 999px;
+  padding: 6px 14px;
+  background: rgba(214, 178, 106, 0.18);
+  color: #f6edd8;
 }
 .present-bar span { letter-spacing: 0.18em; font-size: 11px; color: var(--muted); }
 .timeline {

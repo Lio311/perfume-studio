@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { tx } from "../i18n/copy.ts";
 import { bottleById } from "../model/catalog.ts";
 import { estimateMl } from "../model/design.ts";
@@ -43,26 +43,37 @@ export function TopBar() {
     compare: t.compare,
   };
 
+  function fileName() {
+    const day = new Date().toISOString().slice(0, 10);
+    const brand = (design.label.text || "OUD").replace(/[^\w\u0590-\u05FF-]+/g, "");
+    const bottle = spec.name.en.replace(/\s+/g, "");
+    return `${brand}_${bottle}_${day}.png`;
+  }
+
   function share() {
-    const summary = `${ml} ml · ${design.bottle.neck} · ${design.bottle.heightMm.toFixed(1)}×${design.bottle.widthMm.toFixed(1)}×${design.bottle.depthMm.toFixed(1)} mm`;
-    const payload = `${summary}\n${JSON.stringify(design)}`;
-    void navigator.clipboard?.writeText(payload).then(
+    const json = JSON.stringify(design);
+    const hash = btoa(unescape(encodeURIComponent(json))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+    const url = `${location.origin}${location.pathname}${location.search}#d=${hash}`;
+    void navigator.clipboard?.writeText(url).then(
       () => {
         setNotice(t.shared);
-        window.setTimeout(() => setNotice(""), 1600);
+        window.setTimeout(() => setNotice(""), 1800);
       },
-      () => setNotice(summary),
+      () => setNotice(url),
     );
+    setMenu(null);
   }
 
   function exportPng() {
+    useLab.setState({ exporting: true });
     requestShot((url) => {
+      useLab.setState({ exporting: false });
       const link = document.createElement("a");
       link.href = url;
-      link.download = "perfume-lab.png";
+      link.download = fileName();
       link.click();
       setNotice(t.pngSaved);
-      window.setTimeout(() => setNotice(""), 1600);
+      window.setTimeout(() => setNotice(""), 1800);
     });
     setMenu(null);
   }
@@ -73,6 +84,23 @@ export function TopBar() {
     window.setTimeout(() => setNotice(""), 1600);
     setMenu(null);
   }
+
+  useEffect(() => {
+    if (!menu) return undefined;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setMenu(null);
+    };
+    const onDown = (event: PointerEvent) => {
+      const target = event.target as Node | null;
+      if (!target || !(target instanceof Element) || !target.closest(".menu-wrap")) setMenu(null);
+    };
+    window.addEventListener("keydown", onKey);
+    window.addEventListener("pointerdown", onDown);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("pointerdown", onDown);
+    };
+  }, [menu]);
 
   return (
     <header className="topbar" dir="rtl">
@@ -105,14 +133,13 @@ export function TopBar() {
           <div className="menu-pop">
             <VoiceSwitch />
             <div className="voice-switch" role="group" aria-label={t.quality}>
-              <button type="button" className={quality === "high" ? "is-on" : ""} onClick={() => setQuality("high")}>{t.qualityHigh}</button>
-              <button type="button" className={quality === "medium" ? "is-on" : ""} onClick={() => setQuality("medium")}>{t.qualityMed}</button>
+              <button type="button" className={quality === "high" ? "is-on" : ""} onClick={() => { setQuality("high"); setMenu(null); }}>{t.qualityHigh}</button>
+              <button type="button" className={quality === "medium" ? "is-on" : ""} onClick={() => { setQuality("medium"); setMenu(null); }}>{t.qualityMed}</button>
             </div>
-            <button type="button" className={`text-btn blueprint-btn ${blueprint ? "is-on" : ""}`} aria-pressed={blueprint} onClick={() => setBlueprint(!blueprint)}>{t.blueprint}</button>
-            <button type="button" className="text-btn" onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>
+            <button type="button" className={`text-btn blueprint-btn ${blueprint ? "is-on" : ""}`} aria-pressed={blueprint} onClick={() => { setBlueprint(!blueprint); setMenu(null); }}>{t.blueprint}</button>
+            <button type="button" className="text-btn" onClick={() => { setTheme(theme === "dark" ? "light" : "dark"); setMenu(null); }}>
               {theme === "dark" ? t.themeToLight : t.themeToDark}
             </button>
-            <button type="button" className="text-btn lang" onClick={() => setLang(lang === "he" ? "en" : "he")}>{t.lang}</button>
           </div>
         )}
       </div>
@@ -128,6 +155,7 @@ export function TopBar() {
         )}
       </div>
       <div className="top-cluster">
+        <button type="button" className="text-btn lang" onClick={() => setLang(lang === "he" ? "en" : "he")}>{lang === "he" ? "EN" : "עב"}</button>
         <button type="button" className="icon-btn" onClick={() => undo()} disabled={past === 0}>{t.undo}</button>
         <button type="button" className="icon-btn" onClick={() => redo()} disabled={future === 0}>{t.redo}</button>
         <button type="button" className="text-btn panel-toggle" onClick={() => setLibraryOpen(!libraryOpen)}>{t.library}</button>
