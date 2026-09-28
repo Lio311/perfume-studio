@@ -567,8 +567,17 @@ export const useLab = create<LabState>()(
         return { ok: true };
       },
       newDesign: () => {
+        const design = createDefaultDesign();
+        design.bottle.visible = false;
+        design.cap.visible = false;
+        design.label.visible = false;
+        design.pump.visible = false;
+        design.collar.visible = false;
+        design.box.visible = false;
+        design.liquid.visible = false;
+
         set((state) => ({
-          design: createDefaultDesign(),
+          design,
           past: [],
           future: [],
           modal: null,
