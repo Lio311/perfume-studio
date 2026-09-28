@@ -1,0 +1,965 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Lio311/perfume-studio/schemas/supplier-pack.schema.json",
+  "title": "Perfume Studio supplier pack",
+  "description": "Validates the supplier pack JSON that the web configurator exports (src/import/supplierDb.ts downloadPack) and imports (parsePackFile). CURRENT fields mirror `SupplierPack` / `SupplierPart` in src/import/registry.ts and `ImportProfile` in src/import/parseCatalog.ts (main @ affd1b9, 2026-09-28). Every field whose description starts with 'PROPOSED' or 'PROVISIONAL' is NOT in the repo yet. All of them are optional, so current-format packs validate unchanged. The current web importer keeps unknown part fields (it spreads `...part`) and ignores them when building specs, so v2 packs already import today and the extra data is simply not used yet. Cross-checked on 2026-09-28 against open PR #6 (packValidate.ts validatePackText) and open PR #3 (packPrice.ts sanitizeSupplierPrice): see tools/check-open-prs.mjs.",
+  "type": "object",
+  "required": [
+    "id",
+    "name",
+    "createdAt",
+    "parts"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "CURRENT. Pack id. The web app generates `sup-<Date.now() base36>`. upsertSupplier replaces any stored pack with the same id, so keep one stable id per supplier across re-exports. (parsePackFile tolerates a missing id, but exported packs always have one, so it is required here.)"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "description": "CURRENT. Supplier display name (DOMPurify-sanitised on import). Required by parsePackFile."
+    },
+    "createdAt": {
+      "type": "number",
+      "minimum": 0,
+      "description": "CURRENT. Epoch milliseconds. Library sorts packs by it (newest first)."
+    },
+    "parts": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/SupplierPart"
+      },
+      "description": "CURRENT. Required by parsePackFile. Parts without a string id or kind are silently dropped by the web importer."
+    },
+    "version": {
+      "const": 2,
+      "description": "PROPOSED (web W1). Schema version. Absent means v1 (the current format). Adding `price` alone does NOT require a version bump (agreed with the lead developer)."
+    },
+    "source": {
+      "$ref": "#/$defs/Source",
+      "description": "PROPOSED. How the pack as a whole was produced."
+    },
+    "generator": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "e.g. 'Perfume Studio Scanner (iOS)'"
+        },
+        "version": {
+          "type": "string"
+        },
+        "exportedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "description": "PROPOSED. The app that wrote the file."
+    },
+    "supplier": {
+      "$ref": "#/$defs/SupplierContact"
+    }
+  },
+  "$defs": {
+    "VariantPart": {
+      "enum": [
+        "bottle",
+        "cap",
+        "label",
+        "pump",
+        "collar",
+        "box"
+      ],
+      "description": "CURRENT. `VariantPart` in src/model/types.ts. Before PR #6, syncRegistry turned any unknown kind into a box. After PR #6, an unknown kind makes the web import reject the whole file."
+    },
+    "NeckId": {
+      "enum": [
+        "FEA13",
+        "FEA15",
+        "FEA17",
+        "FEA18",
+        "FEA20"
+      ],
+      "description": "CURRENT. `NeckId` in src/model/types.ts. Values are listed in src/model/necks.ts (EN 14849 crimp necks). Screw necks (GPI 18/415 etc.) are not supported."
+    },
+    "ImportProfile": {
+      "enum": [
+        "cylinder",
+        "cube",
+        "sphere",
+        "taper",
+        "dome",
+        "bottle",
+        "rect-bottle",
+        "box",
+        "label",
+        "pump",
+        "collar"
+      ],
+      "description": "CURRENT. `ImportProfile` in src/import/parseCatalog.ts."
+    },
+    "Source": {
+      "enum": [
+        "pdf",
+        "photo",
+        "scan",
+        "manual"
+      ],
+      "description": "PROPOSED. Capture origin."
+    },
+    "SectionKind": {
+      "enum": [
+        "circle",
+        "oval",
+        "squircle",
+        "rect",
+        "diamond",
+        "hex",
+        "oct",
+        "pebble"
+      ]
+    },
+    "ProfileName": {
+      "enum": [
+        "cara",
+        "classic",
+        "column",
+        "pebble",
+        "sphere",
+        "bell",
+        "amphora",
+        "barrel",
+        "cone",
+        "flask",
+        "highShoulder",
+        "lowShoulder",
+        "stepped",
+        "gem",
+        "slim",
+        "arched",
+        "disc"
+      ]
+    },
+    "CapProfileName": {
+      "enum": [
+        "cylinder",
+        "dome",
+        "sphere",
+        "puck",
+        "cone",
+        "bell",
+        "obelisk",
+        "taper",
+        "magnetic",
+        "mushroom",
+        "facet",
+        "crystal",
+        "woodstop",
+        "cube",
+        "arch",
+        "bullet"
+      ]
+    },
+    "SupplierPart": {
+      "type": "object",
+      "required": [
+        "id",
+        "kind",
+        "code",
+        "name",
+        "neck",
+        "widthMm",
+        "heightMm",
+        "depthMm",
+        "capacityMl",
+        "profile",
+        "color",
+        "thumb",
+        "page"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "CURRENT. Convention from partFromDraft: `${packId}-${slug(code)}`. Must be unique across all imported packs (the catalog looks parts up by id)."
+        },
+        "kind": {
+          "$ref": "#/$defs/VariantPart"
+        },
+        "code": {
+          "type": "string",
+          "description": "CURRENT. Supplier reference / SKU (sanitised on import)."
+        },
+        "name": {
+          "type": "string",
+          "description": "CURRENT. Display name. The web app uses it for both he and en. Convention: `${code} · ${supplierName}`."
+        },
+        "neck": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/NeckId"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "CURRENT. FEA neck or null. On the web, selecting an imported cap, pump or collar that has a neck also switches the bottle to that neck (design.ts paintImported)."
+        },
+        "widthMm": {
+          "type": "number",
+          "minimum": 0,
+          "description": "CURRENT. Millimetres. Diameter for round parts."
+        },
+        "heightMm": {
+          "type": "number",
+          "minimum": 0,
+          "description": "CURRENT. Millimetres. For pumps, the importer uses it as actuatorHeightMm."
+        },
+        "depthMm": {
+          "type": "number",
+          "minimum": 0,
+          "description": "CURRENT. Millimetres. For round parts, equal to widthMm."
+        },
+        "capacityMl": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "description": "CURRENT. Bottle brim or nominal capacity in ml, else null."
+        },
+        "profile": {
+          "$ref": "#/$defs/ImportProfile"
+        },
+        "color": {
+          "type": "string",
+          "pattern": "^#[0-9a-fA-F]{6}$",
+          "description": "CURRENT. #rrggbb. The web app always writes 6-digit hex (crop.ts dominantColor, silhouette.ts medianColor). finishFromColor derives the finish from it."
+        },
+        "thumb": {
+          "type": "string",
+          "pattern": "^$|^data:image/(jpeg|png|webp);base64,",
+          "description": "CURRENT. Inline data URL (the web app writes 180x180 JPEG) or empty string. Keep it small (<30 KB): it is stored inline in IndexedDB."
+        },
+        "page": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "CURRENT. Catalog PDF page. Photo parts use 1."
+        },
+        "lathe": {
+          "type": "array",
+          "items": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1.2
+          },
+          "description": "CURRENT (optional). Normalised half-profile radii, base to top, 1 = widest radius (the web app produces 42 samples, min 0.04, and hand edits go up to 1.15). Fewer than 4 samples are ignored (lathe.ts). The web app renders a lathe only for cap, collar and pump today. Bottles ignore it until web W5."
+        },
+        "source": {
+          "$ref": "#/$defs/Source",
+          "description": "PROPOSED. How this part was captured."
+        },
+        "names": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "he": {
+              "type": "string"
+            },
+            "en": {
+              "type": "string"
+            }
+          },
+          "description": "PROPOSED. Separate Hebrew/English display names. The web app currently copies `name` into both."
+        },
+        "neckFinish": {
+          "type": "string",
+          "maxLength": 40,
+          "description": "PROPOSED. Free-text neck finish when it is not an FEA crimp neck (e.g. 'GPI 18/415'). Informational only: the web app cannot fit screw necks. Use together with neck=null."
+        },
+        "notes": {
+          "type": "string",
+          "maxLength": 2000,
+          "description": "PROPOSED. Free-text notes (material, finish options, lead time, and so on)."
+        },
+        "price": {
+          "$ref": "#/$defs/Price"
+        },
+        "measurements": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Measurement"
+          },
+          "description": "PROPOSED. Raw measurements with their source. They back up the summary dims above."
+        },
+        "scan": {
+          "$ref": "#/$defs/ScanMeta"
+        },
+        "mesh": {
+          "$ref": "#/$defs/MeshAsset"
+        },
+        "params": {
+          "$ref": "#/$defs/Params"
+        },
+        "appearance": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "PROPOSED. Detected or picked look. `color` stays the canonical #rrggbb (the web derives a FinishId from it today via finishFromColor); `finish` is an explicit override the web can adopt later.",
+          "properties": {
+            "finish": {
+              "enum": [
+                "clear",
+                "frosted",
+                "tinted",
+                "gold",
+                "silver",
+                "rose",
+                "matteBlack",
+                "wood",
+                "leather"
+              ],
+              "description": "FinishId from src/model/types.ts."
+            },
+            "gloss": {
+              "enum": [
+                "matte",
+                "satin",
+                "gloss",
+                "metallic",
+                "frosted",
+                "transparent"
+              ],
+              "description": "Surface class shown to the user."
+            },
+            "finishSource": {
+              "enum": [
+                "user",
+                "heuristic",
+                "model"
+              ]
+            },
+            "finishConfidence": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "colorSource": {
+              "enum": [
+                "user",
+                "photo-median",
+                "texture-median"
+              ]
+            },
+            "colors": {
+              "type": "array",
+              "maxItems": 4,
+              "items": {
+                "type": "string",
+                "pattern": "^#[0-9a-fA-F]{6}$"
+              },
+              "description": "Secondary colours (e.g. two-tone caps)."
+            }
+          }
+        },
+        "images": {
+          "type": "array",
+          "maxItems": 12,
+          "description": "PROPOSED. Full-resolution photos stored in Blob (the inline `thumb` stays for the current importer).",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "url",
+              "role"
+            ],
+            "properties": {
+              "url": {
+                "type": "string",
+                "format": "uri",
+                "pattern": "^https://"
+              },
+              "role": {
+                "enum": [
+                  "side",
+                  "front",
+                  "top",
+                  "detail",
+                  "reference",
+                  "card"
+                ]
+              },
+              "width": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "height": {
+                "type": "integer",
+                "minimum": 1
+              }
+            }
+          }
+        },
+        "thumbUrl": {
+          "type": "string",
+          "format": "uri",
+          "pattern": "^https://[a-z0-9]+\\.public\\.blob\\.vercel-storage\\.com/",
+          "description": "PROPOSED (API, reviewed by lead developer 28 Sep). Thumbnail URL for SYNCED CATALOG parts only: accepted only as https from our Vercel Blob store domain (allowlist; the schema pattern allows any *.public.blob.vercel-storage.com host, the server/website pin the exact store host). The catalog sends thumb:'' plus thumbUrl to keep the payload small. Local file imports keep `thumb` as a data URL or '' and must not rely on thumbUrl."
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "bottle"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "params": {
+                "properties": {
+                  "profile": {
+                    "$ref": "#/$defs/ProfileName"
+                  }
+                },
+                "type": "object"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "cap"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "params": {
+                "properties": {
+                  "profile": {
+                    "$ref": "#/$defs/CapProfileName"
+                  }
+                },
+                "type": "object"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "Price": {
+      "type": "object",
+      "required": [
+        "value",
+        "currency"
+      ],
+      "additionalProperties": false,
+      "description": "Price shape `SupplierPrice { value, currency, moq?, tiers?: PriceTier[], quotedAt? }`. CANONICAL VALIDATOR: `sanitizeSupplierPrice` in `src/model/price.ts` (web PR #6, near-final at head 99ed122, 28 Sep 2026); budget PR #3 uses it (merge order #6 then #3). This schema is STRICT and describes what the iPhone app EXPORTS; the website import is lenient and sanitizes: currency is trimmed/uppercased (₪, NIS, ש״ח, ils become ILS); an unknown currency keeps the price without currency, flagged unpriced with a warning and excluded from budget sums; quotedAt with a time is truncated to a date, an invalid quotedAt drops only quotedAt; unknown keys inside price are ignored with a warning; an invalid tier is dropped with a warning and the base price is always kept. The website export drops unknown fields and does not export a price without a valid ISO 4217 currency. value = unit price at the base quantity (moq, or 1 when moq is absent). Unknown price = omit the field. Tier rules (cross-field, JSON Schema cannot express them; app and website must check): (1) every tiers[].minQty is an integer STRICTLY GREATER than moq (or > 1 when moq is absent); (2) tiers are STRICTLY ASCENDING by minQty; (3) each tier value SHOULD be <= the previous price; a rising value is only a WARNING.",
+      "properties": {
+        "value": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Unit price at base qty / MOQ, > 0."
+        },
+        "currency": {
+          "type": "string",
+          "pattern": "^[A-Z]{3}$",
+          "description": "ISO 4217 alphabetic code, canonical uppercase (USD, AED, EUR, CNY, ILS). PR #3 normalizeCurrency also accepts '₪', 'NIS', 'ש״ח' → ILS and lowercases → uppercase, but the app/server must always emit the canonical code."
+        },
+        "moq": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Minimum order quantity."
+        },
+        "tiers": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": [
+              "minQty",
+              "value"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "minQty": {
+                "type": "integer",
+                "minimum": 2,
+                "description": "Integer, STRICTLY > (moq ?? 1) and > the previous tier's minQty. Cross-field check in app/server/website code."
+              },
+              "value": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              }
+            }
+          },
+          "description": "Extra quantity breaks above the base quantity only. minQty strictly > moq ?? 1, strictly ascending; value should not rise (warning only). See Price description."
+        },
+        "quotedAt": {
+          "type": "string",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}(T\\d{2}:\\d{2}(:\\d{2}(\\.\\d+)?)?(Z|[+-]\\d{2}:\\d{2})?)?$",
+          "description": "ISO 8601 calendar date (YYYY-MM-DD), optionally with time, same regex as PR #3 isIso8601Date (which also checks the date is real). The app emits a date only."
+        }
+      }
+    },
+    "SupplierContact": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "PROPOSED. Supplier and booth contact info collected at a trade show. The web app ignores it today (parsePackFile rebuilds the pack from id/name/createdAt/parts only, so it is DROPPED on import until the web side adds it).",
+      "properties": {
+        "company": {
+          "type": "string"
+        },
+        "booth": {
+          "type": "string",
+          "description": "Hall / stand number, e.g. 'Hall 4, B-21'."
+        },
+        "event": {
+          "type": "string",
+          "description": "e.g. trade show name and year."
+        },
+        "country": {
+          "type": "string",
+          "pattern": "^[A-Z]{2}$",
+          "description": "ISO 3166-1 alpha-2."
+        },
+        "contactName": {
+          "type": "string"
+        },
+        "role": {
+          "type": "string"
+        },
+        "email": {
+          "type": "string",
+          "format": "email"
+        },
+        "phone": {
+          "type": "string",
+          "description": "E.164 preferred, e.g. +971501234567."
+        },
+        "whatsapp": {
+          "type": "string"
+        },
+        "wechat": {
+          "type": "string"
+        },
+        "website": {
+          "type": "string",
+          "format": "uri"
+        },
+        "notes": {
+          "type": "string",
+          "maxLength": 4000
+        },
+        "businessCard": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "dataUri": {
+              "type": "string",
+              "pattern": "^data:image/(jpeg|png|heic);base64,"
+            },
+            "bundlePath": {
+              "type": "string",
+              "pattern": "^assets/"
+            },
+            "ocrText": {
+              "type": "string"
+            }
+          },
+          "description": "Optional photo of the business card, inline or as a bundle asset (zip, later)."
+        }
+      }
+    },
+    "Measurement": {
+      "type": "object",
+      "required": [
+        "key",
+        "value",
+        "source"
+      ],
+      "additionalProperties": false,
+      "description": "PROPOSED.",
+      "properties": {
+        "key": {
+          "anyOf": [
+            {
+              "enum": [
+                "widthMm",
+                "heightMm",
+                "depthMm",
+                "diameterMm",
+                "neckOuterDiameterMm",
+                "ferruleInnerDiameterMm",
+                "ferruleOuterDiameterMm",
+                "ferruleHeightMm",
+                "capacityMl"
+              ]
+            },
+            {
+              "type": "string",
+              "pattern": "^x-[a-zA-Z0-9-]+$"
+            }
+          ]
+        },
+        "value": {
+          "type": "number",
+          "minimum": 0
+        },
+        "source": {
+          "enum": [
+            "lidar",
+            "object-capture",
+            "reference-card",
+            "ruler",
+            "caliper",
+            "supplier-spec",
+            "estimate"
+          ]
+        },
+        "toleranceMm": {
+          "type": "number",
+          "minimum": 0
+        }
+      }
+    },
+    "ScanMeta": {
+      "type": "object",
+      "required": [
+        "method",
+        "capturedAt"
+      ],
+      "additionalProperties": false,
+      "description": "PROPOSED. Capture provenance.",
+      "properties": {
+        "method": {
+          "enum": [
+            "object-capture",
+            "photo-lathe",
+            "photos",
+            "single-photo",
+            "manual"
+          ]
+        },
+        "capturedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "device": {
+          "type": "string",
+          "description": "e.g. 'iPhone16,1'."
+        },
+        "appVersion": {
+          "type": "string"
+        },
+        "material": {
+          "enum": [
+            "opaque",
+            "transparent",
+            "translucent",
+            "reflective"
+          ],
+          "description": "User-declared surface. transparent/reflective means Object Capture/LiDAR was skipped (Apple advises against scanning them)."
+        },
+        "scale": {
+          "enum": [
+            "lidar",
+            "reference-card",
+            "ruler",
+            "caliper",
+            "manual"
+          ]
+        },
+        "referenceObject": {
+          "type": "string",
+          "description": "e.g. 'ISO/IEC 7810 ID-1 card 85.60x53.98mm'."
+        },
+        "confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "neckSuggestion": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "confirmedByUser"
+          ],
+          "properties": {
+            "suggested": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/NeckId"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "measuredMm": {
+              "type": "number",
+              "minimum": 0
+            },
+            "basis": {
+              "enum": [
+                "neckOuterDiameterMm",
+                "ferruleInnerDiameterMm",
+                "ferruleOuterDiameterMm"
+              ]
+            },
+            "confirmedByUser": {
+              "type": "boolean"
+            },
+            "verifiedBySupplier": {
+              "type": "boolean",
+              "default": false,
+              "description": "PROPOSED. false (or absent) = unverified suggestion. Set true only after the supplier confirms the neck (e.g. from a spec sheet). Absent is treated as false, so older files stay valid."
+            }
+          },
+          "description": "Advisory only (owner decision 2026-09-28): scanning is for initial design; exact neck and dimensions come from the supplier later. The UI always labels the suggestion 'to verify with the supplier' / 'לאימות מול הספק'."
+        },
+        "dimsVerifiedBySupplier": {
+          "type": "boolean",
+          "default": false,
+          "description": "PROPOSED. false/absent = dimensions are scan estimates for initial design only; exact dimensions will be requested from the supplier."
+        },
+        "toleranceMm": {
+          "type": "number",
+          "minimum": 0,
+          "description": "PROPOSED. Expected accuracy of the scanned dimensions. Target for the show: 5 (owner accepts up to about 5 mm deviation)."
+        }
+      }
+    },
+    "MeshAsset": {
+      "type": "object",
+      "required": [
+        "format",
+        "units",
+        "upAxis",
+        "origin"
+      ],
+      "additionalProperties": false,
+      "anyOf": [
+        {
+          "required": [
+            "url"
+          ]
+        },
+        {
+          "required": [
+            "dataUri"
+          ]
+        },
+        {
+          "required": [
+            "bundlePath"
+          ]
+        }
+      ],
+      "description": "PROPOSED. 3D model built on device. 'usdz' = the Object Capture output as produced (metres, Y-up); 'glb' = converted (mm, Y-up, base-centred). The website renders every part parametrically from its dimensions until a mesh loader is approved (developer decision), so the mesh is stored but optional for display. Note: three.js r183+ ships USDLoader with USDC (binary) support; the repo uses three ^0.186.1, so loading USDZ directly may avoid conversion, which is still unverified in this project.",
+      "properties": {
+        "format": {
+          "enum": [
+            "glb",
+            "usdz"
+          ]
+        },
+        "url": {
+          "type": "string",
+          "format": "uri",
+          "pattern": "^https://",
+          "description": "Public Vercel Blob URL returned by the client upload."
+        },
+        "dataUri": {
+          "type": "string",
+          "pattern": "^data:model/(gltf-binary|vnd\\.usdz\\+zip);base64,"
+        },
+        "bundlePath": {
+          "type": "string",
+          "pattern": "^assets/[^/]+\\.(glb|usdz)$"
+        },
+        "units": {
+          "enum": [
+            "mm",
+            "m"
+          ],
+          "description": "glb: mm. usdz from Object Capture: m (real-world scale)."
+        },
+        "upAxis": {
+          "const": "y"
+        },
+        "origin": {
+          "enum": [
+            "base-center",
+            "capture"
+          ],
+          "description": "glb: base-center. Raw usdz: capture (as reconstructed)."
+        },
+        "triangles": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "bytes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "bboxMm": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "x",
+            "y",
+            "z"
+          ],
+          "properties": {
+            "x": {
+              "type": "number",
+              "minimum": 0
+            },
+            "y": {
+              "type": "number",
+              "minimum": 0
+            },
+            "z": {
+              "type": "number",
+              "minimum": 0
+            }
+          },
+          "description": "Bounding box of the mesh in mm (after up-axis alignment)."
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "format": {
+                "const": "glb"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "units": {
+                "const": "mm"
+              },
+              "origin": {
+                "const": "base-center"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "Params": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "PROPOSED (web W2). Per-kind overrides for the defaults syncRegistry hard-codes today. Field names match the *Spec fields in src/model/types.ts. `profile` is checked against ProfileName for bottles and CapProfileName for caps.",
+      "properties": {
+        "section": {
+          "$ref": "#/$defs/SectionKind"
+        },
+        "profile": {
+          "type": "string"
+        },
+        "shoulder": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "softness": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "faceted": {
+          "type": "boolean"
+        },
+        "overhangMm": {
+          "type": "number",
+          "minimum": 0
+        },
+        "style": {
+          "enum": [
+            "crimp",
+            "screw",
+            "shroud",
+            "dome",
+            "flat",
+            "mini",
+            "nozzle",
+            "soft"
+          ]
+        },
+        "radiusFactor": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "nozzleMm": {
+          "type": "number",
+          "minimum": 0
+        },
+        "wallMm": {
+          "type": "number",
+          "minimum": 0
+        },
+        "rings": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "knurl": {
+          "type": "boolean"
+        },
+        "flareMm": {
+          "type": "number",
+          "minimum": 0
+        },
+        "form": {
+          "enum": [
+            "sleeve",
+            "rigid",
+            "magnetic",
+            "drawer",
+            "tube",
+            "plinth",
+            "window",
+            "coffret"
+          ]
+        },
+        "padMm": {
+          "type": "number",
+          "minimum": 0
+        },
+        "liftMm": {
+          "type": "number",
+          "minimum": 0
+        }
+      }
+    },
+    "DimensionRanges": {
+      "type": "object",
+      "description": "PLACEHOLDER (lead developer, 28 Sep 2026): the single source of truth for per-kind dimension ranges (mm) is PR #6 (matching the built-in catalog). Final values arrive when PR #6 returns; they will be copied here (e.g. as properties kind → {widthMm,heightMm,depthMm: {min,max}}) so the iOS app READS ranges from this schema and never hardcodes them. No values are defined yet on purpose.",
+      "additionalProperties": true
+    }
+  }
+}

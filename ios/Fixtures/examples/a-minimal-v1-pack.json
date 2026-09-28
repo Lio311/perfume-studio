@@ -1,0 +1,22 @@
+{
+  "id": "sup-mg4k2a1",
+  "name": "Aurora Glass",
+  "createdAt": 1790582400000,
+  "parts": [
+    {
+      "id": "sup-mg4k2a1-cap-a-1830",
+      "kind": "cap",
+      "code": "CAP-A-1830",
+      "name": "CAP-A-1830 · Aurora Glass",
+      "neck": "FEA15",
+      "widthMm": 30,
+      "heightMm": 34.5,
+      "depthMm": 30,
+      "capacityMl": null,
+      "profile": "cylinder",
+      "color": "#c4a15a",
+      "thumb": "",
+      "page": 1
+    }
+  ]
+}
