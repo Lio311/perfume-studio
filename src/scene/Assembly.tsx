@@ -7,7 +7,7 @@ import { computeFit } from "../model/fit.ts";
 import { isGlass } from "../model/materials.ts";
 import type { BoxForm, PartKey, PumpStyle } from "../model/types.ts";
 import { buildBottleGeometry, buildCapGeometry, buildLabelPatch } from "../geometry/sweep.ts";
-import { logoTexture } from "../geometry/logos.ts";
+import { labelTypeface, logoTexture } from "../geometry/logos.ts";
 import { useLab } from "../store/labStore.ts";
 import { latheGeometry, latheProfile } from "../import/lathe.ts";
 import { clickPart, doubleClickPart, markPartPointer, swapFlashOn } from "./focusClick.ts";
@@ -585,31 +585,38 @@ function LabelPart() {
   const bottle = bottleById(design.bottle.variantId);
   const spec = logoById(design.label.variantId);
   const fit = computeFit(design, false);
-  const ink = useMemo(() => inkFor(spec.application, design.label.color), [spec.application, design.label.color]);
+  const ink = design.label.color;
   const [fontTick, setFontTick] = useState(0);
   useEffect(() => {
     let live = true;
     const fonts = document.fonts;
-    if (!fonts) return undefined;
-    void fonts.ready.then(() => {
-      if (live) setFontTick(1);
-    });
+    if (!fonts?.load) return undefined;
+    const face = labelTypeface(spec.font, design.label.text);
+    const bump = () => {
+      if (live) setFontTick((n) => n + 1);
+    };
+    void fonts.ready.then(bump).catch(() => undefined);
+    void fonts.load(`600 96px "${face}"`).then(bump).catch(() => undefined);
     return () => {
       live = false;
     };
-  }, []);
-  
+  }, [spec.font, design.label.text]);
+
   const canvas = useMemo(() => {
     const aspect = fit.labelW / Math.max(4, fit.labelH);
-    const width = 2048;
-    const height = Math.max(128, Math.round(width / Math.min(6, Math.max(0.45, aspect))));
-    return logoTexture(spec, design.label.text, ink, width, height);
+    const longSide = 2048;
+    const width = aspect >= 1 ? longSide : Math.max(256, Math.round(longSide * aspect));
+    const height = aspect >= 1 ? Math.max(256, Math.round(longSide / Math.min(4.5, aspect))) : longSide;
+    const drawn = logoTexture(spec, design.label.text, ink, width, height);
+    drawn.dataset.fonts = String(fontTick);
+    return drawn;
   }, [spec, design.label.text, ink, fontTick, fit.labelW, fit.labelH]);
   const texture = useMemo(() => {
     const map = new THREE.CanvasTexture(canvas);
     map.colorSpace = THREE.SRGBColorSpace;
     map.anisotropy = 16;
     map.flipY = true;
+    map.generateMipmaps = true;
     map.needsUpdate = true;
     return map;
   }, [canvas]);
@@ -638,20 +645,6 @@ function LabelPart() {
   );
 }
 
-function relativeLuminance(hex: string): number {
-  const color = new THREE.Color(hex);
-  const lin = (channel: number) => (channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4);
-  return 0.2126 * lin(color.r) + 0.7152 * lin(color.g) + 0.0722 * lin(color.b);
-}
-
-function inkFor(application: string, plate: string): string {
-  const lum = relativeLuminance(plate);
-  if (application === "foil") return "#fff6e4";
-  if (application === "emboss") return lum > 0.62 ? "#6d583c" : "#f6f1e6";
-  if (application === "engrave") return lum > 0.45 ? "#241c14" : "#0c0b0a";
-  return lum > 0.55 ? "#221910" : "#f4eee4";
-}
-
 function BoxPart() {
   const design = useLab((s) => s.design);
   const stage = useLab((s) => s.stage);
@@ -672,14 +665,16 @@ function BrandPlate({ w, y, z }: { w: number; y: number; z: number }) {
   const blueprint = useLab((s) => s.blueprint);
   const text = useLab((s) => s.design.label.text);
   const variantId = useLab((s) => s.design.label.variantId);
+  const ink = useLab((s) => s.design.label.color);
   const tex = useMemo(() => {
     const planeW = Math.min(w * 0.48, 52);
-    const canvas = logoTexture(logoById(variantId), text, "#f6f1e6", 1024, Math.max(96, Math.round(1024 * 18 / planeW)));
+    const canvas = logoTexture(logoById(variantId), text, ink, 1024, Math.max(96, Math.round(1024 * 18 / planeW)));
     const texture = new THREE.CanvasTexture(canvas);
     texture.colorSpace = THREE.SRGBColorSpace;
     texture.anisotropy = 4;
+    texture.needsUpdate = true;
     return texture;
-  }, [text, variantId, w]);
+  }, [text, variantId, w, ink]);
   useEffect(() => () => tex.dispose(), [tex]);
   if (blueprint) return null;
   return (

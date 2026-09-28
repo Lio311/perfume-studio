@@ -261,6 +261,7 @@ function applyOne(design: Design, command: LabCommand, ui: { explode: number; mo
       break;
     case "text":
       design.label.text = command.text.slice(0, 32);
+      design.label.visible = true;
       break;
     case "explode":
       ui.explode = command.value ? 1 : 0;

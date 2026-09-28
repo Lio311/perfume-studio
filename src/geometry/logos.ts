@@ -1,5 +1,13 @@
 import type { LogoFont, LogoFrame, LogoMark, LogoSpec } from "../model/types.ts";
 
+const TYPEFACE: Record<LogoFont, string> = {
+  cormorant: "Cormorant Garamond",
+  cinzel: "Cinzel",
+  italiana: "Italiana",
+  vibes: "Great Vibes",
+  heebo: "Heebo",
+};
+
 const FONT_FAMILY: Record<LogoFont, string> = {
   cormorant: '"Cormorant Garamond", Georgia, serif',
   cinzel: '"Cinzel", "Times New Roman", serif',
@@ -9,7 +17,92 @@ const FONT_FAMILY: Record<LogoFont, string> = {
 };
 
 function inkFont(font: LogoFont, text: string): string {
-  return /[\u0590-\u05FF]/.test(text) ? FONT_FAMILY.heebo : FONT_FAMILY[font];
+  return labelFontFamily(font, text);
+}
+
+/** Hebrew anywhere in the string sets the paragraph to rtl, so English and digits stay one embedded run. */
+export function labelDirection(text: string): "rtl" | "ltr" {
+  return /[\u0590-\u05FF]/.test(text) ? "rtl" : "ltr";
+}
+
+/** Display faces have no Hebrew glyphs. Any Hebrew run uses Heebo, which also covers Latin and digits. */
+export function labelTypeface(font: LogoFont, text: string): string {
+  return labelDirection(text) === "rtl" ? "Heebo" : TYPEFACE[font];
+}
+
+export function labelFontFamily(font: LogoFont, text: string): string {
+  return labelDirection(text) === "rtl" ? FONT_FAMILY.heebo : FONT_FAMILY[font];
+}
+
+function channelLin(channel: number): number {
+  return channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+}
+
+export function relativeLuminance(hex: string): number {
+  const body = hex.trim().replace("#", "");
+  const n = Number.parseInt(body.length >= 6 ? body.slice(0, 6) : "000000", 16);
+  if (!Number.isFinite(n)) return 0;
+  const r = channelLin(((n >> 16) & 255) / 255);
+  const g = channelLin(((n >> 8) & 255) / 255);
+  const b = channelLin((n & 255) / 255);
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+/** Opaque ground so the word stays readable on clear, tinted, and dark glass. */
+export function contrastingPlate(ink: string): string {
+  return relativeLuminance(ink) > 0.42 ? "#16130f" : "#f7f2e8";
+}
+
+export interface LabelLineLayout {
+  lines: string[];
+  px: number;
+  direction: "rtl" | "ltr";
+  text: string;
+}
+
+/** Pick 1–3 lines and the largest size that fits the plate. The strings stay in logical order. */
+export function layoutLabelLines(
+  text: string,
+  maxWidth: number,
+  maxHeight: number,
+  measure: (line: string, px: number) => number,
+): LabelLineLayout {
+  const clean = text.replace(/\s+/g, " ").trim().slice(0, 32) || "Nº";
+  const direction = labelDirection(clean);
+  const words = clean.split(" ").filter(Boolean);
+  const lineSets: string[][] = [[clean]];
+  if (words.length >= 2) {
+    let bestScore = Infinity;
+    let best: string[] | null = null;
+    for (let i = 1; i < words.length; i += 1) {
+      const left = words.slice(0, i).join(" ");
+      const right = words.slice(i).join(" ");
+      const score = Math.abs([...left].length - [...right].length);
+      if (score < bestScore) {
+        bestScore = score;
+        best = [left, right];
+      }
+    }
+    if (best) lineSets.push(best);
+  }
+  if (words.length >= 3) {
+    const third = Math.max(1, Math.round(words.length / 3));
+    const twoThird = Math.max(third + 1, Math.round((2 * words.length) / 3));
+    if (twoThird < words.length) {
+      lineSets.push([
+        words.slice(0, third).join(" "),
+        words.slice(third, twoThird).join(" "),
+        words.slice(twoThird).join(" "),
+      ]);
+    }
+  }
+  let chosen = { lines: [clean], px: 18 };
+  for (const lines of lineSets) {
+    let px = Math.max(18, Math.floor(maxHeight / (lines.length * 1.16)));
+    while (px > 18 && lines.some((line) => measure(line, px) > maxWidth)) px -= 2;
+    if (px > chosen.px) chosen = { lines, px };
+  }
+  return { ...chosen, direction, text: clean };
 }
 
 function letters(text: string): string {
@@ -233,15 +326,6 @@ function drawMark(ctx: CanvasRenderingContext2D, mark: LogoMark, font: LogoFont,
   ctx.restore();
 }
 
-function plateColor(ink: string): string {
-  const body = ink.trim().replace("#", "");
-  const n = Number.parseInt(body.length >= 6 ? body.slice(0, 6) : "ffffff", 16);
-  const r = (n >> 16) & 255;
-  const g = (n >> 8) & 255;
-  const b = n & 255;
-  return (r + g + b) / 3 > 170 ? "#171411" : "#f4efe6";
-}
-
 function fitWord(ctx: CanvasRenderingContext2D, word: string, family: string, maxPx: number, maxWidth: number, weight = "600"): number {
   let px = Math.max(18, Math.floor(maxPx));
   ctx.font = `${weight} ${px}px ${family}`;
@@ -252,6 +336,72 @@ function fitWord(ctx: CanvasRenderingContext2D, word: string, family: string, ma
   return px;
 }
 
+const TYPE_MARKS = new Set<LogoSpec["mark"]>(["word", "horizon", "stacked", "vertical", "numeral"]);
+
+export function paintLabel(
+  ctx: CanvasRenderingContext2D,
+  spec: Pick<LogoSpec, "mark" | "font" | "frame">,
+  text: string,
+  ink: string,
+  w: number,
+  h: number,
+): LabelLineLayout {
+  const family = labelFontFamily(spec.font, text);
+  const typeMark = TYPE_MARKS.has(spec.mark) || h < w * 0.62;
+  const direction = labelDirection(text);
+  const canvasEl = ctx.canvas as HTMLCanvasElement | undefined;
+  if (canvasEl?.setAttribute) canvasEl.setAttribute("dir", direction);
+  ctx.save();
+  ctx.direction = direction;
+  ctx.fillStyle = contrastingPlate(ink);
+  ctx.fillRect(0, 0, w, h);
+
+  const textShare = typeMark ? 0.78 : 0.58;
+  const textHeight = h * textShare;
+  const textTop = h - h * 0.06 - textHeight;
+  if (!typeMark) {
+    const markBox = Math.min(w * 0.62, Math.max(8, textTop * 0.9));
+    ctx.save();
+    ctx.translate((w - markBox) / 2, Math.max(h * 0.045, (textTop - markBox) / 2));
+    drawFrame(ctx, spec.frame, markBox, ink);
+    drawMark(ctx, spec.mark, spec.font, text, markBox, ink);
+    ctx.restore();
+  } else if (spec.frame !== "none") {
+    ctx.strokeStyle = ink;
+    ctx.lineWidth = Math.max(1.5, Math.min(w, h) * 0.012);
+    const m = Math.min(w, h) * 0.055;
+    ctx.strokeRect(m, m, w - m * 2, h - m * 2);
+  }
+
+  const layout = layoutLabelLines(text, Math.max(8, w * 0.86), textHeight, (line, px) => {
+    ctx.font = `600 ${px}px ${family}`;
+    return ctx.measureText(line).width;
+  });
+  ctx.direction = layout.direction;
+  ctx.font = `600 ${layout.px}px ${family}`;
+  ctx.fillStyle = ink;
+  ctx.strokeStyle = ink;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  const leading = layout.px * 1.16;
+  const block = layout.lines.length * leading;
+  let y = textTop + (textHeight - block) / 2 + leading * 0.5;
+  for (const line of layout.lines) {
+    ctx.direction = layout.direction;
+    ctx.fillText(line, w / 2, y);
+    y += leading;
+  }
+  if (spec.mark === "horizon") {
+    ctx.lineWidth = Math.max(1.5, h * 0.012);
+    ctx.beginPath();
+    ctx.moveTo(w * 0.18, Math.min(h - h * 0.08, y));
+    ctx.lineTo(w * 0.82, Math.min(h - h * 0.08, y));
+    ctx.stroke();
+  }
+  ctx.restore();
+  return layout;
+}
+
 export function drawLogo(spec: Pick<LogoSpec, "mark" | "font" | "frame">, text: string, ink: string, size: number, height?: number): HTMLCanvasElement {
   const canvas = document.createElement("canvas");
   const w = Math.max(32, Math.round(size));
@@ -260,33 +410,7 @@ export function drawLogo(spec: Pick<LogoSpec, "mark" | "font" | "frame">, text: 
   canvas.height = h;
   const ctx = canvas.getContext("2d");
   if (!ctx) return canvas;
-  const plate = plateColor(ink);
-  const word = letters(text).slice(0, 12);
-  const family = inkFont(spec.font, text);
-  ctx.fillStyle = plate;
-  ctx.fillRect(0, 0, w, h);
-  ctx.fillStyle = ink;
-  ctx.strokeStyle = ink;
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.direction = /[\u0590-\u05FF]/.test(word) ? "rtl" : "ltr";
-
-  // Draw the mark in a square so a wide label cannot squash a diamond into a bracket.
-  const side = Math.min(w, h);
-  const ox = (w - side) / 2;
-  const oy = (h - side) / 2;
-  ctx.save();
-  ctx.translate(ox, oy);
-  drawFrame(ctx, spec.frame, side, ink);
-  drawMark(ctx, spec.mark, spec.font, text, side, ink);
-  ctx.restore();
-  if (spec.mark === "word" || spec.mark === "horizon") return canvas;
-  ctx.fillStyle = ink;
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.direction = /[\u0590-\u05FF]/.test(word) ? "rtl" : "ltr";
-  fitWord(ctx, word, family, side * (word.length > 8 ? 0.12 : 0.16), side * 0.78);
-  ctx.fillText(word, w / 2, Math.min(h - side * 0.08, oy + side * 0.86));
+  paintLabel(ctx, spec, text, ink, w, h);
   return canvas;
 }
 
