@@ -32,6 +32,11 @@ export interface ResolvedPrice {
   ils: number | null;
   /** True when `ils` is `value * rate` rather than a native shekel price. */
   converted: boolean;
+  /**
+   * The supplier currency is not a code we can convert.
+   * The row is counted as unpriced. The original value is still shown.
+   */
+  unknownCurrency?: boolean;
 }
 
 export interface BudgetSummary {
@@ -70,14 +75,41 @@ const MATERIAL_ADD: Record<string, number> = {
 
 const HOUSE_ADD = 30;
 
+/**
+ * A currency code the lab can convert.
+ * ₪, NIS, ש״ח, ש"ח, שח, and ils become ILS. $ and usd become USD.
+ * Any other three-letter code is kept in uppercase. Anything else is unknown.
+ * Call this before a shared sanitizer that only accepts a normalized code.
+ */
 export function normalizeCurrency(raw: string): string | null {
   const trimmed = raw.trim();
   if (!trimmed) return null;
+  if (trimmed === "$") return "USD";
   if (trimmed === "₪" || trimmed === "ש״ח" || trimmed === 'ש"ח' || trimmed === "שח") return "ILS";
   const upper = trimmed.toUpperCase();
   if (upper === "NIS" || upper === "ILS") return "ILS";
+  if (upper === "USD") return "USD";
   if (/^[A-Z]{3}$/.test(upper)) return upper;
   return null;
+}
+
+/**
+ * Supplier currency after alias normalization.
+ * A blank or non-text currency is unusable. An unknown text currency is kept for display.
+ */
+export function canonicalSupplierCurrency(raw: unknown): { currency: string; known: boolean } | null {
+  if (typeof raw !== "string") return null;
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  const code = normalizeCurrency(trimmed);
+  if (code) return { currency: code, known: true };
+  return { currency: trimmed, known: false };
+}
+
+/** Shekel contribution of one part. An unknown currency counts as unpriced, not as a missing rate. */
+export function budgetAmount(price: ResolvedPrice | null): number | null | "unpriced" {
+  if (!price || price.unknownCurrency) return "unpriced";
+  return price.ils;
 }
 
 /**
@@ -126,20 +158,35 @@ export function resolvePartPrice(
     const { ils, converted } = toIls(override.value, currency, rates);
     return { value: override.value, currency, source: "user", ils, converted };
   }
-  if (imported && imported.value > 0 && normalizeCurrency(imported.currency)) {
-    const currency = normalizeCurrency(imported.currency)!;
-    const value = imported.value;
-    const { ils, converted } = toIls(value, currency, rates);
-    return {
-      value,
-      currency,
-      source: "import",
-      moq: imported.moq,
-      tiers: imported.tiers,
-      quotedAt: imported.quotedAt,
-      ils,
-      converted,
-    };
+  if (imported && imported.value > 0) {
+    const canon = canonicalSupplierCurrency(imported.currency);
+    if (canon && !canon.known) {
+      return {
+        value: imported.value,
+        currency: canon.currency,
+        source: "import",
+        moq: imported.moq,
+        tiers: imported.tiers,
+        quotedAt: imported.quotedAt,
+        ils: null,
+        converted: false,
+        unknownCurrency: true,
+      };
+    }
+    if (canon) {
+      const value = imported.value;
+      const { ils, converted } = toIls(value, canon.currency, rates);
+      return {
+        value,
+        currency: canon.currency,
+        source: "import",
+        moq: imported.moq,
+        tiers: imported.tiers,
+        quotedAt: imported.quotedAt,
+        ils,
+        converted,
+      };
+    }
   }
   if (facts.fromPack) return null;
   const value = exampleIls(facts);

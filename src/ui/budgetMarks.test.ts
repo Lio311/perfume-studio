@@ -111,6 +111,21 @@ describe("budget reading order and minimum-order hint", () => {
     expect(tag).toContain(tx("en").belowMoq);
   });
 
+  it("shows an unknown supplier currency with its original value", () => {
+    useLab.setState({ lang: "he", brief: { ceilingIls: 30, volumeMl: 50, confirmed: true } });
+    const hebrew = render(createElement(PriceTag, {
+      price: { value: 7, currency: "dollar", source: "import", ils: null, converted: false, unknownCurrency: true },
+    }));
+    expect(hebrew).toContain(`<bdi dir="ltr">7 ${tx("he").unknownCurrency}</bdi>`);
+    expect(hebrew).not.toContain(tx("he").noPrice);
+
+    useLab.setState({ lang: "en" });
+    const english = render(createElement(PriceTag, {
+      price: { value: 7.5, currency: "dollar", source: "import", ils: null, converted: false, unknownCurrency: true },
+    }));
+    expect(english).toContain(`<bdi dir="ltr">7.50 ${tx("en").unknownCurrency}</bdi>`);
+  });
+
   it("isolates the part id at the start of a warning line", () => {
     const html = render(createElement(PackWarningList, {
       lines: [

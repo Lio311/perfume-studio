@@ -35,6 +35,18 @@ export function PriceTag({ price, compact = false }: { price: ResolvedPrice | nu
   const quantity = useLab((s) => s.brief.quantity);
   const t = tx(lang);
   if (!price) return <span className={compact ? "price-tag is-compact" : "price-tag"}><em>{t.noPrice}</em></span>;
+  if (price.unknownCurrency) {
+    const digits = Number.isInteger(price.value) ? 0 : 2;
+    const amount = new Intl.NumberFormat(lang === "he" ? "he-IL" : "en", {
+      minimumFractionDigits: digits,
+      maximumFractionDigits: 2,
+    }).format(price.value);
+    return (
+      <span className={compact ? "price-tag is-compact" : "price-tag"}>
+        <bdi dir="ltr">{amount} {t.unknownCurrency}</bdi>
+      </span>
+    );
+  }
   return (
     <span className={compact ? "price-tag is-compact" : "price-tag"}>
       <bdi dir="ltr">{formatMoney(price.value, price.currency, lang)}</bdi>

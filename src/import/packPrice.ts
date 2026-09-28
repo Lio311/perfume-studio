@@ -1,4 +1,4 @@
-import { normalizeCurrency, type PriceTier, type SupplierPrice } from "../budget/money.ts";
+import { canonicalSupplierCurrency, type PriceTier, type SupplierPrice } from "../budget/money.ts";
 
 /** The price itself is unusable. The part still imports, without a price. */
 export type PriceDropReason = "value" | "currency" | "moq" | "quotedAt";
@@ -46,7 +46,8 @@ function tierQuantity(row: Record<string, unknown>): number | null {
 
 /**
  * Keep a pack price when the base quote is valid.
- * A bad value, currency, or MOQ drops the whole price.
+ * A bad value or MOQ drops the whole price. A currency that is not text is dropped.
+ * An unknown currency string is kept so the part can show its original value.
  * Each tier is checked in the order it was written and is not reordered.
  * A failing tier is dropped on its own. A tier that costs more than the previous price is kept.
  */
@@ -56,9 +57,9 @@ export function sanitizeSupplierPrice(
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return { reason: "value" };
   const price = raw as Record<string, unknown>;
   if (typeof price.value !== "number" || !Number.isFinite(price.value) || price.value <= 0) return { reason: "value" };
-  if (typeof price.currency !== "string") return { reason: "currency" };
-  const currency = normalizeCurrency(price.currency);
-  if (!currency) return { reason: "currency" };
+  const canon = canonicalSupplierCurrency(price.currency);
+  if (!canon) return { reason: "currency" };
+  const currency = canon.currency;
 
   let moq: number | undefined;
   if ("moq" in price && price.moq !== undefined) {

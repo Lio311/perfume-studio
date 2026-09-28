@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { allFacts, factsById } from "../budget/descriptors.ts";
-import { priceAtQuantity, quantityBelowMoq, resolvePartPrice, summarizeBudget, type ResolvedPrice } from "../budget/money.ts";
+import { budgetAmount, priceAtQuantity, quantityBelowMoq, resolvePartPrice, summarizeBudget, type ResolvedPrice } from "../budget/money.ts";
 import { rankAssemblySavings, suggestAlternatives, type Alternative, type SavingSwap } from "../budget/similar.ts";
 import { BUDGET_KINDS, type PartFacts } from "../budget/types.ts";
 import { importedPrice } from "../import/registry.ts";
@@ -58,15 +58,16 @@ export function useBudgetModel(): BudgetModel {
       const id = design[kind].variantId;
       const facts = factsFor(kind, id);
       const price = facts ? priceFor(kind, id) : null;
-      if (!facts || !price) {
+      const amount = budgetAmount(price);
+      if (!facts || !price || amount === "unpriced") {
         amounts.push("unpriced");
         continue;
       }
       lines.push({ kind, id, facts, price });
-      amounts.push(price.ils);
+      amounts.push(amount);
     }
     const summary = summarizeBudget(amounts, brief.ceilingIls);
-    const foreign = [...new Set(lines.filter((line) => line.price.currency !== "ILS").map((line) => line.price.currency))];
+    const foreign = [...new Set(lines.filter((line) => line.price.currency !== "ILS" && !line.price.unknownCurrency).map((line) => line.price.currency))];
     let alternatives: Alternative[] = [];
     if (summary.over && selected && selected !== "liquid") {
       const line = lines.find((item) => item.kind === selected);

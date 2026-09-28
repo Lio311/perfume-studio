@@ -122,6 +122,33 @@ describe("parsePackFile prices", () => {
     expect(JSON.stringify(parsed.pack)).not.toContain('"qty"');
   });
 
+  it("stores shekel and dollar aliases as ILS and USD", () => {
+    const parsed = read(JSON.stringify({
+      name: "Aliases",
+      parts: [
+        { ...basePart, id: "shekel", price: { value: 5, currency: "₪" } },
+        { ...basePart, id: "nis", price: { value: 5, currency: "NIS" } },
+        { ...basePart, id: "shekel-word", price: { value: 5, currency: "ש״ח" } },
+        { ...basePart, id: "ils", price: { value: 5, currency: "ils" } },
+        { ...basePart, id: "usd", price: { value: 5, currency: "usd" } },
+        { ...basePart, id: "dollar-sign", price: { value: 5, currency: "$" } },
+      ],
+    }));
+    expect(parsed.warnings).toEqual([]);
+    for (const id of ["shekel", "nis", "shekel-word", "ils"]) {
+      expect(parsed.pack.parts.find((part) => part.id === id)?.price).toEqual({ value: 5, currency: "ILS" });
+    }
+    for (const id of ["usd", "dollar-sign"]) {
+      expect(parsed.pack.parts.find((part) => part.id === id)?.price).toEqual({ value: 5, currency: "USD" });
+    }
+    const blank = read(JSON.stringify({
+      name: "Blank",
+      parts: [{ ...basePart, id: "blank", price: { value: 4, currency: "" } }],
+    }));
+    expect(blank.pack.parts[0].price).toBeUndefined();
+    expect(blank.warnings).toEqual([{ partId: "blank", reason: "currency" }]);
+  });
+
   it("drops an invalid base price, and drops only the bad tier", () => {
     const parsed = read(JSON.stringify({
       name: "Mixed",
@@ -137,7 +164,10 @@ describe("parsePackFile prices", () => {
       ],
     }));
     expect(parsed.pack.parts.map((part) => part.id)).toEqual(["text", "zero", "words", "fraction-moq", "zero-tier", "low-qty", "stale", "good"]);
-    expect(parsed.pack.parts.slice(0, 4).every((part) => part.price === undefined)).toBe(true);
+    expect(parsed.pack.parts[0].price).toBeUndefined();
+    expect(parsed.pack.parts[1].price).toBeUndefined();
+    expect(parsed.pack.parts[2].price).toEqual({ value: 4, currency: "dollar" });
+    expect(parsed.pack.parts[3].price).toBeUndefined();
     expect(parsed.pack.parts[4].price).toEqual({ value: 4, currency: "ILS" });
     expect(parsed.pack.parts[5].price).toEqual({ value: 4, currency: "ILS" });
     expect(parsed.pack.parts[6].price).toBeUndefined();
@@ -145,7 +175,6 @@ describe("parsePackFile prices", () => {
     expect(parsed.warnings).toEqual([
       { partId: "text", reason: "value" },
       { partId: "zero", reason: "value" },
-      { partId: "words", reason: "currency" },
       { partId: "fraction-moq", reason: "moq" },
       { partId: "zero-tier", reason: "tierDropped" },
       { partId: "low-qty", reason: "tierDropped" },

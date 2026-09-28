@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { FinishId, VariantPart } from "../model/types.ts";
 import { examplePriceNote } from "../i18n/copy.ts";
 import { allFacts, factsById } from "./descriptors.ts";
-import { exampleIls, formatCount, formatMoney, formatQuoteDate, priceAtQuantity, quantityBelowMoq, resolvePartPrice, summarizeBudget, toIls, unitValue } from "./money.ts";
+import { budgetAmount, exampleIls, formatCount, formatMoney, formatQuoteDate, normalizeCurrency, priceAtQuantity, quantityBelowMoq, resolvePartPrice, summarizeBudget, toIls, unitValue } from "./money.ts";
 import { rankAssemblySavings, rankCostReductions, suggestAlternatives } from "./similar.ts";
 import type { PartFacts } from "./types.ts";
 import { capacityFitsVolume, matchingBottleIds, nominalFillMl } from "./volume.ts";
@@ -58,6 +58,35 @@ describe("budget totals", () => {
     expect(rated.incomplete).toBe(false);
     expect(rated.remainingIls).toBe(6);
     expect(rated.unpricedCount).toBe(0);
+  });
+
+  it("counts an unknown supplier currency with the unpriced parts", () => {
+    expect(normalizeCurrency("₪")).toBe("ILS");
+    expect(normalizeCurrency("NIS")).toBe("ILS");
+    expect(normalizeCurrency("ש״ח")).toBe("ILS");
+    expect(normalizeCurrency('ש"ח')).toBe("ILS");
+    expect(normalizeCurrency("ils")).toBe("ILS");
+    expect(normalizeCurrency("usd")).toBe("USD");
+    expect(normalizeCurrency("$")).toBe("USD");
+    expect(normalizeCurrency("dollar")).toBeNull();
+
+    const priced = resolvePartPrice(facts({ id: "priced", kind: "cap" }), { value: 10, currency: "₪" }, undefined, {});
+    const unpriced = resolvePartPrice(facts({ id: "none", kind: "cap", fromPack: true }), undefined, undefined, {});
+    const unknown = resolvePartPrice(facts({ id: "mystery", kind: "cap", fromPack: true }), { value: 7.5, currency: "dollar" }, undefined, {});
+    const awaitingRate = resolvePartPrice(facts({ id: "usd", kind: "cap" }), { value: 4, currency: "$" }, undefined, {});
+    expect(priced).toMatchObject({ currency: "ILS", ils: 10, source: "import" });
+    expect(priced?.unknownCurrency).toBeUndefined();
+    expect(unpriced).toBeNull();
+    expect(unknown).toMatchObject({ value: 7.5, currency: "dollar", unknownCurrency: true, ils: null });
+    expect(awaitingRate).toMatchObject({ currency: "USD", ils: null, converted: false });
+    expect(awaitingRate?.unknownCurrency).toBeUndefined();
+
+    const summary = summarizeBudget([priced, unpriced, unknown].map((price) => budgetAmount(price)), 100);
+    expect(summary.totalIls).toBe(10);
+    expect(summary.unpricedCount).toBe(2);
+    expect(summary.excludedCount).toBe(0);
+    expect(summary.incomplete).toBe(false);
+    expect(budgetAmount(awaitingRate)).toBeNull();
   });
 
   it("leaves an unpriced part out of the total and counts it", () => {
