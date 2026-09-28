@@ -112,6 +112,12 @@ public enum PackValidator {
     }
 
     public static func issues(inPackJSON data: Data) -> [Issue] {
+        issues(inPackJSON: data, catalog: DimensionCatalog.snapshot)
+    }
+
+    /// `catalog` is the bundled schema in production. Tests pass a failed snapshot to prove
+    /// a missing schema is an error rather than a skipped range check.
+    static func issues(inPackJSON data: Data, catalog: DimensionCatalogSnapshot) -> [Issue] {
         guard let root = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else {
             return [make("", "pack_invalid", .error, "הקובץ אינו חבילת ספק.", "The file is not a supplier pack.")]
         }
@@ -119,6 +125,11 @@ public enum PackValidator {
             return [make("parts", "parts_invalid", .error, "רשימת החלקים חסרה.", "The parts list is missing.")]
         }
         var issues: [Issue] = []
+        if catalog.failed {
+            issues.append(make("$defs.DimensionRanges", "dimension_ranges_unavailable", .error,
+                               "לא ניתן לטעון את טווחי המידות מהסכימה, ולכן אי אפשר לאמת מידות.",
+                               "Dimension ranges could not be loaded from the schema, so range checks cannot run."))
+        }
         for (index, raw) in parts.enumerated() {
             guard let part = raw as? [String: Any] else {
                 issues.append(make("parts[\(index)]", "part_invalid", .error, "החלק אינו אובייקט.", "The part is not an object."))
@@ -140,7 +151,12 @@ public enum PackValidator {
                                        "Neck \(shown) is not supported."))
                 }
             }
-            let limits = kind.flatMap { DimensionCatalog.limits(for: $0) }
+            let limits = kind.flatMap { catalog.byKind[$0.rawValue] }
+            if let kind, !catalog.failed, limits == nil {
+                issues.append(make(base, "dimension_ranges_unavailable", .error,
+                                   "אין טווח מידות עבור \(kind.rawValue) בסכימה, ולכן אי אפשר לאמת את המידות.",
+                                   "The schema has no dimension range for \(kind.rawValue), so the dimensions cannot be checked."))
+            }
             for axis in ["widthMm", "heightMm", "depthMm"] {
                 guard let value = finiteNumber(part[axis]), value >= 0 else {
                     issues.append(make("\(base).\(axis)", "dimension_invalid", .error,
@@ -250,19 +266,12 @@ public enum PackValidator {
         return value
     }
 
+    /// A real Gregorian calendar day. `2026-02-30` and `2026-13-45` are rejected.
     private static func isRealUTCDate(year: Int, month: Int, day: Int) -> Bool {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = TimeZone(secondsFromGMT: 0) ?? calendar.timeZone
-        var components = DateComponents()
-        components.calendar = calendar
-        components.timeZone = calendar.timeZone
-        components.year = year
-        components.month = month
-        components.day = day
-        guard let date = calendar.date(from: components) else { return false }
-        return calendar.component(.year, from: date) == year
-            && calendar.component(.month, from: date) == month
-            && calendar.component(.day, from: date) == day
+        guard year >= 1, (1...12).contains(month), day >= 1 else { return false }
+        let leap = (year % 4 == 0 && year % 100 != 0) || year % 400 == 0
+        let lengths = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+        return day <= lengths[month - 1]
     }
 
     private static func validTime(_ body: String) -> Bool {
@@ -280,21 +289,25 @@ public enum PackValidator {
     }
 }
 
+struct DimensionCatalogSnapshot: Equatable {
+    var byKind: [String: DimensionLimits]
+    var failed: Bool
+}
+
 enum DimensionCatalog {
+    static let snapshot: DimensionCatalogSnapshot = loadBundled()
+
     static func limits(for kind: PartKind) -> DimensionLimits? {
-        byKind[kind.rawValue]
+        snapshot.byKind[kind.rawValue]
     }
 
-    private static let byKind: [String: DimensionLimits] = load()
-
-    private static func load() -> [String: DimensionLimits] {
-        guard let url = Bundle.module.url(forResource: "supplier-pack.schema", withExtension: "json"),
-              let data = try? Data(contentsOf: url),
-              let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+    static func parse(_ data: Data) -> DimensionCatalogSnapshot {
+        guard let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let defs = root["$defs"] as? [String: Any],
               let block = defs["DimensionRanges"] as? [String: Any],
-              let properties = block["properties"] as? [String: Any] else {
-            return [:]
+              let properties = block["properties"] as? [String: Any],
+              !properties.isEmpty else {
+            return DimensionCatalogSnapshot(byKind: [:], failed: true)
         }
         var loaded: [String: DimensionLimits] = [:]
         for (kind, raw) in properties {
@@ -305,7 +318,18 @@ enum DimensionCatalog {
                   let depth = axis(axes["depthMm"]) else { continue }
             loaded[kind] = DimensionLimits(widthMm: width, heightMm: height, depthMm: depth)
         }
-        return loaded
+        if loaded.isEmpty {
+            return DimensionCatalogSnapshot(byKind: [:], failed: true)
+        }
+        return DimensionCatalogSnapshot(byKind: loaded, failed: false)
+    }
+
+    private static func loadBundled() -> DimensionCatalogSnapshot {
+        guard let url = Bundle.module.url(forResource: "supplier-pack.schema", withExtension: "json"),
+              let data = try? Data(contentsOf: url) else {
+            return DimensionCatalogSnapshot(byKind: [:], failed: true)
+        }
+        return parse(data)
     }
 
     private static func axis(_ raw: Any?) -> DimensionLimits.Axis? {

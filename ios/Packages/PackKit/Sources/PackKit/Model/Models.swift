@@ -25,6 +25,41 @@ public struct Price: Codable, Equatable {
     public var moq: Int?
     public var tiers: [PriceTier]?
     public var quotedAt: String?
+
+    public init(value: Double, currency: String, moq: Int? = nil, tiers: [PriceTier]? = nil, quotedAt: String? = nil) {
+        self.value = value
+        self.currency = currency
+        self.moq = moq
+        self.tiers = tiers
+        self.quotedAt = quotedAt
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case value, currency, moq, tiers, quotedAt
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        value = try c.decode(Double.self, forKey: .value)
+        currency = try c.decode(String.self, forKey: .currency)
+        moq = try c.decodeIfPresent(Int.self, forKey: .moq)
+        tiers = try c.decodeIfPresent([PriceTier].self, forKey: .tiers)
+        quotedAt = try c.decodeIfPresent(String.self, forKey: .quotedAt)
+    }
+
+    /// Writes a normalised ISO code. `usd` and ` USD ` become `USD`; `₪` becomes `ILS`.
+    /// A code that cannot be normalised is still written in upper case.
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(value, forKey: .value)
+        let trimmed = currency.trimmingCharacters(in: .whitespacesAndNewlines)
+        let written = PackValidator.normalizeCurrency(trimmed)
+            ?? trimmed.uppercased(with: Locale(identifier: "en_US_POSIX"))
+        try c.encode(written, forKey: .currency)
+        try c.encodeIfPresent(moq, forKey: .moq)
+        try c.encodeIfPresent(tiers, forKey: .tiers)
+        try c.encodeIfPresent(quotedAt, forKey: .quotedAt)
+    }
 }
 
 public struct Appearance: Codable, Equatable {
