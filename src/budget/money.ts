@@ -146,6 +146,11 @@ export function resolvePartPrice(
   return { value, currency: "ILS", source: "example", ils: value, converted: false };
 }
 
+/** True when a planned quantity is set and is lower than this part's minimum order. */
+export function quantityBelowMoq(quantity: number | undefined, moq: number | undefined): boolean {
+  return quantity != null && moq != null && quantity < moq;
+}
+
 /** Unit price at a planned quantity. Without one, the base quote is unchanged. */
 export function priceAtQuantity(price: ResolvedPrice, qty: number | undefined): ResolvedPrice {
   if (qty == null || qty < 1) return price;

@@ -258,6 +258,7 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 .price-editor-head, .price-editor-row, .budget-meter-top, .budget-meter-actions, .budget-rate { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
 .budget-meter-top .is-partial { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
 .combo-total em.is-partial, .budget-meter em.is-partial { color: var(--warn); font-style: normal; }
+.price-tag em.is-warn, .combo-total em.is-warn, .budget-meter em.is-warn, .budget-brief .hint.is-warn { color: var(--warn); }
 .price-editor h3 { margin: 0; }
 .price-editor-head .price-tag { align-items: flex-end; }
 .price-editor input, .price-editor select, .budget-rate input, .brief-field input { width: 100%; margin: 0; }

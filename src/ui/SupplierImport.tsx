@@ -9,6 +9,7 @@ import { regexCatalogSource, type DraftItem, type ImportProfile, type NormRect }
 import { partFromDraft } from "../import/registry.ts";
 import type { NeckId, VariantPart } from "../model/types.ts";
 import { useLab } from "../store/labStore.ts";
+import { PackWarningList, type WarningLine } from "./PackWarnings.tsx";
 
 const KINDS: VariantPart[] = ["cap", "box", "bottle", "label", "pump", "collar"];
 const NECKS: Array<NeckId | ""> = ["", "FEA13", "FEA15", "FEA17", "FEA18", "FEA20"];
@@ -55,7 +56,7 @@ export function SupplierImport() {
   const [active, setActive] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [warnings, setWarnings] = useState<string[]>([]);
+  const [warnings, setWarnings] = useState<WarningLine[]>([]);
   const drag = useRef<NormRect | null>(null);
 
   async function ingest(file: File) {
@@ -200,12 +201,15 @@ export function SupplierImport() {
                   tierRose: t.tierRose,
                 };
                 const dropsPrice = new Set<PriceWarning["reason"]>(["value", "currency", "moq", "quotedAt"]);
-                const lines = parsed.warnings.map((warning) => {
-                  const line = `${warning.partId}: ${reasonText[warning.reason]}.`;
-                  return dropsPrice.has(warning.reason) ? `${line} ${t.priceDropped}` : line;
+                const lines: WarningLine[] = parsed.warnings.map((warning) => {
+                  const text = `${reasonText[warning.reason]}.`;
+                  return {
+                    partId: warning.partId,
+                    text: dropsPrice.has(warning.reason) ? `${text} ${t.priceDropped}` : text,
+                  };
                 });
                 setError("");
-                setWarnings(capPriceWarnings(lines, (hidden) => t.warningsMore.replace("{n}", String(hidden))));
+                setWarnings(capPriceWarnings(lines, (hidden) => ({ text: t.warningsMore.replace("{n}", String(hidden)) })));
                 upsertSupplier(parsed.pack, parsed.warnings.length === 0);
               });
             }} />
@@ -218,11 +222,7 @@ export function SupplierImport() {
         </div>
         {busy && <p className="hint">{lang === "he" ? "קורא עמודים…" : "Reading pages…"}</p>}
         {error && <p className="hint">{error}</p>}
-        {warnings.length > 0 && (
-          <ul className="pack-warnings" role="status">
-            {warnings.map((line, index) => <li key={index}>{line}</li>)}
-          </ul>
-        )}
+        <PackWarningList lines={warnings} />
         {blankPages.map((item) => <p key={item.page} className="hint">{t.noText} · {t.pages} {item.page}</p>)}
         <div className="supplier-body">
           <div className="supplier-table">

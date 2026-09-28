@@ -212,6 +212,30 @@ describe("parsePackFile prices", () => {
     expect(capPriceWarnings([1, 2, 3], (hidden) => hidden, 2)).toEqual([1, 2, 1]);
   });
 
+  it("does not mark a pack changed when a warning leaves the stored price as it was", () => {
+    const price = { value: 4, currency: "ILS", tiers: [{ minQty: 10, value: 5 }] };
+    const kept = normalizeStoredPack({
+      id: "rose-pack",
+      name: "Rose",
+      createdAt: 1,
+      parts: [{ ...basePart, id: "rose", price }],
+    });
+    expect(kept.warnings).toEqual([{ partId: "rose", reason: "tierRose" }]);
+    expect(kept.changed).toBe(false);
+    expect(kept.pack.parts[0].price).toEqual(price);
+
+    const first = normalizeStoredPack({
+      id: "drop-pack",
+      name: "Drop",
+      createdAt: 1,
+      parts: [{ ...basePart, id: "low", price: { value: 4, currency: "ILS", tiers: [{ minQty: 1, value: 3 }] } }],
+    });
+    expect(first.changed).toBe(true);
+    const second = normalizeStoredPack(first.pack);
+    expect(second.changed).toBe(false);
+    expect(second.warnings).toEqual([]);
+  });
+
   it("does not invent a price for a pack part with no price or a dropped price", () => {
     const missing = read(JSON.stringify({
       name: "No price",

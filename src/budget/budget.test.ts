@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { FinishId, VariantPart } from "../model/types.ts";
 import { examplePriceNote } from "../i18n/copy.ts";
 import { allFacts, factsById } from "./descriptors.ts";
-import { exampleIls, formatCount, formatMoney, formatQuoteDate, priceAtQuantity, resolvePartPrice, summarizeBudget, toIls, unitValue } from "./money.ts";
+import { exampleIls, formatCount, formatMoney, formatQuoteDate, priceAtQuantity, quantityBelowMoq, resolvePartPrice, summarizeBudget, toIls, unitValue } from "./money.ts";
 import { rankAssemblySavings, rankCostReductions, suggestAlternatives } from "./similar.ts";
 import type { PartFacts } from "./types.ts";
 import { capacityFitsVolume, matchingBottleIds, nominalFillMl } from "./volume.ts";
@@ -73,6 +73,14 @@ describe("budget totals", () => {
     expect(unitValue({ value: 4.5, moq: 1000, tiers }, 1)).toBe(4.5);
     expect(unitValue({ value: 4.5, moq: 1000, tiers }, 5000)).toBe(4.2);
     expect(unitValue({ value: 4.5, moq: 1000, tiers }, 20000)).toBe(3.9);
+  });
+
+  it("reports a planned quantity that sits below the minimum order", () => {
+    expect(quantityBelowMoq(10, 100)).toBe(true);
+    expect(quantityBelowMoq(100, 100)).toBe(false);
+    expect(quantityBelowMoq(5000, 1000)).toBe(false);
+    expect(quantityBelowMoq(undefined, 100)).toBe(false);
+    expect(quantityBelowMoq(10, undefined)).toBe(false);
   });
 
   it("uses the tier price only when a planned quantity reaches that break", () => {

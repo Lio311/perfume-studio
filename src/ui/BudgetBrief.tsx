@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { formatMoney } from "../budget/money.ts";
 import { tx } from "../i18n/copy.ts";
 import { useLab } from "../store/labStore.ts";
+import { useBudgetModel } from "./useBudget.ts";
 
 const BUDGETS = [30, 60, 120, 200];
 const VOLUMES = [30, 50, 100];
@@ -14,6 +15,7 @@ export function BudgetBrief() {
   const setBrief = useLab((s) => s.setBrief);
   const confirmBrief = useLab((s) => s.confirmBrief);
   const closeBrief = useLab((s) => s.closeBrief);
+  const { belowMoq } = useBudgetModel();
   const [hydrated, setHydrated] = useState(() => useLab.persist.hasHydrated());
 
   useEffect(() => {
@@ -103,7 +105,7 @@ export function BudgetBrief() {
             }}
           />
         </label>
-        <p className="hint">{brief.quantity ? t.briefQuantityOn : t.basePriceNote}</p>
+        <p className={belowMoq ? "hint is-warn" : "hint"}>{belowMoq ? t.belowMoq : brief.quantity ? t.briefQuantityOn : t.basePriceNote}</p>
         <p className="hint">{t.briefNote}</p>
         <div className="modal-actions">
           {brief.confirmed && <button type="button" onClick={() => closeBrief()}>{t.briefCancel}</button>}

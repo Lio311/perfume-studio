@@ -11,7 +11,7 @@ export function BudgetMeter({ onSavings }: { onSavings: () => void }) {
   const openBrief = useLab((s) => s.openBrief);
   const rates = useLab((s) => s.exchangeRates);
   const setExchangeRate = useLab((s) => s.setExchangeRate);
-  const { summary, foreign, exampleCount } = useBudgetModel();
+  const { summary, foreign, exampleCount, belowMoq } = useBudgetModel();
   if (!brief.confirmed) return null;
   const ratio = brief.ceilingIls > 0 ? Math.min(1, summary.totalIls / brief.ceilingIls) : 0;
   const over = summary.over;
@@ -33,14 +33,15 @@ export function BudgetMeter({ onSavings }: { onSavings: () => void }) {
         </span>
       </div>
       <p className="hint">
-        {t.budgetUsed} · {brief.volumeMl} {t.capacityShort}
+        {t.budgetUsed} · <bdi dir="ltr">{brief.volumeMl} {t.capacityShort}</bdi>
         {brief.quantity ? <> · {t.briefQuantity} <bdi dir="ltr">{formatCount(brief.quantity, lang)}</bdi></> : ` · ${t.basePriceNote}`}
+        {belowMoq && <> · <em className="is-warn">{t.belowMoq}</em></>}
         {exampleCount > 0 && <> · <ExamplePriceMark count={exampleCount} /></>}
         {summary.incomplete ? ` · ${t.budgetPartial}` : ""}
       </p>
       {foreign.map((code) => (
         <label key={code} className="budget-rate">
-          <span>{t.rateFor} 1 {code}</span>
+          <span>{t.rateFor} <bdi dir="ltr">1 {code}</bdi></span>
           <input
             type="number"
             dir="ltr"

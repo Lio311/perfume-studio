@@ -58,6 +58,7 @@ export function Inspector() {
             <bdi dir="ltr">{formatMoney(budget.summary.totalIls, "ILS", lang)}</bdi>
             <PartialMark count={budget.summary.unpricedCount} />
             {!quantity && <em>{t.basePriceNote}</em>}
+            {budget.belowMoq && <em className="is-warn">{t.belowMoq}</em>}
             <ExamplePriceMark count={budget.exampleCount} />
             {budget.summary.over && <em className="is-over">{t.budgetOver}</em>}
           </p>

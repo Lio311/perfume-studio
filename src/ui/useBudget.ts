@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { allFacts, factsById } from "../budget/descriptors.ts";
-import { priceAtQuantity, resolvePartPrice, summarizeBudget, type ResolvedPrice } from "../budget/money.ts";
+import { priceAtQuantity, quantityBelowMoq, resolvePartPrice, summarizeBudget, type ResolvedPrice } from "../budget/money.ts";
 import { rankAssemblySavings, suggestAlternatives, type Alternative, type SavingSwap } from "../budget/similar.ts";
 import { BUDGET_KINDS, type PartFacts } from "../budget/types.ts";
 import { importedPrice } from "../import/registry.ts";
@@ -23,6 +23,8 @@ export interface BudgetModel {
   savings: SavingSwap[];
   foreign: string[];
   exampleCount: number;
+  /** A visible priced part whose minimum order is above the planned quantity. */
+  belowMoq: boolean;
 }
 
 export function useBudgetModel(): BudgetModel {
@@ -107,6 +109,7 @@ export function useBudgetModel(): BudgetModel {
       savings,
       foreign,
       exampleCount: lines.filter((line) => line.price.source === "example").length,
+      belowMoq: lines.some((line) => quantityBelowMoq(brief.quantity, line.price.moq)),
     };
     // suppliers refreshes imported prices and facts after a pack sync.
   }, [brief.ceilingIls, brief.quantity, brief.volumeMl, design, overrides, rates, selected, suppliers]);

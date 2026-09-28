@@ -136,7 +136,10 @@ export function normalizeStoredPack<T extends { parts: Array<{ id: string; price
       return next;
     }
     for (const notice of result.notices) warnings.push({ partId: part.id, reason: notice });
-    if (result.notices.length || JSON.stringify(result.price) !== before) changed = true;
+    // A kept warning, such as a tier that costs more, is not a data change.
+    // Saving on the warning alone rewrites IndexedDB on every load.
+    if (JSON.stringify(result.price) === before) return part;
+    changed = true;
     return { ...part, price: result.price };
   });
   return { pack: { ...pack, parts }, warnings, changed };

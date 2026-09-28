@@ -1,4 +1,4 @@
-import { formatCount, formatMoney, formatQuoteDate, type ResolvedPrice } from "../budget/money.ts";
+import { formatCount, formatMoney, formatQuoteDate, quantityBelowMoq, type ResolvedPrice } from "../budget/money.ts";
 import { tx } from "../i18n/copy.ts";
 import type { VariantPart } from "../model/types.ts";
 import { useLab } from "../store/labStore.ts";
@@ -46,6 +46,7 @@ export function PriceTag({ price, compact = false }: { price: ResolvedPrice | nu
       {price.converted && <em>{t.converted}</em>}
       {!quantity && price.tiers?.length ? <em>{t.basePriceNote}</em> : null}
       {price.moq != null && <em>{t.moqShort} <bdi dir="ltr">{formatCount(price.moq, lang)}</bdi></em>}
+      {quantityBelowMoq(quantity, price.moq) && <em className="is-warn">{t.belowMoq}</em>}
       {price.quotedAt ? <em className="quoted-at">{t.quotedAt} <bdi dir="ltr">{formatQuoteDate(price.quotedAt, lang)}</bdi></em> : null}
     </span>
   );
@@ -106,7 +107,7 @@ export function PartPriceEditor({ kind, partId }: { kind: VariantPart; partId: s
       {currency !== "ILS" && (
         <>
           <label className="price-editor-row">
-            <span>{t.rateFor} 1 {currency}</span>
+            <span>{t.rateFor} <bdi dir="ltr">1 {currency}</bdi></span>
             <input
               type="number"
               dir="ltr"
