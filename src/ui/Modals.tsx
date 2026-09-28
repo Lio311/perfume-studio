@@ -56,9 +56,14 @@ function SaveModal() {
                 </span>
               </div>
               <button type="button" onClick={() => loadDesign(item.id)}>{t.load}</button>
-              <button type="button" onClick={() => (armed === item.id ? deleteDesign(item.id) : setArmed(item.id))}>
-                {armed === item.id ? t.confirmDelete : t.delete}
-              </button>
+              {armed === item.id ? (
+                <div style={{ display: "flex", gap: "4px" }}>
+                  <button type="button" onClick={() => deleteDesign(item.id)} style={{ color: "#d9534f" }}>{lang === "he" ? "כן" : "Yes"}</button>
+                  <button type="button" onClick={() => setArmed(null)}>{lang === "he" ? "לא" : "No"}</button>
+                </div>
+              ) : (
+                <button type="button" onClick={() => setArmed(item.id)}>{t.delete}</button>
+              )}
             </article>
           ))}
         </div>
