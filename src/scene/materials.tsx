@@ -39,7 +39,14 @@ const BLUE_FRAG = `
   }
 `;
 
-function mattePaper(hex: string): { map: THREE.CanvasTexture; bump: THREE.CanvasTexture } {
+/**
+ * Neutral fibre albedo, multiplied by the finish colour.
+ * A white map leaves no headroom: cream (#f4efe6) under the studio key and lightformers
+ * tone-maps to a flat 255 face. This gray stays a tinted paper so edges and grain read.
+ */
+export const MATTE_PAPER_ALBEDO = "#c4bdb2";
+
+function mattePaper(): { map: THREE.CanvasTexture; bump: THREE.CanvasTexture } {
   const canvas = document.createElement("canvas");
   canvas.width = 256;
   canvas.height = 256;
@@ -48,21 +55,20 @@ function mattePaper(hex: string): { map: THREE.CanvasTexture; bump: THREE.Canvas
   bumpCanvas.width = 256;
   bumpCanvas.height = 256;
   const bumpCtx = bumpCanvas.getContext("2d");
-  const base = new THREE.Color(hex);
   if (ctx && bumpCtx) {
-    ctx.fillStyle = "#ffffff";
+    ctx.fillStyle = MATTE_PAPER_ALBEDO;
     ctx.fillRect(0, 0, 256, 256);
     bumpCtx.fillStyle = "#808080";
     bumpCtx.fillRect(0, 0, 256, 256);
-    const ink = `rgba(${Math.round(base.r * 40)},${Math.round(base.g * 40)},${Math.round(base.b * 40)},0.22)`;
-    ctx.fillStyle = ink;
-    for (let i = 0; i < 1600; i += 1) {
+    for (let i = 0; i < 2400; i += 1) {
       const x = Math.random() * 256;
       const y = Math.random() * 256;
-      const w = 1 + Math.random() * 2.2;
-      ctx.globalAlpha = 0.15 + Math.random() * 0.45;
+      const w = 1 + Math.random() * 2.8;
+      const n = 58 + Math.random() * 160;
+      ctx.globalAlpha = 0.28 + Math.random() * 0.5;
+      ctx.fillStyle = `rgb(${n | 0},${Math.max(0, n - 12) | 0},${Math.max(0, n - 26) | 0})`;
       ctx.fillRect(x, y, w, 1);
-      bumpCtx.fillStyle = `rgb(${90 + Math.random() * 90},${90 + Math.random() * 90},${90 + Math.random() * 90})`;
+      bumpCtx.fillStyle = `rgb(${70 + Math.random() * 120},${70 + Math.random() * 120},${70 + Math.random() * 120})`;
       bumpCtx.fillRect(x, y, w, 1);
     }
     ctx.globalAlpha = 1;
@@ -95,7 +101,7 @@ export function FinishMaterial({
 }) {
   const wood = useMemo(() => (finish === "wood" ? woodMap() : null), [finish]);
   const leather = useMemo(() => (finish === "leather" ? leatherBump() : null), [finish]);
-  const paper = useMemo(() => (finish === "matteBlack" ? mattePaper(color) : null), [finish, color]);
+  const paper = useMemo(() => (finish === "matteBlack" ? mattePaper() : null), [finish]);
 
   useEffect(() => {
     return () => {
@@ -156,7 +162,7 @@ export function FinishMaterial({
       clearcoatRoughness={metal ? 0.12 : 0.04}
       attenuationColor={gp ? color : "#fff8ee"}
       attenuationDistance={gp ? 36 : 160}
-      envMapIntensity={metal ? 1.65 : gp ? 1.7 : matte ? 0.35 : 0.7}
+      envMapIntensity={metal ? 1.65 : gp ? 1.7 : matte ? 0.16 : 0.7}
       specularIntensity={gp || metal ? 1 : matte ? 0.4 : 0.3}
       transparent={!!gp}
       opacity={gp ? gp.materialOpacity : 1}

@@ -13,6 +13,9 @@ import {
   labelInk,
   labelTypeface,
   layoutLabelLines,
+  cartonMarkSize,
+  cartonTextAspect,
+  paintCartonMark,
   paintLabel,
   paintLabelEmissive,
   paintLabelSurface,
@@ -244,6 +247,39 @@ describe("label text layout", () => {
     expect(shouldRepaintLabel(false)).toBe(true);
   });
 
+  it("paints carton foil and engrave on a clear ground, and keeps a plate only for print", () => {
+    const foil = fakeCtx();
+    paintCartonMark(foil as unknown as CanvasRenderingContext2D, { font: "cinzel" }, "ATELIER", "#c9a36a", 640, 180, "foil");
+    expect(foil.plate).toBe("");
+    expect(foil.cleared).toBe(true);
+    expect(foil.texts.filter((call) => call.text === "ATELIER")).toHaveLength(1);
+    expect(foil.texts[0]?.fill).toBe("#c9a36a");
+    const engrave = fakeCtx();
+    paintCartonMark(engrave as unknown as CanvasRenderingContext2D, { font: "cormorant" }, "ATELIER", "#c9a36a", 640, 180, "engrave");
+    expect(engrave.plate).toBe("");
+    const emboss = fakeCtx();
+    paintCartonMark(emboss as unknown as CanvasRenderingContext2D, { font: "cinzel" }, "ATELIER", "#c9a36a", 640, 180, "emboss");
+    expect(emboss.plate).toBe("");
+    const print = fakeCtx();
+    paintCartonMark(print as unknown as CanvasRenderingContext2D, { font: "cinzel" }, "ATELIER", "#c9a36a", 640, 180, "decal");
+    expect(print.plate).toBe("#16130f");
+    expect(print.texts.some((call) => call.text === "ATELIER")).toBe(true);
+  });
+
+  it("sizes a wide brand line to most of 52 mm and keeps a tall mark within 18 mm", () => {
+    const aspect = cartonTextAspect("ATELIER", measure);
+    expect(aspect).toBeGreaterThan(2.4);
+    const wide = cartonMarkSize(90, aspect);
+    expect(wide.width).toBeGreaterThan(48);
+    expect(wide.height).toBeLessThanOrEqual(18);
+    expect(wide.width / wide.height).toBeCloseTo(aspect, 5);
+    const hebrew = cartonTextAspect("אטלייה", measure);
+    expect(hebrew).toBeGreaterThan(2);
+    const tall = cartonMarkSize(90, 0.5);
+    expect(tall.height).toBe(18);
+    expect(tall.width).toBeCloseTo(9, 5);
+  });
+
   it("draws nothing when the brand text is empty", () => {
     const ctx = fakeCtx();
     paintLabel(ctx as unknown as CanvasRenderingContext2D, { mark: "word", font: "cinzel", frame: "none" }, "   ", "#D6B26A", 640, 360);
@@ -323,7 +359,11 @@ function fakeCtx() {
     direction: "ltr" as "rtl" | "ltr",
     lineWidth: 1,
     plate: "",
+    cleared: false,
     texts,
+    clearRect() {
+      ctx.cleared = true;
+    },
     fillRect() {
       if (!ctx.plate) ctx.plate = String(ctx.fillStyle);
     },

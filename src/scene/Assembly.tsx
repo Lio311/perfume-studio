@@ -7,9 +7,9 @@ import { computeFit } from "../model/fit.ts";
 import { isGlass } from "../model/materials.ts";
 import type { BoxForm, PartKey, PumpStyle } from "../model/types.ts";
 import { buildBottleGeometry, buildCapGeometry, buildLabelPatch } from "../geometry/sweep.ts";
-import { FOIL_ENV_FLOOR, labelEmissive, labelFinish, labelInk } from "../geometry/logos.ts";
+import { cartonMarkSize, FOIL_ENV_FLOOR, labelEmissive, labelFinish, labelInk } from "../geometry/logos.ts";
 import type { LogoApplication } from "../model/types.ts";
-import { copyLabelCanvas, LabelPaintProvider, useLabelMaps, useSharedLabelCanvas } from "./labelPaint.ts";
+import { LabelPaintProvider, useCartonLabelCanvas, useLabelMaps, useSharedLabelCanvas } from "./labelPaint.ts";
 import { useLab } from "../store/labStore.ts";
 import { latheGeometry, latheProfile } from "../import/lathe.ts";
 import { clickPart, doubleClickPart, markPartPointer, swapFlashOn } from "./focusClick.ts";
@@ -720,20 +720,17 @@ function BrandPlate({ w, y, z }: { w: number; y: number; z: number }) {
   const blueprint = useLab((s) => s.blueprint);
   const variantId = useLab((s) => s.design.label.variantId);
   const color = useLab((s) => s.design.label.color);
+  const text = useLab((s) => s.design.label.text);
   const spec = logoById(variantId);
   const ink = labelInk(color, spec.application);
-  const shared = useSharedLabelCanvas();
-  const planeW = Math.min(w * 0.48, 52);
-  const plateH = Math.max(96, Math.round(1024 * 18 / planeW));
-  const canvas = useMemo(
-    () => (shared ? copyLabelCanvas(shared, 1024, plateH) : document.createElement("canvas")),
-    [shared, plateH],
-  );
+  const canvas = useCartonLabelCanvas();
+  const aspect = Number(canvas.dataset.aspect);
+  const { width: planeW, height: planeH } = cartonMarkSize(w, aspect);
   const { color: tex, mask, emissive } = useLabelMaps(canvas, ink, spec.application);
-  if (blueprint) return null;
+  if (blueprint || text.trim().length === 0) return null;
   return (
     <mesh position={[0, y, z]}>
-      <planeGeometry args={[planeW, 18]} />
+      <planeGeometry args={[planeW, planeH]} />
       <LabelFinishMaterial map={tex} mask={mask} emissiveMap={emissive} ink={ink} application={spec.application} overlay />
     </mesh>
   );
