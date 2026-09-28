@@ -263,8 +263,9 @@ export function buildCapGeometry(
   return orientOutward(geo);
 }
 
-/** A decal on the +Z face of the same sweep the glass uses, in label-local space. */
-export function buildLabelPatch(args: SweepArgs & { yCenter: number; patchH: number; patchW: number }): THREE.BufferGeometry {
+type LabelPatchArgs = SweepArgs & { yCenter: number; patchH: number; patchW: number };
+
+function prepareLabelPatch(args: LabelPatchArgs) {
   const height = Math.max(12, args.height);
   const width = Math.max(10, args.width);
   const depth = Math.max(10, args.depth);
@@ -282,7 +283,28 @@ export function buildLabelPatch(args: SweepArgs & { yCenter: number; patchH: num
     if (Math.abs(x) < half) lo = span;
     else hi = span;
   }
-  const span = lo;
+  return { height, width, depth, neckR, y0, y1, mid, midSample, half, span: lo };
+}
+
+/** Width and height of the decal that `buildLabelPatch` will actually draw. */
+export function labelPatchExtent(args: LabelPatchArgs): { width: number; height: number } {
+  const prep = prepareLabelPatch(args);
+  let maxAbsX = 0;
+  const steps = 8;
+  for (let i = 0; i <= steps; i += 1) {
+    const y = prep.y0 + ((prep.y1 - prep.y0) * i) / steps;
+    const sample = bottleRadii(y, prep.height, prep.width, prep.depth, args.profile, args.shoulder, prep.neckR);
+    for (const ang of [Math.PI / 2 - prep.span, Math.PI / 2 + prep.span]) {
+      const [x] = sectionPoint(args.section, ang, sample.rx, sample.rz, args.softness, sample.morph, y);
+      maxAbsX = Math.max(maxAbsX, Math.abs(x));
+    }
+  }
+  return { width: maxAbsX * 2, height: prep.y1 - prep.y0 };
+}
+
+/** A decal on the +Z face of the same sweep the glass uses, in label-local space. */
+export function buildLabelPatch(args: LabelPatchArgs): THREE.BufferGeometry {
+  const { height, width, depth, neckR, y0, y1, mid, midSample, span } = prepareLabelPatch(args);
   const anchor = bottleRadii(args.yCenter, height, width, depth, args.profile, args.shoulder, neckR);
   const ySteps = 28;
   const aSteps = 64;

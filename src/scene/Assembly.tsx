@@ -7,7 +7,8 @@ import { computeFit } from "../model/fit.ts";
 import { isGlass } from "../model/materials.ts";
 import type { BoxForm, PartKey, PumpStyle } from "../model/types.ts";
 import { buildBottleGeometry, buildCapGeometry, buildLabelPatch } from "../geometry/sweep.ts";
-import { labelTypeface, logoTexture } from "../geometry/logos.ts";
+import { labelFontSpec, labelInk, logoTexture, shouldRepaintLabel } from "../geometry/logos.ts";
+import type { LogoFont } from "../model/types.ts";
 import { useLab } from "../store/labStore.ts";
 import { latheGeometry, latheProfile } from "../import/lathe.ts";
 import { clickPart, doubleClickPart, markPartPointer, swapFlashOn } from "./focusClick.ts";
@@ -577,6 +578,25 @@ function Actuator({
   );
 }
 
+function useLabelFontTick(font: LogoFont, text: string): number {
+  const [fontTick, setFontTick] = useState(0);
+  const spec = labelFontSpec(font, text);
+  useEffect(() => {
+    const fonts = document.fonts;
+    if (!fonts?.load || !fonts.check) return undefined;
+    const alreadyLoaded = fonts.check(spec, text);
+    if (!shouldRepaintLabel(alreadyLoaded)) return undefined;
+    let live = true;
+    void fonts.load(spec, text).then(() => {
+      if (live) setFontTick((n) => n + 1);
+    }).catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, [spec, text]);
+  return fontTick;
+}
+
 function LabelPart() {
   const design = useLab((s) => s.design);
   const stage = useLab((s) => s.stage);
@@ -585,22 +605,8 @@ function LabelPart() {
   const bottle = bottleById(design.bottle.variantId);
   const spec = logoById(design.label.variantId);
   const fit = computeFit(design, false);
-  const ink = design.label.color;
-  const [fontTick, setFontTick] = useState(0);
-  useEffect(() => {
-    let live = true;
-    const fonts = document.fonts;
-    if (!fonts?.load) return undefined;
-    const face = labelTypeface(spec.font, design.label.text);
-    const bump = () => {
-      if (live) setFontTick((n) => n + 1);
-    };
-    void fonts.ready.then(bump).catch(() => undefined);
-    void fonts.load(`600 96px "${face}"`).then(bump).catch(() => undefined);
-    return () => {
-      live = false;
-    };
-  }, [spec.font, design.label.text]);
+  const ink = labelInk(design.label.color, spec.application);
+  const fontTick = useLabelFontTick(spec.font, design.label.text);
 
   const canvas = useMemo(() => {
     const aspect = fit.labelW / Math.max(4, fit.labelH);
@@ -665,16 +671,20 @@ function BrandPlate({ w, y, z }: { w: number; y: number; z: number }) {
   const blueprint = useLab((s) => s.blueprint);
   const text = useLab((s) => s.design.label.text);
   const variantId = useLab((s) => s.design.label.variantId);
-  const ink = useLab((s) => s.design.label.color);
+  const color = useLab((s) => s.design.label.color);
+  const spec = logoById(variantId);
+  const ink = labelInk(color, spec.application);
+  const fontTick = useLabelFontTick(spec.font, text);
   const tex = useMemo(() => {
     const planeW = Math.min(w * 0.48, 52);
-    const canvas = logoTexture(logoById(variantId), text, ink, 1024, Math.max(96, Math.round(1024 * 18 / planeW)));
+    const canvas = logoTexture(spec, text, ink, 1024, Math.max(96, Math.round(1024 * 18 / planeW)));
+    canvas.dataset.fonts = String(fontTick);
     const texture = new THREE.CanvasTexture(canvas);
     texture.colorSpace = THREE.SRGBColorSpace;
     texture.anisotropy = 4;
     texture.needsUpdate = true;
     return texture;
-  }, [text, variantId, w, ink]);
+  }, [text, spec, w, ink, fontTick]);
   useEffect(() => () => tex.dispose(), [tex]);
   if (blueprint) return null;
   return (

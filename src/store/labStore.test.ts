@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { useLab } from "./labStore.ts";
 import { createDefaultDesign } from "../model/design.ts";
+import { clampLabelText } from "../geometry/logos.ts";
 
 describe("labStore", () => {
   beforeEach(() => {
@@ -61,6 +62,15 @@ describe("labStore", () => {
     ]);
     expect(useLab.getState().design.label.visible).toBe(false);
     expect(useLab.getState().design.label.text).toBe("");
+  });
+
+  it("keeps a trailing emoji whole when the text command is capped", () => {
+    const wave = "👋";
+    const text = "a".repeat(31) + wave;
+    useLab.getState().applyCommands([{ type: "text", text }]);
+    expect(useLab.getState().design.label.text).toBe(text);
+    expect(useLab.getState().design.label.text).toBe(clampLabelText(text));
+    expect(text.slice(0, 32)).not.toBe(text);
   });
 
   it("should record history on applyCommands", () => {

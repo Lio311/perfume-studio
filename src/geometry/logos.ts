@@ -1,4 +1,5 @@
-import type { LogoFont, LogoFrame, LogoMark, LogoSpec } from "../model/types.ts";
+import * as THREE from "three";
+import type { LogoApplication, LogoFont, LogoFrame, LogoMark, LogoSpec } from "../model/types.ts";
 
 const TYPEFACE: Record<LogoFont, string> = {
   cormorant: "Cormorant Garamond",
@@ -12,7 +13,7 @@ const FONT_FAMILY: Record<LogoFont, string> = {
   cormorant: '"Cormorant Garamond", Georgia, serif',
   cinzel: '"Cinzel", "Times New Roman", serif',
   italiana: '"Italiana", "Times New Roman", serif',
-  vibes: '"Great Vibes", cursive',
+  vibes: '"Great Vibes", Georgia, serif',
   heebo: '"Heebo", sans-serif',
 };
 
@@ -20,12 +21,46 @@ function inkFont(font: LogoFont, text: string): string {
   return labelFontFamily(font, text);
 }
 
-/** Hebrew anywhere in the string sets the paragraph to rtl, so English and digits stay one embedded run. */
+/** First strong directional letter (Unicode bidi). Neutrals such as digits and punctuation are skipped. */
 export function labelDirection(text: string): "rtl" | "ltr" {
-  return /[\u0590-\u05FF]/.test(text) ? "rtl" : "ltr";
+  for (const char of text) {
+    if (!/\p{L}/u.test(char)) continue;
+    if (/\p{Script=Hebrew}|\p{Script=Arabic}|\p{Script=Thaana}/u.test(char)) return "rtl";
+    return "ltr";
+  }
+  return "ltr";
 }
 
-/** Display faces have no Hebrew glyphs. Any Hebrew run uses Heebo, which also covers Latin and digits. */
+/** Cap stored brand text by Unicode code points so a surrogate pair is not split. */
+export function clampLabelText(text: string, max = 32): string {
+  return Array.from(text).slice(0, max).join("");
+}
+
+/** Display faces that ship only at 400. Drawing them at 600 is faux bold. */
+export function labelFontWeight(font: LogoFont, text: string): 400 | 600 {
+  if (labelDirection(text) === "rtl") return 600;
+  if (font === "italiana" || font === "vibes") return 400;
+  return 600;
+}
+
+export function labelFontSpec(font: LogoFont, text: string): string {
+  return `${labelFontWeight(font, text)} 96px "${labelTypeface(font, text)}"`;
+}
+
+/** Repaint the plate only when a load brought in a face that was not already available. */
+export function shouldRepaintLabel(alreadyLoaded: boolean): boolean {
+  return !alreadyLoaded;
+}
+
+/**
+ * Ink painted on the plate. Today this is the label colour.
+ * Foil, emboss, and engrave used to derive a different ink here; that choice is waiting on a product decision.
+ */
+export function labelInk(color: string, _application?: LogoApplication): string {
+  return color;
+}
+
+/** Display faces have no Hebrew glyphs. A right-to-left paragraph uses Heebo, which also covers Latin and digits. */
 export function labelTypeface(font: LogoFont, text: string): string {
   return labelDirection(text) === "rtl" ? "Heebo" : TYPEFACE[font];
 }
@@ -34,23 +69,34 @@ export function labelFontFamily(font: LogoFont, text: string): string {
   return labelDirection(text) === "rtl" ? FONT_FAMILY.heebo : FONT_FAMILY[font];
 }
 
-function channelLin(channel: number): number {
-  return channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+const DARK_PLATE = "#16130f";
+const LIGHT_PLATE = "#f7f2e8";
+
+function parsedColor(input: string): THREE.Color {
+  try {
+    return new THREE.Color(input);
+  } catch {
+    return new THREE.Color(0);
+  }
 }
 
-export function relativeLuminance(hex: string): number {
-  const body = hex.trim().replace("#", "");
-  const n = Number.parseInt(body.length >= 6 ? body.slice(0, 6) : "000000", 16);
-  if (!Number.isFinite(n)) return 0;
-  const r = channelLin(((n >> 16) & 255) / 255);
-  const g = channelLin(((n >> 8) & 255) / 255);
-  const b = channelLin((n & 255) / 255);
-  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+/** WCAG relative luminance. THREE.Color components are already linear. */
+export function relativeLuminance(color: string): number {
+  const parsed = parsedColor(color);
+  return 0.2126 * parsed.r + 0.7152 * parsed.g + 0.0722 * parsed.b;
 }
 
-/** Opaque ground so the word stays readable on clear, tinted, and dark glass. */
+export function contrastRatio(ink: string, plate: string): number {
+  const a = relativeLuminance(ink);
+  const b = relativeLuminance(plate);
+  const lighter = Math.max(a, b);
+  const darker = Math.min(a, b);
+  return (lighter + 0.05) / (darker + 0.05);
+}
+
+/** Opaque ground with the higher WCAG contrast against the ink. */
 export function contrastingPlate(ink: string): string {
-  return relativeLuminance(ink) > 0.42 ? "#16130f" : "#f7f2e8";
+  return contrastRatio(ink, DARK_PLATE) >= contrastRatio(ink, LIGHT_PLATE) ? DARK_PLATE : LIGHT_PLATE;
 }
 
 export interface LabelLineLayout {
@@ -67,8 +113,9 @@ export function layoutLabelLines(
   maxHeight: number,
   measure: (line: string, px: number) => number,
 ): LabelLineLayout {
-  const clean = text.replace(/\s+/g, " ").trim().slice(0, 32) || "Nº";
+  const clean = clampLabelText(text.replace(/\s+/g, " ").trim());
   const direction = labelDirection(clean);
+  if (!clean) return { lines: [], px: 0, direction, text: "" };
   const words = clean.split(" ").filter(Boolean);
   const lineSets: string[][] = [[clean]];
   if (words.length >= 2) {
@@ -96,25 +143,51 @@ export function layoutLabelLines(
       ]);
     }
   }
-  let chosen = { lines: [clean], px: 18 };
+  const widths = new Map<string, number>();
+  const widthOf = (line: string, px: number) => {
+    const key = `${px}\0${line}`;
+    const cached = widths.get(key);
+    if (cached !== undefined) return cached;
+    const value = measure(line, px);
+    widths.set(key, value);
+    return value;
+  };
+  let chosen = { lines: [clean], px: 0 };
   for (const lines of lineSets) {
-    let px = Math.max(18, Math.floor(maxHeight / (lines.length * 1.16)));
-    while (px > 18 && lines.some((line) => measure(line, px) > maxWidth)) px -= 2;
+    const px = fitFontSize(lines, maxWidth, Math.max(8, Math.floor(maxHeight / (lines.length * 1.16))), widthOf);
     if (px > chosen.px) chosen = { lines, px };
   }
   return { ...chosen, direction, text: clean };
 }
 
+function fitFontSize(
+  lines: string[],
+  maxWidth: number,
+  maxPx: number,
+  widthOf: (line: string, px: number) => number,
+): number {
+  const fits = (px: number) => lines.every((line) => widthOf(line, px) <= maxWidth);
+  let lo = 8;
+  let hi = Math.max(lo, Math.floor(maxPx));
+  if (!fits(lo)) return lo;
+  while (lo < hi) {
+    const mid = Math.ceil((lo + hi) / 2);
+    if (fits(mid)) lo = mid;
+    else hi = mid - 1;
+  }
+  return lo;
+}
+
 function letters(text: string): string {
-  const clean = text.replace(/\s+/g, " ").trim();
-  return clean || "Nº";
+  return text.replace(/\s+/g, " ").trim();
 }
 
 function initial(text: string): string {
   const clean = letters(text);
+  if (!clean) return "";
   const parts = clean.split(" ").filter(Boolean);
-  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
-  return clean.slice(0, 1).toUpperCase();
+  if (parts.length >= 2) return (Array.from(parts[0])[0] + Array.from(parts[1])[0]).toUpperCase();
+  return Array.from(clean)[0]?.toUpperCase() ?? "";
 }
 
 function drawFrame(ctx: CanvasRenderingContext2D, frame: LogoFrame, s: number, ink: string) {
@@ -167,7 +240,7 @@ function drawMark(ctx: CanvasRenderingContext2D, mark: LogoMark, font: LogoFont,
   ctx.strokeStyle = ink;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  ctx.direction = /[\u0590-\u05FF]/.test(text) ? "rtl" : "ltr";
+  ctx.direction = labelDirection(text);
   const family = inkFont(font, text);
   const label = letters(text);
 
@@ -191,7 +264,7 @@ function drawMark(ctx: CanvasRenderingContext2D, mark: LogoMark, font: LogoFont,
     }
   } else if (mark === "vertical") {
     ctx.font = `500 ${s * 0.09}px ${family}`;
-    const chars = label.slice(0, 10).split("");
+    const chars = Array.from(label).slice(0, 10);
     chars.forEach((ch, i) => ctx.fillText(ch, s / 2, s * 0.22 + i * s * 0.07, s * 0.8));
   } else if (mark === "stacked") {
     const parts = label.split(" ");
@@ -327,13 +400,29 @@ function drawMark(ctx: CanvasRenderingContext2D, mark: LogoMark, font: LogoFont,
 }
 
 function fitWord(ctx: CanvasRenderingContext2D, word: string, family: string, maxPx: number, maxWidth: number, weight = "600"): number {
-  let px = Math.max(18, Math.floor(maxPx));
-  ctx.font = `${weight} ${px}px ${family}`;
-  while (px > 16 && ctx.measureText(word).width > maxWidth) {
-    px -= 2;
+  if (!word) return 0;
+  const widths = new Map<number, number>();
+  const widthAt = (px: number) => {
+    const cached = widths.get(px);
+    if (cached !== undefined) return cached;
     ctx.font = `${weight} ${px}px ${family}`;
+    const value = ctx.measureText(word).width;
+    widths.set(px, value);
+    return value;
+  };
+  let lo = 8;
+  let hi = Math.max(lo, Math.floor(maxPx));
+  if (widthAt(lo) > maxWidth) {
+    ctx.font = `${weight} ${lo}px ${family}`;
+    return lo;
   }
-  return px;
+  while (lo < hi) {
+    const mid = Math.ceil((lo + hi) / 2);
+    if (widthAt(mid) <= maxWidth) lo = mid;
+    else hi = mid - 1;
+  }
+  ctx.font = `${weight} ${lo}px ${family}`;
+  return lo;
 }
 
 const TYPE_MARKS = new Set<LogoSpec["mark"]>(["word", "horizon", "stacked", "vertical", "numeral"]);
@@ -347,6 +436,7 @@ export function paintLabel(
   h: number,
 ): LabelLineLayout {
   const family = labelFontFamily(spec.font, text);
+  const weight = labelFontWeight(spec.font, text);
   const typeMark = TYPE_MARKS.has(spec.mark) || h < w * 0.62;
   const direction = labelDirection(text);
   const canvasEl = ctx.canvas as HTMLCanvasElement | undefined;
@@ -355,6 +445,15 @@ export function paintLabel(
   ctx.direction = direction;
   ctx.fillStyle = contrastingPlate(ink);
   ctx.fillRect(0, 0, w, h);
+
+  const layout = layoutLabelLines(text, Math.max(8, w * 0.86), h * (typeMark ? 0.78 : 0.58), (line, px) => {
+    ctx.font = `${weight} ${px}px ${family}`;
+    return ctx.measureText(line).width;
+  });
+  if (!layout.text) {
+    ctx.restore();
+    return layout;
+  }
 
   const textShare = typeMark ? 0.78 : 0.58;
   const textHeight = h * textShare;
@@ -373,12 +472,8 @@ export function paintLabel(
     ctx.strokeRect(m, m, w - m * 2, h - m * 2);
   }
 
-  const layout = layoutLabelLines(text, Math.max(8, w * 0.86), textHeight, (line, px) => {
-    ctx.font = `600 ${px}px ${family}`;
-    return ctx.measureText(line).width;
-  });
   ctx.direction = layout.direction;
-  ctx.font = `600 ${layout.px}px ${family}`;
+  ctx.font = `${weight} ${layout.px}px ${family}`;
   ctx.fillStyle = ink;
   ctx.strokeStyle = ink;
   ctx.textAlign = "center";

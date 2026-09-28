@@ -5,6 +5,7 @@ import { NECK_IDS } from "../model/necks.ts";
 import type { FinishId, NeckId, PartKey } from "../model/types.ts";
 import { partLabel, tx } from "../i18n/copy.ts";
 import { useLab } from "../store/labStore.ts";
+import { clampLabelText } from "../geometry/logos.ts";
 
 export function Inspector() {
   const lang = useLab((s) => s.lang);
@@ -191,7 +192,7 @@ export function Inspector() {
             <>
               <h3>{t.brand}</h3>
               <input className="search" value={design.label.text} placeholder="Nº 01" onChange={(event) => {
-                const text = event.target.value.slice(0, 32);
+                const text = clampLabelText(event.target.value);
                 patch("label", { text, visible: text.length > 0 ? true : design.label.visible });
               }} />
               <p className="hint">{t.brandHint}</p>
@@ -226,8 +227,7 @@ export function Inspector() {
               </div>
               <h3>{t.logoOnBox}</h3>
               <input className="search" value={design.label.text} onChange={(event) => {
-                const text = event.target.value.slice(0, 32);
-                patch("label", { text, visible: text.length > 0 ? true : design.label.visible });
+                patch("label", { text: clampLabelText(event.target.value) });
               }} />
               <Slider label={t.width} value={fit.boxW} min={40} max={160} onGesture={beginGesture} onGestureEnd={endGesture} onChange={(widthMm) => patch("box", { widthMm })} />
               <Slider label={t.depth} value={fit.boxD} min={30} max={140} onGesture={beginGesture} onGestureEnd={endGesture} onChange={(depthMm) => patch("box", { depthMm })} />

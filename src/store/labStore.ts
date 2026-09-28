@@ -16,6 +16,7 @@ import { parseVoiceParam, readVoiceParam, type VoiceVariant } from "../audio/wak
 import { deletePack, savePack } from "../import/supplierDb.ts";
 import { syncRegistry, type SupplierPack } from "../import/registry.ts";
 import { apiClient } from "../api/client.ts";
+import { clampLabelText } from "../geometry/logos.ts";
 
 export type LabMode = "assemble" | "explode" | "dimensions" | "compare";
 export type ViewPreset = "home" | "front" | "three" | "top" | "side";
@@ -260,7 +261,7 @@ function applyOne(design: Design, command: LabCommand, ui: { explode: number; mo
       design.liquid.fill = clamp(command.value, 0.05, 0.95);
       break;
     case "text": {
-      const text = command.text.slice(0, 32);
+      const text = clampLabelText(command.text);
       design.label.text = text;
       design.label.visible = text.length > 0 ? true : design.label.visible;
       break;

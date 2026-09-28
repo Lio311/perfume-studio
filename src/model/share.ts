@@ -1,3 +1,4 @@
+import { clampLabelText } from "../geometry/logos.ts";
 import { listFor } from "./catalog.ts";
 import { createDefaultDesign } from "./design.ts";
 import { FINISHES } from "./materials.ts";
@@ -106,7 +107,7 @@ export function mergeShareDesign(input: unknown): Design | null {
       variantId: label ? pickVariant(label, "label", base.label.variantId) : base.label.variantId,
       finish: label ? pickFinish(label, "finish", base.label.finish) : base.label.finish,
       color: label ? pickColor(label, "color", base.label.color) : base.label.color,
-      text: label && typeof label.text === "string" ? label.text.slice(0, 32) : base.label.text,
+      text: label && typeof label.text === "string" ? clampLabelText(label.text) : base.label.text,
       scale: label ? pickNumber(label, "scale", base.label.scale, 0.55, 1.6) : base.label.scale,
       visible: label ? pickBool(label, "visible", base.label.visible) : base.label.visible,
     },

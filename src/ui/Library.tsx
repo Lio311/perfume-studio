@@ -7,6 +7,7 @@ import { effectiveGlassOpacity, LIQUID_PALETTE } from "../model/materials.ts";
 import type { VariantPart } from "../model/types.ts";
 import { useLab } from "../store/labStore.ts";
 import { thumbFor } from "../thumbnails/thumbs.ts";
+import { clampLabelText } from "../geometry/logos.ts";
 
 const TABS: Array<VariantPart | "liquid" | "pending"> = ["bottle", "cap", "label", "pump", "collar", "box", "liquid", "pending"];
 const WIZARD_ORDER: Array<VariantPart | "liquid"> = ["bottle", "liquid", "pump", "collar", "cap", "label", "box"];
@@ -156,7 +157,7 @@ export function Library() {
         </div>
       )}
       {tab === "label" && (
-        <input className="search" style={{ marginTop: "-8px", marginBottom: "12px" }} value={design.label.text} placeholder={t.brand} onChange={(event) => patch("label", { text: event.target.value.slice(0, 32), visible: true })} />
+        <input className="search" style={{ marginTop: "-8px", marginBottom: "12px" }} value={design.label.text} placeholder={t.brand} onChange={(event) => patch("label", { text: clampLabelText(event.target.value), visible: true })} />
       )}
       {tab === "liquid" ? (
         <div className="liquid-panel" style={{ padding: "8px 0" }}>
