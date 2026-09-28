@@ -1,6 +1,6 @@
 import { bottleById, boxById, capById, collarById, logoById, pumpById } from "../model/catalog.ts";
 import { computeFit, type Fit } from "../model/fit.ts";
-import { FINISHES } from "../model/materials.ts";
+import { effectiveGlassOpacity, FINISHES } from "../model/materials.ts";
 import { NECKS } from "../model/necks.ts";
 import type { Design, Lang } from "../model/types.ts";
 import { requestShot } from "../scene/capture.ts";
@@ -11,14 +11,6 @@ function row(label: string, value: string): string {
 
 export function esc(value: string): string {
   return value.replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char] ?? char);
-}
-
-function glassOpacity(design: Design): number {
-  if (design.bottle.opacity !== undefined) return design.bottle.opacity;
-  if (design.bottle.finish === "clear") return 0.14;
-  if (design.bottle.finish === "frosted") return 0.45;
-  if (design.bottle.finish === "tinted") return 0.32;
-  return 1;
 }
 
 function sized(name: string, fit: Fit | null, size: (fit: Fit) => string): string {
@@ -41,7 +33,11 @@ export function buildSpecHtml(design: Design, lang: Lang, render: string): strin
     ? `${neck.ferrule.innerMm} / ${neck.ferrule.outerMm} / ${neck.ferrule.heightMinMm}–${neck.ferrule.heightMaxMm} mm`
     : "—";
   const glassFinish = FINISHES.find((item) => item.id === design.bottle.finish);
-  const glass = `${glassFinish ? glassFinish.name[lang] : design.bottle.finish} · ${design.bottle.color} · ${Math.round(glassOpacity(design) * 100)}%`;
+  const glassName = glassFinish ? glassFinish.name[lang] : design.bottle.finish;
+  const glassOpacity = effectiveGlassOpacity(design.bottle.finish, design.bottle.opacity);
+  const glass = glassOpacity === null
+    ? `${glassName} · ${design.bottle.color}`
+    : `${glassName} · ${design.bottle.color} · ${Math.round(glassOpacity * 100)}%`;
   return `<!doctype html>
 <html lang="${esc(lang)}">
 <head>

@@ -4,7 +4,8 @@ import { wizardTitle } from "./copy.ts";
 describe("wizardTitle", () => {
   it("names step 2 after the bottle colour, opacity, and fill controls", () => {
     expect(wizardTitle("he", 1)).toBe("שלב 2: צבע הבקבוק, שקיפות ומילוי");
-    expect(wizardTitle("en", 1)).toBe("Step 2: Bottle Colour, Opacity & Fill");
+    expect(wizardTitle("en", 1)).toBe("Step 2: Bottle Color, Opacity & Fill");
+    expect(wizardTitle("en", 1)).toContain("Color");
   });
 
   it("reads the other step names from the translation table", () => {

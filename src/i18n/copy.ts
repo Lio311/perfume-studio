@@ -394,7 +394,7 @@ const en: typeof he = {
   openBox: "Open box",
   closeBox: "Close box",
   wizard1: "Step 1: Choose a Bottle",
-  wizard2: "Step 2: Bottle Colour, Opacity & Fill",
+  wizard2: "Step 2: Bottle Color, Opacity & Fill",
   wizard3: "Step 3: Choose a Pump",
   wizard4: "Step 4: Choose a Collar",
   wizard5: "Step 5: Choose a Cap",

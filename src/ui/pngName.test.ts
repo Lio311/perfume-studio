@@ -24,6 +24,17 @@ describe("png filename sanitising", () => {
     expect(sanitizeFilenamePart("Crème brûlée")).toBe("Crème_brûlée");
   });
 
+  it("keeps Hebrew niqqud and composes accented Latin", () => {
+    const niqqud = "ב\u05B0";
+    expect(sanitizeFilenamePart(niqqud)).toBe(niqqud.normalize("NFC"));
+    expect(sanitizeFilenamePart("Cafe\u0301")).toBe("Café");
+  });
+
+  it("collapses repeated underscores and trims only after truncating", () => {
+    expect(sanitizeFilenamePart("hello___world")).toBe("hello_world");
+    expect(sanitizeFilenamePart(`_${"a".repeat(70)}`)).toBe("a".repeat(59));
+  });
+
   it("truncates a long name to 60 characters", () => {
     const long = `בושם ${"א".repeat(80)}`;
     expect(sanitizeFilenamePart(long)).toHaveLength(60);

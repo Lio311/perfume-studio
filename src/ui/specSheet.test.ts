@@ -100,4 +100,23 @@ describe("spec sheet HTML escaping", () => {
     expect(glass?.[1]).toBe("Tinted · #112233 · 40%");
     expect(liquid?.[1]).toBe("50% · #abcdef");
   });
+
+  it("uses the shared clear-glass default and skips opacity on metal or opaque finishes", () => {
+    const clear = buildSpecHtml(createDefaultDesign(), "en", "data:image/png;base64,AAAA");
+    expect(clear.match(/<th>Glass<\/th><td>(.*?)<\/td>/)?.[1]).toBe("Clear glass · #f3efe6 · 14%");
+
+    const gold = createDefaultDesign();
+    gold.bottle.finish = "gold";
+    gold.bottle.color = "#d4b48a";
+    gold.bottle.opacity = 0.4;
+    const goldHtml = buildSpecHtml(gold, "en", "data:image/png;base64,AAAA");
+    expect(goldHtml.match(/<th>Glass<\/th><td>(.*?)<\/td>/)?.[1]).toBe("Gold · #d4b48a");
+
+    const solid = createDefaultDesign();
+    solid.bottle.finish = "matteBlack";
+    solid.bottle.color = "#141414";
+    solid.bottle.opacity = 0.2;
+    const solidHtml = buildSpecHtml(solid, "en", "data:image/png;base64,AAAA");
+    expect(solidHtml.match(/<th>Glass<\/th><td>(.*?)<\/td>/)?.[1]).toBe("Matte black · #141414");
+  });
 });

@@ -60,3 +60,15 @@ export function finishById(id: FinishId): FinishDef {
 export function isGlass(id: FinishId): boolean {
   return finishById(id).group === "glass";
 }
+
+/** Slider defaults for clear / frosted / tinted glass. Shared by the wizard and the spec. */
+export const DEFAULT_GLASS_OPACITY = {
+  clear: 0.14,
+  frosted: 0.45,
+  tinted: 0.32,
+} as const;
+
+export function effectiveGlassOpacity(finish: FinishId, opacity?: number): number | null {
+  if (finish !== "clear" && finish !== "frosted" && finish !== "tinted") return null;
+  return opacity ?? DEFAULT_GLASS_OPACITY[finish];
+}
