@@ -78,4 +78,32 @@ describe("share clipboard fallback", () => {
     expect(document.querySelector(".share-fallback")).toBeNull();
     useLab.getState().setShareUrl("");
   });
+
+  it("handles Escape on the share field before a window listener", async () => {
+    vi.stubGlobal("navigator", { clipboard: { writeText: vi.fn().mockResolvedValue(undefined) } });
+    host = document.createElement("div");
+    document.body.append(host);
+    root = createRoot(host);
+    await act(async () => {
+      root?.render(createElement(TopBar));
+    });
+    useLab.getState().setShareUrl("https://example.test/lab#d=abc");
+    await act(async () => {
+      await Promise.resolve();
+    });
+    const field = document.querySelector<HTMLTextAreaElement>(".share-fallback textarea");
+    expect(field).toBeTruthy();
+    let reachedWindow = false;
+    const onWindow = () => {
+      reachedWindow = true;
+    };
+    window.addEventListener("keydown", onWindow);
+    await act(async () => {
+      field?.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }));
+    });
+    window.removeEventListener("keydown", onWindow);
+    expect(reachedWindow).toBe(false);
+    expect(useLab.getState().shareUrl).toBe("");
+    expect(document.querySelector(".share-fallback")).toBeNull();
+  });
 });

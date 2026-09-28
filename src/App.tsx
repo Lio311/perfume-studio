@@ -26,7 +26,7 @@ function applyBackAction(action: Exclude<BackAction, "leave">, trap: Trap) {
   else if (action === "overlays") {
     lab.setPalette(false);
     lab.setHelp(false);
-  }   else if (action === "selection") lab.showFull();
+  } else if (action === "selection") lab.showFull();
   else if (action === "share") lab.setShareUrl("");
   else if (action === "stage") lab.setStage("bottle");
   else if (action === "wizard") {

@@ -26,11 +26,22 @@ describe("toast length", () => {
 
   it("does not cut between an isolate opener and its closer", () => {
     const prefix = "א".repeat(TOAST_MAX - 3);
-    const text = `${prefix}\u2068abcdef\u2069`;
-    const clipped = clipToast(text);
-    expect(clipped.includes("\u2068")).toBe(false);
-    expect(clipped.includes("\u2069")).toBe(false);
-    expect(clipped.endsWith("…")).toBe(true);
-    expect(clipped.startsWith(prefix)).toBe(true);
+    for (const open of ["\u2066", "\u2067", "\u2068"]) {
+      const text = `${prefix}${open}abcdef\u2069`;
+      const clipped = clipToast(text);
+      expect(clipped.includes(open)).toBe(false);
+      expect(clipped.includes("\u2069")).toBe(false);
+      expect(clipped.endsWith("…")).toBe(true);
+      expect(clipped.startsWith(prefix)).toBe(true);
+    }
+  });
+
+  it("keeps a closed LRI or RLI isolate, including its PDI, when the pair fits", () => {
+    for (const open of ["\u2066", "\u2067"]) {
+      const isolate = `${open}abc\u2069`;
+      const clipped = clipToast(`${isolate}${"x".repeat(TOAST_MAX)}`);
+      expect(clipped.startsWith(isolate)).toBe(true);
+      expect(clipped.includes("\u2069")).toBe(true);
+    }
   });
 });
