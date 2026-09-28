@@ -1,6 +1,6 @@
 import { labelPatchExtent } from "../geometry/sweep.ts";
 import { bottleById, boxById, capById, collarById, logoById, pumpById } from "./catalog.ts";
-import { NECKS, neckRadius } from "./necks.ts";
+import { NECKS, neckRadius, neckStandard } from "./necks.ts";
 import { bottleRadii, neckFinishMm } from "./sample.ts";
 import type { Design, PartKey } from "./types.ts";
 
@@ -48,14 +48,20 @@ function definedSize(value: number | undefined): value is number {
  * radius factor is used only when the pump sets neither. A collar width is
  * the collar's own diameter, not the button. With no catalog size, the
  * button is 0.9 of the neck, or the actuator when that is already wider.
+ * A supplier width is a button diameter; that radius is clamped to the
+ * collar's outer radius so the head cannot overhang the collar.
  */
 export function crimpHeadRadius(
   neckR: number,
   actuatorR: number,
   pump: { widthMm?: number; radiusFactor?: number },
   collar: { radiusFactor?: number },
+  collarOuter?: number,
 ): number {
-  if (definedSize(pump.widthMm)) return pump.widthMm / 2;
+  if (definedSize(pump.widthMm)) {
+    const head = pump.widthMm / 2;
+    return definedSize(collarOuter) ? Math.min(head, collarOuter) : head;
+  }
   if (definedSize(pump.radiusFactor)) return neckR * pump.radiusFactor;
   if (definedSize(collar.radiusFactor)) return neckR * collar.radiusFactor;
   return Math.max(actuatorR, neckR * 0.9);
@@ -68,7 +74,7 @@ export function computeFit(design: Design, exploded = false): Fit {
   const pump = pumpById(design.pump.variantId);
   const logo = logoById(design.label.variantId);
   const box = boxById(design.box.variantId);
-  const neck = NECKS[design.bottle.neck];
+  const neck = Object.hasOwn(NECKS, design.bottle.neck) ? NECKS[design.bottle.neck] : neckStandard(design.bottle.neck);
   const neckR = neckRadius(design.bottle.neck);
   const bottleH = design.bottle.heightMm;
   const bottleW = design.bottle.widthMm;
@@ -106,7 +112,7 @@ export function computeFit(design: Design, exploded = false): Fit {
   const actuatorR = definedSize(pump.radiusFactor)
     ? Math.max(neckR * pump.radiusFactor, neckR * 0.42)
     : neckR * 0.42;
-  const headR = pump.style === "crimp" ? crimpHeadRadius(neckR, actuatorR, pump, collar) : actuatorR;
+  const headR = pump.style === "crimp" ? crimpHeadRadius(neckR, actuatorR, pump, collar, collarOuter) : actuatorR;
   const nozzle =
     exploded || !design.cap.visible ? pump.nozzleMm : Math.min(pump.nozzleMm, Math.max(2.2, capW / 2 - actuatorR - 0.4));
   // A crimp pump has no screw skirt, so its base is the glass lip. A screw

@@ -22,9 +22,11 @@ export function Inspector() {
   const endGesture = useLab((s) => s.endGesture);
   const duplicateDesign = useLab((s) => s.duplicateDesign);
   const applyCommands = useLab((s) => s.applyCommands);
+  const suppliers = useLab((s) => s.suppliers);
   const brandHeadingId = useId();
   const part = selected;
-  const name = variantName(part, design, lang);
+  const hidden = hiddenDesignPart(part, design, suppliers);
+  const name = hidden ? (hidden.name || hidden.code || hidden.id) : variantName(part, design, lang);
   let fit: ReturnType<typeof computeFit>;
   try {
     fit = computeFit(design, explode > 0.45);
@@ -48,14 +50,17 @@ export function Inspector() {
         <span className="hint">{t.arrows}</span>
       </div>
       {!part && <p className="empty">{t.emptySelect}</p>}
+      {part && hidden && (
+        <p className="hint" data-hidden-design>{lang === "he" ? hidden.he : hidden.en}</p>
+      )}
       {part && (
         <>
-          {badge && <div className="badge is-fit" dir="ltr">{badge}</div>}
-          <SpecCard part={part} />
+          {badge && !hidden && <div className="badge is-fit" dir="ltr">{badge}</div>}
+          {!hidden && <SpecCard part={part} />}
           <div className="part-title">
             <div>
               <span className="eyebrow">{partLabel[lang][part]}</span>
-              <strong>{name}</strong>
+              <strong>{hidden ? <bdi>{name}</bdi> : name}</strong>
             </div>
             {part !== "liquid" && (
               <div className="cycle-btns">
@@ -389,6 +394,20 @@ function ratio(current: number, base: number): number {
 function toHex(color: string): string {
   if (/^#[0-9a-fA-F]{6}$/.test(color)) return color;
   return "#d4b48a";
+}
+
+function hiddenDesignPart(
+  part: PartKey | null,
+  design: ReturnType<typeof useLab.getState>["design"],
+  suppliers: ReturnType<typeof useLab.getState>["suppliers"],
+) {
+  if (!part || part === "liquid") return undefined;
+  const id = design[part].variantId;
+  for (const pack of suppliers) {
+    const hit = pack.hiddenParts?.find((item) => item.id === id);
+    if (hit) return hit;
+  }
+  return undefined;
 }
 
 function variantName(part: PartKey | null, design: ReturnType<typeof useLab.getState>["design"], lang: "he" | "en"): string {
