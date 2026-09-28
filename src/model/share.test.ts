@@ -216,9 +216,11 @@ describe("share links", () => {
     const design = createDefaultDesign();
     design.bottle.variantId = "supplier-flask";
     const hash = `#d=${encodeShareDesign(design)}`;
+    const anchor = createDefaultDesign();
     const pending = applyIncomingShareHash({
       read: () => ({ hash, pathname: "/lab", search: "", state: { lab: 1 } }),
       ready,
+      baseline: () => anchor,
       apply: (next) => seen.push(next.bottle.variantId),
       replaceState: () => undefined,
     });
@@ -228,6 +230,55 @@ describe("share links", () => {
     release();
     await pending;
     expect(seen).toEqual(["supplier-flask"]);
+  });
+
+  it("applies a share hash when packs do not load in time and notes the missing part", async () => {
+    const stable = createDefaultDesign();
+    const linked = createDefaultDesign();
+    linked.bottle.variantId = "supplier-flask";
+    const seen: string[] = [];
+    const missing: string[][] = [];
+    await applyIncomingShareHash({
+      read: () => ({ hash: `#d=${encodeShareDesign(linked)}`, pathname: "/", search: "", state: null }),
+      ready: new Promise(() => undefined),
+      hydrated: Promise.resolve(),
+      timeoutMs: 30,
+      baseline: () => stable,
+      apply: (design) => seen.push(design.bottle.variantId),
+      noteMissing: (ids) => missing.push(ids),
+      replaceState: () => undefined,
+    });
+    expect(seen).toEqual([stable.bottle.variantId]);
+    expect(missing[0]).toContain("supplier-flask");
+  });
+
+  it("skips a share hash when the design changes while packs are loading", async () => {
+    let current = createDefaultDesign();
+    let applied = false;
+    let cleared = "";
+    let releaseHydrated: () => void = () => undefined;
+    const hydrated = new Promise<void>((resolve) => {
+      releaseHydrated = resolve;
+    });
+    const pending = applyIncomingShareHash({
+      read: () => ({ hash: `#d=${encodeShareDesign(createDefaultDesign())}`, pathname: "/lab", search: "", state: { lab: 1 } }),
+      ready: new Promise(() => undefined),
+      hydrated,
+      timeoutMs: 40,
+      baseline: () => current,
+      apply: () => {
+        applied = true;
+      },
+      replaceState: (_state, _title, url) => {
+        cleared = url;
+      },
+    });
+    releaseHydrated();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    current = { ...current, label: { ...current.label, text: "edited" } };
+    await pending;
+    expect(applied).toBe(false);
+    expect(cleared).toBe("/lab");
   });
 
   it("applies a pasted #d= hash and does not treat it as Back", async () => {

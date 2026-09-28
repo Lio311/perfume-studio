@@ -154,38 +154,92 @@ export function encodeShareDesign(design: Design): string {
   return btoa(unescape(encodeURIComponent(json))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
 }
 
+function parseShareJson(hash: string): unknown {
+  const base = hash.replace(/-/g, "+").replace(/_/g, "/");
+  const pad = base.length % 4 === 0 ? "" : "=".repeat(4 - (base.length % 4));
+  const json = decodeURIComponent(escape(atob(base + pad)));
+  return JSON.parse(json) as unknown;
+}
+
+const VARIANT_KEYS = ["bottle", "cap", "label", "pump", "collar", "box"] as const;
+
+/** Variant ids the link asked for that the catalog could not keep. */
+export function droppedVariantIds(input: unknown, design: Design): string[] {
+  if (!isRecord(input)) return [];
+  const source = safeRecord(input);
+  const missing: string[] = [];
+  for (const key of VARIANT_KEYS) {
+    const part = partRecord(source[key]);
+    const requested = part?.variantId;
+    if (typeof requested !== "string") continue;
+    if (design[key].variantId !== requested) missing.push(requested);
+  }
+  return missing;
+}
+
 export function decodeShareDesign(hash: string): Design | null {
   try {
-    const base = hash.replace(/-/g, "+").replace(/_/g, "/");
-    const pad = base.length % 4 === 0 ? "" : "=".repeat(4 - (base.length % 4));
-    const json = decodeURIComponent(escape(atob(base + pad)));
-    return mergeShareDesign(JSON.parse(json) as unknown);
+    return mergeShareDesign(parseShareJson(hash));
   } catch {
     return null;
   }
 }
 
-/** Read the current location after `ready` (supplier packs) and apply a `#d=` hash. */
+/** How long a share link waits for IndexedDB before applying with the catalog already loaded. */
+export const SHARE_PACK_WAIT_MS = 2000;
+
+function settleWithin(work: Promise<void>, ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      resolve();
+    };
+    const timer = setTimeout(finish, ms);
+    work.then(finish, finish);
+  });
+}
+
+/**
+ * Wait for hydration, then for supplier packs (at most `timeoutMs`).
+ * If the design object changed during the pack wait, the link is not applied.
+ * A timed-out wait still applies, and reports part ids the catalog could not keep.
+ */
 export function applyIncomingShareHash(options: {
   read: () => { hash: string; pathname: string; search: string; state: unknown };
   ready: Promise<void>;
+  hydrated?: Promise<void>;
+  baseline: () => Design;
   cancelled?: () => boolean;
+  timeoutMs?: number;
+  noteMissing?: (ids: string[]) => void;
   apply: (design: Design) => void;
   replaceState: (state: unknown, title: string, url: string) => void;
 }): Promise<boolean> {
-  return options.ready.then(() => {
-    if (options.cancelled?.()) return false;
-    const loc = options.read();
-    if (!loc.hash.startsWith("#d=")) return false;
-    applyShareHash({
-      hash: loc.hash,
-      pathname: loc.pathname,
-      search: loc.search,
-      state: loc.state,
-      apply: options.apply,
-      replaceState: options.replaceState,
+  const timeoutMs = options.timeoutMs ?? SHARE_PACK_WAIT_MS;
+  const hydrated = options.hydrated ?? Promise.resolve();
+  return settleWithin(hydrated, timeoutMs).then(() => {
+    const snapshot = options.baseline();
+    return settleWithin(options.ready, timeoutMs).then(() => {
+      if (options.cancelled?.()) return false;
+      const loc = options.read();
+      if (!loc.hash.startsWith("#d=")) return false;
+      if (options.baseline() !== snapshot) {
+        options.replaceState(loc.state, "", `${loc.pathname}${loc.search}`);
+        return false;
+      }
+      return applyShareHash({
+        hash: loc.hash,
+        pathname: loc.pathname,
+        search: loc.search,
+        state: loc.state,
+        apply: options.apply,
+        replaceState: options.replaceState,
+        noteMissing: options.noteMissing,
+      });
     });
-    return true;
   });
 }
 
@@ -215,10 +269,20 @@ export function applyShareHash(options: {
   state: unknown;
   apply: (design: Design) => void;
   replaceState: (state: unknown, title: string, url: string) => void;
-}): void {
-  if (!options.hash.startsWith("#d=")) return;
-  const design = decodeShareDesign(options.hash.slice(3));
-  if (!design) return;
+  noteMissing?: (ids: string[]) => void;
+}): boolean {
+  if (!options.hash.startsWith("#d=")) return false;
+  let raw: unknown;
+  try {
+    raw = parseShareJson(options.hash.slice(3));
+  } catch {
+    return false;
+  }
+  const design = mergeShareDesign(raw);
+  if (!design) return false;
+  const missing = droppedVariantIds(raw, design);
+  if (missing.length) options.noteMissing?.(missing);
   options.apply(design);
   options.replaceState(options.state, "", `${options.pathname}${options.search}`);
+  return true;
 }

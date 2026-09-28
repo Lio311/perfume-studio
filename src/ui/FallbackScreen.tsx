@@ -1,6 +1,5 @@
 import { Component, useLayoutEffect, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { computeFit } from "../model/fit.ts";
 import { useLab } from "../store/labStore.ts";
 import { webglAvailable } from "../scene/webgl.ts";
 import type { Lang } from "../model/types.ts";
@@ -13,6 +12,7 @@ const COPY: Record<Lang, {
   appTitle: string;
   appBody: string;
   reset: string;
+  retry: string;
   confirmTitle: string;
   confirmBody: string;
   confirmYes: string;
@@ -22,10 +22,11 @@ const COPY: Record<Lang, {
     webglTitle: "התצוגה התלת־ממדית לא זמינה",
     webglBody: "הדפדפן לא הצליח להפעיל את WebGL, או שהמנוע הגרפי נעצר. נסו לרענן את העמוד, לעדכן את הדפדפן, או להפעיל האצת חומרה.",
     designTitle: "לא הצלחנו להציג את העיצוב",
-    designBody: "הקישור או העיצוב לא נטענו. אפשר לאפס ולחזור לבקבוק ההתחלתי.",
+    designBody: "אפשר לנסות שוב עם העיצוב הנוכחי, או לאפס לבקבוק ההתחלתי.",
     appTitle: "לא הצלחנו להציג את המעבדה",
     appBody: "אירעה שגיאה בטעינת העיצוב. אפשר לאפס ולחזור לבקבוק ההתחלתי.",
     reset: "איפוס",
+    retry: "נסו שוב",
     confirmTitle: "לאפס את העיצוב?",
     confirmBody: "האיפוס מוחק את העיצוב, את הביטולים ואת שלב האשף.",
     confirmYes: "כן, אפס",
@@ -35,10 +36,11 @@ const COPY: Record<Lang, {
     webglTitle: "3D view unavailable",
     webglBody: "The browser could not start WebGL, or the renderer stopped. Refresh the page, update the browser, or turn on hardware acceleration.",
     designTitle: "This design could not be shown",
-    designBody: "The link or the design failed to load. Reset to start from a fresh bottle.",
+    designBody: "Try the current design again, or reset to a fresh bottle.",
     appTitle: "The lab could not be shown",
     appBody: "Something went wrong while loading the design. Reset to start from a fresh bottle.",
     reset: "Reset",
+    retry: "Try again",
     confirmTitle: "Reset this design?",
     confirmBody: "Reset discards the design, undo history, and the wizard step.",
     confirmYes: "Yes, reset",
@@ -49,7 +51,6 @@ const COPY: Record<Lang, {
 export interface SceneProbe {
   webglOk: boolean;
   contextLost: boolean;
-  designOk: boolean;
 }
 
 export function isWebglFailure(error: unknown): boolean {
@@ -65,7 +66,7 @@ export function noteRenderer(gl: { isContextLost(): boolean } | null): void {
   renderer = gl;
 }
 
-/** Tests pin the probe. The app reads WebGL, the context, and `computeFit`. */
+/** Tests pin the probe. The app reads WebGL availability and whether the context is lost. */
 export function installSceneProbe(probe: (() => SceneProbe) | null): void {
   probeOverride = probe;
 }
@@ -78,13 +79,7 @@ export function probeSceneNow(): SceneProbe {
   } catch {
     contextLost = true;
   }
-  let designOk = true;
-  try {
-    computeFit(useLab.getState().design);
-  } catch {
-    designOk = false;
-  }
-  return { webglOk: webglAvailable(), contextLost, designOk };
+  return { webglOk: webglAvailable(), contextLost };
 }
 
 let suppressContextLost = false;
@@ -103,13 +98,14 @@ export function clearSceneError(): void {
 }
 
 /**
- * A design error is only a design that fails `computeFit` while WebGL is still alive.
- * A GPU or renderer throw (even without the word WebGL) keeps the design.
+ * Try again is always available. Reset is offered whenever WebGL is still up,
+ * including a geometry or texture throw that `computeFit` does not catch.
+ * A screen with no reset means WebGL is unavailable or the context is lost.
  */
-export function sceneFallbackFor(error: unknown, probe: SceneProbe): { kind: "webgl" | "design"; reset: boolean } {
-  const designError = !isWebglFailure(error) && probe.webglOk && !probe.contextLost && !probe.designOk;
-  if (designError) return { kind: "design", reset: true };
-  return { kind: "webgl", reset: false };
+export function sceneFallbackFor(error: unknown, probe: SceneProbe): { kind: "webgl" | "design"; reset: boolean; retry: true } {
+  void error;
+  if (!probe.webglOk || probe.contextLost) return { kind: "webgl", reset: false, retry: true };
+  return { kind: "design", reset: true, retry: true };
 }
 
 function useLang(): Lang {
@@ -194,14 +190,36 @@ export function ConfirmReset({
   return <FallbackScreen page={page} title={title} body={body} actionLabel={text.reset} onAction={() => setConfirming(true)} />;
 }
 
-export function WebglFallback() {
+export function WebglFallback({ onRetry }: { onRetry?: () => void }) {
   const text = COPY[useLang()];
-  return <FallbackScreen title={text.webglTitle} body={text.webglBody} />;
+  return <FallbackScreen title={text.webglTitle} body={text.webglBody} actionLabel={text.retry} onAction={onRetry} />;
 }
 
-export function DesignFallback({ onReset }: { onReset: () => void }) {
+export function DesignFallback({ onReset, onRetry }: { onReset: () => void; onRetry: () => void }) {
   const text = COPY[useLang()];
-  return <ConfirmReset title={text.designTitle} body={text.designBody} onReset={onReset} />;
+  const [confirming, setConfirming] = useState(false);
+  if (confirming) {
+    return (
+      <FallbackScreen
+        title={text.confirmTitle}
+        body={text.confirmBody}
+        actionLabel={text.confirmYes}
+        onAction={onReset}
+        cancelLabel={text.confirmNo}
+        onCancel={() => setConfirming(false)}
+      />
+    );
+  }
+  return (
+    <FallbackScreen
+      title={text.designTitle}
+      body={text.designBody}
+      actionLabel={text.retry}
+      onAction={onRetry}
+      cancelLabel={text.reset}
+      onCancel={() => setConfirming(true)}
+    />
+  );
 }
 
 /** Fresh bottle, same history entry, no share hash left to replay. */
@@ -254,25 +272,53 @@ interface SceneBoundaryState {
   generation: number;
 }
 
-/** Catches a throw from the scene. Design errors can reset; a WebGL failure cannot. */
+/** Catches a throw from the scene. Try again remounts. Reset is only offered while WebGL is alive. */
 export class WebglBoundary extends Component<{ children: ReactNode }, SceneBoundaryState> {
   state: SceneBoundaryState = { failed: false, webgl: false, generation: 0 };
+  private unsub: (() => void) | null = null;
+  private ignoreDesign = false;
 
   static getDerivedStateFromError(error: unknown): Pick<SceneBoundaryState, "failed" | "webgl"> {
     const decision = sceneFallbackFor(error, probeSceneNow());
-    noteSceneError(decision.kind === "design");
+    noteSceneError(true);
     return { failed: true, webgl: decision.kind === "webgl" };
   }
 
+  componentDidMount(): void {
+    this.unsub = useLab.subscribe((state, previous) => {
+      if (this.ignoreDesign || !this.state.failed) return;
+      if (state.design === previous.design) return;
+      this.retry();
+    });
+  }
+
+  componentWillUnmount(): void {
+    this.unsub?.();
+    this.unsub = null;
+  }
+
+  retry = () => {
+    this.ignoreDesign = true;
+    clearSceneError();
+    this.setState((state) => ({ failed: false, webgl: false, generation: state.generation + 1 }), () => {
+      this.ignoreDesign = false;
+    });
+  };
+
   reset = () => {
+    this.ignoreDesign = true;
     clearSceneError();
     resetToFreshDesign();
-    this.setState((state) => ({ failed: false, webgl: false, generation: state.generation + 1 }));
+    this.setState((state) => ({ failed: false, webgl: false, generation: state.generation + 1 }), () => {
+      this.ignoreDesign = false;
+    });
   };
 
   render(): ReactNode {
     if (this.state.failed) {
-      const notice = this.state.webgl ? <WebglFallback /> : <DesignFallback onReset={this.reset} />;
+      const notice = this.state.webgl
+        ? <WebglFallback onRetry={this.retry} />
+        : <DesignFallback onReset={this.reset} onRetry={this.retry} />;
       return <StageFallback>{notice}</StageFallback>;
     }
     return <div key={this.state.generation} data-generation={this.state.generation}>{this.props.children}</div>;

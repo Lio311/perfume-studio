@@ -40,6 +40,7 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 }
 
 .app { height: 100%; position: relative; max-width: 100%; overflow: hidden; }
+.app.is-share-lock { pointer-events: none; }
 .stage-canvas { position: absolute !important; inset: 0; width: 100% !important; height: 100% !important; touch-action: none; }
 .vignette {
   position: absolute;

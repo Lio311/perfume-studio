@@ -68,6 +68,7 @@ export default function App() {
   const wizardStep = useLab((s) => s.design.step);
   const trapRef = useRef<Trap>({ armed: false });
   const [hintOn, setHintOn] = useState(true);
+  const [shareLock, setShareLock] = useState(() => location.hash.startsWith("#d="));
   const [swapping, setSwapping] = useState(false);
 
   const sig = `${design.bottle.variantId}|${design.cap.variantId}|${design.pump.variantId}|${design.collar.variantId}|${design.label.variantId}|${design.box.variantId}`;
@@ -94,18 +95,42 @@ export default function App() {
       if (cancelled) return;
       if (packs.length && useLab.getState().suppliers.length === 0) useLab.getState().setSuppliers(packs);
     }).catch(() => undefined);
-    const applyShare = () => applyIncomingShareHash({
-      read: () => ({
-        hash: location.hash,
-        pathname: location.pathname,
-        search: location.search,
-        state: history.state,
-      }),
-      ready,
-      cancelled: () => cancelled,
-      apply: (design) => useLab.setState({ design }),
-      replaceState: (state, title, url) => history.replaceState(state, title, url),
+    const hydrated = new Promise<void>((resolve) => {
+      if (useLab.persist.hasHydrated()) {
+        resolve();
+        return;
+      }
+      const unsub = useLab.persist.onFinishHydration(() => {
+        unsub();
+        resolve();
+      });
     });
+    const applyShare = () => {
+      if (location.hash.startsWith("#d=")) setShareLock(true);
+      return applyIncomingShareHash({
+        read: () => ({
+          hash: location.hash,
+          pathname: location.pathname,
+          search: location.search,
+          state: history.state,
+        }),
+        ready,
+        hydrated,
+        cancelled: () => cancelled,
+        baseline: () => useLab.getState().design,
+        noteMissing: (ids) => {
+          const lang = useLab.getState().lang;
+          const list = ids.join(", ");
+          useLab.setState({
+            toast: lang === "he" ? `חלקים מהקישור לא נמצאו: ${list}` : `Parts from the link were not found: ${list}`,
+          });
+        },
+        apply: (design) => useLab.setState({ design }),
+        replaceState: (state, title, url) => history.replaceState(state, title, url),
+      }).finally(() => {
+        if (!cancelled) setShareLock(false);
+      });
+    };
     void applyShare();
     const trap = trapRef.current;
     const surface = () => backSurface(useLab.getState());
@@ -162,6 +187,7 @@ export default function App() {
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
+      if (shareLock) return;
       const target = event.target as HTMLElement | null;
       const typing = target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.tagName === "SELECT" || target.isContentEditable);
       if (event.key === "Escape") {
@@ -215,10 +241,10 @@ export default function App() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [cycle, helpOpen, lang, modal, mode, palette, present, redo, resetView, setHelp, setModal, setMode, setPalette, setPresent, showFull, undo]);
+  }, [cycle, helpOpen, lang, modal, mode, palette, present, redo, resetView, setHelp, setModal, setMode, setPalette, setPresent, shareLock, showFull, undo]);
 
   return (
-    <div className={`app ${present ? "is-present" : ""} ${swapping ? "is-swapping" : ""}`.trim()} data-voice={voice}>
+    <div className={`app ${present ? "is-present" : ""} ${swapping ? "is-swapping" : ""} ${shareLock ? "is-share-lock" : ""}`.trim()} data-voice={voice} inert={shareLock ? true : undefined}>
       <LabCanvas />
       <div className="vignette" />
       <div className="grain" />

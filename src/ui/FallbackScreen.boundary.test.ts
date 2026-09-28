@@ -30,7 +30,7 @@ describe("WebglBoundary", () => {
   });
 
   it("catches a design crash, asks before reset, then remounts the scene", async () => {
-    installSceneProbe(() => ({ webglOk: true, contextLost: false, designOk: false }));
+    installSceneProbe(() => ({ webglOk: true, contextLost: false }));
     let mounts = 0;
     let broken = true;
     function Scene() {
@@ -45,34 +45,34 @@ describe("WebglBoundary", () => {
     });
 
     expect(slot?.textContent).toContain("לא הצלחנו להציג את העיצוב");
-    expect(slot?.querySelector("button")?.textContent).toBe("איפוס");
+    expect(slot?.textContent).toContain("נסו שוב");
+    expect(slot?.textContent).toContain("איפוס");
     expect(document.getElementById("scene")).toBeNull();
 
-    const click = (selector: string) => {
-      const node = slot?.querySelector(selector);
+    const clickText = (label: string) => {
+      const node = [...(slot?.querySelectorAll("button") ?? [])].find((button) => button.textContent === label);
       if (node instanceof HTMLButtonElement) node.click();
     };
 
     await act(async () => {
-      click("button");
+      clickText("איפוס");
     });
     expect(slot?.textContent).toContain("לאפס את העיצוב?");
     expect(document.getElementById("scene")).toBeNull();
     const mountsBeforeReset = mounts;
 
     await act(async () => {
-      click("button.is-ghost");
+      clickText("ביטול");
     });
     expect(slot?.textContent).toContain("לא הצלחנו להציג את העיצוב");
     expect(document.getElementById("scene")).toBeNull();
 
     await act(async () => {
-      click("button");
+      clickText("איפוס");
     });
     broken = false;
-    const yes = [...(slot?.querySelectorAll("button") ?? [])].find((button) => button.textContent === "כן, אפס");
     await act(async () => {
-      if (yes instanceof HTMLButtonElement) yes.click();
+      clickText("כן, אפס");
     });
 
     expect(document.getElementById("scene")?.textContent).toBe("scene-up");
@@ -81,10 +81,16 @@ describe("WebglBoundary", () => {
     expect(slot?.textContent).toBe("");
   });
 
-  it("keeps a renderer crash that is not a bad design, with no reset", async () => {
-    installSceneProbe(() => ({ webglOk: true, contextLost: false, designOk: true }));
-    function Scene(): ReactNode {
-      throw new TypeError("Cannot read properties of null (reading 'precision')");
+  it("offers try again and reset for a geometry crash, and clears when undo changes the design", async () => {
+    installSceneProbe(() => ({ webglOk: true, contextLost: false }));
+    const base = useLab.getState().design;
+    const previous = { ...base, label: { ...base.label, text: "קודם" } };
+    const current = { ...base, label: { ...base.label, text: "עכשיו" } };
+    useLab.setState({ design: current, past: [previous], future: [] });
+    let broken = true;
+    function Scene() {
+      if (broken) throw new Error("lathe geometry failed");
+      return createElement("p", { id: "scene" }, "scene-up");
     }
 
     root = createRoot(host!);
@@ -92,8 +98,35 @@ describe("WebglBoundary", () => {
       root?.render(createElement(WebglBoundary, null, createElement(Scene)));
     });
 
+    const labels = [...(slot?.querySelectorAll("button") ?? [])].map((button) => button.textContent);
+    expect(labels).toContain("נסו שוב");
+    expect(labels).toContain("איפוס");
+    expect(slot?.textContent).not.toContain("התצוגה התלת־ממדית לא זמינה");
+
+    broken = false;
+    await act(async () => {
+      useLab.getState().undo();
+    });
+
+    expect(document.getElementById("scene")?.textContent).toBe("scene-up");
+    expect(useLab.getState().design.label.text).toBe("קודם");
+    expect(host?.querySelector("[data-generation]")?.getAttribute("data-generation")).toBe("1");
+  });
+
+  it("keeps try again and hides reset when the context is lost", async () => {
+    installSceneProbe(() => ({ webglOk: false, contextLost: true }));
+    function Scene(): ReactNode {
+      throw new Error("lathe geometry failed");
+    }
+
+    root = createRoot(host!);
+    await act(async () => {
+      root?.render(createElement(WebglBoundary, null, createElement(Scene)));
+    });
+
+    const labels = [...(slot?.querySelectorAll("button") ?? [])].map((button) => button.textContent);
     expect(slot?.textContent).toContain("התצוגה התלת־ממדית לא זמינה");
-    expect(slot?.querySelector("button")).toBeNull();
-    expect(host?.querySelector("[data-generation]")).toBeNull();
+    expect(labels).toContain("נסו שוב");
+    expect(labels).not.toContain("איפוס");
   });
 });

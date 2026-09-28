@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Grid, OrbitControls } from "@react-three/drei";
 import * as THREE from "three";
@@ -15,7 +15,7 @@ import { clampPolarOffset, decayGlide, emptyGlide, PAN_SPEED, PAN_STEP, PITCH_ST
 import { Exposure, PixelRatio, StageFloor, StudioEnv, StudioLights } from "./studio.tsx";
 import { CinematicFloor, EnergyRings, ParticleField, VoiceGrade } from "./voiceScenery.tsx";
 import { webglAvailable } from "./webgl.ts";
-import { contextLostSuppressed, noteRenderer, StageFallback, WebglBoundary, WebglFallback } from "../ui/FallbackScreen.tsx";
+import { clearSceneError, contextLostSuppressed, noteRenderer, StageFallback, WebglBoundary, WebglFallback } from "../ui/FallbackScreen.tsx";
 
 const VIEW_DIR: Record<ViewPreset | "three", THREE.Vector3> = {
   home: new THREE.Vector3(0.78, 0.22, 1).normalize(),
@@ -623,8 +623,13 @@ function Stage() {
 }
 
 export function LabCanvas() {
-  const supported = useMemo(() => webglAvailable(), []);
+  const [supported, setSupported] = useState(() => webglAvailable());
   const [lost, setLost] = useState(false);
+  const retryWebgl = () => {
+    clearSceneError();
+    setLost(false);
+    setSupported(webglAvailable());
+  };
 
   useEffect(() => {
     const el = document.querySelector(".stage-slot");
@@ -640,7 +645,7 @@ export function LabCanvas() {
   if (!supported || lost) {
     return (
       <StageFallback>
-        <WebglFallback />
+        <WebglFallback onRetry={retryWebgl} />
       </StageFallback>
     );
   }
