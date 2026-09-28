@@ -136,7 +136,8 @@ describe("imported crimp pumps", () => {
 
 describe("matte palette", () => {
   it("uses the matte-black default for the palette swatch", () => {
-    expect(finishById("matteBlack").color).toBe(MATTE_BLACK_COLOR);
+    expect(MATTE_BLACK_COLOR).toBe("#141414");
+    expect(finishById("matteBlack").color).toBe("#141414");
     expect(PALETTE[1]).toBe(MATTE_BLACK_COLOR);
   });
 });

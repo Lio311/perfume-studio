@@ -200,11 +200,11 @@ export function FinishMaterial({
         finish === "frosted" ? 0.34 :
         finish === "tinted" ? 0.05 :
         metal ? 0.14 :
-        matte ? 0.92 :
+        matte ? 0.68 :
         finish === "wood" ? 0.7 :
         0.84
       }
-      sheen={matte ? 0.04 : 0}
+      sheen={matte ? 0.06 : 0}
       sheenRoughness={0.62}
       sheenColor="#4a4f56"
       transmission={materialTransmission}
@@ -214,8 +214,8 @@ export function FinishMaterial({
       clearcoatRoughness={metal ? 0.12 : 0.04}
       attenuationColor={clear ? "#fff8ee" : color}
       attenuationDistance={clear ? 160 : finish === "tinted" ? 36 : 36}
-      envMapIntensity={metal ? 1.65 : glassLike ? 1.7 : matte ? 0.12 : 0.7}
-      specularIntensity={glassLike || metal ? 1 : matte ? 0.15 : 0.3}
+      envMapIntensity={metal ? 1.65 : glassLike ? 1.7 : matte ? 0.35 : 0.7}
+      specularIntensity={glassLike || metal ? 1 : matte ? 0.4 : 0.3}
       transparent={glassLike}
       opacity={materialOpacity}
       depthWrite={!glassLike}

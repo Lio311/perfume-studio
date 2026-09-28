@@ -8,7 +8,7 @@ export interface FinishDef {
 }
 
 /** Matte-black default. The palette swatch uses this same constant. */
-export const MATTE_BLACK_COLOR = "#1c1c1e" as const;
+export const MATTE_BLACK_COLOR = "#141414" as const;
 
 export const FINISHES: FinishDef[] = [
   { id: "clear", name: { he: "זכוכית שקופה", en: "Clear glass" }, color: "#f4f0e8", group: "glass" },
