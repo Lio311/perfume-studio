@@ -33,7 +33,8 @@ This project is built using modern web and 3D technologies:
 
 - **Single Engine, Multiple Themes**: A single configurator engine drives everything. URL parameters (`?voice=1`) dynamically change the lighting, environment, and post-processing without duplicating the underlying catalog or fit rules.
 - **Rendering Quality**: 
-  - Clear glass utilizes a custom shader with a fresnel shell and cool reflection to perform well on software renderers.
+  - Clear glass utilizes a custom shader with a fresnel shell and cool reflection to perform well on software renderers. Clear, frosted, and tinted defaults come from `DEFAULT_GLASS_OPACITY`. An explicit opacity slider uses alpha blending with transmission at 0 so the liquid stays visible and the colour can go solid.
+  - Dark matte parts stay readable on the graphite stage. A cool rim from each side grazes the silhouette, and matte black keeps a little sheen with its shadow colour lifted just off pure black. Exposure is unchanged, and gold, silver, and clear glass keep their existing roughness, so light and metallic parts do not wash out. The light studio uses a weaker rim of the same kind.
   - Decals (logos) are rendered as opaque meshes conforming to the bottle's curved surface to prevent z-fighting or mirrored text.
 - **Part Isolation**: Double-clicking a part isolates it on a turntable with dimension leader lines. The camera easing uses a cubic in-out curve but instantly yields to user gestures (scroll/pinch).
 - **Packaging Workflow**: The bottle and the carton are handled as separate entities. You can view the box alone, hinge the lid open, or render them side-by-side in a combined shot.

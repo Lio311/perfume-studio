@@ -1,6 +1,6 @@
 import { bottleById, boxById, capById, collarById, logoById, pumpById } from "./catalog.ts";
 import { NECKS, neckRadius } from "./necks.ts";
-import { bottleRadii } from "./sample.ts";
+import { bottleRadii, neckFinishMm, neckLipY } from "./sample.ts";
 import type { Design, PartKey } from "./types.ts";
 
 export interface Fit {
@@ -56,8 +56,20 @@ export function computeFit(design: Design, exploded = false): Fit {
   const collarHeight = stockFerrule
     ? Math.min(ferrule.heightMaxMm, Math.max(ferrule.heightMinMm, collar.heightMm))
     : collar.heightMm;
-  const collarBottom = bottleH - Math.min(collarHeight * 0.72, neck.crimpMm * 0.85);
-  const collarTop = collarBottom + collarHeight;
+  // Lip is the top of the straight finish. Closures seat on that, not on the
+  // shoulder blend below it.
+  const lip = neckLipY(bottleH, bottleW, bottleD, bottle.profile, bottle.shoulder, neckR);
+  const overlap = Math.min(collarHeight * 0.72, neck.crimpMm * 0.85);
+  let collarBottom = lip - overlap;
+  let collarTop = collarBottom + collarHeight;
+  if (pump.style === "crimp") {
+    // A crimp ferrule has no screw skirt. Sink it as far as the straight
+    // finish allows, so a tall finish ends at the lip instead of a pedestal.
+    const finish = neckFinishMm(bottleH, neckR, bottle.profile);
+    const sunk = Math.min(collarHeight, Math.max(overlap, finish - 0.5));
+    collarBottom = lip - sunk;
+    collarTop = collarBottom + collarHeight;
+  }
 
   const capH = design.cap.heightMm;
   const capW = Math.max(design.cap.widthMm, (collarOuter + cap.overhangMm) * 2);
@@ -70,7 +82,9 @@ export function computeFit(design: Design, exploded = false): Fit {
   const actuatorR = Math.max(neckR * pump.radiusFactor, neckR * 0.42);
   const nozzle =
     exploded || !design.cap.visible ? pump.nozzleMm : Math.min(pump.nozzleMm, Math.max(2.2, capW / 2 - actuatorR - 0.4));
-  const pumpBase = collarTop - 0.3;
+  // A crimp pump has no screw skirt, so its base is the glass lip. A screw
+  // pump stands on the collar that carries the thread, a little above the lip.
+  const pumpBase = pump.style === "crimp" ? lip : collarTop - 0.3;
 
   const shoulderY = bottleH * (1 - bottle.shoulder) - 4;
   const fractions: Record<typeof logo.plate, [number, number]> = {

@@ -1,6 +1,9 @@
 import { bodyProfiles, capProfiles } from "./profiles.ts";
 import type { CapProfileName, ProfileName } from "./types.ts";
 
+/** Bulb silhouettes are still wide at the shoulder sample, so a short finish lands on the crown. */
+const BULB_PROFILES = new Set<ProfileName>(["sphere"]);
+
 export type Profile = ReadonlyArray<readonly [number, number]>;
 
 export function clamp(v: number, min: number, max: number): number {
@@ -31,6 +34,40 @@ export function sampleProfile(profile: Profile, t: number): number {
   return last[1];
 }
 
+/**
+ * Length of the straight glass finish under the lip.
+ * Most bottles keep a short 5.5 mm neck. A sphere's shoulder sample is still
+ * about 0.78 of the body radius, so that short finish ends inside the crown
+ * and a crimp has no cylinder to close on. The finish only has to clear the
+ * ferrule (about one neck radius). A longer clear neck reads as a gap under
+ * the pump.
+ */
+export function neckFinishMm(height: number, neckR: number, profile: ProfileName): number {
+  const classic = Math.min(5.5, neckR * 0.85);
+  if (!BULB_PROFILES.has(profile)) return classic;
+  const seat = neckR * 0.98;
+  return Math.min(height * 0.18, Math.max(classic, seat));
+}
+
+/** Glass lip: the top of the straight finish. Closures seat here, not on the bulb. */
+export function neckLipY(
+  height: number,
+  width: number,
+  depth: number,
+  profile: ProfileName,
+  shoulder: number,
+  neckR: number,
+): number {
+  let lip = 0;
+  const steps = 48;
+  for (let i = 0; i <= steps; i += 1) {
+    const y = (i / steps) * height;
+    const sample = bottleRadii(y, height, width, depth, profile, shoulder, neckR);
+    if (Math.abs(sample.rx - neckR) < 0.08 && Math.abs(sample.rz - neckR) < 0.08) lip = y;
+  }
+  return lip;
+}
+
 export function bottleRadii(
   y: number,
   height: number,
@@ -42,7 +79,7 @@ export function bottleRadii(
 ): { rx: number; rz: number; morph: number } {
   const halfW = width / 2;
   const halfD = depth / 2;
-  const straight = Math.min(5.5, neckR * 0.85);
+  const straight = neckFinishMm(height, neckR, profile);
   const straightStart = height - straight;
   const shoulderStart = Math.max(height * 0.35, straightStart - height * shoulder);
   if (y >= straightStart) return { rx: neckR, rz: neckR, morph: 1 };
