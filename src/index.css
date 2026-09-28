@@ -282,7 +282,7 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 .swatch { width: 32px; height: 32px; padding: 0; border-radius: 50%; border: 1px solid var(--line); transition: transform 0.15s ease, outline-offset 0.15s ease; cursor: pointer; }
 .swatch:hover { transform: scale(1.1); }
 .swatch.is-on { outline: 2px solid var(--accent); outline-offset: 2px; }
-.picker { position: relative; width: 32px; height: 32px; border-radius: 50%; background: conic-gradient(red, yellow, lime, aqua, blue, magenta, red); cursor: pointer; overflow: hidden; border: 1px solid var(--line); display: flex; align-items: center; justify-content: center; transition: transform 0.15s ease; flex-shrink: 0; }
+.picker { position: relative; width: 32px; height: 32px; border-radius: 50%; background: conic-gradient(red, yellow, lime, aqua, blue, magenta, red); cursor: pointer; overflow: hidden; border: 1px solid var(--line); display: flex; align-items: center; justify-content: center; transition: transform 0.15s ease; flex-shrink: 0; -webkit-mask-image: -webkit-radial-gradient(white, black); mask-image: radial-gradient(white, black); }
 .picker:hover { transform: scale(1.1); }
 .picker::after { content: "+"; color: white; font-size: 20px; font-weight: bold; text-shadow: 0 1px 2px rgba(0,0,0,0.5); pointer-events: none; }
 .picker input { position: absolute; opacity: 0; width: 200%; height: 200%; top: -50%; left: -50%; cursor: pointer; }
@@ -1123,6 +1123,17 @@ html[data-theme="light"] .modal-back {
   background: rgba(232, 235, 240, 0.78);
 }
 html[data-theme="light"] .grain { opacity: 0.018; mix-blend-mode: multiply; }
+html[data-theme="light"] .back-btn {
+  background: rgba(255, 255, 255, 0.82);
+  backdrop-filter: blur(16px);
+  color: var(--text);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+html[data-theme="light"] .crumb {
+  background: rgba(255, 255, 255, 0.82);
+  backdrop-filter: blur(16px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
 
 .grain {
   position: fixed;
