@@ -13,22 +13,24 @@ function mattePaper(hex: string): { map: THREE.CanvasTexture; bump: THREE.Canvas
   bumpCanvas.width = 256;
   bumpCanvas.height = 256;
   const bumpCtx = bumpCanvas.getContext("2d");
-  const lifted = new THREE.Color(hex).lerp(new THREE.Color("#7a756c"), 0.55);
+  const base = new THREE.Color(hex);
   if (ctx && bumpCtx) {
-    ctx.fillStyle = `#${lifted.getHexString()}`;
+    ctx.fillStyle = "#ffffff";
     ctx.fillRect(0, 0, 256, 256);
     bumpCtx.fillStyle = "#808080";
     bumpCtx.fillRect(0, 0, 256, 256);
-    for (let i = 0; i < 2200; i += 1) {
-      const n = 70 + Math.random() * 140;
-      ctx.fillStyle = `rgba(${n | 0},${Math.max(0, n - 8) | 0},${Math.max(0, n - 16) | 0},0.35)`;
+    const ink = `rgba(${Math.round(base.r * 40)},${Math.round(base.g * 40)},${Math.round(base.b * 40)},0.22)`;
+    ctx.fillStyle = ink;
+    for (let i = 0; i < 1600; i += 1) {
       const x = Math.random() * 256;
       const y = Math.random() * 256;
-      const w = 1 + Math.random() * 2.6;
+      const w = 1 + Math.random() * 2.2;
+      ctx.globalAlpha = 0.15 + Math.random() * 0.45;
       ctx.fillRect(x, y, w, 1);
-      bumpCtx.fillStyle = `rgb(${70 + Math.random() * 120},${70 + Math.random() * 120},${70 + Math.random() * 120})`;
+      bumpCtx.fillStyle = `rgb(${90 + Math.random() * 90},${90 + Math.random() * 90},${90 + Math.random() * 90})`;
       bumpCtx.fillRect(x, y, w, 1);
     }
+    ctx.globalAlpha = 1;
   }
   const map = new THREE.CanvasTexture(canvas);
   const bump = new THREE.CanvasTexture(bumpCanvas);
@@ -103,13 +105,13 @@ export function FinishMaterial({
   if (clear && glass) return <ClearGlass />;
   return (
     <meshPhysicalMaterial
-      color={paper ? "#ffffff" : color}
+      color={color}
       flatShading={flat}
       map={wood ?? paper?.map ?? undefined}
       bumpMap={leather ?? paper?.bump ?? undefined}
       bumpScale={leather ? 0.35 : paper ? 0.35 : 0}
-      emissive={paper ? "#3a342c" : "#000000"}
-      emissiveIntensity={paper ? 0.18 : 0}
+      emissive="#000000"
+      emissiveIntensity={0}
       metalness={metal ? 1 : finish === "matteBlack" ? 0.02 : 0}
       roughness={
         clear ? 0.015 :

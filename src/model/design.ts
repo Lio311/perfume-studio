@@ -47,7 +47,7 @@ export function createDefaultDesign(): Design {
     box: {
       variantId: box.id,
       finish: "matteBlack",
-      color: "#1a1b1e",
+      color: "#14161c",
       heightMm: 120,
       widthMm: 78,
       depthMm: 68,

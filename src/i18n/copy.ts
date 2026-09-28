@@ -115,6 +115,8 @@ const he = {
   quality: "איכות",
   qualityHigh: "גבוה",
   qualityMed: "בינוני",
+  boxShow: "הצג קופסה",
+  boxHide: "הסתר קופסה",
 };
 
 const en: typeof he = {
@@ -232,6 +234,8 @@ const en: typeof he = {
   quality: "Quality",
   qualityHigh: "High",
   qualityMed: "Medium",
+  boxShow: "Show box",
+  boxHide: "Hide box",
 };
 
 export const copy = { he, en };

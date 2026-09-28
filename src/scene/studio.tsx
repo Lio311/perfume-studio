@@ -1,4 +1,4 @@
-import { Component, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { Component, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import { ContactShadows, Environment, Lightformer, MeshReflectorMaterial } from "@react-three/drei";
 import * as THREE from "three";
@@ -112,11 +112,38 @@ function MirrorWatch({ onFail }: { onFail: () => void }) {
   return null;
 }
 
-function PlainFloor({ light }: { light: boolean }) {
+function radialFade(): THREE.CanvasTexture {
+  const canvas = document.createElement("canvas");
+  canvas.width = 256;
+  canvas.height = 256;
+  const ctx = canvas.getContext("2d");
+  if (ctx) {
+    const fade = ctx.createRadialGradient(128, 128, 48, 128, 128, 128);
+    fade.addColorStop(0, "rgba(255,255,255,1)");
+    fade.addColorStop(0.42, "rgba(255,255,255,0.92)");
+    fade.addColorStop(0.72, "rgba(255,255,255,0.28)");
+    fade.addColorStop(1, "rgba(255,255,255,0)");
+    ctx.fillStyle = fade;
+    ctx.fillRect(0, 0, 256, 256);
+  }
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.NoColorSpace;
+  return texture;
+}
+
+function PlainFloor({ light, fade }: { light: boolean; fade: THREE.CanvasTexture }) {
   return (
     <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]}>
-      <circleGeometry args={[120, 64]} />
-      <meshPhysicalMaterial color={light ? "#d8d0c4" : "#1c212c"} metalness={0.78} roughness={0.26} envMapIntensity={1.25} />
+      <circleGeometry args={[260, 80]} />
+      <meshPhysicalMaterial
+        color={light ? "#d8d0c4" : "#1c212c"}
+        metalness={0.78}
+        roughness={0.26}
+        envMapIntensity={1.25}
+        transparent
+        depthWrite={false}
+        alphaMap={fade}
+      />
     </mesh>
   );
 }
@@ -129,12 +156,13 @@ export function StageFloor() {
   const light = theme === "light";
   const mirror = quality === "high" && !off;
   const bucket = Math.round(explode * 6);
+  const fade = useMemo(() => radialFade(), []);
   return (
     <>
       {mirror ? (
         <FloorBoundary onFail={() => setOff(true)}>
           <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, 0]}>
-            <circleGeometry args={[130, 64]} />
+            <circleGeometry args={[260, 80]} />
             <MeshReflectorMaterial
               resolution={512}
               mixBlur={0.85}
@@ -147,12 +175,15 @@ export function StageFloor() {
               depthScale={0.45}
               color={light ? "#cfc6ba" : "#1c2430"}
               metalness={0.55}
+              transparent
+              depthWrite={false}
+              alphaMap={fade}
             />
           </mesh>
           <MirrorWatch onFail={() => setOff(true)} />
         </FloorBoundary>
       ) : (
-        <PlainFloor light={light} />
+        <PlainFloor light={light} fade={fade} />
       )}
       {quality === "high" && (
         <ContactShadows

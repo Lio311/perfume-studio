@@ -94,10 +94,12 @@ export function computeFit(design: Design, exploded = false): Fit {
   const boxW = design.box.linked ? contentW + box.padMm * 2 : design.box.widthMm;
   const boxD = design.box.linked ? contentD + box.padMm * 2 : design.box.depthMm;
   const boxH = design.box.linked ? contentH + box.liftMm : design.box.heightMm;
-  // Standing on the bottle's right, clear of the glass, slightly behind the front face.
-  const gap = 16;
-  const boxX = bottleW / 2 + boxW / 2 + gap;
-  const boxZ = -(boxD * 0.22 + 4);
+  // Home camera is normalize(0.78, 0.22, 1). These axes are that view's
+  // screen-right and floor-back, so the carton sits beside the glass and further away.
+  const side = 140;
+  const back = 340;
+  const boxX = 0.789 * side - 0.615 * back;
+  const boxZ = -0.615 * side - 0.789 * back;
 
   const anchors: Record<PartKey, [number, number, number]> = {
     bottle: [0, bottleH * 0.42, 0],
@@ -110,7 +112,7 @@ export function computeFit(design: Design, exploded = false): Fit {
   };
 
   const explode: Record<PartKey, [number, number, number]> = {
-    box: [56, 0, -14],
+    box: [-22, 0, -42],
     cap: [0, 168, 0],
     pump: [0, 102, 0],
     collar: [0, 52, 0],

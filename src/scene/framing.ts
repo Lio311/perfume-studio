@@ -48,6 +48,8 @@ export function assemblyBounds(design: Design, explode: number): THREE.Box3 {
   for (const part of PARTS) {
     if (!design[part].visible) continue;
     if (part === "liquid" && !design.bottle.visible) continue;
+    // The carton sits behind the bottle. Framing it would shrink the glass.
+    if (part === "box") continue;
     const frame = frameFor(part, fit);
     const local = explodeLocal(frame.index, explode);
     const originX = frame.home[0] + frame.explode[0] * local;

@@ -63,7 +63,8 @@ describe("catalog", () => {
     expect(BOTTLES.find((b) => b.id === "cube-50")).toMatchObject({ heightMm: 54.9, widthMm: 46, depthMm: 46, neck: "FEA15" });
     expect(BOTTLES.find((b) => b.id === "linton-100")).toMatchObject({ heightMm: 135, widthMm: 59, depthMm: 29.3, neck: "FEA15" });
     expect(createDefaultDesign().cap).toMatchObject({ variantId: "cap-cube-tall", heightMm: 34.5, widthMm: 30, finish: "gold" });
-    expect(fit.boxX).toBeGreaterThan(fit.bottleW / 2 + fit.boxW / 2);
+    expect(fit.boxZ + fit.boxD / 2).toBeLessThan(-fit.bottleD / 2 - 40);
+    expect(Math.hypot(fit.boxX, fit.boxZ)).toBeGreaterThan(fit.bottleW);
   });
 });
 
