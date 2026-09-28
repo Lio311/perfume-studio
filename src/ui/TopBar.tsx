@@ -15,8 +15,6 @@ export function TopBar() {
   const theme = useLab((s) => s.theme);
   const design = useLab((s) => s.design);
   const mode = useLab((s) => s.mode);
-  const past = useLab((s) => s.past.length);
-  const future = useLab((s) => s.future.length);
   const setLang = useLab((s) => s.setLang);
   const setTheme = useLab((s) => s.setTheme);
   const setMode = useLab((s) => s.setMode);
@@ -26,8 +24,6 @@ export function TopBar() {
   const blueprint = useLab((s) => s.blueprint);
   const setStage = useLab((s) => s.setStage);
   const setBlueprint = useLab((s) => s.setBlueprint);
-  const undo = useLab((s) => s.undo);
-  const redo = useLab((s) => s.redo);
   const libraryOpen = useLab((s) => s.libraryOpen);
   const sideOpen = useLab((s) => s.sideOpen);
   const setLibraryOpen = useLab((s) => s.setLibraryOpen);

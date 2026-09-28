@@ -27,6 +27,8 @@ export default function App() {
   const setMode = useLab((s) => s.setMode);
   const undo = useLab((s) => s.undo);
   const redo = useLab((s) => s.redo);
+  const past = useLab((s) => s.past.length);
+  const future = useLab((s) => s.future.length);
   const resetView = useLab((s) => s.resetView);
   const showFull = useLab((s) => s.showFull);
   const solo = useLab((s) => s.solo);
@@ -184,6 +186,10 @@ export default function App() {
         <TopBar />
         <Library />
         <div className="stage-slot">
+          <div style={{ position: 'absolute', top: 12, right: 12, display: 'flex', gap: 8, pointerEvents: 'auto', zIndex: 10 }} dir={lang === "he" ? "rtl" : "ltr"}>
+            <button type="button" className="icon-btn" style={{ background: 'var(--bg)' }} onClick={() => undo()} disabled={past === 0}>{t.undo}</button>
+            <button type="button" className="icon-btn" style={{ background: 'var(--bg)' }} onClick={() => redo()} disabled={future === 0}>{t.redo}</button>
+          </div>
           {design.step !== undefined && design.step < 7 ? (
             <p className="hint-strip" style={{ opacity: 1 }} dir={lang === "he" ? "rtl" : "ltr"}>
               <b>
