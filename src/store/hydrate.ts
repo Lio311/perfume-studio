@@ -34,12 +34,17 @@ export const LAB_PERSIST_VERSION = 6;
 
 const SANITIZED_KEYS = new Set(["design", "theme", "lang", "chat", "saved", "pending", "compareIds", "past", "future"]);
 
-/** Live UI fields. They are not part of a saved design and must not come back from storage. */
+/**
+ * Live UI and this-visit view. Cutaway is a momentary section, like blueprint.
+ * Quality and the tier lock are chosen again each load: a phone starts on the
+ * light tier, and a lock must not pin that choice to the next visit.
+ */
 const EPHEMERAL_KEYS = new Set([
   "selected", "hovered", "mode", "explode", "viewPreset", "gesturing", "autoRotate",
   "viewToken", "focusToken", "libraryOpen", "sideOpen", "modal", "units", "suppliers",
   "voice", "soundOn", "stage", "blueprint", "fullToken", "aimed", "solo", "present",
   "exporting", "palette", "help", "boxOpen", "toast", "shareUrl", "briefEditing",
+  "cutaway", "quality", "tierLock",
 ]);
 
 let storageWritesOpen = true;
@@ -265,18 +270,22 @@ function sanitizeCollar(raw: unknown, fallback: CollarState): CollarState {
   };
 }
 
-type BoxCore = Pick<BoxState, "variantId" | "finish" | "color" | "heightMm" | "widthMm" | "depthMm" | "linked" | "visible">;
-
-function sanitizeBox(raw: unknown, fallback: BoxState): BoxCore {
-  if (!isRecord(raw)) return { ...fallback };
+/**
+ * Core carton fields stay inside the persist ranges. Pack fields ride along
+ * and `hydrateBox` clamps them, so a reload keeps structure, latch, lift-off,
+ * drawer pull, and shape instead of dropping them.
+ */
+function sanitizeBox(raw: unknown, fallback: BoxState): BoxState {
+  if (!isRecord(raw)) return hydrateBox(fallback);
   const id = idString(own(raw, "variantId"));
-  if (!id) return { ...fallback };
+  if (!id) return hydrateBox(fallback);
   const known = BOXES.some((item) => item.id === id);
   const heightMm = ranged(own(raw, "heightMm"), 70, 240);
   const widthMm = ranged(own(raw, "widthMm"), 40, 160);
   const depthMm = ranged(own(raw, "depthMm"), 30, 140);
-  if (!known && (heightMm == null || widthMm == null || depthMm == null)) return { ...fallback };
-  return {
+  if (!known && (heightMm == null || widthMm == null || depthMm == null)) return hydrateBox(fallback);
+  return hydrateBox({
+    ...(raw as Partial<BoxState>),
     variantId: id,
     finish: finishOf(own(raw, "finish"), fallback.finish),
     color: colorOf(own(raw, "color"), fallback.color),
@@ -285,14 +294,7 @@ function sanitizeBox(raw: unknown, fallback: BoxState): BoxCore {
     depthMm: depthMm ?? fallback.depthMm,
     linked: bool(own(raw, "linked"), fallback.linked),
     visible: bool(own(raw, "visible"), fallback.visible),
-  };
-}
-
-/** Keep the pack fields `sanitizeBox` does not know about, then let the box validator clamp them. */
-function packedBox(raw: unknown, fallback: BoxState): BoxState {
-  const safe = sanitizeBox(raw, fallback);
-  if (!isRecord(raw)) return hydrateBox(safe);
-  return hydrateBox({ ...(raw as Partial<BoxState>), ...safe });
+  });
 }
 
 function sanitizeLiquid(raw: unknown, fallback: LiquidState): LiquidState {
@@ -320,7 +322,7 @@ export function sanitizeDesign(input: unknown): Design {
       label: sanitizeLabel(own(input, "label"), defaults.label),
       pump: sanitizePump(own(input, "pump"), defaults.pump),
       collar: sanitizeCollar(own(input, "collar"), defaults.collar),
-      box: packedBox(own(input, "box"), defaults.box),
+      box: sanitizeBox(own(input, "box"), defaults.box),
       liquid: sanitizeLiquid(own(input, "liquid"), defaults.liquid),
     };
     if (Object.hasOwn(input, "step")) {
@@ -601,7 +603,7 @@ const PERSISTED_FIELDS = ["design", "theme", "lang", "chat", "saved", "pending",
 /**
  * Allowlist the persisted fields. A key this store does not know (a later feature's
  * data) is copied through so the next write does not erase it. Functions and live UI
- * fields, including `shareUrl`, are left out.
+ * fields, including `shareUrl`, brief editing, cutaway, quality, and the tier lock, are left out.
  */
 export function partializeLabState(state: object): Record<string, unknown> {
   const source = state as Record<string, unknown>;
