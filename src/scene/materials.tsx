@@ -1,7 +1,7 @@
 import { useMemo, useEffect } from "react";
 import * as THREE from "three";
 import type { FinishId } from "../model/types.ts";
-import { DEFAULT_GLASS_OPACITY, effectiveGlassOpacity, glassTransmission, isGlass } from "../model/materials.ts";
+import { effectiveGlassOpacity, glassTransmission, isGlass } from "../model/materials.ts";
 import { leatherBump, woodMap } from "../geometry/textures.ts";
 import { useLab } from "../store/labStore.ts";
 
@@ -119,8 +119,8 @@ const CLEAR_FRAG = `
   }
 `;
 
-function ClearGlass({ opacity = DEFAULT_GLASS_OPACITY.clear }: { opacity?: number }) {
-  const uniforms = useMemo(() => ({ uFade: { value: opacity / DEFAULT_GLASS_OPACITY.clear } }), []);
+function ClearGlass({ opacity = 0.14 }: { opacity?: number }) {
+  const uniforms = useMemo(() => ({ uFade: { value: opacity / 0.14 } }), []);
   return (
     <shaderMaterial
       transparent
@@ -131,7 +131,7 @@ function ClearGlass({ opacity = DEFAULT_GLASS_OPACITY.clear }: { opacity?: numbe
       polygonOffsetFactor={-1}
       polygonOffsetUnits={-1}
       uniforms={uniforms}
-      uniforms-uFade-value={opacity / DEFAULT_GLASS_OPACITY.clear}
+      uniforms-uFade-value={opacity / 0.14}
       vertexShader={CLEAR_VERT}
       fragmentShader={CLEAR_FRAG}
     />
@@ -193,7 +193,7 @@ export function FinishMaterial({
   if (blueprint) {
     return <shaderMaterial transparent depthWrite toneMapped={false} uniforms={fade} vertexShader={BLUE_VERT} fragmentShader={BLUE_FRAG} />;
   }
-  if (clear && glass) return <ClearGlass opacity={opacity !== undefined ? opacity : DEFAULT_GLASS_OPACITY.clear} />;
+  if (clear && glass) return <ClearGlass opacity={opacity !== undefined ? opacity : 0.14} />;
 
   return (
     <meshPhysicalMaterial
