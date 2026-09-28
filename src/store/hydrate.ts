@@ -215,6 +215,7 @@ function ranged(value: unknown, min: number, max: number): number | undefined {
 function withOpacity(raw: Record<string, unknown>, next: BottleState): BottleState {
   if (!Object.hasOwn(raw, "opacity")) return next;
   const opacity = own(raw, "opacity");
+  if (opacity === null) return { ...next, opacity: null };
   if (typeof opacity !== "number" || !Number.isFinite(opacity)) return next;
   return { ...next, opacity: clamp(opacity, 0, 1) };
 }

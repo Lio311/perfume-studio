@@ -171,7 +171,7 @@ export function FinishMaterial({
 }: {
   finish: FinishId;
   color: string;
-  opacity?: number;
+  opacity?: number | null;
   flat?: boolean;
   glass?: boolean;
   section?: boolean;
@@ -219,7 +219,7 @@ export function FinishMaterial({
   if (blueprint) {
     return <shaderMaterial transparent depthWrite toneMapped={false} uniforms={fade} vertexShader={BLUE_VERT} fragmentShader={BLUE_FRAG} clippingPlanes={planes} />;
   }
-  if (clear && glass && !clearHigh) return <ClearGlass opacity={opacity !== undefined ? opacity : 0.14} color={color} clippingPlanes={planes} />;
+  if (clear && glass && !clearHigh) return <ClearGlass opacity={typeof opacity === "number" ? opacity : 0.14} color={color} clippingPlanes={planes} />;
 
   return (
     <meshPhysicalMaterial
