@@ -192,6 +192,13 @@ const he = {
   resetViewBtn: "איפוס מבט",
   openBox: "פתח קופסה",
   closeBox: "סגור קופסה",
+  wizard1: "שלב 1: בחירת בקבוק",
+  wizard2: "שלב 2: צבע הנוזל ומילוי",
+  wizard3: "שלב 3: בחירת מרסס",
+  wizard4: "שלב 4: בחירת צווארון",
+  wizard5: "שלב 5: בחירת פקק",
+  wizard6: "שלב 6: בחירת לוגו ומיתוג",
+  wizard7: "שלב 7: בחירת אריזה",
 };
 
 const en: typeof he = {
@@ -386,12 +393,26 @@ const en: typeof he = {
   resetViewBtn: "Reset view",
   openBox: "Open box",
   closeBox: "Close box",
+  wizard1: "Step 1: Choose a Bottle",
+  wizard2: "Step 2: Choose Liquid Color & Fill",
+  wizard3: "Step 3: Choose a Pump",
+  wizard4: "Step 4: Choose a Collar",
+  wizard5: "Step 5: Choose a Cap",
+  wizard6: "Step 6: Choose Logo & Branding",
+  wizard7: "Step 7: Choose a Box",
 };
 
 export const copy = { he, en };
 
 export function tx(lang: Lang): typeof he {
   return copy[lang];
+}
+
+const WIZARD_STEPS = ["wizard1", "wizard2", "wizard3", "wizard4", "wizard5", "wizard6", "wizard7"] as const;
+
+export function wizardTitle(lang: Lang, step: number): string {
+  const key = WIZARD_STEPS[step];
+  return key ? tx(lang)[key] : "";
 }
 
 export const partLabel: Record<Lang, Record<PartKey, string>> = {

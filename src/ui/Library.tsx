@@ -254,7 +254,7 @@ export function Library() {
             <button
               type="button"
               className="upload-btn"
-              style={{ flex: 1, border: "1px solid var(--border-color, #333)", fontWeight: "bold" }}
+              style={{ flex: 1, background: "transparent", color: "var(--text)", border: "1px solid var(--line)", fontWeight: "bold" }}
               onClick={() => {
                 const prevStep = wizardStep - 1;
                 const prevTab = WIZARD_ORDER[prevStep];
@@ -273,7 +273,7 @@ export function Library() {
                 type="button"
                 className="upload-btn"
                 disabled={!canProceed}
-                style={{ flex: 1, background: "var(--accent-color, #23252a)", color: "var(--text-color, #e4e6eb)", border: "1px solid var(--border-color, #333)", fontWeight: "bold", margin: 0, opacity: canProceed ? 1 : 0.5, cursor: canProceed ? "pointer" : "not-allowed" }}
+                style={{ flex: 1, background: "var(--accent)", color: "var(--on-accent)", border: "1px solid var(--line)", fontWeight: "bold", margin: 0, opacity: canProceed ? 1 : 0.5, cursor: canProceed ? "pointer" : "not-allowed" }}
                 onClick={() => {
                   const nextStep = wizardStep + 1;
                   applyCommands([{ type: "wizard_step", step: nextStep }]);
