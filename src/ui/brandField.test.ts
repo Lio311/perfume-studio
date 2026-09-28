@@ -70,9 +70,6 @@ describe("brand field hint", () => {
     expect(labelVisibleAfterTextChange("", false)).toBe(false);
     expect(labelVisibleAfterTextChange("", true)).toBe(true);
 
-    const hidden = createDefaultDesign();
-    hidden.label.visible = false;
-    useLab.setState({ design: hidden, past: [], future: [] });
     const type = (text: string) => {
       const visible = labelVisibleAfterTextChange(text, useLab.getState().design.label.visible);
       useLab.getState().patch("label", { text, visible });

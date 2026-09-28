@@ -13,6 +13,7 @@ import {
   labelInk,
   labelTypeface,
   layoutLabelLines,
+  cartonMarkPlate,
   paintLabel,
   paintLabelEmissive,
   paintLabelSurface,
@@ -244,6 +245,35 @@ describe("label text layout", () => {
     expect(shouldRepaintLabel(false)).toBe(true);
   });
 
+  it("keeps the carton plaque clear unless print has a plate colour", () => {
+    expect(cartonMarkPlate("foil", "#111111")).toBe("clear");
+    expect(cartonMarkPlate("emboss", "#111111")).toBe("clear");
+    expect(cartonMarkPlate("engrave", "#111111")).toBe("clear");
+    expect(cartonMarkPlate("decal", null)).toBe("clear");
+    expect(cartonMarkPlate("decal", "  ")).toBe("clear");
+    expect(cartonMarkPlate("print", "")).toBe("clear");
+    expect(cartonMarkPlate("print", "#f4efe6")).toBe("#f4efe6");
+    expect(cartonMarkPlate("decal", "#f4efe6")).toBe("#f4efe6");
+
+    const word = { mark: "word" as const, font: "cinzel" as const, frame: "none" as const };
+    const empty = fakeCtx();
+    paintLabel(empty, word, "", "#f6f1e6", 640, 180, cartonMarkPlate("foil"));
+    expect(empty.plate).toBe("");
+    expect(empty.cleared).toBe(true);
+    expect(empty.texts).toHaveLength(0);
+
+    const foil = fakeCtx();
+    paintLabel(foil, word, "ATELIER", "#e6cc98", 640, 180, cartonMarkPlate("foil", "#16130f"));
+    expect(foil.plate).toBe("");
+    expect(foil.texts.some((call) => call.text === "ATELIER")).toBe(true);
+    expect(foil.texts.some((call) => call.fill === "#16130f")).toBe(false);
+
+    const printed = fakeCtx();
+    paintLabel(printed, word, "ATELIER", "#16130f", 640, 180, cartonMarkPlate("print", "#f4efe6"));
+    expect(printed.plate).toBe("#f4efe6");
+    expect(printed.plate).not.toBe("#16130f");
+  });
+
   it("draws nothing when the brand text is empty", () => {
     const ctx = fakeCtx();
     paintLabel(ctx as unknown as CanvasRenderingContext2D, { mark: "word", font: "cinzel", frame: "none" }, "   ", "#D6B26A", 640, 360);
@@ -323,7 +353,11 @@ function fakeCtx() {
     direction: "ltr" as "rtl" | "ltr",
     lineWidth: 1,
     plate: "",
+    cleared: false,
     texts,
+    clearRect() {
+      ctx.cleared = true;
+    },
     fillRect() {
       if (!ctx.plate) ctx.plate = String(ctx.fillStyle);
     },

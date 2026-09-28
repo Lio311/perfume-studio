@@ -11,6 +11,7 @@ export function BudgetBrief() {
   const lang = useLab((s) => s.lang);
   const t = tx(lang);
   const brief = useLab((s) => s.brief);
+  const stage = useLab((s) => s.stage);
   const editing = useLab((s) => s.briefEditing);
   const setBrief = useLab((s) => s.setBrief);
   const confirmBrief = useLab((s) => s.confirmBrief);
@@ -23,7 +24,7 @@ export function BudgetBrief() {
     return useLab.persist.onFinishHydration(() => setHydrated(true));
   }, [hydrated]);
 
-  if (!hydrated || (brief.confirmed && !editing)) return null;
+  if (!hydrated || stage === "box" || (brief.confirmed && !editing)) return null;
 
   return (
     <div className="modal-back" data-budget-brief>

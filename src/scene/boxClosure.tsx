@@ -10,7 +10,7 @@ import { useLab } from "../store/labStore.ts";
 import { ClipSync, OuterSkin } from "./closures/kit.tsx";
 import { builderFor } from "./closures/registry.ts";
 import type { GroupBind } from "./closures/types.ts";
-import { trayLiftNow } from "./trayLift.ts";
+import { insertSeatNow, trayLiftNow } from "./trayLift.ts";
 
 export function ClosureBox({ form, fit }: { form: BoxForm; fit: Fit }) {
   const structure = useLab((s) => s.design.box.structure ?? "lift-off");
@@ -88,6 +88,18 @@ export function ClosureBox({ form, fit }: { form: BoxForm; fit: Fit }) {
     }
     const motion = motionRef.current;
     trayLiftNow.mm = motion ? trayLiftMm(current?.id ?? "lift-off", motion, poseAmount, pullRef.current) : 0;
+    const tray = current?.id === "drawer" ? groups.current.tray : null;
+    if (tray) {
+      insertSeatNow.x = tray.position.x;
+      insertSeatNow.y = tray.position.y;
+      insertSeatNow.z = tray.position.z;
+      insertSeatNow.active = true;
+    } else {
+      insertSeatNow.x = 0;
+      insertSeatNow.y = 0;
+      insertSeatNow.z = 0;
+      insertSeatNow.active = false;
+    }
   };
 
   useLayoutEffect(() => {
@@ -98,6 +110,10 @@ export function ClosureBox({ form, fit }: { form: BoxForm; fit: Fit }) {
 
   useEffect(() => () => {
     trayLiftNow.mm = 0;
+    insertSeatNow.x = 0;
+    insertSeatNow.y = 0;
+    insertSeatNow.z = 0;
+    insertSeatNow.active = false;
   }, []);
 
   useFrame((_, dt) => {
@@ -117,6 +133,8 @@ export function ClosureBox({ form, fit }: { form: BoxForm; fit: Fit }) {
         <SleeveBuilder form={form} fit={fit} spec={sleeveSpec} dims={outerDims} bind={bindSleeve} ribbon={false} pullTab={false} latch="none" drawerPull="none" shape={{ type: "rect" }} shellOnly window={sleeveWindow} />
       )}
       <OuterSkin w={outerDims.w} h={outerDims.h} d={outerDims.d} amount={amount} />
+      <pointLight position={[0, dims.h * 0.42, 0]} intensity={6} distance={Math.max(80, dims.h * 2.4)} decay={2} color="#fff6ea" />
+      <pointLight position={[0, dims.h * 0.78, dims.d * 0.15]} intensity={3.2} distance={Math.max(70, dims.h * 2)} decay={2} color="#f3efe6" />
     </group>
   );
 }

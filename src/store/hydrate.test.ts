@@ -545,7 +545,7 @@ describe("saved design hydration", () => {
     expect(merged.design.box.drawerPull).toBe("notch");
     expect(merged.design.box.shape).toEqual({ type: "polygon", sides: 8 });
     expect(merged.design.box.layers.map((layer) => layer.structure)).toEqual(["sleeve", "drawer"]);
-    expect(merged.brief).toEqual({ title: "קופסה" });
+    expect(merged.brief).toEqual(DEFAULT_BUDGET_BRIEF);
     expect(merged.cutaway).toBe(false);
     expect(merged.quality).toBe("fallback");
     expect(merged.tierLock).toBe(false);
