@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   clearGlassFade,
+  DEFAULT_GLASS_OPACITY,
   glassDrawTransmission,
   mappedGlassOpacity,
   renderedGlassOpacity,
@@ -22,8 +23,8 @@ describe("renderedGlassOpacity", () => {
       expect(renderedGlassOpacity(finish, 0.5)).toBeLessThan(renderedGlassOpacity(finish, 1) ?? 0);
     }
     expect(usesFlatGlassAlpha("tinted")).toBe(true);
-    expect(renderedGlassOpacity("tinted")).toBeCloseTo(mappedGlassOpacity(0.32));
-    expect(renderedGlassOpacity("frosted")).toBeCloseTo(mappedGlassOpacity(0.45));
+    expect(renderedGlassOpacity("tinted")).toBeCloseTo(mappedGlassOpacity(DEFAULT_GLASS_OPACITY.tinted));
+    expect(renderedGlassOpacity("frosted")).toBeCloseTo(mappedGlassOpacity(DEFAULT_GLASS_OPACITY.frosted));
     expect(glassDrawTransmission("tinted")).toBe(0);
     expect(glassDrawTransmission("frosted")).toBe(0);
 
@@ -35,5 +36,14 @@ describe("renderedGlassOpacity", () => {
     expect(renderedGlassOpacity("gold", 0.4)).toBeNull();
     expect(glassDrawTransmission("clear")).toBeGreaterThan(0);
     expect(clearGlassFade(undefined)).toBeCloseTo(1);
+  });
+
+  it("keeps the untouched frosted and tinted defaults near the previous rendered opacity", () => {
+    expect(DEFAULT_GLASS_OPACITY.frosted).toBeCloseTo(0.35);
+    expect(DEFAULT_GLASS_OPACITY.tinted).toBeCloseTo(0.2);
+    expect(renderedGlassOpacity("frosted")).toBeCloseTo(mappedGlassOpacity(0.35));
+    expect(renderedGlassOpacity("tinted")).toBeCloseTo(mappedGlassOpacity(0.2));
+    expect(renderedGlassOpacity("frosted")).toBeCloseTo(0.45, 2);
+    expect(renderedGlassOpacity("tinted")).toBeCloseTo(0.32);
   });
 });

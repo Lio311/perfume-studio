@@ -40,7 +40,7 @@ describe("first-mount bottle glass", () => {
   });
 
   it("keeps depthWrite off for frosted and tinted glass once opacity passes one half", () => {
-    const frostedAlpha = renderedGlassOpacity("frosted");
+    const frostedAlpha = renderedGlassOpacity("frosted", 0.5);
     expect(frostedAlpha).toBeGreaterThan(0.5);
     const frosted = glassMat();
     writeBottleGlassFrame(frosted, { fade: null, alpha: frostedAlpha }, false, 0.016);

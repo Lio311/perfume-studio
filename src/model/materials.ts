@@ -69,8 +69,8 @@ type GlassFinish = "clear" | "frosted" | "tinted";
  */
 const GLASS_FINISH_DEFAULTS: Record<GlassFinish, { opacity: number; transmission: number }> = {
   clear: { opacity: 0.14, transmission: 0.15 },
-  frosted: { opacity: 0.45, transmission: 0.35 },
-  tinted: { opacity: 0.32, transmission: 0.55 },
+  frosted: { opacity: 0.35, transmission: 0.35 },
+  tinted: { opacity: 0.2, transmission: 0.55 },
 };
 
 /** Slider defaults for clear / frosted / tinted glass. Shared by the wizard, spec, and renderer. */
