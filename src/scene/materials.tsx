@@ -1,7 +1,7 @@
 import { useMemo, useEffect } from "react";
 import * as THREE from "three";
 import type { FinishId } from "../model/types.ts";
-import { assignClearGlassFade, DEFAULT_GLASS_OPACITY, glassDrawTransmission, isGlass, renderedGlassOpacity } from "../model/materials.ts";
+import { assignClearGlassFade, DEFAULT_GLASS_OPACITY, effectiveGlassDraw, isGlass, renderedGlassOpacity } from "../model/materials.ts";
 import { leatherBump, woodMap } from "../geometry/textures.ts";
 import { useLab } from "../store/labStore.ts";
 
@@ -167,13 +167,12 @@ export function FinishMaterial({
   useEffect(() => {
     fade.uColor.value.set(theme === "dark" ? 0xf6e5c7 : 0x2c3e50);
   }, [theme, fade]);
+  const draw = glassLike ? effectiveGlassDraw(finish, opacity) : null;
   let materialOpacity = 1.0;
   let materialTransmission = 0;
   if (glassLike) {
-    materialOpacity = renderedGlassOpacity(finish, opacity) ?? 1.0;
-    // Frosted and tinted use transmission 0 for the whole slider so the shared
-    // 0.15+0.85·o alpha is what is drawn. Clear glass returns above this.
-    materialTransmission = glassDrawTransmission(finish);
+    materialOpacity = draw?.opacity ?? renderedGlassOpacity(finish, opacity) ?? 1.0;
+    materialTransmission = draw?.transmission ?? 0;
   }
 
   if (blueprint) {
@@ -192,27 +191,26 @@ export function FinishMaterial({
       emissiveIntensity={0}
       metalness={metal ? 1 : finish === "matteBlack" ? 0.02 : 0}
       roughness={
+        draw ? draw.roughness :
         clear ? 0.015 :
-        finish === "frosted" ? 0.34 :
-        finish === "tinted" ? 0.05 :
         metal ? 0.14 :
         finish === "matteBlack" ? 0.86 :
         finish === "wood" ? 0.7 :
         0.84
       }
       transmission={materialTransmission}
-      thickness={glassLike ? (finish === "tinted" ? 4.2 : 2.8) : 0}
+      thickness={draw ? draw.thickness : glassLike ? 2.8 : 0}
       ior={clear ? 1.52 : 1.5}
-      clearcoat={clear || finish === "tinted" ? 1 : metal ? 0.65 : 0.04}
+      clearcoat={draw ? draw.clearcoat : clear ? 1 : metal ? 0.65 : 0.04}
       clearcoatRoughness={metal ? 0.12 : 0.04}
       attenuationColor={clear ? "#fff8ee" : color}
-      attenuationDistance={clear ? 160 : 36}
+      attenuationDistance={draw ? draw.attenuationDistance : clear ? 160 : 36}
       envMapIntensity={metal ? 1.65 : glassLike ? 1.7 : finish === "matteBlack" ? 0.28 : 0.7}
       specularIntensity={glassLike || metal ? 1 : 0.3}
       transparent={glassLike}
       opacity={materialOpacity}
       userData-glassBody={glassLike ? true : undefined}
-      depthWrite={!glassLike}
+      depthWrite={draw ? draw.depthWrite : !glassLike}
       side={THREE.FrontSide}
     />
   );

@@ -100,9 +100,9 @@ export function mappedGlassOpacity(opacity: number): number {
 }
 
 /**
- * Frosted and tinted glass always draw this flat alpha, including the untouched
- * default. Transmission stays 0 so the slider changes the picture; refraction was
- * hiding the difference between 0% and 100%. Clear glass stays on the fresnel shader.
+ * Frosted and tinted glass draw a flat alpha once the slider is explicit.
+ * The untouched default does not: it keeps the refractive transmission below.
+ * Clear glass stays on the fresnel shader.
  */
 export function usesFlatGlassAlpha(finish: FinishId): boolean {
   const glass = glassFinish(finish);
@@ -143,13 +143,49 @@ export function glassTransmission(finish: FinishId, opacity?: number): number {
   return GLASS_FINISH_DEFAULTS[glass].transmission;
 }
 
+const GLASS_SURFACE: Record<GlassFinish, { roughness: number; thickness: number; clearcoat: number }> = {
+  clear: { roughness: 0.015, thickness: 2.8, clearcoat: 1 },
+  frosted: { roughness: 0.34, thickness: 2.8, clearcoat: 0.04 },
+  tinted: { roughness: 0.05, thickness: 4.2, clearcoat: 1 },
+};
+
 /**
  * Transmission the physical glass material should use.
- * Frosted and tinted glass use 0 so `mappedGlassOpacity` is the opacity you see.
- * Clear glass keeps the refractive default; the fresnel shader does not read this.
+ * An explicit frosted or tinted slider uses 0 so `mappedGlassOpacity` is what you see.
+ * The untouched default keeps the transmission stored with that finish, which is what
+ * main draws when the design has no opacity value. Clear glass keeps its refractive default.
  */
-export function glassDrawTransmission(finish: FinishId): number {
+export function glassDrawTransmission(finish: FinishId, opacity?: number): number {
   if (!isGlass(finish)) return 0;
-  if (usesFlatGlassAlpha(finish)) return 0;
+  if (usesFlatGlassAlpha(finish) && opacity !== undefined) return 0;
   return Math.max(0.01, glassTransmission(finish));
+}
+
+/**
+ * Params the frosted or tinted physical material draws.
+ * `depthWrite` stays false so the front wall does not hide the liquid.
+ */
+export function effectiveGlassDraw(finish: FinishId, opacity?: number): {
+  opacity: number;
+  transmission: number;
+  roughness: number;
+  thickness: number;
+  clearcoat: number;
+  attenuationDistance: number;
+  depthWrite: false;
+} | null {
+  const glass = glassFinish(finish);
+  if (!glass || glass === "clear") return null;
+  const alpha = renderedGlassOpacity(finish, opacity);
+  if (alpha === null) return null;
+  const surface = GLASS_SURFACE[glass];
+  return {
+    opacity: alpha,
+    transmission: glassDrawTransmission(finish, opacity),
+    roughness: surface.roughness,
+    thickness: surface.thickness,
+    clearcoat: surface.clearcoat,
+    attenuationDistance: 36,
+    depthWrite: false,
+  };
 }
