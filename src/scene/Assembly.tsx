@@ -723,17 +723,23 @@ function BrandPlate({ w, y, z }: { w: number; y: number; z: number }) {
   const spec = logoById(variantId);
   const ink = labelInk(color, spec.application);
   const shared = useSharedLabelCanvas();
-  const planeW = Math.min(w * 0.48, 52);
-  const plateH = Math.max(96, Math.round(1024 * 18 / planeW));
-  const canvas = useMemo(
-    () => (shared ? copyLabelCanvas(shared, 1024, plateH) : document.createElement("canvas")),
-    [shared, plateH],
-  );
+  const maxW = Math.min(w * 0.48, 52);
+  const maxH = 18;
+  const aspect = shared && shared.width > 0 && shared.height > 0 ? shared.width / shared.height : maxW / maxH;
+  const planeW = Math.min(maxW, maxH * aspect);
+  const planeH = planeW / aspect;
+  const canvas = useMemo(() => {
+    if (!shared) return document.createElement("canvas");
+    const longSide = 1024;
+    const destW = aspect >= 1 ? longSide : Math.max(64, Math.round(longSide * aspect));
+    const destH = aspect >= 1 ? Math.max(64, Math.round(longSide / aspect)) : longSide;
+    return copyLabelCanvas(shared, destW, destH);
+  }, [shared, aspect]);
   const { color: tex, mask, emissive } = useLabelMaps(canvas, ink, spec.application);
   if (blueprint) return null;
   return (
     <mesh position={[0, y, z]}>
-      <planeGeometry args={[planeW, 18]} />
+      <planeGeometry args={[planeW, planeH]} />
       <LabelFinishMaterial map={tex} mask={mask} emissiveMap={emissive} ink={ink} application={spec.application} overlay />
     </mesh>
   );
