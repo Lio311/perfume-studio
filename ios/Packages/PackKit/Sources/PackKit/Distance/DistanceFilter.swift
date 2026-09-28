@@ -10,7 +10,7 @@ public struct DistanceFilter: Equatable {
     public private(set) var value: Double?
     private var samples: [Double] = []
     private var lastTime: TimeInterval?
-    private var lastSource: DistanceSource?
+    private var lastSourceID: String?
 
     public init() {}
 
@@ -18,7 +18,7 @@ public struct DistanceFilter: Equatable {
         value = nil
         samples.removeAll()
         lastTime = nil
-        lastSource = nil
+        lastSourceID = nil
     }
 
     public struct Result: Equatable {
@@ -27,11 +27,11 @@ public struct DistanceFilter: Equatable {
         public var didReset: Bool
     }
 
-    /// Ignores non-finite, non-positive, and LiDAR-below-300 readings without touching state.
-    public mutating func push(zMm: Double, time: TimeInterval, source: DistanceSource) -> Result? {
+    /// Ignores readings the source rejects, and non-finite timestamps, without touching state.
+    public mutating func push(zMm: Double, time: TimeInterval, source: some DistanceSource) -> Result? {
         guard source.accepts(rawZMm: zMm), time.isFinite else { return nil }
         var didReset = false
-        if let lastSource, lastSource != source {
+        if let lastSourceID, lastSourceID != source.id {
             clearWindow()
             didReset = true
         } else if let lastTime, time - lastTime > Self.resetGap {
@@ -47,7 +47,7 @@ public struct DistanceFilter: Equatable {
             self.value = median
         }
         lastTime = time
-        lastSource = source
+        lastSourceID = source.id
         return Result(millimetres: self.value ?? median, didReset: didReset)
     }
 

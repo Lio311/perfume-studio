@@ -1,9 +1,30 @@
 import Foundation
 
-/// Where a depth reading came from.
-/// The card is the only source that may auto-capture.
+/// A depth provider. The filter, guide, and gate depend only on this protocol,
+/// so a later milestone can add another source (for example an object-capture depth)
+/// without changing them. Identity is `id`: a change of id resets the filter.
+/// Defaults refuse auto-capture and accept any positive finite depth.
+public protocol DistanceSource: Sendable {
+    var id: String { get }
+    var isApproximate: Bool { get }
+    var allowsAutoCapture: Bool { get }
+    /// `rawZMm` is the raw (pre-calibration) depth.
+    func accepts(rawZMm: Double) -> Bool
+}
+
+extension DistanceSource {
+    public var isApproximate: Bool { false }
+    public var allowsAutoCapture: Bool { false }
+
+    public func accepts(rawZMm: Double) -> Bool {
+        rawZMm.isFinite && rawZMm > 0
+    }
+}
+
+/// Camera depths used by the M1 guide.
+/// The card is the only one that may auto-capture.
 /// LiDAR is optional and only valid at or beyond 300 mm. VIO is approximate.
-public enum DistanceSource: String, Equatable, Sendable, Codable {
+public enum CameraDistance: String, DistanceSource, Equatable, Sendable, Codable {
     case card
     case lidar
     case vio
@@ -11,13 +32,42 @@ public enum DistanceSource: String, Equatable, Sendable, Codable {
     /// LiDAR readings closer than this are ignored. The sensor is not reliable there.
     public static let lidarMinimumMm: Double = 300
 
+    public var id: String { rawValue }
+
     public var isApproximate: Bool { self == .vio }
 
-    /// `zMm` is the raw (pre-calibration) depth.
+    public var allowsAutoCapture: Bool { self == .card }
+
     public func accepts(rawZMm: Double) -> Bool {
         guard rawZMm.isFinite, rawZMm > 0 else { return false }
         if self == .lidar, rawZMm < Self.lidarMinimumMm { return false }
         return true
+    }
+}
+
+/// Equatable snapshot of a `DistanceSource`, safe to publish and compare.
+public struct DistanceSourceInfo: Equatable, Sendable {
+    public var id: String
+    public var isApproximate: Bool
+    public var allowsAutoCapture: Bool
+
+    public init(id: String, isApproximate: Bool, allowsAutoCapture: Bool) {
+        self.id = id
+        self.isApproximate = isApproximate
+        self.allowsAutoCapture = allowsAutoCapture
+    }
+
+    public init(_ source: some DistanceSource) {
+        self.init(id: source.id, isApproximate: source.isApproximate, allowsAutoCapture: source.allowsAutoCapture)
+    }
+
+    public var label: String {
+        switch id {
+        case CameraDistance.card.id: return "כרטיס"
+        case CameraDistance.lidar.id: return "LiDAR"
+        case CameraDistance.vio.id: return "VIO"
+        default: return id
+        }
     }
 }
 

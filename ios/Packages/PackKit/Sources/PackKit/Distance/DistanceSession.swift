@@ -3,7 +3,7 @@ import Foundation
 /// One accepted (or explicitly rejected) update of the distance pipeline.
 public struct DistanceReading: Equatable, Sendable {
     public var accepted: Bool
-    public var source: DistanceSource
+    public var source: DistanceSourceInfo
     public var rawMm: Double
     public var filteredMm: Double?
     public var guide: DistanceGuide.Output?
@@ -13,7 +13,7 @@ public struct DistanceReading: Equatable, Sendable {
 
     public init(
         accepted: Bool,
-        source: DistanceSource,
+        source: DistanceSourceInfo,
         rawMm: Double,
         filteredMm: Double?,
         guide: DistanceGuide.Output?,
@@ -75,13 +75,14 @@ public struct DistanceSession {
 
     public mutating func update(
         rawZMm: Double,
-        source: DistanceSource,
+        source: some DistanceSource,
         tiltDegrees: Double,
         time: TimeInterval
     ) -> DistanceReading {
+        let info = DistanceSourceInfo(source)
         let rejected = DistanceReading(
             accepted: false,
-            source: source,
+            source: info,
             rawMm: rawZMm,
             filteredMm: filter.value,
             guide: nil,
@@ -108,13 +109,13 @@ public struct DistanceSession {
         )
         return DistanceReading(
             accepted: true,
-            source: source,
+            source: info,
             rawMm: rawZMm,
             filteredMm: filtered.millimetres,
             guide: output,
             shouldAutoCapture: autoCaptureEnabled && fire,
             sigmaMm: sigma,
-            showsApproximateBadge: source == .vio
+            showsApproximateBadge: source.isApproximate
         )
     }
 }
