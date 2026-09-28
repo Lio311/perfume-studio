@@ -20,6 +20,8 @@ export function TopBar() {
   const setLang = useLab((s) => s.setLang);
   const setTheme = useLab((s) => s.setTheme);
   const setMode = useLab((s) => s.setMode);
+  const setModal = useLab((s) => s.setModal);
+  const newDesign = useLab((s) => s.newDesign);
   const stage = useLab((s) => s.stage);
   const blueprint = useLab((s) => s.blueprint);
   const setStage = useLab((s) => s.setStage);
@@ -158,6 +160,8 @@ export function TopBar() {
         )}
       </div>
       <div className="top-cluster">
+        <button type="button" className="text-btn" onClick={() => newDesign()}>{lang === "he" ? "חדש" : "New"}</button>
+        <button type="button" className="text-btn" onClick={() => setModal("save")}>{t.saved}</button>
         <button type="button" className="text-btn lang" onClick={() => setLang(lang === "he" ? "en" : "he")}>{lang === "he" ? "EN" : "עב"}</button>
         <button type="button" className="icon-btn" onClick={() => undo()} disabled={past === 0}>{t.undo}</button>
         <button type="button" className="icon-btn" onClick={() => redo()} disabled={future === 0}>{t.redo}</button>

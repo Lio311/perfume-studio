@@ -116,6 +116,7 @@ interface LabState {
   pushChat: (message: ChatMessage) => void;
   saveDesign: (name: string, thumb: string) => void;
   loadDesign: (id: string) => void;
+  newDesign: () => void;
   deleteDesign: (id: string) => void;
   toggleCompare: (id: string) => void;
   addPending: (part: PendingPart) => void;
@@ -497,6 +498,9 @@ export const useLab = create<LabState>()(
         } catch (e) {
           console.error("Failed to save design to backend", e);
         }
+      },
+      newDesign: () => {
+        set({ design: createDefaultDesign(), past: [], future: [], modal: null });
       },
       loadDesign: async (id) => {
         try {

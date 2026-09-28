@@ -160,7 +160,7 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 .props { flex: 1.15; overflow: auto; scroll-behavior: smooth; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
 .chat { flex: 0.9; min-height: 230px; }
 
-.panel-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.panel-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-shrink: 0; }
 .panel-head h2, .modal h2 {
   margin: 0;
   font-family: var(--display);
@@ -293,8 +293,8 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 .supplier summary { cursor: pointer; }
 .hide, .fit { margin-top: 12px; }
 
-.transcript { flex: 1; overflow: auto; display: flex; flex-direction: column; gap: 8px; padding: 8px 0 28px; }
-.msg { margin: 0; padding: 8px 10px; border-radius: 12px; font-size: 13.5px; line-height: 1.45; max-width: 95%; }
+.transcript { flex: 1; overflow: auto; display: flex; flex-direction: column; gap: 8px; padding: 8px 0 28px; min-height: 0; }
+.msg { margin: 0; padding: 8px 10px; border-radius: 12px; font-size: 13.5px; line-height: 1.45; max-width: 95%; word-break: break-word; white-space: pre-wrap; }
 .msg.user { align-self: flex-end; background: var(--fill); border: 1px solid var(--line); }
 .msg.lab { align-self: flex-start; color: var(--accent-2); }
 .examples { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -305,9 +305,9 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   padding: 6px 10px;
   font-size: 12px;
 }
-.composer { display: flex; gap: 6px; align-items: center; }
-.composer input { margin-top: 0; }
-.composer button, .mic { border-radius: 12px; padding: 8px 10px; border: 1px solid var(--line); background: transparent; }
+.composer { display: flex; gap: 6px; align-items: center; flex-shrink: 0; }
+.composer input { margin-top: 0; flex: 1; min-width: 0; }
+.composer button, .mic { border-radius: 12px; padding: 8px 10px; border: 1px solid var(--line); background: transparent; flex-shrink: 0; }
 .mic.is-on { color: var(--danger); }
 
 .dock {
@@ -434,11 +434,11 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 }
 .hint-strip.is-faded { opacity: 0; }
 .dock-pct { font-family: var(--num); font-size: 12px; color: var(--accent-2); min-width: 36px; }
-.msg-row { display: flex; align-items: flex-start; gap: 6px; }
+.msg-row { display: flex; align-items: flex-start; gap: 6px; flex-shrink: 0; }
 .msg-row.user { align-self: flex-end; }
 .msg-row.lab { align-self: flex-start; }
 .undo-chip { padding: 4px 8px; font-size: 11px; color: var(--accent); align-self: center; }
-.suggest { display: flex; flex-wrap: wrap; gap: 6px; padding-bottom: 8px; }
+.suggest { display: flex; flex-wrap: wrap; gap: 6px; padding-bottom: 8px; flex-shrink: 0; }
 .suggest button {
   border-radius: 999px;
   border: 1px solid var(--line);
