@@ -958,8 +958,174 @@
     },
     "DimensionRanges": {
       "type": "object",
-      "description": "PLACEHOLDER (lead developer, 28 Sep 2026): the single source of truth for per-kind dimension ranges (mm) is PR #6 (matching the built-in catalog). Final values arrive when PR #6 returns; they will be copied here (e.g. as properties kind → {widthMm,heightMm,depthMm: {min,max}}) so the iOS app READS ranges from this schema and never hardcodes them. No values are defined yet on purpose.",
-      "additionalProperties": true
+      "description": "Per-kind dimension ranges in mm (inclusive), copied from the canonical web validator `MM` in src/import/packValidate.ts (after PR #6). Reference data: the iOS app reads min/max from here and never hardcodes them. Keep in sync with packValidate.ts.",
+      "additionalProperties": false,
+      "required": [
+        "bottle",
+        "cap",
+        "box",
+        "pump",
+        "collar",
+        "label"
+      ],
+      "properties": {
+        "bottle": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "widthMm",
+            "heightMm",
+            "depthMm"
+          ],
+          "properties": {
+            "widthMm": {
+              "type": "number",
+              "minimum": 26,
+              "maximum": 96
+            },
+            "heightMm": {
+              "type": "number",
+              "minimum": 48,
+              "maximum": 180
+            },
+            "depthMm": {
+              "type": "number",
+              "minimum": 20,
+              "maximum": 90
+            }
+          }
+        },
+        "cap": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "widthMm",
+            "heightMm",
+            "depthMm"
+          ],
+          "properties": {
+            "widthMm": {
+              "type": "number",
+              "minimum": 16,
+              "maximum": 48
+            },
+            "heightMm": {
+              "type": "number",
+              "minimum": 10,
+              "maximum": 78
+            },
+            "depthMm": {
+              "type": "number",
+              "minimum": 16,
+              "maximum": 48
+            }
+          }
+        },
+        "box": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "widthMm",
+            "heightMm",
+            "depthMm"
+          ],
+          "properties": {
+            "widthMm": {
+              "type": "number",
+              "minimum": 40,
+              "maximum": 160
+            },
+            "heightMm": {
+              "type": "number",
+              "minimum": 70,
+              "maximum": 240
+            },
+            "depthMm": {
+              "type": "number",
+              "minimum": 30,
+              "maximum": 140
+            }
+          }
+        },
+        "pump": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "widthMm",
+            "heightMm",
+            "depthMm"
+          ],
+          "properties": {
+            "widthMm": {
+              "type": "number",
+              "minimum": 8,
+              "maximum": 48
+            },
+            "heightMm": {
+              "type": "number",
+              "minimum": 8,
+              "maximum": 18
+            },
+            "depthMm": {
+              "type": "number",
+              "minimum": 8,
+              "maximum": 48
+            }
+          }
+        },
+        "collar": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "widthMm",
+            "heightMm",
+            "depthMm"
+          ],
+          "properties": {
+            "widthMm": {
+              "type": "number",
+              "minimum": 8,
+              "maximum": 48
+            },
+            "heightMm": {
+              "type": "number",
+              "minimum": 5,
+              "maximum": 12
+            },
+            "depthMm": {
+              "type": "number",
+              "minimum": 8,
+              "maximum": 48
+            }
+          }
+        },
+        "label": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "widthMm",
+            "heightMm",
+            "depthMm"
+          ],
+          "properties": {
+            "widthMm": {
+              "type": "number",
+              "minimum": 8,
+              "maximum": 160
+            },
+            "heightMm": {
+              "type": "number",
+              "minimum": 8,
+              "maximum": 160
+            },
+            "depthMm": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 160
+            }
+          }
+        }
+      }
     }
   }
 }

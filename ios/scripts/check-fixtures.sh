@@ -7,6 +7,7 @@ for f in Fixtures/examples/*.json; do
 done
 if [ -f ../schema/supplier-pack.schema.json ]; then
   cmp ../schema/supplier-pack.schema.json Fixtures/supplier-pack.schema.json
+  cmp Fixtures/supplier-pack.schema.json Packages/PackKit/Sources/PackKit/supplier-pack.schema.json
   echo "schema in sync with web repo"
 fi
 echo "fixtures in sync"

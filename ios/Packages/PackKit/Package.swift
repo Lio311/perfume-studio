@@ -7,7 +7,7 @@ let package = Package(
     platforms: [.iOS(.v17), .macOS(.v14)],
     products: [.library(name: "PackKit", targets: ["PackKit"])],
     targets: [
-        .target(name: "PackKit"),
+        .target(name: "PackKit", resources: [.copy("supplier-pack.schema.json")]),
         .testTarget(name: "PackKitTests", dependencies: ["PackKit"], resources: [.copy("Fixtures")]),
     ]
 )
