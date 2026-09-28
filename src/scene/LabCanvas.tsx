@@ -11,7 +11,7 @@ import { Assembly } from "./Assembly.tsx";
 import { releaseFocus } from "./focusClick.ts";
 import { assemblyBounds, fitPose, FOCUS_FILL, orbitLimits, partBounds, readStageFrame } from "./framing.ts";
 import { cameraProbe, sceneSpan } from "./limits.ts";
-import { clampPolarOffset, decayGlide, emptyGlide, PAN_SPEED, polarAngle, poseBroken, pushGlide, ROTATE_SPEED, takeStep, type Glide } from "./orbitGlide.ts";
+import { clampPolarOffset, decayGlide, emptyGlide, PAN_SPEED, PAN_STEP, PITCH_STEP, polarAngle, poseBroken, pushGlide, ROTATE_SPEED, takeStep, YAW_STEP, type Glide } from "./orbitGlide.ts";
 import { Exposure, PixelRatio, StageFloor, StudioEnv, StudioLights } from "./studio.tsx";
 import { CinematicFloor, EnergyRings, ParticleField, VoiceGrade } from "./voiceScenery.tsx";
 
@@ -412,11 +412,11 @@ function CameraRig() {
     }
     const limits = measureRadius();
     const glideNow = glide.current;
-    const yaw = takeStep(glideNow.yaw, 0.008);
-    const pitch = takeStep(glideNow.pitch, 0.005);
+    const yaw = takeStep(glideNow.yaw, YAW_STEP);
+    const pitch = takeStep(glideNow.pitch, PITCH_STEP);
     const zoom = takeStep(glideNow.zoom, 0.01);
-    const panX = takeStep(glideNow.panX, 1.1);
-    const panY = takeStep(glideNow.panY, 1.1);
+    const panX = takeStep(glideNow.panX, PAN_STEP);
+    const panY = takeStep(glideNow.panY, PAN_STEP);
     glideNow.yaw = yaw.rest;
     glideNow.pitch = pitch.rest;
     glideNow.zoom = zoom.rest;

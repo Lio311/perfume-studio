@@ -14,7 +14,8 @@ export function emptyGlide(): Glide {
 
 /**
  * Pointer, touch, and trackpad orbit/pan are 18% quicker than the previous gains.
- * Event caps, per-frame steps, and polar limits are not scaled.
+ * Wheel glide caps and per-frame steps scale with it. The per-event pixel cap,
+ * polar limits, pinch zoom, and glide decay do not.
  */
 export const GESTURE_SPEED = 1.18;
 /** OrbitControls rotateSpeed: mouse-drag and one-finger touch. */
@@ -27,6 +28,18 @@ export const TRACKPAD_YAW_GAIN = 0.00028 * GESTURE_SPEED;
 export const TRACKPAD_PITCH_GAIN = 0.00018 * GESTURE_SPEED;
 /** Pan units per wheel or trackpad pixel. */
 export const TRACKPAD_PAN_GAIN = 0.06 * GESTURE_SPEED;
+/** Max yaw kept from wheel or trackpad events. */
+export const YAW_BUFFER_CAP = 0.016 * GESTURE_SPEED;
+/** Max pitch kept from wheel or trackpad events. */
+export const PITCH_BUFFER_CAP = 0.01 * GESTURE_SPEED;
+/** Max pan kept from wheel or trackpad events. */
+export const PAN_BUFFER_CAP = 6 * GESTURE_SPEED;
+/** Max yaw applied in one frame. */
+export const YAW_STEP = 0.008 * GESTURE_SPEED;
+/** Max pitch applied in one frame. */
+export const PITCH_STEP = 0.005 * GESTURE_SPEED;
+/** Max pan applied in one frame. */
+export const PAN_STEP = 1.1 * GESTURE_SPEED;
 
 function clamp(n: number, min: number, max: number): number {
   if (!Number.isFinite(n)) return 0;
@@ -38,16 +51,16 @@ export function pushGlide(glide: Glide, dx: number, dy: number, kind: "orbit" | 
   const x = clamp(dx, -80, 80);
   const y = clamp(dy, -80, 80);
   if (kind === "pan") {
-    glide.panX = clamp(glide.panX + x * TRACKPAD_PAN_GAIN, -6, 6);
-    glide.panY = clamp(glide.panY + y * TRACKPAD_PAN_GAIN, -6, 6);
+    glide.panX = clamp(glide.panX + x * TRACKPAD_PAN_GAIN, -PAN_BUFFER_CAP, PAN_BUFFER_CAP);
+    glide.panY = clamp(glide.panY + y * TRACKPAD_PAN_GAIN, -PAN_BUFFER_CAP, PAN_BUFFER_CAP);
     return;
   }
   if (kind === "pinch") {
     glide.zoom = clamp(glide.zoom + y * 0.0004, -0.035, 0.035);
     return;
   }
-  glide.yaw = clamp(glide.yaw + x * TRACKPAD_YAW_GAIN, -0.016, 0.016);
-  glide.pitch = clamp(glide.pitch + y * TRACKPAD_PITCH_GAIN, -0.01, 0.01);
+  glide.yaw = clamp(glide.yaw + x * TRACKPAD_YAW_GAIN, -YAW_BUFFER_CAP, YAW_BUFFER_CAP);
+  glide.pitch = clamp(glide.pitch + y * TRACKPAD_PITCH_GAIN, -PITCH_BUFFER_CAP, PITCH_BUFFER_CAP);
 }
 
 /** Apply at most `cap` radians (or zoom units) this frame and keep the remainder. */
