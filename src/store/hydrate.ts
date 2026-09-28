@@ -363,17 +363,26 @@ export function migratePersisted(persisted: unknown, version: number): unknown {
   }
 }
 
-/** Parse a persist entry. Invalid JSON and a missing `state` are ignored. */
+/**
+ * Parse a persist entry. Invalid JSON is ignored.
+ * Accepts the zustand envelope `{state, version}` and a raw state object
+ * such as `{design:{bottle:{},cap:{}}}`.
+ */
 export function readStorageValue(raw: string | null): { state: unknown; version?: number } | null {
   if (typeof raw !== "string" || raw.length === 0) return null;
   try {
     const parsed: unknown = JSON.parse(raw);
-    if (!isRecord(parsed) || !Object.hasOwn(parsed, "state")) return null;
-    const version = own(parsed, "version");
-    return {
-      state: own(parsed, "state"),
-      version: typeof version === "number" && Number.isFinite(version) ? version : undefined,
-    };
+    if (!isRecord(parsed)) return null;
+    if (Object.hasOwn(parsed, "state")) {
+      const version = own(parsed, "version");
+      const value: { state: unknown; version?: number } = { state: own(parsed, "state") };
+      if (typeof version === "number" && Number.isFinite(version)) value.version = version;
+      return value;
+    }
+    if (Object.hasOwn(parsed, "design") || Object.hasOwn(parsed, "theme") || Object.hasOwn(parsed, "lang")) {
+      return { state: parsed };
+    }
+    return null;
   } catch {
     return null;
   }

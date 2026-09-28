@@ -155,6 +155,62 @@ describe("saved design hydration", () => {
     expect(sanitizeDesign(design)).toEqual(design);
   });
 
+  it("hydrates the exact stale perfume-lab-v1 blob into a full design", () => {
+    const raw = JSON.stringify({ design: { bottle: {}, cap: {} } });
+    const parsed = readStorageValue(raw);
+    expect(parsed).toEqual({ state: { design: { bottle: {}, cap: {} } } });
+    const merged = mergePersistedLab(parsed?.state, slice());
+    const defaults = createDefaultDesign();
+    expect(merged.design).toEqual(defaults);
+    const ids = [merged.design.bottle, merged.design.cap, merged.design.pump, merged.design.collar, merged.design.label, merged.design.box].map((part) => part.variantId);
+    expect(ids).toEqual(["cara-50", "cap-cube-tall", "pump-crimp", "col-crimp", "lg-foil-diamond", "box-rigid"]);
+
+    const wrapped = readStorageValue(JSON.stringify({ state: { design: { bottle: {}, cap: {} } }, version: 4 }));
+    expect(mergePersistedLab(wrapped?.state, slice()).design).toEqual(defaults);
+  });
+
+  it("keeps valid parts exactly and replaces only missing or invalid slots", () => {
+    const defaults = createDefaultDesign();
+    const bottle = {
+      variantId: "diamond-50",
+      neck: "FEA18" as const,
+      finish: "tinted" as const,
+      color: "#112233",
+      heightMm: 90,
+      widthMm: 40,
+      depthMm: 36,
+      opacity: 0.42,
+      visible: true,
+    };
+    const label = {
+      variantId: defaults.label.variantId,
+      finish: defaults.label.finish,
+      color: "#abcdef",
+      text: "ATELIER",
+      scale: 1.15,
+      visible: true,
+    };
+    const merged = mergePersistedLab(
+      {
+        design: {
+          bottle,
+          cap: {},
+          label,
+          pump: { variantId: "missing-pump", visible: true },
+        },
+      },
+      slice(),
+    );
+    expect(merged.design.bottle).toEqual(bottle);
+    expect(merged.design.label).toEqual(label);
+    expect(merged.design.cap).toEqual(defaults.cap);
+    expect(merged.design.pump).toEqual(defaults.pump);
+    expect(merged.design.collar).toEqual(defaults.collar);
+    expect(merged.design.box).toEqual(defaults.box);
+    expect(merged.design.liquid).toEqual(defaults.liquid);
+    expect(sanitizeDesign({ bottle, cap: {}, label }).bottle).toEqual(bottle);
+  });
+
   it("migrates a partial legacy blob without throwing", () => {
     expect(() => migratePersisted({ design: { bottle: {}, cap: {} } }, 0)).not.toThrow();
     const migrated = migratePersisted({ design: { bottle: {}, cap: {} } }, 1);
