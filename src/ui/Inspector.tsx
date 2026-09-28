@@ -52,11 +52,27 @@ export function Inspector() {
           </div>
           <h3>{t.color}</h3>
           <div className="swatches">
-            {(part === "liquid" ? LIQUID_PALETTE : PALETTE).map((color) => (
-              <button key={color} type="button" className={design[part].color === color ? "swatch is-on" : "swatch"} style={{ background: color }} aria-label={color} onClick={() => patch(part, { color })} />
-            ))}
+            {(part === "liquid" ? LIQUID_PALETTE : PALETTE).map((color) => {
+              const handlePatch = () => {
+                if (part !== "liquid" && 'finish' in design[part] && (design[part] as any).finish === "clear") {
+                  patch(part, { color, finish: "tinted" });
+                } else {
+                  patch(part, { color });
+                }
+              };
+              return (
+                <button key={color} type="button" className={design[part].color === color ? "swatch is-on" : "swatch"} style={{ background: color }} aria-label={color} onClick={handlePatch} />
+              );
+            })}
             <label className="picker">
-              <input type="color" value={toHex(design[part].color)} onChange={(event) => patch(part, { color: event.target.value })} />
+              <input type="color" value={toHex(design[part].color)} onChange={(event) => {
+                const color = event.target.value;
+                if (part !== "liquid" && 'finish' in design[part] && (design[part] as any).finish === "clear") {
+                  patch(part, { color, finish: "tinted" });
+                } else {
+                  patch(part, { color });
+                }
+              }} />
             </label>
           </div>
           {part !== "liquid" && (
