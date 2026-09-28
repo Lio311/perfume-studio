@@ -5,10 +5,15 @@ import { decodeShare, encodeShare } from "./share.ts";
 import type { BoxState, CapProfileName, Design } from "./types.ts";
 import {
   cavityFromDesign,
+  DEFAULT_INSERT_MOTION,
   deriveCavity,
   deriveEnvelope,
   hydrateBox,
+  renderedShape,
+  sleeveOverActive,
+  trayLiftMm,
   validateBoxFields,
+  withSleeveOver,
   type CavityInput,
 } from "./boxFields.ts";
 
@@ -44,6 +49,10 @@ describe("box pack defaults and migration", () => {
     expect(box.latch).toBe("none");
     expect(box.liftOff).toEqual({ variant: "shoulder-neck", neckMm: 14, lidDepthMm: 28 });
     expect(box.drawerPull).toBe("none");
+    expect(box.shape).toEqual({ type: "rect" });
+    expect(box.layers).toHaveLength(1);
+    expect(box.layers[0]?.structure).toBe("lift-off");
+    expect(box.insertMotion.trayLift).toEqual({ height: 0, trigger: "lidAngle" });
     expect(box.insert.orientation).toBe("standing");
     expect(box.material).toBe("rigid");
     expect(validateBoxFields(box)).toEqual([]);
@@ -71,6 +80,9 @@ describe("box pack defaults and migration", () => {
     expect(box.insert.material).toBe("eva");
     expect(box.outerWrap).toBe("none");
     expect(box.ribbon).toBe(false);
+    expect(box.shape.type).toBe("rect");
+    expect(box.layers).toHaveLength(1);
+    expect(box.insertMotion.trayLift.height).toBe(0);
     expect(validateBoxFields(box)).toEqual([]);
     const design = hydrateDesign({ ...createDefaultDesign(), box: legacy as BoxState });
     expect(design.box.structure).toBe("lift-off");
@@ -109,6 +121,8 @@ describe("box pack defaults and migration", () => {
     applyVariant(design, "box", "box-coffret");
     expect(design.box.structure).toBe("book");
     expect(design.box.latch).toBe("magnet");
+    expect(design.box.layers.at(-1)?.structure).toBe("book");
+    expect(design.box.layers.at(-1)?.latch).toBe("magnet");
     expect(design.box.insert.orientation).toBe("standing");
   });
 });
@@ -128,6 +142,8 @@ describe("box field validation", () => {
     expect(bad.map((issue) => issue.path)).toEqual(expect.arrayContaining(["structure", "boardMm", "insert", "liftOff", "drawerPull"]));
     const sleeve = validateBoxFields({ ...box, structure: "sleeve", latch: "magnet" });
     expect(sleeve.map((issue) => issue.path)).toContain("latch");
+    const sides = validateBoxFields({ ...box, shape: { type: "polygon", sides: 2 } });
+    expect(sides.map((issue) => issue.path)).toContain("shape");
   });
 
   it("clamps an out-of-range board back into the legal range", () => {
@@ -138,6 +154,60 @@ describe("box field validation", () => {
     expect(warn).toHaveBeenCalledWith(expect.stringContaining("nope"));
     warn.mockRestore();
     expect(validateBoxFields(box)).toEqual([]);
+  });
+});
+
+describe("layers, shape, and insert motion", () => {
+  it("reads the sample stack: polygon, sleeve over a two-door book, rising tray", () => {
+    const box = hydrateBox({
+      shape: { type: "polygon", sides: 8 },
+      layers: [
+        { closure: "sleeve", window: null },
+        { closure: "book", doors: 2, hingeAxis: "vertical", magnetic: true },
+        { insert: { trayLift: { height: 30, trigger: "lidAngle" }, tiltAngle: 0 } },
+      ],
+    } as unknown as Partial<BoxState>);
+    expect(box.shape).toEqual({ type: "polygon", sides: 8 });
+    expect(box.layers.map((layer) => layer.structure)).toEqual(["sleeve", "book"]);
+    expect(box.layers[1]).toMatchObject({ doors: 2, hingeAxis: "vertical", latch: "magnet" });
+    expect(box.structure).toBe("book");
+    expect(box.latch).toBe("magnet");
+    expect(box.insertMotion.trayLift).toEqual({ height: 30, trigger: "lidAngle" });
+    expect(box.insertMotion.pose.tiltAngle).toBe(0);
+    expect(validateBoxFields(box)).toEqual([]);
+  });
+
+  it("warns once for an unknown shape and draws polygon or a non-lift-off cylinder as a rect", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    expect(hydrateBox({ shape: { type: "cone" } as unknown as BoxState["shape"] }).shape).toEqual({ type: "rect" });
+    expect(renderedShape({ type: "cylinder" }, "lift-off")).toEqual({ type: "cylinder" });
+    expect(renderedShape({ type: "cylinder" }, "book")).toEqual({ type: "rect" });
+    expect(renderedShape({ type: "cylinder" }, "book")).toEqual({ type: "rect" });
+    expect(renderedShape({ type: "polygon", sides: 8 }, "book")).toEqual({ type: "rect" });
+    expect(renderedShape({ type: "polygon", sides: 8 }, "book")).toEqual({ type: "rect" });
+    const messages = warn.mock.calls.map((call) => String(call[0]));
+    expect(messages.filter((message) => message.includes("cone"))).toHaveLength(1);
+    expect(messages.filter((message) => message.includes("lift-off only"))).toHaveLength(1);
+    expect(messages.filter((message) => message.includes("polygon"))).toHaveLength(1);
+    warn.mockRestore();
+  });
+
+  it("stacks a sleeve over the current preset and lifts only lift-off and book", () => {
+    const box = createDefaultDesign().box;
+    const covered = withSleeveOver(box, true);
+    expect(sleeveOverActive(covered)).toBe(true);
+    expect(covered[0]?.structure).toBe("sleeve");
+    expect(covered[1]?.structure).toBe("lift-off");
+    const bare = withSleeveOver({ ...box, layers: covered }, false);
+    expect(bare).toHaveLength(1);
+    expect(bare[0]?.structure).toBe("lift-off");
+    const rise = { ...DEFAULT_INSERT_MOTION, trayLift: { height: 30, trigger: "lidAngle" } };
+    expect(trayLiftMm("lift-off", rise, 1, false)).toBe(30);
+    expect(trayLiftMm("book", rise, 0.5, false)).toBe(15);
+    expect(trayLiftMm("sleeve", rise, 1, false)).toBe(0);
+    const pulled = { ...DEFAULT_INSERT_MOTION, trayLift: { height: 30, trigger: "ribbonPull" } };
+    expect(trayLiftMm("lift-off", pulled, 1, false)).toBe(0);
+    expect(trayLiftMm("book", pulled, 1, true)).toBe(30);
   });
 });
 
@@ -203,6 +273,9 @@ describe("share link", () => {
     design.box.boardMm = 1.2;
     design.box.wrap = { color: "#6b3c32", finish: "velvet" };
     design.box.insert = { material: "velvet-foam", orientation: "lying", clearanceMm: 3.5 };
+    design.box.shape = { type: "polygon", sides: 8 };
+    design.box.layers = withSleeveOver(design.box, true);
+    design.box.insertMotion = { ...DEFAULT_INSERT_MOTION, trayLift: { height: 24, trigger: "lidAngle" }, pose: { tiltAngle: 12, invert: false } };
     const back = decodeShare(encodeShare(design));
     expect(back?.box.structure).toBe("book");
     expect(back?.box.latch).toBe("magnet");
@@ -215,6 +288,10 @@ describe("share link", () => {
     expect(back?.box.boardMm).toBe(1.2);
     expect(back?.box.wrap).toEqual({ color: "#6b3c32", finish: "velvet" });
     expect(back?.box.insert).toEqual({ material: "velvet-foam", orientation: "lying", clearanceMm: 3.5 });
+    expect(back?.box.shape).toEqual({ type: "polygon", sides: 8 });
+    expect(back?.box.layers.map((layer) => layer.structure)).toEqual(["sleeve", "book"]);
+    expect(back?.box.insertMotion.trayLift).toEqual({ height: 24, trigger: "lidAngle" });
+    expect(back?.box.insertMotion.pose.tiltAngle).toBe(12);
 
     const legacy = createDefaultDesign();
     const oldBox = {
@@ -232,6 +309,8 @@ describe("share link", () => {
     expect(restored?.box.liftOff.variant).toBe("shoulder-neck");
     expect(restored?.box.drawerPull).toBe("none");
     expect(restored?.box.insert.orientation).toBe("standing");
+    expect(restored?.box.shape.type).toBe("rect");
+    expect(restored?.box.insertMotion.trayLift.height).toBe(0);
     expect(restored?.bottle.variantId).toBe(legacy.bottle.variantId);
     expect(decodeShare("%%%")).toBeNull();
   });

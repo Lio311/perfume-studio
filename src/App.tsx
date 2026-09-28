@@ -18,7 +18,7 @@ import { CompareBoard } from "./ui/CompareBoard.tsx";
 import { Modals } from "./ui/Modals.tsx";
 import { stopSpeaking } from "./audio/speech.ts";
 import { acknowledgePackLoads, adoptLoadedSuppliers, loadPacks } from "./import/supplierDb.ts";
-import { isKnownPack } from "./model/boxFields.ts";
+import { isKnownPack, withInnerStructure } from "./model/boxFields.ts";
 import { packById } from "./model/closures/registry.ts";
 import { hydrateDesign } from "./model/design.ts";
 
@@ -201,6 +201,7 @@ export default function App() {
       const design = hydrateDesign(useLab.getState().design);
       design.box.structure = choice.structure.id;
       design.box.latch = choice.latch;
+      design.box.layers = withInnerStructure(design.box.layers, choice.structure.id, choice.latch);
       const variant = params.get("variant");
       if (variant && choice.structure.liftOff?.variants.some((item) => item.id === variant)) {
         design.box.liftOff = { ...design.box.liftOff, variant };

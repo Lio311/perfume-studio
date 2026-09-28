@@ -8,6 +8,7 @@ import { logoTexture } from "../../geometry/logos.ts";
 import { useLab } from "../../store/labStore.ts";
 import { FinishMaterial, WrapMaterial } from "../materials.tsx";
 import { sectionPlane } from "../sectionPlane.ts";
+import { trayLiftNow } from "../trayLift.ts";
 
 const INSERT_COLOR: Record<InsertMaterial, string> = {
   eva: "#2c2e33",
@@ -95,6 +96,10 @@ export function InsertBlock({ fit }: { fit: Fit }) {
   const well = useWell(width, depth, Math.min(fit.cavityH, fit.boxH * 0.72), fit.cavityW, fit.cavityD);
   const planes = cutaway ? [sectionPlane] : undefined;
   const y0 = wall;
+  const ref = useRef<THREE.Group>(null);
+  useFrame(() => {
+    if (ref.current) ref.current.position.y = y0 + trayLiftNow.mm;
+  });
   if (orientation === "lying") {
     const channelW = Math.min(fit.cavityW, width - 6);
     const channelD = Math.min(fit.cavityD, depth - 4);
@@ -102,7 +107,7 @@ export function InsertBlock({ fit }: { fit: Fit }) {
     const side = Math.max(3, (width - channelW) / 2);
     const end = Math.max(2.4, (depth - channelD) / 2);
     return (
-      <group position={[0, y0, 0]}>
+      <group ref={ref} position={[0, y0, 0]}>
         <mesh position={[0, fit.floorMm / 2, 0]}>
           <boxGeometry args={[width, fit.floorMm, depth]} />
           <meshPhysicalMaterial color={color} roughness={velvet ? 0.8 : 0.9} sheen={velvet ? 1 : 0} sheenColor={color} sheenRoughness={0.4} clippingPlanes={planes} />
@@ -127,7 +132,7 @@ export function InsertBlock({ fit }: { fit: Fit }) {
     );
   }
   return (
-    <group position={[0, y0, 0]}>
+    <group ref={ref} position={[0, y0, 0]}>
       <mesh position={[0, fit.floorMm / 2, 0]}>
         <boxGeometry args={[width, fit.floorMm, depth]} />
         <meshPhysicalMaterial color={color} roughness={velvet ? 0.78 : 0.92} sheen={velvet ? 1 : 0} sheenColor={color} sheenRoughness={0.42} clippingPlanes={planes} />

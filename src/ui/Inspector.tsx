@@ -5,7 +5,7 @@ import { FINISHES, PALETTE, LIQUID_PALETTE } from "../model/materials.ts";
 import { NECK_IDS } from "../model/necks.ts";
 import { setUnboxingMuted, useUnboxingTrack } from "../audio/unboxingTrack.ts";
 import { listClosures } from "../model/closures/registry.ts";
-import { INSERT_MATERIALS, OUTER_WRAPS } from "../model/boxFields.ts";
+import { DEFAULT_INSERT_MOTION, INSERT_MATERIALS, OUTER_WRAPS, sleeveOverActive, withInnerStructure, withNeckHeight, withSleeveOver, withSleeveWindow } from "../model/boxFields.ts";
 import type { BoxLatch, FinishId, InsertMaterial, InsertOrientation, NeckId, OuterWrap, PartKey } from "../model/types.ts";
 import { partLabel, tx } from "../i18n/copy.ts";
 import { useLab } from "../store/labStore.ts";
@@ -287,6 +287,11 @@ function BoxPack() {
   const specs = listClosures();
   const current = specs.find((spec) => spec.id === box.structure);
   const latchLabel: Record<BoxLatch, string> = { magnet: t.latchMagnet, ribbon: t.latchRibbon, none: t.latchNone };
+  const layers = box.layers ?? [];
+  const sleeveOn = sleeveOverActive(layers);
+  const sleeveWindow = layers.find((layer) => layer.structure === "sleeve")?.window ?? null;
+  const motion = box.insertMotion ?? DEFAULT_INSERT_MOTION;
+  const trayOn = motion.trayLift.height > 0;
   return (
     <div className="box-pack" data-box-pack>
       <h3>{t.closure}</h3>
@@ -296,7 +301,7 @@ function BoxPack() {
             key={spec.preset.id}
             type="button"
             className={box.structure === spec.id ? "chip is-on" : "chip"}
-            onClick={() => patch("box", { structure: spec.id, latch: spec.preset.latch })}
+            onClick={() => patch("box", { structure: spec.id, latch: spec.preset.latch, layers: withInnerStructure(layers, spec.id, spec.preset.latch) })}
           >
             {lang === "he" ? spec.preset.label.he : spec.preset.label.en}
           </button>
@@ -311,7 +316,7 @@ function BoxPack() {
                 key={id}
                 type="button"
                 className={box.latch === id ? "chip is-on" : "chip"}
-                onClick={() => patch("box", { latch: id })}
+                onClick={() => patch("box", { latch: id, layers: withInnerStructure(layers, box.structure, id) })}
               >
                 {latchLabel[id]}
               </button>
@@ -342,7 +347,7 @@ function BoxPack() {
                   value: box.liftOff.neckMm,
                   min: current.liftOff.neckMm[0],
                   max: current.liftOff.neckMm[1],
-                  onChange: (neckMm) => patch("box", { liftOff: { ...box.liftOff, neckMm } }),
+                  onChange: (neckMm) => patch("box", { liftOff: { ...box.liftOff, neckMm }, layers: withNeckHeight(layers, neckMm) }),
                 },
               ]}
             />
@@ -362,6 +367,46 @@ function BoxPack() {
           )}
         </>
       )}
+      {box.structure === "lift-off" && (
+        <>
+          <h3>{t.shape}</h3>
+          <div className="chips">
+            <button type="button" className={box.shape?.type !== "cylinder" ? "chip is-on" : "chip"} onClick={() => patch("box", { shape: { type: "rect" } })}>
+              {t.shapeRect}
+            </button>
+            <button type="button" className={box.shape?.type === "cylinder" ? "chip is-on" : "chip"} onClick={() => patch("box", { shape: { type: "cylinder" } })}>
+              {t.shapeCylinder}
+            </button>
+          </div>
+        </>
+      )}
+      <div className="chips">
+        <button type="button" className={sleeveOn ? "chip is-on" : "chip"} onClick={() => patch("box", { layers: withSleeveOver(box, !sleeveOn) })}>
+          {t.sleeveOver}
+        </button>
+        {sleeveOn && (
+          <button
+            type="button"
+            className={sleeveWindow ? "chip is-on" : "chip"}
+            onClick={() => patch("box", { layers: withSleeveWindow(layers, sleeveWindow ? null : { shape: "rect", transparent: true }) })}
+          >
+            {t.sleeveWindow}
+          </button>
+        )}
+        {(box.structure === "lift-off" || box.structure === "book") && (
+          <button
+            type="button"
+            className={trayOn ? "chip is-on" : "chip"}
+            onClick={() =>
+              patch("box", {
+                insertMotion: { ...motion, trayLift: { height: trayOn ? 0 : 22, trigger: "lidAngle" } },
+              })
+            }
+          >
+            {t.trayRise}
+          </button>
+        )}
+      </div>
       {current?.pulls && (
         <>
           <h3>{t.drawerPull}</h3>

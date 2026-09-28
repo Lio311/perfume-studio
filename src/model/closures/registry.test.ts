@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { builderIds } from "../../scene/closures/registry.ts";
 import { closureTimeline } from "../../scene/closures/stages.ts";
 import { listClosures, openDriver, openPose, packById, poseAt, resolveClosure, stagePose } from "./registry.ts";
-import { closureDims, ease01 } from "./types.ts";
+import { closureDims, ease01, readMotions } from "./types.ts";
 
 const SAMPLE = { w: 80, h: 120, d: 70, boardMm: 2.2 };
 
@@ -100,6 +100,21 @@ describe("closure registry", () => {
     expect(partial.lidH).toBeLessThan(SAMPLE.h * 0.6);
     expect(partial.baseH).toBe(SAMPLE.h);
     expect(spec.liftOff?.defaults.variant).toBe("shoulder-neck");
+  });
+
+  it("keeps unfold, rotate, and flaps as data on an entry", () => {
+    const motions = readMotions({
+      motions: [
+        { type: "unfold", params: { wallCount: 4, fallAngle: 90, stagger: 0.12 } },
+        { type: "rotate", params: { pivotPoint: "center", rotationAxis: "y", rotationAngle: 180 } },
+        { type: "flaps", params: { flapCount: 4, foldOrder: ["front", "left", "right", "back"] } },
+      ],
+    });
+    expect(motions.map((motion) => motion.type)).toEqual(["unfold", "rotate", "flaps"]);
+    expect(motions[0]?.params).toEqual({ wallCount: 4, fallAngle: 90, stagger: 0.12 });
+    expect(motions[1]?.params).toMatchObject({ rotationAxis: "y", rotationAngle: 180 });
+    expect(motions[2]?.params.foldOrder).toEqual(["front", "left", "right", "back"]);
+    expect(motions[2]?.params.flapCount).toBe(4);
   });
 
   it("warns once and falls back to lift-off for an unknown id", () => {

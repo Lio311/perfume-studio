@@ -7,21 +7,26 @@ import { bottleById, capById, collarById, pumpById } from "./catalog.ts";
 import { NECKS, neckRadius } from "./necks.ts";
 import { bottleRadii, capRadius } from "./sample.ts";
 import { closureById, listClosures, packById, resolveClosure } from "./closures/registry.ts";
-import type { ClosureDimsRange, ClosureSpec } from "./closures/types.ts";
+import { readMotions, type ClosureDimsRange, type ClosureSpec } from "./closures/types.ts";
 import type {
   BoxBoard,
   BoxForm,
   BoxInsert,
   BoxLatch,
+  BoxLayer,
+  BoxShape,
   BoxState,
   CapProfileName,
   Design,
   DrawerPull,
   InsertMaterial,
+  InsertMotion,
   InsertOrientation,
   LiftOffState,
   OuterWrap,
   ProfileName,
+  SleeveWindow,
+  StructureMotion,
   WrapFinish,
 } from "./types.ts";
 
@@ -41,14 +46,54 @@ export const BOX_RANGES = {
 
 export const LATCHES = ["magnet", "ribbon", "none"] as const;
 
+export const SHAPE_TYPES = ["rect", "cylinder", "polygon"] as const;
+export const TRAY_LIFT_MM: readonly [number, number] = [0, 80];
+
+export const DEFAULT_INSERT_MOTION: InsertMotion = {
+  trayLift: { height: 0, trigger: "lidAngle" },
+  pullTab: false,
+  extractDirection: "up",
+  pose: { tiltAngle: 0, invert: false },
+};
+
 export const DEFAULT_BOX_PACK: Pick<
   BoxState,
-  "structure" | "latch" | "liftOff" | "drawerPull" | "boardMm" | "material" | "wrap" | "ribbon" | "pullTab" | "outerWrap" | "insert"
+  | "structure"
+  | "latch"
+  | "liftOff"
+  | "drawerPull"
+  | "shape"
+  | "layers"
+  | "insertMotion"
+  | "boardMm"
+  | "material"
+  | "wrap"
+  | "ribbon"
+  | "pullTab"
+  | "outerWrap"
+  | "insert"
 > = {
   structure: "lift-off",
   latch: "none",
   liftOff: { variant: "shoulder-neck", neckMm: 14, lidDepthMm: 28 },
   drawerPull: "none",
+  shape: { type: "rect" },
+  layers: [
+    {
+      role: "structure",
+      structure: "lift-off",
+      latch: "none",
+      hingeAxis: "",
+      doors: 1,
+      drawerCount: 1,
+      direction: "out",
+      neckHeight: 14,
+      splitPlaneAngle: 0,
+      window: null,
+      motion: null,
+    },
+  ],
+  insertMotion: DEFAULT_INSERT_MOTION,
   boardMm: 2.2,
   material: "rigid",
   wrap: { color: "#14161c", finish: "soft-touch" },
@@ -191,6 +236,223 @@ function resolveLiftOff(raw: Partial<LiftOffState> | null | undefined): LiftOffS
   };
 }
 
+const shapeWarned = new Set<string>();
+
+function blankLayer(structure: string, latch: BoxLatch, neckHeight = 0): BoxLayer {
+  return {
+    role: "structure",
+    structure,
+    latch,
+    hingeAxis: "",
+    doors: 1,
+    drawerCount: 1,
+    direction: "out",
+    neckHeight,
+    splitPlaneAngle: 0,
+    window: null,
+    motion: null,
+  };
+}
+
+function plainMotion(raw: unknown): StructureMotion | null {
+  const motions = readMotions(raw && typeof raw === "object" ? { motions: [raw as { type?: unknown; params?: unknown }] } : {});
+  return motions[0] ?? null;
+}
+
+function resolveWindow(raw: unknown): SleeveWindow | null {
+  if (raw == null) return null;
+  if (typeof raw !== "object") return null;
+  const window = raw as { shape?: unknown; transparent?: unknown };
+  const shape = typeof window.shape === "string" && window.shape ? window.shape.slice(0, 24) : "rect";
+  return { shape, transparent: window.transparent !== false };
+}
+
+function resolveShape(raw: unknown): BoxShape {
+  const record = raw && typeof raw === "object" ? (raw as { type?: unknown; sides?: unknown }) : undefined;
+  const type = record?.type;
+  if (type === "cylinder") return { type: "cylinder" };
+  if (type === "polygon") {
+    const sides = typeof record?.sides === "number" && Number.isFinite(record.sides) ? Math.round(record.sides) : 6;
+    return { type: "polygon", sides: clamp(sides, 3, 12) };
+  }
+  if (typeof type === "string" && type && type !== "rect" && !shapeWarned.has(type)) {
+    shapeWarned.add(type);
+    console.warn(`Unknown box shape "${type}". Using rect.`);
+  }
+  return { type: "rect" };
+}
+
+/**
+ * What the mesh should draw. Polygon, and cylinder on anything but lift-off, become a rect.
+ * The warning fires once per shape so a saved design stays readable.
+ */
+export function renderedShape(shape: BoxShape, structureId: string): BoxShape {
+  if (shape.type === "cylinder" && structureId === "lift-off") return { type: "cylinder" };
+  if (shape.type === "rect") return { type: "rect" };
+  const key = `${shape.type}:${structureId}`;
+  if (!shapeWarned.has(key)) {
+    shapeWarned.add(key);
+    const why = shape.type === "cylinder" ? "Cylinder is built for lift-off only." : `Box shape "${shape.type}" is not built yet.`;
+    console.warn(`${why} Using rect.`);
+  }
+  return { type: "rect" };
+}
+
+interface InsertLayerNote {
+  insert: {
+    trayLift?: { height: number; trigger: string };
+    pullTab?: boolean;
+    extractDirection?: string;
+    tiltAngle?: number;
+    invert?: boolean;
+  };
+}
+
+function resolveLayer(raw: unknown, fallback: BoxLayer): BoxLayer | InsertLayerNote {
+  if (!raw || typeof raw !== "object") return fallback;
+  const record = raw as {
+    role?: unknown;
+    structure?: unknown;
+    closure?: unknown;
+    latch?: unknown;
+    magnetic?: unknown;
+    hingeAxis?: unknown;
+    doors?: unknown;
+    drawerCount?: unknown;
+    direction?: unknown;
+    neckHeight?: unknown;
+    splitPlaneAngle?: unknown;
+    window?: unknown;
+    motion?: unknown;
+    insert?: unknown;
+  };
+  if (record.insert && record.structure == null && record.closure == null) {
+    const insert = record.insert as {
+      trayLift?: { height?: unknown; trigger?: unknown };
+      pullTab?: unknown;
+      extractDirection?: unknown;
+      tiltAngle?: unknown;
+      invert?: unknown;
+    };
+    return {
+      insert: {
+        trayLift: {
+          height: typeof insert.trayLift?.height === "number" ? insert.trayLift.height : 0,
+          trigger: typeof insert.trayLift?.trigger === "string" ? insert.trayLift.trigger : "lidAngle",
+        },
+        pullTab: insert.pullTab === true,
+        extractDirection: typeof insert.extractDirection === "string" ? insert.extractDirection : undefined,
+        tiltAngle: typeof insert.tiltAngle === "number" ? insert.tiltAngle : undefined,
+        invert: insert.invert === true,
+      },
+    };
+  }
+  const named = typeof record.structure === "string" && record.structure ? record.structure : record.closure;
+  const spec = resolveClosure(typeof named === "string" && named ? named : fallback.structure);
+  const latch = record.magnetic === true && (record.latch == null || record.latch === "")
+    ? resolveLatch(spec, "magnet")
+    : resolveLatch(spec, record.latch ?? fallback.latch);
+  const doors = record.doors === 2 ? 2 : 1;
+  const drawerCount = typeof record.drawerCount === "number" && Number.isFinite(record.drawerCount) ? Math.round(record.drawerCount) : 1;
+  const neckHeight = typeof record.neckHeight === "number" && Number.isFinite(record.neckHeight) ? record.neckHeight : fallback.neckHeight;
+  const split = typeof record.splitPlaneAngle === "number" && Number.isFinite(record.splitPlaneAngle) ? record.splitPlaneAngle : 0;
+  return {
+    role: "structure",
+    structure: spec.id,
+    latch,
+    hingeAxis: typeof record.hingeAxis === "string" ? record.hingeAxis.slice(0, 32) : "",
+    doors,
+    drawerCount: clamp(drawerCount, 1, 8),
+    direction: typeof record.direction === "string" && record.direction ? record.direction.slice(0, 32) : "out",
+    neckHeight: clamp(neckHeight, 0, 80),
+    splitPlaneAngle: clamp(split, -180, 180),
+    window: resolveWindow(record.window),
+    motion: plainMotion(record.motion),
+  };
+}
+
+function resolveInsertMotion(raw: unknown, pullTab: boolean, fromLayer?: InsertLayerNote["insert"]): InsertMotion {
+  const record = raw && typeof raw === "object" ? (raw as Partial<InsertMotion>) : undefined;
+  const lift = record?.trayLift ?? fromLayer?.trayLift;
+  const height = typeof lift?.height === "number" && Number.isFinite(lift.height) ? lift.height : 0;
+  const trigger = typeof lift?.trigger === "string" && lift.trigger ? lift.trigger.slice(0, 32) : "lidAngle";
+  const pose = record?.pose;
+  const tilt = typeof pose?.tiltAngle === "number" ? pose.tiltAngle : fromLayer?.tiltAngle ?? 0;
+  return {
+    trayLift: { height: clamp(height, TRAY_LIFT_MM[0], TRAY_LIFT_MM[1]), trigger },
+    pullTab: record?.pullTab === true || fromLayer?.pullTab === true || (record == null && fromLayer == null && pullTab),
+    extractDirection: typeof record?.extractDirection === "string" && record.extractDirection
+      ? record.extractDirection.slice(0, 24)
+      : fromLayer?.extractDirection ?? "up",
+    pose: {
+      tiltAngle: clamp(tilt, -180, 180),
+      invert: pose?.invert === true || fromLayer?.invert === true,
+    },
+  };
+}
+
+export function structureLayers(layers: readonly BoxLayer[]): BoxLayer[] {
+  return layers.filter((layer) => layer.role === "structure");
+}
+
+export function sleeveOverActive(layers: readonly BoxLayer[]): boolean {
+  const structures = structureLayers(layers);
+  return structures.length >= 2 && structures[0]?.structure === "sleeve";
+}
+
+export function withInnerStructure(layers: readonly BoxLayer[], structure: string, latch: BoxLatch): BoxLayer[] {
+  const next = layers.map((layer) => ({ ...layer, window: layer.window ? { ...layer.window } : null, motion: layer.motion ? { type: layer.motion.type, params: { ...layer.motion.params } } : null }));
+  for (let i = next.length - 1; i >= 0; i -= 1) {
+    if (next[i].role === "structure") {
+      next[i] = { ...next[i], structure, latch };
+      return next;
+    }
+  }
+  return [blankLayer(structure, latch), ...next];
+}
+
+export function withNeckHeight(layers: readonly BoxLayer[], neckHeight: number): BoxLayer[] {
+  const next = withInnerStructure(layers, innermost(layers)?.structure ?? "lift-off", innermost(layers)?.latch ?? "none");
+  for (let i = next.length - 1; i >= 0; i -= 1) {
+    if (next[i].role === "structure") {
+      next[i] = { ...next[i], neckHeight };
+      return next;
+    }
+  }
+  return next;
+}
+
+function innermost(layers: readonly BoxLayer[]): BoxLayer | undefined {
+  for (let i = layers.length - 1; i >= 0; i -= 1) {
+    if (layers[i].role === "structure") return layers[i];
+  }
+  return undefined;
+}
+
+export function withSleeveOver(box: Pick<BoxState, "layers" | "structure" | "latch" | "liftOff">, on: boolean): BoxLayer[] {
+  const structures = structureLayers(box.layers);
+  const inserts = box.layers.filter((layer) => layer.role === "insert");
+  const covered = structures.length >= 2 && structures[0]?.structure === "sleeve";
+  const inner = (covered ? structures[structures.length - 1] : structures[structures.length - 1]) ?? blankLayer(box.structure, box.latch, box.liftOff.neckMm);
+  const kept: BoxLayer = { ...inner, role: "structure", structure: box.structure, latch: box.latch };
+  if (!on) return [kept, ...inserts];
+  const sleeve = covered ? structures[0] : blankLayer("sleeve", "none");
+  return [{ ...sleeve, role: "structure", structure: "sleeve", latch: "none" }, kept, ...inserts];
+}
+
+export function withSleeveWindow(layers: readonly BoxLayer[], window: SleeveWindow | null): BoxLayer[] {
+  return layers.map((layer, index) => (index === 0 && layer.structure === "sleeve" ? { ...layer, window } : layer));
+}
+
+/** Millimetres the platform rises at this open amount. Lift-off and book only. */
+export function trayLiftMm(structure: string, motion: InsertMotion, openAmount: number, pulled: boolean): number {
+  if (structure !== "lift-off" && structure !== "book") return 0;
+  if (motion.trayLift.height <= 0) return 0;
+  if (motion.trayLift.trigger === "ribbonPull" && !pulled) return 0;
+  const amount = Math.min(1, Math.max(0, openAmount));
+  return motion.trayLift.height * amount;
+}
+
 function resolveDrawerPull(value: unknown): DrawerPull {
   const pulls = closureById("drawer")?.pulls ?? ["none", "ribbon", "notch"];
   if (value === undefined || value === null || value === "") return "none";
@@ -258,6 +520,33 @@ export function validateBoxFields(box: Partial<BoxState> | null | undefined): Fi
   ) {
     issues.push({ path: "insert", message: "insert" });
   }
+  if (!box.shape || !inEnum(SHAPE_TYPES, box.shape.type)) issues.push({ path: "shape", message: "enum" });
+  else if (box.shape.type === "polygon" && !inRange(box.shape.sides, 3, 12)) issues.push({ path: "shape", message: "sides" });
+  if (!Array.isArray(box.layers) || box.layers.length < 1 || box.layers.length > 4) issues.push({ path: "layers", message: "layers" });
+  else {
+    box.layers.forEach((layer, index) => {
+      if (!layer || (layer.role !== "structure" && layer.role !== "insert")) issues.push({ path: `layers.${index}`, message: "role" });
+      else if (layer.role === "structure" && !closureById(layer.structure)) issues.push({ path: `layers.${index}`, message: "enum" });
+      if (layer && layer.doors !== 1 && layer.doors !== 2) issues.push({ path: `layers.${index}.doors`, message: "doors" });
+      if (layer && !inRange(layer.drawerCount, 1, 8)) issues.push({ path: `layers.${index}.drawerCount`, message: "range" });
+      if (layer && !inRange(layer.neckHeight, 0, 80)) issues.push({ path: `layers.${index}.neckHeight`, message: "range" });
+      if (layer && !inRange(layer.splitPlaneAngle, -180, 180)) issues.push({ path: `layers.${index}.splitPlaneAngle`, message: "range" });
+      if (layer?.motion && (typeof layer.motion.type !== "string" || !layer.motion.type)) issues.push({ path: `layers.${index}.motion`, message: "motion" });
+    });
+  }
+  const liftMotion = box.insertMotion;
+  if (
+    !liftMotion ||
+    !inRange(liftMotion.trayLift?.height, TRAY_LIFT_MM[0], TRAY_LIFT_MM[1]) ||
+    typeof liftMotion.trayLift?.trigger !== "string" ||
+    !liftMotion.trayLift.trigger ||
+    typeof liftMotion.pullTab !== "boolean" ||
+    typeof liftMotion.extractDirection !== "string" ||
+    !inRange(liftMotion.pose?.tiltAngle, -180, 180) ||
+    typeof liftMotion.pose?.invert !== "boolean"
+  ) {
+    issues.push({ path: "insertMotion", message: "insertMotion" });
+  }
   const limits = limitsFor(box.structure);
   if (box.widthMm !== undefined && !inRange(box.widthMm, limits.widthMm[0], limits.widthMm[1])) {
     issues.push({ path: "widthMm", message: "range" });
@@ -274,13 +563,34 @@ export function validateBoxFields(box: Partial<BoxState> | null | undefined): Fi
 export function hydrateBox(box: (Partial<BoxState> & { closure?: unknown }) | null | undefined): BoxState {
   const raw = box ?? {};
   const named = typeof raw.structure === "string" && raw.structure ? raw.structure : raw.closure;
-  const spec = resolveClosure(typeof named === "string" && named ? named : undefined);
+  const namedStructure = typeof named === "string" && named ? named : "";
+  let spec = resolveClosure(namedStructure || undefined);
   const wrap = raw.wrap;
   const insert = raw.insert;
   const color = HEX.test(raw.color ?? "") ? raw.color! : "#14161c";
   const width = typeof raw.widthMm === "number" && Number.isFinite(raw.widthMm) ? raw.widthMm : 78;
   const depth = typeof raw.depthMm === "number" && Number.isFinite(raw.depthMm) ? raw.depthMm : 68;
   const height = typeof raw.heightMm === "number" && Number.isFinite(raw.heightMm) ? raw.heightMm : 120;
+  const liftOff = resolveLiftOff(raw.liftOff);
+  const fallbackLayer = blankLayer(spec.id, resolveLatch(spec, raw.latch), liftOff.neckMm);
+  const layers: BoxLayer[] = [];
+  let insertNote: InsertLayerNote["insert"] | undefined;
+  if (Array.isArray(raw.layers)) {
+    for (const item of raw.layers.slice(0, 4)) {
+      const resolved = resolveLayer(item, fallbackLayer);
+      if ("insert" in resolved) insertNote = resolved.insert;
+      else layers.push(resolved);
+    }
+  }
+  if (!layers.length) layers.push({ ...fallbackLayer });
+  const inner = innermost(layers) ?? layers[0];
+  if (namedStructure) {
+    inner.structure = spec.id;
+    inner.latch = resolveLatch(spec, raw.latch ?? inner.latch);
+  } else if (inner.structure) {
+    spec = closureById(inner.structure) ?? spec;
+  }
+  const latch = inner.latch;
   return {
     variantId: raw.variantId || "box-rigid",
     finish: raw.finish ?? "matteBlack",
@@ -291,9 +601,12 @@ export function hydrateBox(box: (Partial<BoxState> & { closure?: unknown }) | nu
     linked: raw.linked !== false,
     visible: raw.visible === true,
     structure: spec.id,
-    latch: resolveLatch(spec, raw.latch),
-    liftOff: resolveLiftOff(raw.liftOff),
+    latch,
+    liftOff,
     drawerPull: resolveDrawerPull(raw.drawerPull),
+    shape: resolveShape(raw.shape),
+    layers,
+    insertMotion: resolveInsertMotion(raw.insertMotion, raw.pullTab === true, insertNote),
     boardMm:
       typeof raw.boardMm === "number" && Number.isFinite(raw.boardMm)
         ? clamp(raw.boardMm, BOX_RANGES.boardMm[0], BOX_RANGES.boardMm[1])

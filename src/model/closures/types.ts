@@ -35,7 +35,11 @@ export const STANDARD_DIMS: ClosureDimsRange = {
 };
 
 export interface MotionChannel {
-  kind: "rotate" | "translate";
+  /**
+   * "rotate" and "translate" are applied by the pose loop.
+   * Any other kind (unfold, flaps, …) stays on the entry and is skipped here.
+   */
+  kind: string;
   axis: "x" | "y" | "z";
   closed: (dims: ClosureDims) => number;
   open: (dims: ClosureDims) => number;
@@ -113,6 +117,11 @@ export interface ClosureSpec {
   parts: ClosurePart[];
   /** Named beats. Their times follow each group's motion delay. */
   stages: ClosureStage[];
+  /**
+   * Optional motions this entry owns. unfold, rotate, and flaps are accepted as data.
+   * Nothing in the registry switches on the type name.
+   */
+  motions?: readonly { type: string; params?: Record<string, unknown> }[];
   layout?: (
     box: { w: number; h: number; d: number },
     wall: number,
@@ -158,6 +167,37 @@ export function linearMotion(ease = "power2.inOut"): GroupMotion {
  * The GSAP power eases the pose uses so a test can read a group without playing a timeline.
  * power1 is quadratic, power2 is cubic. Anything else stays linear.
  */
+export interface OpenMotion {
+  type: string;
+  params: Record<string, number | string | boolean | ReadonlyArray<number | string>>;
+}
+
+function motionParam(value: unknown): number | string | boolean | ReadonlyArray<number | string> | undefined {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" || typeof value === "boolean") return value;
+  if (Array.isArray(value) && value.every((item) => typeof item === "number" || typeof item === "string")) {
+    return value as ReadonlyArray<number | string>;
+  }
+  return undefined;
+}
+
+/** Keeps whatever motion an entry declared. There is no list of legal type names here. */
+export function readMotions(spec: { motions?: readonly { type?: unknown; params?: unknown }[] | undefined }): OpenMotion[] {
+  const out: OpenMotion[] = [];
+  for (const motion of spec.motions ?? []) {
+    if (!motion || typeof motion.type !== "string" || !motion.type) continue;
+    const params: OpenMotion["params"] = {};
+    if (motion.params && typeof motion.params === "object") {
+      for (const [key, value] of Object.entries(motion.params)) {
+        const kept = motionParam(value);
+        if (kept !== undefined) params[key] = kept;
+      }
+    }
+    out.push({ type: motion.type, params });
+  }
+  return out;
+}
+
 export function ease01(t: number, name: string): number {
   if (name === "power1.in") return t * t;
   if (name === "power1.out") return 1 - (1 - t) * (1 - t);

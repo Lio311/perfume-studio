@@ -4,6 +4,7 @@ import { RoundedBox } from "@react-three/drei";
 import * as THREE from "three";
 import { bottleById, boxById, capById, collarById, logoById, pumpById } from "../model/catalog.ts";
 import { closureForForm } from "../model/boxFields.ts";
+import { trayLiftNow } from "./trayLift.ts";
 import { computeFit, type Fit } from "../model/fit.ts";
 import { isGlass } from "../model/materials.ts";
 import type { BoxForm, PartKey, PumpStyle } from "../model/types.ts";
@@ -292,14 +293,15 @@ function BottleSeat({ children }: { children: ReactNode }) {
     if (!group) return;
     const state = useLab.getState();
     const lying = state.stage === "box" && state.design.box.insert?.orientation === "lying" && !state.solo && !state.aimed;
+    const rise = state.stage === "box" ? trayLiftNow.mm : 0;
     if (!lying) {
       group.rotation.x = 0;
-      group.position.set(0, 0, 0);
+      group.position.set(0, rise, 0);
       return;
     }
     const seated = computeFit(state.design, false);
     group.rotation.x = Math.PI / 2;
-    group.position.set(0, seated.lyingLift, seated.lyingShiftZ);
+    group.position.set(0, seated.lyingLift + rise, seated.lyingShiftZ);
   });
   return <group ref={ref}>{children}</group>;
 }

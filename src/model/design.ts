@@ -1,5 +1,5 @@
 import { finishFromColor, importedMeta, isVariantPart } from "../import/registry.ts";
-import { closureForForm, DEFAULT_BOX_PACK, hydrateBox } from "./boxFields.ts";
+import { closureForForm, DEFAULT_BOX_PACK, hydrateBox, withInnerStructure } from "./boxFields.ts";
 import { bottleById, boxById, capById, collarById, logoById, pumpById } from "./catalog.ts";
 import { isNeckId } from "./necks.ts";
 import type { Design, VariantPart } from "./types.ts";
@@ -153,6 +153,7 @@ export function applyVariant(design: Design, kind: string, id: string): void {
   const pack = closureForForm(box.form);
   design.box.structure = pack.structure;
   design.box.latch = pack.latch;
+  design.box.layers = withInnerStructure(design.box.layers, pack.structure, pack.latch);
   const extra = importedMeta(id);
   if (extra) {
     design.box.widthMm = extra.widthMm;
