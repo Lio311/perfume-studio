@@ -2,6 +2,8 @@ import { afterEach, describe, expect, it } from "vitest";
 import { collarById, pumpById } from "./catalog.ts";
 import { applyVariant, createDefaultDesign } from "./design.ts";
 import { computeFit, crimpHeadRadius } from "./fit.ts";
+import { PUMPS } from "./hardware.ts";
+import { NECKS } from "./necks.ts";
 import type { Design } from "./types.ts";
 
 function crimpDesign(): Design {
@@ -54,6 +56,22 @@ describe("crimp button width", () => {
     const fit = computeFit(crimpDesign(), true);
     expect(fit.headR).toBeCloseTo(fit.neckR * 0.7);
     expect(fit.headR).not.toBeCloseTo(fit.neckR * 0.9);
+  });
+
+  it("sizes every stock crimp pump near 0.9 of the default neck, inside the ferrule", () => {
+    const crimps = PUMPS.filter((pump) => pump.style === "crimp");
+    expect(crimps.map((pump) => pump.id)).toEqual(["pump-crimp", "pump-crimp-short", "pump-crimp-tall"]);
+    const neckR = NECKS.FEA15.diameterMm / 2;
+    for (const pump of crimps) {
+      const design = createDefaultDesign();
+      design.pump.variantId = pump.id;
+      design.cap.visible = false;
+      const fit = computeFit(design, true);
+      expect(fit.neckR, pump.id).toBe(neckR);
+      expect(fit.headR, pump.id).toBeGreaterThanOrEqual(neckR * 0.85);
+      expect(fit.headR, pump.id).toBeLessThanOrEqual(neckR * 0.95);
+      expect(fit.headR, pump.id).toBeLessThanOrEqual(fit.collarOuter);
+    }
   });
 
   it("falls back to 0.9 of the neck when the catalog has no width or radius factor", () => {
