@@ -46,6 +46,7 @@ const EPHEMERAL_KEYS = new Set([
   "viewToken", "focusToken", "libraryOpen", "sideOpen", "modal", "units", "suppliers",
   "voice", "soundOn", "stage", "blueprint", "fullToken", "aimed", "solo", "present",
   "exporting", "palette", "help", "boxOpen", "toast", "shareUrl", "briefEditing", "cutaway", "quality", "tierLock", "packNotices",
+  "wizardPicked",
 ]);
 
 let storageWritesOpen = true;
