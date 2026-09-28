@@ -611,6 +611,8 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 @keyframes sync-turn { from { transform: rotate(-4deg) scale(1.04); } to { transform: rotate(4deg) scale(1.04); } }
 .pending-list { overflow: auto; display: flex; flex-direction: column; gap: 8px; flex: 1; }
 .pending-card { display: flex; gap: 8px; align-items: center; }
+[data-hidden-part] > div { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+[data-hidden-part] .hidden-reason { display: block; }
 .pending-card img { width: 48px; height: 48px; object-fit: cover; border-radius: 8px; }
 .pending-card button { margin-inline-start: auto; border: 0; background: transparent; color: var(--muted); }
 .empty { color: var(--muted); }

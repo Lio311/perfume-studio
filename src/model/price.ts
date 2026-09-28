@@ -74,18 +74,30 @@ export interface SupplierPriceResult {
 const PRICE_KEYS = new Set(["value", "currency", "currencyText", "moq", "tiers", "quotedAt"]);
 
 /**
- * ISO 4217 codes the lab accepts. Three letters outside this set, such as FOO,
- * follow the unknown-currency path. The shared schema only requires `^[A-Z]{3}$`
- * (`schema/supplier-pack.schema.json`). This allowlist is stricter than that pattern.
+ * Used when `Intl.supportedValuesOf` is missing. Three letters outside the
+ * resolved set, such as FOO, follow the unknown-currency path. The shared schema
+ * only requires `^[A-Z]{3}$`. This set is stricter than that pattern.
  */
-const ISO_4217 = new Set([
+const FALLBACK_CURRENCIES = [
   "ILS", "USD", "EUR", "GBP", "AED", "CNY", "JPY", "CHF",
   "CAD", "AUD", "NZD",
   "SAR", "QAR", "KWD", "BHD", "OMR", "EGP",
   "INR", "KRW", "SGD", "HKD", "TWD", "THB",
   "SEK", "NOK", "DKK", "PLN", "CZK", "HUF", "RON",
   "TRY", "RUB", "BRL", "MXN", "ZAR",
-]);
+] as const;
+
+function acceptedCurrencies(): Set<string> {
+  try {
+    const supported = Intl.supportedValuesOf?.("currency");
+    if (supported && supported.length > 0) return new Set(supported);
+  } catch {
+    // A runtime without supportedValuesOf keeps the fallback list.
+  }
+  return new Set(FALLBACK_CURRENCIES);
+}
+
+const ISO_4217 = acceptedCurrencies();
 
 const ISO_8601 = /^\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:\d{2})?)?$/;
 

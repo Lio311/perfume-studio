@@ -11,10 +11,10 @@ import minimalText from "./fixtures/a-minimal-v1-pack.json?raw";
 import v2Text from "./fixtures/b-v2-bottle-photo-cap-scan-price.json?raw";
 import invalidText from "./fixtures/c-invalid-pack.json?raw";
 import { capPackNotices, formatPackNotice, type PackNotice } from "./notices.ts";
-import { MAX_PACK_BYTES } from "./packValidate.ts";
-import { importedMeta, isVariantPart, syncRegistry, type SupplierPack, type SupplierPart } from "./registry.ts";
+import { bdi } from "./fieldText.ts";
+import { duplicateSlugIssues, issuesForDraft, KIND_DEFAULT_MM, MAX_PACK_BYTES } from "./packValidate.ts";
+import { codeSlug, importedMeta, isVariantPart, partFromDraft, syncRegistry, type SupplierPack, type SupplierPart } from "./registry.ts";
 import { adoptLoadedSuppliers, exportPackDocument, parsePackFile, reviveStoredPack, serializePack } from "./supplierDb.ts";
-import { issuesForDraft, KIND_DEFAULT_MM } from "./packValidate.ts";
 import { sanitizeSupplierPrice } from "../model/price.ts";
 import { applyVariant, createDefaultDesign } from "../model/design.ts";
 import { mergeShareDesign } from "../model/share.ts";
@@ -167,7 +167,7 @@ describe("parsePackFile", () => {
     expect(result.error.he).toContain("lid");
     expect(result.error.he).toContain("לא יהפוך לקופסה");
     expect(result.error.he).toContain("FEA16");
-    expect(result.error.he).toContain("widthMm");
+    expect(result.error.he).toContain("רוחב");
     expect(result.error.he).toContain("#rrggbb");
     expect(result.error.en).toContain("will not become a box");
   });
@@ -176,7 +176,7 @@ describe("parsePackFile", () => {
     const cases: Array<[Record<string, unknown>, string]> = [
       [{ kind: "lid" }, "lid"],
       [{ neck: "FEA16" }, "FEA16"],
-      [{ widthMm: -3 }, "widthMm"],
+      [{ widthMm: -3 }, "רוחב"],
       [{ color: "gold" }, "#rrggbb"],
     ];
     for (const [patch, token] of cases) {
@@ -193,7 +193,7 @@ describe("parsePackFile", () => {
       id: "sup-mix",
       name: "Mixed",
       createdAt: 1,
-      parts: [base, { ...base, id: "bad", code: "BAD", kind: "lid" }],
+      parts: [base, { ...base, id: "bad", code: "BAD", name: "", kind: "lid" }],
     }));
     expect(result.ok).toBe(false);
     if (result.ok) return;
@@ -227,6 +227,7 @@ describe("parsePackFile", () => {
       ...base,
       id: `bad-${index + 1}`,
       code: `E${String(index + 1).padStart(2, "0")}`,
+      name: "",
       color: "nope",
     }));
     const result = parsePackFile(JSON.stringify({ id: "sup-many", name: "Many", createdAt: 1, parts }));
@@ -319,7 +320,11 @@ describe("parsePackFile", () => {
 
     const tall = parsePackFile(packWith({ heightMm: 500 }));
     expect(tall.ok).toBe(false);
-    if (!tall.ok) expect(tall.error.en).toContain("between 10 and 78");
+    if (!tall.ok) {
+      expect(tall.error.en).toContain("Height must be between");
+      expect(tall.error.en).toContain("\u206810\u2069");
+      expect(tall.error.en).toContain("\u206878\u2069");
+    }
 
     const edge = parsePackFile(packWith({ lathe: [0, 1.2] }));
     expect(edge.ok).toBe(true);
@@ -474,7 +479,7 @@ describe("reviveStoredPack", () => {
     });
     expect(revived.pack?.parts.map((part) => part.id)).toEqual(["part-1"]);
     expect(revived.warnings.map((notice) => notice.type === "droppedPart" ? notice.ref : notice.type)).toEqual(["LID", "BUILT", "N16"]);
-    expect(formatPackNotice("en", revived.warnings[0])).toContain("LID");
+    expect(formatPackNotice("en", revived.warnings[0])).toContain("lid");
     const notices = syncRegistry(revived.pack ? [revived.pack] : []);
     expect(notices).toEqual([]);
     expect(() => computeFit(createDefaultDesign())).not.toThrow();
@@ -550,7 +555,12 @@ describe("reviveStoredPack", () => {
       profile: "bottle",
       page: 1,
     });
-    expect(shortBottle.some((item) => item.field === "heightMm")).toBe(true);
+    expect(shortBottle.find((item) => item.field === "heightMm")).toEqual({
+      field: "heightMm",
+      he: `גובה חייב להיות בין ${bdi(48)} ל־${bdi(180)} מ״מ`,
+      en: `Height must be between ${bdi(48)} and ${bdi(180)} mm`,
+    });
+    expect(shortBottle.find((item) => item.field === "heightMm")?.he.startsWith("החלק")).toBe(false);
     expect(issuesForDraft({
       id: "manual-3",
       kind: "cap",
@@ -562,7 +572,7 @@ describe("reviveStoredPack", () => {
     }).some((item) => item.field === "code")).toBe(true);
 
     const exported = exportPackDocument(built);
-    expect(exported.warnings).toEqual([]);
+    expect(exported.warnings.map((notice) => notice.type)).toEqual(["droppedPart"]);
     const document = JSON.parse(exported.text) as { generator?: unknown; hiddenParts?: unknown; parts: Array<{ note?: unknown; price?: unknown }> };
     expect(document.generator).toEqual({ name: "Perfume Studio" });
     expect(document.hiddenParts).toBeUndefined();
@@ -683,11 +693,78 @@ describe("reviveStoredPack", () => {
     const revived = reviveStoredPack(raw);
     expect(raw).toEqual(before);
     expect(revived.pack?.parts).toEqual([]);
-    expect(revived.pack?.hiddenParts?.[0].en).toContain("missing");
+    expect(revived.pack?.hiddenParts?.[0].en).toContain("Missing");
   });
 
   it("hides a stored value that is not a pack", () => {
     expect(reviveStoredPack(null).warnings).toEqual([{ type: "droppedPack" }]);
     expect(reviveStoredPack(null).pack).toBeNull();
+  });
+
+  it("keeps a pack-level failure visible so it can be deleted", () => {
+    const revived = reviveStoredPack({ id: "broken-pack", name: "Broken", createdAt: 4, parts: "nope" });
+    expect(revived.pack).toMatchObject({ id: "broken-pack", name: "Broken", parts: [] });
+    expect(revived.pack?.hiddenParts?.[0].en.length).toBeGreaterThan(0);
+    expect(revived.warnings).toEqual([{ type: "droppedPack" }]);
+  });
+
+  it("flags two draft codes that slug to the same part id", () => {
+    expect(codeSlug("A-1")).toBe(codeSlug("a 1"));
+    const supplier = { id: "sup-lab", name: "Lab" };
+    const draft = {
+      id: "row",
+      page: 1,
+      kind: "cap" as const,
+      neck: "FEA15" as const,
+      widthMm: 30,
+      heightMm: 32,
+      depthMm: 30,
+      capacityMl: null,
+      profile: "cylinder" as const,
+      crop: { x: 0, y: 0, w: 1, h: 1 },
+      confidence: 0.2,
+      manual: true,
+    };
+    const first = partFromDraft({ ...draft, code: "A-1" }, supplier, 0);
+    const second = partFromDraft({ ...draft, code: "a 1" }, supplier, 1);
+    expect(first.id).toBe(second.id);
+    const rows = [{ id: "row-1", code: "A-1" }, { id: "row-2", code: "a 1" }];
+    const issue = duplicateSlugIssues(rows[1], rows)[0];
+    expect(issue.field).toBe("code");
+    expect(issue.he).toContain(bdi("a 1"));
+    expect(issue.en).toContain("already used");
+    expect(duplicateSlugIssues(rows[0], [rows[0]])).toEqual([]);
+  });
+
+  it("warns that hidden parts were left out of an export", () => {
+    const hidden = {
+      id: "qa-bottle",
+      code: "B30",
+      name: "Short bottle",
+      he: "גובה חייב להיות בין 48 ל־180 מ״מ",
+      en: "Height must be between 48 and 180 mm",
+    };
+    const exported = exportLoose({
+      id: "sup-lab",
+      name: "Lab Supplier",
+      createdAt: 20,
+      parts: [base],
+      hiddenParts: [hidden],
+    });
+    expect(JSON.parse(exported.text).parts).toHaveLength(1);
+    expect(JSON.parse(exported.text).hiddenParts).toBeUndefined();
+    expect(exported.warnings).toHaveLength(1);
+    expect(exported.warnings[0]).toMatchObject({ type: "droppedPart", ref: "B30" });
+    expect(exported.warnings[0].type === "droppedPart" && exported.warnings[0].he).toContain("Short bottle");
+    expect(exported.warnings[0].type === "droppedPart" && exported.warnings[0].he).toContain("גובה");
+    const many = exportLoose({
+      id: "sup-lab",
+      name: "Lab Supplier",
+      createdAt: 20,
+      parts: [base],
+      hiddenParts: Array.from({ length: 9 }, (_, index) => ({ ...hidden, id: `h-${index}` })),
+    });
+    expect(many.warnings).toHaveLength(1);
+    expect(many.warnings[0].type === "droppedPart" && many.warnings[0].en).toContain("9");
   });
 });

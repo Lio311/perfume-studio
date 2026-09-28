@@ -3,9 +3,10 @@ import { isBuiltinCatalogId } from "../model/catalog.ts";
 import { isNeckId } from "../model/necks.ts";
 import { sanitizeSupplierPrice } from "../model/price.ts";
 import type { VariantPart } from "../model/types.ts";
+import { bdi, FIELD_LABEL, type FieldLabelKey } from "./fieldText.ts";
 import type { PackNotice } from "./notices.ts";
 import type { ImportProfile } from "./parseCatalog.ts";
-import { isVariantPart } from "./registry.ts";
+import { codeSlug, isVariantPart } from "./registry.ts";
 import { isDataObject, plainData, safeRecord } from "./safeJson.ts";
 
 export interface PackFileError {
@@ -104,12 +105,28 @@ function partRef(part: Record<string, unknown>): string {
   return "";
 }
 
-function hePart(ref: string): string {
-  return ref ? `החלק ${ref}` : "חלק";
+/** Name, otherwise code, otherwise id. Empty when the part has none of them. */
+function partDisplay(part: Record<string, unknown>): string {
+  const name = typeof part.name === "string" ? part.name.trim() : "";
+  if (name) return name;
+  const code = typeof part.code === "string" ? part.code.trim() : "";
+  if (code) return code;
+  return typeof part.id === "string" ? part.id.trim() : "";
 }
 
-function enPart(ref: string): string {
-  return ref ? `Part ${ref}` : "A part";
+function citePart(part: Record<string, unknown> | null, he: string, en: string): { he: string; en: string } {
+  const label = part ? partDisplay(part) : "";
+  if (!label) return { he, en };
+  const token = bdi(label);
+  return { he: `${token} · ${he}`, en: `${token} · ${en}` };
+}
+
+function labels(field: string): { he: string; en: string } {
+  if (Object.hasOwn(FIELD_LABEL.he, field)) {
+    const key = field as FieldLabelKey;
+    return { he: FIELD_LABEL.he[key], en: FIELD_LABEL.en[key] };
+  }
+  return { he: field, en: field };
 }
 
 function reject(issues: PackFileError[]): PackFileError {
@@ -135,71 +152,73 @@ function validatePart(raw: unknown): FieldIssue[] {
   if (!isDataObject(raw)) {
     return [{ field: "", he: "אחד החלקים אינו אובייקט.", en: "One of the parts is not an object." }];
   }
-  const ref = partRef(raw);
-  const he = hePart(ref);
-  const en = enPart(ref);
   const issues: FieldIssue[] = [];
   const add = (field: string, heText: string, enText: string) => {
     issues.push({ field, he: heText, en: enText });
   };
 
   if (typeof raw.id !== "string" || raw.id.trim() === "") {
-    add("id", `${he}: חסר מזהה.`, `${en}: missing id.`);
+    add("id", "חסר מזהה.", "Missing id.");
   }
   if (!isVariantPart(raw.kind)) {
     const shown = typeof raw.kind === "string" && raw.kind ? raw.kind : "—";
     add(
       "kind",
-      `${he}: הסוג «${shown}» אינו מוכר, ולכן החלק נדחה ולא יהפוך לקופסה. הסוגים הנתמכים הם בקבוק, פקק, תווית, משאבה, צווארון וקופסה.`,
-      `${en}: kind "${shown}" is not supported, so the part was rejected and will not become a box. Supported kinds are bottle, cap, label, pump, collar, and box.`,
+      `הסוג ${bdi(shown)} אינו מוכר, ולכן החלק נדחה ולא יהפוך לקופסה. הסוגים הנתמכים הם בקבוק, פקק, תווית, משאבה, צווארון וקופסה.`,
+      `Kind ${bdi(shown)} is not supported, so the part was rejected and will not become a box. Supported kinds are bottle, cap, label, pump, collar, and box.`,
     );
   }
   if (typeof raw.code !== "string") {
-    add("code", `${he}: חסר קוד.`, `${en}: missing code.`);
+    add("code", "חסר קוד.", "Missing code.");
   }
   if (typeof raw.name !== "string") {
-    add("name", `${he}: חסר שם.`, `${en}: missing name.`);
+    add("name", "חסר שם.", "Missing name.");
   }
   if (raw.neck !== null && !isNeckId(raw.neck)) {
     const shown = typeof raw.neck === "string" && raw.neck ? raw.neck : "";
+    const necks = `${bdi("FEA13")}, ${bdi("FEA15")}, ${bdi("FEA17")}, ${bdi("FEA18")}, ${bdi("FEA20")}`;
     if (shown) {
-      add("neck", `${he}: הצוואר «${shown}» אינו נתמך, ולכן החלק נדחה. הצווארים הנתמכים הם FEA13, FEA15, FEA17, FEA18 ו־FEA20.`, `${en}: neck "${shown}" is not supported, so the part was rejected. Supported necks are FEA13, FEA15, FEA17, FEA18, and FEA20.`);
+      add("neck", `הצוואר ${bdi(shown)} אינו נתמך, ולכן החלק נדחה. הצווארים הנתמכים הם ${necks}.`, `Neck ${bdi(shown)} is not supported, so the part was rejected. Supported necks are ${necks}.`);
     } else {
-      add("neck", `${he}: חסר צוואר. הערך חייב להיות null או אחד מ־FEA13, FEA15, FEA17, FEA18, FEA20.`, `${en}: missing neck. It must be null or one of FEA13, FEA15, FEA17, FEA18, FEA20.`);
+      add("neck", `חסר צוואר. הערך חייב להיות ריק או אחד מ־${necks}.`, `Missing neck. It must be empty or one of ${necks}.`);
     }
   }
   const ranges = isVariantPart(raw.kind) ? MM[raw.kind] : undefined;
   for (const field of ["widthMm", "heightMm", "depthMm"] as const) {
     const value = raw[field];
+    const name = labels(field);
     if (typeof value !== "number" || !Number.isFinite(value) || value < 0) {
-      add(field, `${he}: ${field} חייב להיות מספר אי-שלילי.`, `${en}: ${field} must be a non-negative number.`);
+      add(field, `${name.he} חייב להיות מספר אי-שלילי.`, `${name.en} must be a non-negative number.`);
     } else if (ranges && (value < ranges[field][0] || value > ranges[field][1])) {
       const [min, max] = ranges[field];
-      add(field, `${he}: ${field} חייב להיות בין ${min} ל־${max}.`, `${en}: ${field} must be between ${min} and ${max}.`);
+      add(field, `${name.he} חייב להיות בין ${bdi(min)} ל־${bdi(max)} מ״מ`, `${name.en} must be between ${bdi(min)} and ${bdi(max)} mm`);
     }
   }
   const capacity = raw.capacityMl;
   if (!(capacity === null || (typeof capacity === "number" && Number.isFinite(capacity) && capacity >= 0))) {
-    add("capacityMl", `${he}: capacityMl חייב להיות מספר אי-שלילי או null.`, `${en}: capacityMl must be a non-negative number or null.`);
+    const name = labels("capacityMl");
+    add("capacityMl", `${name.he} חייב להיות מספר אי-שלילי או ריק.`, `${name.en} must be a non-negative number or empty.`);
   }
   if (typeof raw.profile !== "string" || !(PROFILES as readonly string[]).includes(raw.profile)) {
-    add("profile", `${he}: פרופיל לא מוכר.`, `${en}: unknown profile.`);
+    add("profile", "פרופיל לא מוכר.", "Unknown profile.");
   }
   if (typeof raw.color !== "string" || !HEX.test(raw.color)) {
-    add("color", `${he}: הצבע חייב להיות בפורמט #rrggbb.`, `${en}: color must be a #rrggbb hex.`);
+    add("color", `הצבע חייב להיות בפורמט ${bdi("#rrggbb")}.`, `Color must be a ${bdi("#rrggbb")} hex.`);
   }
   if (typeof raw.thumb !== "string" || (raw.thumb !== "" && !THUMB.test(raw.thumb))) {
-    add("thumb", `${he}: התמונה הממוזערת חייבת להיות ריקה או data URL של jpeg, png או webp.`, `${en}: thumb must be empty or a jpeg, png, or webp data URL.`);
+    add("thumb", "התמונה הממוזערת חייבת להיות ריקה או data URL של jpeg, png או webp.", "Thumb must be empty or a jpeg, png, or webp data URL.");
   }
   if (typeof raw.page !== "number" || !Number.isInteger(raw.page) || raw.page < 1) {
-    add("page", `${he}: page חייב להיות מספר עמוד שלם מ־1 ומעלה.`, `${en}: page must be an integer of 1 or more.`);
+    const name = labels("page");
+    add("page", `${name.he} חייב להיות מספר שלם מ־${bdi(1)} ומעלה.`, `${name.en} must be an integer of ${bdi(1)} or more.`);
   }
   if (Object.hasOwn(raw, "lathe") && raw.lathe !== undefined) {
     const lathe = raw.lathe;
+    const name = labels("lathe");
     if (!Array.isArray(lathe) || lathe.some((sample) => typeof sample !== "number" || !Number.isFinite(sample))) {
-      add("lathe", `${he}: lathe חייב להיות מערך של מספרים.`, `${en}: lathe must be an array of numbers.`);
+      add("lathe", `${name.he} חייבת להיות מערך של מספרים.`, `${name.en} must be an array of numbers.`);
     } else if (lathe.some((sample) => sample < 0 || sample > LATHE_MAX)) {
-      add("lathe", `${he}: ערכי lathe חייבים להיות בין 0 ל־${LATHE_MAX}.`, `${en}: lathe values must be between 0 and ${LATHE_MAX}.`);
+      add("lathe", `ערכי ${name.he} חייבים להיות בין ${bdi(0)} ל־${bdi(LATHE_MAX)}.`, `${name.en} values must be between ${bdi(0)} and ${bdi(LATHE_MAX)}.`);
     }
   }
   return issues;
@@ -237,24 +256,35 @@ export function issuesForDraft(row: {
   return issues;
 }
 
+/** A second row whose code slugs the same way (`A-1` and `a 1`) cannot be saved. */
+export function duplicateSlugIssues(row: { id: string; code: string }, rows: readonly { id: string; code: string }[]): FieldIssue[] {
+  const slug = codeSlug(row.code);
+  if (!slug) return [];
+  const clash = rows.some((other) => other.id !== row.id && codeSlug(other.code) === slug);
+  if (!clash) return [];
+  const code = row.code.trim();
+  return [{
+    field: "code",
+    he: `הקוד ${bdi(code)} כבר בשימוש בשורה אחרת.`,
+    en: `Code ${bdi(code)} is already used on another row.`,
+  }];
+}
+
 function identityIssues(part: Record<string, unknown>, seen: Set<string>): PackFileError[] {
   if (typeof part.id !== "string" || part.id.trim() === "") return [];
   const id = part.id.trim();
-  const ref = partRef(part);
-  const he = hePart(ref);
-  const en = enPart(ref);
   const issues: PackFileError[] = [];
   if (seen.has(id)) {
     issues.push({
-      he: `${he}: המזהה «${id}» מופיע יותר מפעם אחת בחבילה.`,
-      en: `${en}: id "${id}" is duplicated in this pack.`,
+      he: `המזהה ${bdi(id)} מופיע יותר מפעם אחת בחבילה.`,
+      en: `Id ${bdi(id)} is duplicated in this pack.`,
     });
   }
   seen.add(id);
   if (isBuiltinCatalogId(id)) {
     issues.push({
-      he: `${he}: המזהה «${id}» שמור לקטלוג המובנה.`,
-      en: `${en}: id "${id}" belongs to the built-in catalog.`,
+      he: `המזהה ${bdi(id)} שמור לקטלוג המובנה.`,
+      en: `Id ${bdi(id)} belongs to the built-in catalog.`,
     });
   }
   return issues;
@@ -402,8 +432,9 @@ export function checkPack(value: unknown, mode: "reject" | "drop"): PackCheck {
     if (all.length) {
       const he = all.map((item) => item.he).join(" ");
       const en = all.map((item) => item.en).join(" ");
+      const cited = citePart(isDataObject(part) ? part : null, he, en);
       if (mode === "drop") {
-        warnings.push({ type: "droppedPart", ref, he, en });
+        warnings.push({ type: "droppedPart", ref, he: cited.he, en: cited.en });
         hidden.push({
           id: isDataObject(part) && typeof part.id === "string" && part.id.trim() ? part.id : ref,
           code: isDataObject(part) && typeof part.code === "string" ? part.code : "",
@@ -411,7 +442,7 @@ export function checkPack(value: unknown, mode: "reject" | "drop"): PackCheck {
           he,
           en,
         });
-      } else partIssues.push(...all);
+      } else partIssues.push(cited);
       continue;
     }
     if (isDataObject(part)) kept.push(takePart(part, warnings));

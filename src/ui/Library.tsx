@@ -222,8 +222,8 @@ export function Library() {
             return (
               <article key={`${pack.id}-${part.id}`} className="pending-card" data-hidden-part>
                 <div>
-                  <strong>{part.name || part.code || part.id}</strong>
-                  <span>{reason}</span>
+                  <strong><bdi>{part.name || part.code || part.id}</bdi></strong>
+                  <span className="hidden-reason">{reason}</span>
                 </div>
               </article>
             );

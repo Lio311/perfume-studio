@@ -162,17 +162,18 @@ describe("loadPacks", () => {
     const old = first.packs.find((pack) => pack.id === "main-era");
     const lab = first.packs.find((pack) => pack.id === "lab-30");
     expect(old?.parts).toEqual([]);
-    expect(old?.hiddenParts?.[0].en).toContain("only");
+    expect(old?.hiddenParts?.[0].id).toBe("only");
     expect(old?.hiddenParts?.[0].he.length).toBeGreaterThan(0);
     expect(lab?.parts).toEqual([]);
-    expect(lab?.hiddenParts?.[0].en).toContain("heightMm");
-    expect(lab?.hiddenParts?.[0].en).toContain("between 48 and 180");
+    expect(lab?.hiddenParts?.[0].en).toBe("Height must be between \u206848\u2069 and \u2068180\u2069 mm");
+    expect(lab?.hiddenParts?.[0].he).toBe("גובה חייב להיות בין \u206848\u2069 ל־\u2068180\u2069 מ״מ");
+    expect(lab?.hiddenParts?.[0].en).not.toContain("heightMm");
     expect(first.warnings.some((notice) => notice.type === "droppedPart" && notice.ref === "B")).toBe(true);
 
     acknowledgePackLoads(first.unseenKeys);
     const second = await loadPacks();
     expect(JSON.stringify(await stored())).toBe(before);
     expect(second.warnings).toEqual([]);
-    expect(second.packs.find((pack) => pack.id === "lab-30")?.hiddenParts?.[0].en).toContain("heightMm");
+    expect(second.packs.find((pack) => pack.id === "lab-30")?.hiddenParts?.[0].en).toContain("Height must be between");
   });
 });

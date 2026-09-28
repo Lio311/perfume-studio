@@ -339,8 +339,10 @@ function tweenExplode(to: number, ms: number) {
 
 function noticeToast(notices: PackNotice[], lang: Lang): string {
   if (!notices.length) return "";
-  if (notices.length === 1) return formatPackNotice(lang, notices[0]);
-  return tx(lang).packWarningCount.replace("{n}", String(notices.length));
+  const count = tx(lang).packWarningCount.replace("{n}", String(notices.length));
+  if (notices.length > 1) return count;
+  const line = formatPackNotice(lang, notices[0]);
+  return line.length > 120 ? count : line;
 }
 
 function commitSuppliers(

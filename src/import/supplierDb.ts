@@ -1,4 +1,5 @@
 import DOMPurify from "dompurify";
+import { bdi } from "./fieldText.ts";
 import type { PackNotice } from "./notices.ts";
 import { checkPack, validatePackText, type PackFileError, type ValidatedPack } from "./packValidate.ts";
 import type { SupplierPack } from "./registry.ts";
@@ -23,9 +24,23 @@ function openDb(): Promise<IDBDatabase> {
   });
 }
 
+function shellForInvalidPack(raw: unknown, error: { he: string; en: string }): SupplierPack | null {
+  if (!isDataObject(raw) || typeof raw.id !== "string" || !raw.id.trim()) return null;
+  const id = raw.id.trim();
+  const name = typeof raw.name === "string" && raw.name.trim() ? raw.name.trim() : id;
+  const createdAt = typeof raw.createdAt === "number" && Number.isFinite(raw.createdAt) && raw.createdAt >= 0 ? raw.createdAt : 0;
+  return {
+    id,
+    name,
+    createdAt,
+    parts: [],
+    hiddenParts: [{ id, code: "", name, he: error.he, en: error.en }],
+  };
+}
+
 export function reviveStoredPack(raw: unknown): { pack: SupplierPack | null; warnings: PackNotice[] } {
   const checked = checkPack(raw, "drop");
-  if (!checked.ok) return { pack: null, warnings: [{ type: "droppedPack" }] };
+  if (!checked.ok) return { pack: shellForInvalidPack(raw, checked.error), warnings: [{ type: "droppedPack" }] };
   return { pack: materialize(checked.value), warnings: checked.warnings };
 }
 
@@ -239,7 +254,33 @@ export function exportPackDocument(pack: SupplierPack): { text: string; warnings
   }
   const parts = Array.isArray(pack.parts) ? pack.parts : [];
   body.parts = parts.map((part) => exportPart(part, warnings));
+  warnings.push(...hiddenExportNotices(pack.hiddenParts));
   return { text: JSON.stringify(body, null, 2), warnings };
+}
+
+const HIDDEN_EXPORT_EACH = 8;
+
+function hiddenExportNotices(hidden: SupplierPack["hiddenParts"]): PackNotice[] {
+  if (!hidden?.length) return [];
+  if (hidden.length > HIDDEN_EXPORT_EACH) {
+    return [{
+      type: "droppedPart",
+      ref: String(hidden.length),
+      he: `${bdi(hidden.length)} חלקים מוסתרים לא נכללו בייצוא.`,
+      en: `${bdi(hidden.length)} hidden parts were left out of the export.`,
+    }];
+  }
+  return hidden.map((part) => {
+    const label = part.name || part.code || part.id;
+    const reasonHe = part.he ? ` ${part.he}` : "";
+    const reasonEn = part.en ? ` ${part.en}` : "";
+    return {
+      type: "droppedPart",
+      ref: part.code || part.name || part.id,
+      he: `${bdi(label)} לא נכלל בייצוא.${reasonHe}`,
+      en: `${bdi(label)} was left out of the export.${reasonEn}`,
+    };
+  });
 }
 
 export function downloadPack(pack: SupplierPack): PackNotice[] {

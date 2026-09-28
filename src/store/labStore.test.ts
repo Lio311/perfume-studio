@@ -40,6 +40,18 @@ describe("labStore", () => {
     expect(stateAfterRedo.past[0]).toBe(initialDesign);
   });
 
+  it("uses a count when a single warning is longer than 120 characters", () => {
+    useLab.getState().showPackNotices([{
+      type: "droppedPart",
+      ref: "B",
+      he: "א".repeat(121),
+      en: "x".repeat(121),
+    }]);
+    expect(useLab.getState().toast).toBe("1 אזהרות. הפרטים ברשימה.");
+    useLab.getState().showPackNotices([{ type: "droppedPart", ref: "B", he: "קצר", en: "short" }]);
+    expect(useLab.getState().toast).toBe("קצר");
+  });
+
   it("should record history on applyCommands", () => {
     const store = useLab.getState();
     const initialDesign = store.design;

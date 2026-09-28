@@ -3,7 +3,7 @@ import DOMPurify from "dompurify";
 import { partLabel, tx } from "../i18n/copy.ts";
 import { cropPage } from "../import/crop.ts";
 import { capPackNotices } from "../import/notices.ts";
-import { issuesForDraft, KIND_DEFAULT_MM, MAX_PACK_BYTES, type FieldIssue } from "../import/packValidate.ts";
+import { duplicateSlugIssues, issuesForDraft, KIND_DEFAULT_MM, MAX_PACK_BYTES, type FieldIssue } from "../import/packValidate.ts";
 import { parsePackFile } from "../import/supplierDb.ts";
 import { readPdfCatalog, type CatalogPageImage } from "../import/pdfCatalog.ts";
 import { regexCatalogSource, type DraftItem, type ImportProfile, type NormRect } from "../import/parseCatalog.ts";
@@ -46,19 +46,22 @@ function blankRow(page = 1): Row {
   };
 }
 
-function draftProblems(row: Row): FieldIssue[] {
-  return issuesForDraft({
-    id: row.id,
-    kind: row.kind,
-    code: row.code,
-    neck: row.neck,
-    widthMm: Number(row.widthMm),
-    heightMm: Number(row.heightMm),
-    depthMm: Number(row.depthMm),
-    capacityMl: row.capacityMl,
-    profile: row.profile,
-    page: row.page,
-  });
+function draftProblems(row: Row, rows: readonly Row[]): FieldIssue[] {
+  return [
+    ...issuesForDraft({
+      id: row.id,
+      kind: row.kind,
+      code: row.code,
+      neck: row.neck,
+      widthMm: Number(row.widthMm),
+      heightMm: Number(row.heightMm),
+      depthMm: Number(row.depthMm),
+      capacityMl: row.capacityMl,
+      profile: row.profile,
+      page: row.page,
+    }),
+    ...duplicateSlugIssues(row, rows),
+  ];
 }
 
 export function SupplierImport() {
@@ -101,12 +104,16 @@ export function SupplierImport() {
     setRows((current) => current.map((row) => {
       if (row.id !== id) return row;
       const next = { ...row, ...partial };
-      if (partial.kind) {
+      if (partial.kind && partial.kind !== row.kind) {
         next.profile = profileFor(partial.kind);
-        const size = KIND_DEFAULT_MM[partial.kind];
-        next.widthMm = size.widthMm;
-        next.heightMm = size.heightMm;
-        next.depthMm = size.depthMm;
+        const previous = KIND_DEFAULT_MM[row.kind];
+        const untouched = row.widthMm === previous.widthMm && row.heightMm === previous.heightMm && row.depthMm === previous.depthMm;
+        if (untouched) {
+          const size = KIND_DEFAULT_MM[partial.kind];
+          next.widthMm = size.widthMm;
+          next.heightMm = size.heightMm;
+          next.depthMm = size.depthMm;
+        }
       }
       return next;
     }));
@@ -155,7 +162,7 @@ export function SupplierImport() {
   }
 
   function commit() {
-    if (rows.some((row) => draftProblems(row).length > 0)) return;
+    if (rows.some((row) => draftProblems(row, rows).length > 0)) return;
     const rawName = name.trim() || (lang === "he" ? "ספק" : "Supplier");
     const supplier = DOMPurify.sanitize(rawName);
     const id = `sup-${Date.now().toString(36)}`;
@@ -183,7 +190,7 @@ export function SupplierImport() {
   const current = rows.find((row) => row.id === active) ?? null;
   const page = pages.find((item) => item.page === current?.page) ?? null;
   const blankPages = pages.filter((item) => item.text.trim().length < 4);
-  const ready = rows.length > 0 && rows.every((row) => draftProblems(row).length === 0);
+  const ready = rows.length > 0 && rows.every((row) => draftProblems(row, rows).length === 0);
 
   return (
     <div className="modal-back" onClick={() => setModal(null)}>
@@ -262,7 +269,7 @@ export function SupplierImport() {
               </thead>
               <tbody>
                 {rows.map((row) => {
-                  const problems = draftProblems(row);
+                  const problems = draftProblems(row, rows);
                   const message = (field: string) => {
                     const hit = problems.find((item) => item.field === field);
                     return hit ? (lang === "he" ? hit.he : hit.en) : "";
@@ -298,7 +305,10 @@ export function SupplierImport() {
                       </select>
                       {message("neck") && <span className="field-error" data-field-error="neck">{message("neck")}</span>}
                     </td>
-                    <td><input type="number" value={row.capacityMl ?? ""} onChange={(event) => patch(row.id, { capacityMl: event.target.value ? Number(event.target.value) : null })} /></td>
+                    <td>
+                      <input aria-invalid={message("capacityMl") ? true : undefined} type="number" value={row.capacityMl ?? ""} onChange={(event) => patch(row.id, { capacityMl: event.target.value ? Number(event.target.value) : null })} />
+                      {message("capacityMl") && <span className="field-error" data-field-error="capacityMl">{message("capacityMl")}</span>}
+                    </td>
                     <td><button type="button" onClick={(event) => { event.stopPropagation(); setRows((currentRows) => currentRows.filter((item) => item.id !== row.id)); }}>{t.delete}</button></td>
                   </tr>
                   );

@@ -1,4 +1,5 @@
 import { tx } from "../i18n/copy.ts";
+import { bdi } from "./fieldText.ts";
 import type { PriceIssueCode, PriceIssueSeverity } from "../model/price.ts";
 import type { Lang } from "../model/types.ts";
 
@@ -30,13 +31,13 @@ export function formatPackNotice(lang: Lang, notice: PackNotice): string {
   const t = tx(lang);
   switch (notice.type) {
     case "unknownKind":
-      return fill(t.noticeUnknownKind, { ref: notice.ref, kind: notice.kind });
+      return fill(t.noticeUnknownKind, { ref: bdi(notice.ref), kind: bdi(notice.kind) });
     case "badNeck":
-      return fill(t.noticeBadNeck, { ref: notice.ref, neck: notice.neck });
+      return fill(t.noticeBadNeck, { ref: bdi(notice.ref), neck: bdi(notice.neck) });
     case "priceIssue":
-      return lang === "he" ? `החלק ${notice.ref}: ${notice.he}` : `Part ${notice.ref}: ${notice.en}`;
+      return `${bdi(notice.ref)} · ${lang === "he" ? notice.he : notice.en}`;
     case "droppedField":
-      return fill(t.noticeDroppedField, { ref: notice.ref, field: notice.field });
+      return fill(t.noticeDroppedField, { ref: bdi(notice.ref), field: bdi(notice.field) });
     case "droppedPart":
       if (notice.he && notice.en) return lang === "he" ? notice.he : notice.en;
       return fill(t.noticeDroppedPart, { ref: notice.ref });

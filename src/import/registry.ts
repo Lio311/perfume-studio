@@ -67,9 +67,14 @@ export function importedMeta(id: string): ImportedMeta | undefined {
   return meta.get(id);
 }
 
+/** Same slug the lab uses for a part id. `A-1` and `a 1` collapse to one id. */
+export function codeSlug(code: string): string {
+  return code.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+}
+
 export function partFromDraft(draft: DraftItem, supplier: { id: string; name: string }, index: number): SupplierPart {
   const code = draft.code || `${draft.kind}-${index + 1}`;
-  const safe = code.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || `item-${index + 1}`;
+  const safe = codeSlug(code) || `item-${index + 1}`;
   return {
     id: `${supplier.id}-${safe}`,
     kind: draft.kind,
