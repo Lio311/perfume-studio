@@ -211,6 +211,25 @@ describe("saved design hydration", () => {
     expect(sanitizeDesign({ bottle, cap: {}, label }).bottle).toEqual(bottle);
   });
 
+  it("keeps glass opacity and saved sketches from the latest main fields", () => {
+    const design = createDefaultDesign();
+    design.bottle = { ...design.bottle, finish: "tinted", color: "#8d9a84", opacity: 0.2, visible: true };
+    design.liquid = { ...design.liquid, visible: true };
+    const saved = { id: "cfg-glass", name: "זכוכית", design, thumb: "", createdAt: 9 };
+    const merged = mergePersistedLab({ design, saved: [saved], modal: "save" }, slice());
+    expect(merged.design.bottle).toEqual(design.bottle);
+    expect(merged.design.liquid).toEqual(design.liquid);
+    expect(merged.saved).toEqual([saved]);
+    expect("modal" in merged).toBe(false);
+
+    const dropped = mergePersistedLab(
+      { design: { bottle: { variantId: "cara-50", opacity: "solid" }, cap: {} } },
+      slice(),
+    );
+    expect(dropped.design.bottle).toEqual(createDefaultDesign().bottle);
+    expect(dropped.design.bottle.opacity).toBeUndefined();
+  });
+
   it("migrates a partial legacy blob without throwing", () => {
     expect(() => migratePersisted({ design: { bottle: {}, cap: {} } }, 0)).not.toThrow();
     const migrated = migratePersisted({ design: { bottle: {}, cap: {} } }, 1);
