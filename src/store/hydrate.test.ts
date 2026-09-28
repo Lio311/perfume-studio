@@ -620,6 +620,36 @@ describe("saved design hydration", () => {
     expect(merged.design.bottle.visible).toBe(true);
   });
 
+  it("keeps a logo application and sanitises an unknown one to decal", () => {
+    const base = {
+      variantId: "lg-foil-diamond",
+      finish: "gold" as const,
+      color: "#e6cc98",
+      text: "NOIR",
+      scale: 1,
+      visible: true,
+    };
+    const kept = sanitizeDesign({ label: { ...base, application: "emboss" } });
+    expect(kept.label.application).toBe("emboss");
+    expect(partializeLabState({ design: kept }).design).toMatchObject({ label: { application: "emboss" } });
+
+    const missing = sanitizeDesign({ label: base });
+    expect(missing.label.application).toBeUndefined();
+    expect(missing.label).toEqual(base);
+
+    expect(sanitizeDesign({ label: { ...base, application: "stamp" } }).label.application).toBe("decal");
+
+    const merged = mergePersistedLab(
+      {
+        design: { label: { ...base, application: "nope" } },
+        past: [{ ...createDefaultDesign(), label: { ...base, application: "foil" } }],
+      },
+      slice(),
+    );
+    expect(merged.design.label.application).toBe("decal");
+    expect(merged.past[0]?.label.application).toBe("foil");
+  });
+
   it("keeps a trailing emoji whole when stored label text is capped", () => {
     const wave = "👋";
     const text = "a".repeat(31) + wave;

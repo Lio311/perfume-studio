@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { useLab } from "./labStore.ts";
 import { createDefaultDesign } from "../model/design.ts";
 import { clampLabelText } from "../geometry/logos.ts";
+import { partializeLabState } from "./hydrate.ts";
 
 describe("labStore", () => {
   beforeEach(() => {
@@ -95,6 +96,17 @@ describe("labStore", () => {
     useLab.setState({ lang: "he" });
     useLab.getState().showPackNotices([{ type: "droppedPart", ref: "B", he: "קצר", en: "short" }]);
     expect(useLab.getState().toast).toBe("קצר");
+  });
+
+  it("updates the label application and restores it with undo", () => {
+    expect(useLab.getState().design.label.application).toBeUndefined();
+    useLab.getState().patch("label", { application: "engrave" });
+    expect(useLab.getState().design.label.application).toBe("engrave");
+    expect(partializeLabState(useLab.getState()).design).toMatchObject({ label: { application: "engrave" } });
+    useLab.getState().undo();
+    expect(useLab.getState().design.label.application).toBeUndefined();
+    useLab.getState().redo();
+    expect(useLab.getState().design.label.application).toBe("engrave");
   });
 
   it("should record history on applyCommands", () => {

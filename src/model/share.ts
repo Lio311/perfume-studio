@@ -1,7 +1,7 @@
 import { clampLabelText, legacyLabelInk } from "../geometry/logos.ts";
 import { LAB_PERSIST_VERSION } from "../store/hydrate.ts";
 import { hydrateBox } from "./boxFields.ts";
-import { listFor, logoApplication } from "./catalog.ts";
+import { listFor, logoApplication, storedLogoApplication } from "./catalog.ts";
 import { createDefaultDesign, hydrateDesign } from "./design.ts";
 import { FINISHES } from "./materials.ts";
 import { NECKS } from "./necks.ts";
@@ -112,6 +112,9 @@ export function mergeShareDesign(input: unknown): Design | null {
       text: label && typeof label.text === "string" ? clampLabelText(label.text) : base.label.text,
       scale: label ? pickNumber(label, "scale", base.label.scale, 0.55, 1.6) : base.label.scale,
       visible: label ? pickBool(label, "visible", base.label.visible) : base.label.visible,
+      ...(label && Object.hasOwn(label, "application")
+        ? { application: storedLogoApplication(label.application) ?? "decal" }
+        : {}),
     },
     pump: {
       variantId: pump ? pickVariant(pump, "pump", base.pump.variantId) : base.pump.variantId,

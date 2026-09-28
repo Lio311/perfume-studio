@@ -1,13 +1,13 @@
 import { useId } from "react";
 import { formatMoney } from "../budget/money.ts";
-import { bottleById, boxById, capById, collarById, logoById, pumpById } from "../model/catalog.ts";
+import { bottleById, boxById, capById, collarById, logoById, pumpById, resolvedLabelApplication } from "../model/catalog.ts";
 import { computeFit } from "../model/fit.ts";
 import { FINISHES, PALETTE, LIQUID_PALETTE, effectiveGlassOpacity } from "../model/materials.ts";
 import { NECK_IDS } from "../model/necks.ts";
 import { setUnboxingMuted, useUnboxingTrack } from "../audio/unboxingTrack.ts";
 import { DEFAULT_INSERT_MOTION, INSERT_MATERIALS, OUTER_WRAPS, sleeveOverActive, withInnerStructure, withNeckHeight, withSleeveOver, withSleeveWindow } from "../model/boxFields.ts";
 import { listClosures } from "../model/closures/registry.ts";
-import type { BoxLatch, FinishId, InsertMaterial, InsertOrientation, NeckId, OuterWrap, PartKey, VariantPart } from "../model/types.ts";
+import type { BoxLatch, FinishId, InsertMaterial, InsertOrientation, LogoApplication, NeckId, OuterWrap, PartKey, VariantPart } from "../model/types.ts";
 import { partLabel, tx } from "../i18n/copy.ts";
 import { useLab } from "../store/labStore.ts";
 import { Alternatives } from "./BudgetSuggestions.tsx";
@@ -243,6 +243,26 @@ export function Inspector() {
                 labelId={brandHeadingId}
                 onChange={(text) => patch("label", { text: clampLabelText(text), visible: labelVisibleAfterTextChange(text, design.label.visible) })}
               />
+              <div className="chips">
+                {(
+                  [
+                    ["decal", "הדפסה", "Print"],
+                    ["engrave", "חריטה", "Engrave"],
+                    ["emboss", "הטבעה", "Emboss"],
+                    ["foil", "פויל", "Foil"],
+                  ] as const satisfies ReadonlyArray<readonly [LogoApplication, string, string]>
+                ).map(([id, he, en]) => (
+                  <button
+                    key={id}
+                    type="button"
+                    className={resolvedLabelApplication(design.label) === id ? "chip is-on" : "chip"}
+                    onClick={() => patch("label", { application: id })}
+                  >
+                    {lang === "he" ? he : en}
+                    <span dir="ltr">{lang === "he" ? en : he}</span>
+                  </button>
+                ))}
+              </div>
               <Slider label={t.scale} value={design.label.scale * 100} min={55} max={160} suffix="%" onGesture={beginGesture} onGestureEnd={endGesture} onChange={(value) => patch("label", { scale: value / 100 })} />
               <Readout label={t.width} value={fit.labelW} />
               <Readout label={t.height} value={fit.labelH} />

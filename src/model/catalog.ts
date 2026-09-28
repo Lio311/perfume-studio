@@ -64,6 +64,28 @@ export function logoApplication(id: string): LogoApplication | null {
   const spec = imported.labels.find((item) => item.id === id) ?? LOGOS.find((item) => item.id === id);
   return spec?.application ?? null;
 }
+
+const LOGO_APPLICATIONS = new Set<string>(["decal", "engrave", "emboss", "foil"]);
+
+export function isLogoApplication(value: unknown): value is LogoApplication {
+  return typeof value === "string" && LOGO_APPLICATIONS.has(value);
+}
+
+/**
+ * A stored application. Missing stays unset so the catalog finish is used.
+ * Any other value is print, so a bad save cannot invent a finish.
+ */
+export function storedLogoApplication(value: unknown): LogoApplication | undefined {
+  if (value === undefined) return undefined;
+  return isLogoApplication(value) ? value : "decal";
+}
+
+/** The finish drawn on the bottle and the carton. A bad stored value is print. */
+export function resolvedLabelApplication(label: { variantId: string; application?: unknown }): LogoApplication {
+  if (isLogoApplication(label.application)) return label.application;
+  if (label.application !== undefined) return "decal";
+  return logoById(label.variantId).application;
+}
 export function pumpById(id: string): PumpSpec {
   return imported.pumps.find((b) => b.id === id) ?? PUMPS.find((b) => b.id === id) ?? PUMPS[0];
 }

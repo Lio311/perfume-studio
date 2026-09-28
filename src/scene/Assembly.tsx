@@ -2,7 +2,7 @@ import { useContext, useEffect, useLayoutEffect, useMemo, useRef, type ReactNode
 import { useFrame } from "@react-three/fiber";
 import { RoundedBox } from "@react-three/drei";
 import * as THREE from "three";
-import { bottleById, boxById, capById, collarById, logoById, pumpById } from "../model/catalog.ts";
+import { bottleById, boxById, capById, collarById, logoById, pumpById, resolvedLabelApplication } from "../model/catalog.ts";
 import { closureForForm } from "../model/boxFields.ts";
 import { trayLiftNow } from "./trayLift.ts";
 import { computeFit, type Fit } from "../model/fit.ts";
@@ -697,11 +697,12 @@ function LabelPart() {
   const onStage = stage !== "box" || boxOpen;
   const bottle = bottleById(design.bottle.variantId);
   const spec = logoById(design.label.variantId);
+  const application = resolvedLabelApplication(design.label);
   const fit = computeFit(design, false);
-  const ink = labelInk(design.label.color, spec.application);
+  const ink = labelInk(design.label.color, application);
   const shared = useSharedLabelCanvas();
   const canvas = useMemo(() => shared ?? document.createElement("canvas"), [shared]);
-  const { color: texture, mask, emissive } = useLabelMaps(canvas, ink, spec.application);
+  const { color: texture, mask, emissive } = useLabelMaps(canvas, ink, application);
   const plate = useDisposable(() => buildLabelPatch({
     height: design.bottle.heightMm,
     width: design.bottle.widthMm,
@@ -718,9 +719,9 @@ function LabelPart() {
     patchW: fit.labelW,
   }), [fit.labelW, fit.labelH, fit.labelY, fit.neckR, design.bottle.heightMm, design.bottle.widthMm, design.bottle.depthMm, bottle]);
   return (
-    <PartShell part="label" index={4} home={[0, fit.labelY, fit.labelZ]} explode={fit.explode.label} visible={design.label.visible && onStage} variantKey={spec.id + design.label.text + bottle.id}>
+    <PartShell part="label" index={4} home={[0, fit.labelY, fit.labelZ]} explode={fit.explode.label} visible={design.label.visible && onStage} variantKey={spec.id + design.label.text + bottle.id + application}>
       <mesh geometry={plate} renderOrder={8}>
-        <LabelFinishMaterial map={texture} mask={mask} emissiveMap={emissive} ink={ink} application={spec.application} />
+        <LabelFinishMaterial map={texture} mask={mask} emissiveMap={emissive} ink={ink} application={application} />
         <GoldRim part="label" stamp={spec.id + design.label.text} />
       </mesh>
     </PartShell>
@@ -748,17 +749,18 @@ function BrandPlate({ w, y, z }: { w: number; y: number; z: number }) {
   const variantId = useLab((s) => s.design.label.variantId);
   const color = useLab((s) => s.design.label.color);
   const text = useLab((s) => s.design.label.text);
-  const spec = logoById(variantId);
-  const ink = labelInk(color, spec.application);
+  const stored = useLab((s) => s.design.label.application);
+  const application = resolvedLabelApplication({ variantId, application: stored });
+  const ink = labelInk(color, application);
   const canvas = useCartonLabelCanvas();
   const aspect = Number(canvas.dataset.aspect);
   const { width: planeW, height: planeH } = cartonMarkSize(w, aspect);
-  const { color: tex, mask, emissive } = useLabelMaps(canvas, ink, spec.application);
+  const { color: tex, mask, emissive } = useLabelMaps(canvas, ink, application);
   if (blueprint || text.trim().length === 0) return null;
   return (
     <mesh position={[0, y, z]}>
       <planeGeometry args={[planeW, planeH]} />
-      <LabelFinishMaterial map={tex} mask={mask} emissiveMap={emissive} ink={ink} application={spec.application} overlay />
+      <LabelFinishMaterial map={tex} mask={mask} emissiveMap={emissive} ink={ink} application={application} overlay />
     </mesh>
   );
 }

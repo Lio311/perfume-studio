@@ -8,7 +8,7 @@ import { hydrateBox } from "../model/boxFields.ts";
 import { createDefaultDesign } from "../model/design.ts";
 import { BOXES } from "../model/hardware.ts";
 import { FINISHES } from "../model/materials.ts";
-import { logoApplication } from "../model/catalog.ts";
+import { logoApplication, storedLogoApplication } from "../model/catalog.ts";
 import { NECKS } from "../model/necks.ts";
 import type { ThemeId } from "../theme/themes.ts";
 import type {
@@ -317,7 +317,7 @@ function sanitizeLabel(raw: unknown, fallback: LabelState): LabelState {
   const id = idString(own(raw, "variantId"));
   if (!id) return { ...fallback };
   const text = own(raw, "text");
-  return {
+  const label: LabelState = {
     variantId: id,
     finish: finishOf(own(raw, "finish"), fallback.finish),
     color: colorOf(own(raw, "color"), fallback.color),
@@ -325,6 +325,10 @@ function sanitizeLabel(raw: unknown, fallback: LabelState): LabelState {
     scale: num(own(raw, "scale"), fallback.scale, 0.55, 1.6),
     visible: bool(own(raw, "visible"), fallback.visible),
   };
+  if (Object.hasOwn(raw, "application")) {
+    label.application = storedLogoApplication(own(raw, "application")) ?? "decal";
+  }
+  return label;
 }
 
 function sanitizePump(raw: unknown, fallback: PumpState): PumpState {

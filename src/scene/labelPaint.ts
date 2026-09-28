@@ -1,7 +1,7 @@
 import { createContext, createElement, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import * as THREE from "three";
 import { cartonMarkCanvas, labelEmissiveCanvas, labelFinish, labelFontSpec, labelInk, labelSurfaceCanvas, logoTexture, shouldRepaintLabel } from "../geometry/logos.ts";
-import { logoById } from "../model/catalog.ts";
+import { logoById, resolvedLabelApplication } from "../model/catalog.ts";
 import { computeFit } from "../model/fit.ts";
 import type { LogoApplication, LogoFont } from "../model/types.ts";
 import { useLab } from "../store/labStore.ts";
@@ -88,14 +88,15 @@ export function useDebouncedLabelCanvas(
 export function LabelPaintProvider({ children }: { children: ReactNode }) {
   const design = useLab((s) => s.design);
   const spec = logoById(design.label.variantId);
+  const application = resolvedLabelApplication(design.label);
   const fit = computeFit(design, false);
-  const ink = labelInk(design.label.color, spec.application);
+  const ink = labelInk(design.label.color, application);
   const fontTick = useLabelFontTick(spec.font, design.label.text);
   const aspect = fit.labelW / Math.max(4, fit.labelH);
   const longSide = 2048;
   const width = aspect >= 1 ? longSide : Math.max(256, Math.round(longSide * aspect));
   const height = aspect >= 1 ? Math.max(256, Math.round(longSide / Math.min(4.5, aspect))) : longSide;
-  const immediate = [spec.id, spec.application, fontTick].join("\u0000");
+  const immediate = [spec.id, application, fontTick].join("\u0000");
   const deferred = [design.label.text, ink, width, height].join("\u0000");
   const canvas = useDebouncedLabelCanvas(immediate, deferred, () => {
     const drawn = logoTexture(spec, design.label.text, ink, width, height);
@@ -109,12 +110,13 @@ export function LabelPaintProvider({ children }: { children: ReactNode }) {
 export function useCartonLabelCanvas(): HTMLCanvasElement {
   const design = useLab((s) => s.design);
   const spec = logoById(design.label.variantId);
-  const ink = labelInk(design.label.color, spec.application);
+  const application = resolvedLabelApplication(design.label);
+  const ink = labelInk(design.label.color, application);
   const fontTick = useLabelFontTick(spec.font, design.label.text);
-  const immediate = [spec.id, spec.application, spec.font, fontTick].join("\u0000");
+  const immediate = [spec.id, application, spec.font, fontTick].join("\u0000");
   const deferred = [design.label.text, ink].join("\u0000");
   return useDebouncedLabelCanvas(immediate, deferred, () => {
-    const drawn = cartonMarkCanvas(spec, design.label.text, ink, spec.application);
+    const drawn = cartonMarkCanvas(spec, design.label.text, ink, application);
     drawn.dataset.fonts = String(fontTick);
     return drawn;
   });
