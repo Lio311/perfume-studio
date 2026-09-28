@@ -2,7 +2,7 @@ import { useRef, useState, type PointerEvent as ReactPointerEvent } from "react"
 import DOMPurify from "dompurify";
 import { partLabel, tx } from "../i18n/copy.ts";
 import { cropPage } from "../import/crop.ts";
-import { parsePackFile, type PriceWarning } from "../import/supplierDb.ts";
+import { consumePriceWarnings, parsePackFile, type PriceWarning } from "../import/supplierDb.ts";
 import { readPdfCatalog, type CatalogPageImage } from "../import/pdfCatalog.ts";
 import { regexCatalogSource, type DraftItem, type ImportProfile, type NormRect } from "../import/parseCatalog.ts";
 import { partFromDraft } from "../import/registry.ts";
@@ -183,12 +183,13 @@ export function SupplierImport() {
               const file = event.target.files?.[0];
               if (!file) return;
               void file.text().then((text) => {
-                const parsed = parsePackFile(text);
-                if (!parsed) {
+                const pack = parsePackFile(text);
+                if (!pack) {
                   setError(lang === "he" ? "הקובץ אינו חבילת ספק." : "That file is not a supplier pack.");
                   return;
                 }
-                if (parsed.priceWarnings.length) {
+                const warnings = consumePriceWarnings();
+                if (warnings.length) {
                   const reasonText: Record<PriceWarning["reason"], string> = {
                     value: t.priceDropValue,
                     currency: t.priceDropCurrency,
@@ -196,9 +197,9 @@ export function SupplierImport() {
                     tiers: t.priceDropTiers,
                     quotedAt: t.priceDropQuotedAt,
                   };
-                  setError(parsed.priceWarnings.map((warning) => `${warning.partId}: ${reasonText[warning.reason]}. ${t.priceDropped}`).join(" "));
+                  setError(warnings.map((warning) => `${warning.partId}: ${reasonText[warning.reason]}. ${t.priceDropped}`).join(" "));
                 } else setError("");
-                upsertSupplier(parsed.pack);
+                upsertSupplier(pack);
               });
             }} />
           </label>

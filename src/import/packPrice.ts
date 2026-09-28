@@ -38,7 +38,6 @@ export function sanitizeSupplierPrice(raw: unknown): { price: SupplierPrice } | 
     moq = price.moq;
   }
 
-  const baseQty = moq ?? 1;
   let tiers: PriceTier[] | undefined;
   if ("tiers" in price && price.tiers !== undefined) {
     if (!Array.isArray(price.tiers)) return { reason: "tiers" };
@@ -48,9 +47,8 @@ export function sanitizeSupplierPrice(raw: unknown): { price: SupplierPrice } | 
       const row = tier as Record<string, unknown>;
       const minQty = row.minQty;
       const tierValue = row.value;
-      if (typeof minQty !== "number" || !Number.isInteger(minQty) || minQty <= baseQty) return { reason: "tiers" };
+      if (typeof minQty !== "number" || !Number.isInteger(minQty) || minQty < 1) return { reason: "tiers" };
       if (typeof tierValue !== "number" || !Number.isFinite(tierValue) || tierValue <= 0) return { reason: "tiers" };
-      if (clean.some((item) => item.minQty === minQty)) return { reason: "tiers" };
       clean.push({ minQty, value: tierValue });
     }
     if (clean.length) {

@@ -1,14 +1,14 @@
 import type { PartFacts } from "./types.ts";
 
-/** An extra quantity break above the base price. `minQty` is an integer. */
+/** A quantity break. `minQty` is an integer of at least 1. */
 export interface PriceTier {
   minQty: number;
   value: number;
 }
 
 /**
- * Optional supplier quote. `value` is the unit price at the base quantity (the MOQ, or one).
- * `tiers` are further breaks only, sorted by `minQty` ascending.
+ * Optional supplier quote. `value` is the unit price and must be greater than 0.
+ * `tiers` are sorted by `minQty` ascending.
  */
 export interface SupplierPrice {
   value: number;

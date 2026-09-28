@@ -248,7 +248,7 @@ const he = {
   priceDropValue: "הערך חייב להיות מספר גדול מ-0",
   priceDropCurrency: "המטבע חייב להיות קוד ISO 4217 בן שלוש אותיות",
   priceDropMoq: "כמות מינימלית חייבת להיות מספר שלם מ-1 ומעלה",
-  priceDropTiers: "מדרגות הכמות חייבות להיות שבירות נוספות בלבד, עם minQty שלם מעל כמות הבסיס",
+  priceDropTiers: "כל מדרגה צריכה minQty שלם מ-1 ומעלה וערך גדול מ-0",
   priceDropQuotedAt: "תאריך ההצעה חייב להיות תאריך ISO 8601",
 };
 
@@ -500,7 +500,7 @@ const en: typeof he = {
   priceDropValue: "value must be a number greater than 0",
   priceDropCurrency: "currency must be an ISO 4217 three-letter code",
   priceDropMoq: "moq must be an integer of 1 or more",
-  priceDropTiers: "tiers must be extra breaks only, each with an integer minQty above the base quantity",
+  priceDropTiers: "each tier needs an integer minQty of at least 1 and a value greater than 0",
   priceDropQuotedAt: "quotedAt must be an ISO 8601 date",
 };
 

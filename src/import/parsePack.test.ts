@@ -5,7 +5,7 @@ vi.mock("dompurify", () => ({
 }));
 
 import { importedPrice, syncRegistry } from "./registry.ts";
-import { parsePackFile } from "./supplierDb.ts";
+import { consumePriceWarnings, parsePackFile } from "./supplierDb.ts";
 
 const basePart = {
   id: "aurora-cap",
@@ -27,22 +27,22 @@ describe("parsePackFile prices", () => {
   afterEach(() => syncRegistry([]));
 
   it("imports an old pack that has no price field", () => {
-    const parsed = parsePackFile(JSON.stringify({
+    const pack = parsePackFile(JSON.stringify({
       name: "Legacy",
       parts: [{ id: "legacy-cap", kind: "cap", name: "Old cap", code: "OLD" }],
     }));
-    expect(parsed).toBeTruthy();
-    expect(parsed!.priceWarnings).toEqual([]);
-    expect(parsed!.pack.version).toBeUndefined();
-    expect(parsed!.pack.parts).toHaveLength(1);
-    expect(parsed!.pack.parts[0].price).toBeUndefined();
-    expect(parsed!.pack.parts[0].name).toBe("Old cap");
-    syncRegistry([parsed!.pack]);
+    expect(pack).toBeTruthy();
+    expect(consumePriceWarnings()).toEqual([]);
+    expect(pack!.version).toBeUndefined();
+    expect(pack!.parts).toHaveLength(1);
+    expect(pack!.parts[0].price).toBeUndefined();
+    expect(pack!.parts[0].name).toBe("Old cap");
+    syncRegistry([pack!]);
     expect(importedPrice("legacy-cap")).toBeUndefined();
   });
 
   it("keeps a valid price, sorts extra breaks, and registers the quote date", () => {
-    const parsed = parsePackFile(JSON.stringify({
+    const pack = parsePackFile(JSON.stringify({
       id: "aurora",
       name: "Aurora",
       createdAt: 10,
@@ -60,8 +60,8 @@ describe("parsePackFile prices", () => {
         },
       }],
     }));
-    expect(parsed!.priceWarnings).toEqual([]);
-    expect(parsed!.pack.parts[0].price).toEqual({
+    expect(consumePriceWarnings()).toEqual([]);
+    expect(pack!.parts[0].price).toEqual({
       value: 4.5,
       currency: "USD",
       moq: 5000,
@@ -71,12 +71,12 @@ describe("parsePackFile prices", () => {
       ],
       quotedAt: "2026-09-01",
     });
-    syncRegistry([parsed!.pack]);
+    syncRegistry([pack!]);
     expect(importedPrice("aurora-cap")).toMatchObject({ value: 4.5, currency: "USD", moq: 5000, quotedAt: "2026-09-01" });
   });
 
   it("drops an invalid price, names the reason, and still imports the part", () => {
-    const parsed = parsePackFile(JSON.stringify({
+    const pack = parsePackFile(JSON.stringify({
       name: "Mixed",
       parts: [
         { ...basePart, id: "text", price: { value: "4", currency: "USD" } },
@@ -84,36 +84,43 @@ describe("parsePackFile prices", () => {
         { ...basePart, id: "words", price: { value: 4, currency: "dollar" } },
         { ...basePart, id: "fraction-moq", price: { value: 4, currency: "AED", moq: 1.5 } },
         { ...basePart, id: "old-tier", price: { value: 4, currency: "ILS", tiers: [{ qty: 10, value: 3 }] } },
-        { ...basePart, id: "base-tier", price: { value: 4, currency: "ILS", moq: 100, tiers: [{ minQty: 100, value: 4 }] } },
+        { ...basePart, id: "zero-tier", price: { value: 4, currency: "ILS", tiers: [{ minQty: 2, value: 0 }] } },
+        { ...basePart, id: "low-qty", price: { value: 4, currency: "ILS", tiers: [{ minQty: 0, value: 3 }] } },
         { ...basePart, id: "stale", price: { value: 4, currency: "ILS", quotedAt: "yesterday" } },
-        { ...basePart, id: "good", price: { value: 12, currency: "ILS" } },
+        { ...basePart, id: "good", price: { value: 12, currency: "ILS", moq: 100, tiers: [{ minQty: 1, value: 11 }, { minQty: 100, value: 9 }] } },
       ],
     }));
-    expect(parsed!.pack.parts.map((part) => part.id)).toEqual(["text", "zero", "words", "fraction-moq", "old-tier", "base-tier", "stale", "good"]);
-    expect(parsed!.pack.parts.slice(0, 7).every((part) => part.price === undefined)).toBe(true);
-    expect(parsed!.pack.parts[7].price).toEqual({ value: 12, currency: "ILS" });
-    expect(parsed!.priceWarnings).toEqual([
+    expect(pack!.parts.map((part) => part.id)).toEqual(["text", "zero", "words", "fraction-moq", "old-tier", "zero-tier", "low-qty", "stale", "good"]);
+    expect(pack!.parts.slice(0, 8).every((part) => part.price === undefined)).toBe(true);
+    expect(pack!.parts[8].price).toEqual({
+      value: 12,
+      currency: "ILS",
+      moq: 100,
+      tiers: [{ minQty: 1, value: 11 }, { minQty: 100, value: 9 }],
+    });
+    expect(consumePriceWarnings()).toEqual([
       { partId: "text", reason: "value" },
       { partId: "zero", reason: "value" },
       { partId: "words", reason: "currency" },
       { partId: "fraction-moq", reason: "moq" },
       { partId: "old-tier", reason: "tiers" },
-      { partId: "base-tier", reason: "tiers" },
+      { partId: "zero-tier", reason: "tiers" },
+      { partId: "low-qty", reason: "tiers" },
       { partId: "stale", reason: "quotedAt" },
     ]);
   });
 
   it("keeps unknown pack fields so a later version can ride along", () => {
-    const parsed = parsePackFile(JSON.stringify({
+    const pack = parsePackFile(JSON.stringify({
       name: "Scan",
       version: 2,
       source: "scan",
       parts: [{ ...basePart, measurements: [{ name: "height", mm: 32 }] }],
     }));
-    expect(parsed!.pack.version).toBe(2);
-    expect((parsed!.pack as { source?: string }).source).toBe("scan");
-    expect((parsed!.pack.parts[0] as { measurements?: unknown[] }).measurements).toEqual([{ name: "height", mm: 32 }]);
-    expect(parsed!.pack.parts[0].price).toBeUndefined();
-    expect(parsed!.priceWarnings).toEqual([]);
+    expect(pack!.version).toBe(2);
+    expect((pack as { source?: string }).source).toBe("scan");
+    expect((pack!.parts[0] as { measurements?: unknown[] }).measurements).toEqual([{ name: "height", mm: 32 }]);
+    expect(pack!.parts[0].price).toBeUndefined();
+    expect(consumePriceWarnings()).toEqual([]);
   });
 });
