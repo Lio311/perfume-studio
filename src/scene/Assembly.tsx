@@ -632,62 +632,57 @@ function Actuator({
   );
 }
 
-function LabelFinishMaterial({
-  map,
-  mask,
-  emissiveMap,
-  ink,
-  application,
+function useLabelFinishMaterial(
+  map: THREE.Texture,
+  mask: THREE.Texture | null,
+  emissiveMap: THREE.Texture | null,
+  ink: string,
+  application: LogoApplication,
   overlay = false,
-}: {
-  map: THREE.Texture;
-  mask: THREE.Texture | null;
-  emissiveMap: THREE.Texture | null;
-  ink: string;
-  application: LogoApplication;
-  overlay?: boolean;
-}) {
-  const finish = labelFinish(application);
-  const flat = finish.metalness === 0 && finish.bumpScale === 0;
-  if (flat || !mask) {
-    return (
-      <meshBasicMaterial
-        map={map}
-        toneMapped={false}
-        transparent={overlay}
-        depthWrite={!overlay}
-        polygonOffset={!overlay}
-        polygonOffsetFactor={-4}
-        polygonOffsetUnits={-4}
-      />
-    );
-  }
-  // Roughness is multiplied by the map. The uniform stays 1 so the plate (green = 1) stays matte
-  // and the ink uses labelFinish().roughness, stored in that channel. Metalness uses the blue channel.
-  // Foil keeps an environment floor and a small ink-coloured emissive so the face stays the ink colour
-  // when the studio behind the camera is dark. The emissive map is black on the plate.
-  const envMapIntensity = application === "foil" ? Math.max(finish.envMapIntensity, FOIL_ENV_FLOOR) : finish.envMapIntensity;
-  return (
-    <meshStandardMaterial
-      map={map}
-      metalness={finish.metalness}
-      metalnessMap={mask}
-      roughness={1}
-      roughnessMap={mask}
-      bumpMap={finish.bumpScale !== 0 ? mask : undefined}
-      bumpScale={finish.bumpScale}
-      envMapIntensity={envMapIntensity}
-      emissive={labelEmissive(ink, application)}
-      emissiveIntensity={finish.emissive}
-      emissiveMap={finish.emissive > 0 ? emissiveMap ?? undefined : undefined}
-      toneMapped={finish.metalness < 0.5}
-      transparent={overlay}
-      depthWrite={!overlay}
-      polygonOffset={!overlay}
-      polygonOffsetFactor={-4}
-      polygonOffsetUnits={-4}
-    />
-  );
+): THREE.Material {
+  const material = useMemo(() => {
+    const finish = labelFinish(application);
+    const flat = finish.metalness === 0 && finish.bumpScale === 0;
+    if (flat || !mask) {
+      return new THREE.MeshBasicMaterial({
+        map,
+        toneMapped: false,
+        transparent: overlay,
+        depthWrite: !overlay,
+        polygonOffset: !overlay,
+        polygonOffsetFactor: -4,
+        polygonOffsetUnits: -4,
+      });
+    }
+    // Roughness is multiplied by the map. The uniform stays 1 so the plate (green = 1) stays matte
+    // and the ink uses labelFinish().roughness, stored in that channel. Metalness uses the blue channel.
+    // Foil keeps an environment floor and a small ink-coloured emissive so the face stays the ink colour
+    // when the studio behind the camera is dark. The emissive map is black on the plate.
+    const envMapIntensity = application === "foil" ? Math.max(finish.envMapIntensity, FOIL_ENV_FLOOR) : finish.envMapIntensity;
+    const next = new THREE.MeshStandardMaterial({
+      map,
+      metalness: finish.metalness,
+      metalnessMap: mask,
+      roughness: 1,
+      roughnessMap: mask,
+      bumpMap: finish.bumpScale !== 0 ? mask : null,
+      bumpScale: finish.bumpScale,
+      envMapIntensity,
+      emissive: new THREE.Color(labelEmissive(ink, application)),
+      emissiveIntensity: finish.emissive,
+      emissiveMap: finish.emissive > 0 ? emissiveMap ?? null : null,
+      toneMapped: finish.metalness < 0.5,
+      transparent: overlay,
+      depthWrite: !overlay,
+      polygonOffset: !overlay,
+      polygonOffsetFactor: -4,
+      polygonOffsetUnits: -4,
+    });
+    next.needsUpdate = true;
+    return next;
+  }, [map, mask, emissiveMap, ink, application, overlay]);
+  useEffect(() => () => material.dispose(), [material]);
+  return material;
 }
 
 function LabelPart() {
@@ -703,6 +698,12 @@ function LabelPart() {
   const shared = useSharedLabelCanvas();
   const canvas = useMemo(() => shared ?? document.createElement("canvas"), [shared]);
   const { color: texture, mask, emissive } = useLabelMaps(canvas, ink, application);
+  const material = useLabelFinishMaterial(texture, mask, emissive, ink, application);
+  const meshRef = useRef<THREE.Mesh>(null);
+  useFrame(() => {
+    const mesh = meshRef.current;
+    if (mesh && mesh.material !== material) mesh.material = material;
+  });
   const plate = useDisposable(() => buildLabelPatch({
     height: design.bottle.heightMm,
     width: design.bottle.widthMm,
@@ -720,8 +721,7 @@ function LabelPart() {
   }), [fit.labelW, fit.labelH, fit.labelY, fit.neckR, design.bottle.heightMm, design.bottle.widthMm, design.bottle.depthMm, bottle]);
   return (
     <PartShell part="label" index={4} home={[0, fit.labelY, fit.labelZ]} explode={fit.explode.label} visible={design.label.visible && onStage} variantKey={spec.id + design.label.text + bottle.id + application}>
-      <mesh geometry={plate} renderOrder={8}>
-        <LabelFinishMaterial map={texture} mask={mask} emissiveMap={emissive} ink={ink} application={application} />
+      <mesh ref={meshRef} geometry={plate} material={material} renderOrder={8}>
         <GoldRim part="label" stamp={spec.id + design.label.text} />
       </mesh>
     </PartShell>
@@ -756,11 +756,16 @@ function BrandPlate({ w, y, z }: { w: number; y: number; z: number }) {
   const aspect = Number(canvas.dataset.aspect);
   const { width: planeW, height: planeH } = cartonMarkSize(w, aspect);
   const { color: tex, mask, emissive } = useLabelMaps(canvas, ink, application);
+  const material = useLabelFinishMaterial(tex, mask, emissive, ink, application, true);
+  const plateRef = useRef<THREE.Mesh>(null);
+  useFrame(() => {
+    const mesh = plateRef.current;
+    if (mesh && mesh.material !== material) mesh.material = material;
+  });
   if (blueprint || text.trim().length === 0) return null;
   return (
-    <mesh position={[0, y, z]}>
+    <mesh ref={plateRef} position={[0, y, z]} material={material}>
       <planeGeometry args={[planeW, planeH]} />
-      <LabelFinishMaterial map={tex} mask={mask} emissiveMap={emissive} ink={ink} application={application} overlay />
     </mesh>
   );
 }
