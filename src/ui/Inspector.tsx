@@ -53,7 +53,7 @@ export function Inspector() {
           <h3>{t.color}</h3>
           <div className="swatches">
             {(part === "liquid" ? LIQUID_PALETTE : PALETTE).map((color) => (
-              <button key={color} type="button" className="swatch" style={{ background: color }} aria-label={color} onClick={() => patch(part, { color })} />
+              <button key={color} type="button" className={design[part].color === color ? "swatch is-on" : "swatch"} style={{ background: color }} aria-label={color} onClick={() => patch(part, { color })} />
             ))}
             <label className="picker">
               <input type="color" value={toHex(design[part].color)} onChange={(event) => patch(part, { color: event.target.value })} />

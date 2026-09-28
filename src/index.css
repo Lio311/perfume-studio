@@ -278,9 +278,13 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 }
 .chip.is-on { border-color: var(--text); background: var(--text); color: var(--bg); }
 .swatches, .liquid-swatches { display: flex; flex-wrap: wrap; gap: 6px; }
-.swatch { width: 22px; height: 22px; padding: 0; border-radius: 50%; border: 1px solid var(--line); }
-.swatch.is-on { outline: 1px solid var(--accent); }
-.picker input { width: 22px; height: 22px; padding: 0; border: 0; background: transparent; }
+.swatch { width: 32px; height: 32px; padding: 0; border-radius: 50%; border: 1px solid var(--line); transition: transform 0.15s ease, outline-offset 0.15s ease; cursor: pointer; }
+.swatch:hover { transform: scale(1.1); }
+.swatch.is-on { outline: 2px solid var(--accent); outline-offset: 2px; }
+.picker { position: relative; width: 32px; height: 32px; border-radius: 50%; background: conic-gradient(red, yellow, lime, aqua, blue, magenta, red); cursor: pointer; overflow: hidden; border: 1px solid var(--line); display: flex; align-items: center; justify-content: center; transition: transform 0.15s ease; flex-shrink: 0; }
+.picker:hover { transform: scale(1.1); }
+.picker::after { content: "+"; color: white; font-size: 20px; font-weight: bold; text-shadow: 0 1px 2px rgba(0,0,0,0.5); pointer-events: none; }
+.picker input { position: absolute; opacity: 0; width: 200%; height: 200%; top: -50%; left: -50%; cursor: pointer; }
 .segments button.is-on, .dock button.is-on, .mic.is-on { background: var(--fill); border-color: var(--accent); color: var(--accent-2); }
 .slider { display: grid; grid-template-columns: 1fr auto; gap: 4px 8px; margin-top: 10px; font-size: 13px; }
 .slider input { grid-column: 1 / -1; accent-color: var(--accent); width: 100%; }
