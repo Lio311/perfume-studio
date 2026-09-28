@@ -195,7 +195,7 @@ export default function App() {
               <b>
                 {lang === "he" ? [
                   "שלב 1: בחירת בקבוק",
-                  "שלב 2: צבע הבקבוק",
+                  "שלב 2: צבע הנוזל ומילוי",
                   "שלב 3: בחירת מרסס",
                   "שלב 4: בחירת צווארון",
                   "שלב 5: בחירת פקק",
@@ -203,7 +203,7 @@ export default function App() {
                   "שלב 7: בחירת אריזה"
                 ][design.step] : [
                   "Step 1: Choose a Bottle",
-                  "Step 2: Choose Bottle Color",
+                  "Step 2: Choose Liquid Color",
                   "Step 3: Choose a Pump",
                   "Step 4: Choose a Collar",
                   "Step 5: Choose a Cap",
