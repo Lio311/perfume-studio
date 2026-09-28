@@ -113,7 +113,12 @@ export function Library() {
       )}
       <div className="tabs" role="tablist">
         {activeTabs.map((key) => (
-          <button key={key} type="button" role="tab" data-part={key} aria-selected={tab === key} className={tab === key ? "is-on" : ""} onClick={() => setTab(key)}>
+          <button key={key} type="button" role="tab" data-part={key} aria-selected={tab === key} className={tab === key ? "is-on" : ""} onClick={() => {
+            setTab(key);
+            if (isWizard && key !== "pending") {
+              useLab.getState().setStage(key === "box" ? "box" : "bottle");
+            }
+          }}>
             {key === "pending" ? t.pending : key === "liquid" ? partLabel[lang].liquid : partLabel[lang][key]}
           </button>
         ))}
@@ -236,8 +241,10 @@ export function Library() {
               style={{ flex: 1, border: "1px solid var(--border-color, #333)", fontWeight: "bold" }}
               onClick={() => {
                 const prevStep = wizardStep - 1;
+                const prevTab = WIZARD_ORDER[prevStep];
                 applyCommands([{ type: "wizard_step", step: prevStep }]);
-                setTab(WIZARD_ORDER[prevStep]);
+                setTab(prevTab);
+                useLab.getState().setStage(prevTab === "box" ? "box" : "bottle");
               }}
             >
               {lang === "he" ? "הקודם" : "Back"}
@@ -255,8 +262,11 @@ export function Library() {
                   const nextStep = wizardStep + 1;
                   applyCommands([{ type: "wizard_step", step: nextStep }]);
                   if (nextStep < WIZARD_ORDER.length) {
-                    setTab(WIZARD_ORDER[nextStep]);
+                    const nextTab = WIZARD_ORDER[nextStep];
+                    setTab(nextTab);
+                    useLab.getState().setStage(nextTab === "box" ? "box" : "bottle");
                   } else {
+                    useLab.getState().setStage("together");
                     useLab.getState().setLibraryOpen(false);
                   }
                 }}
