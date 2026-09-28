@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Grid, OrbitControls } from "@react-three/drei";
 import * as THREE from "three";
@@ -14,6 +14,8 @@ import { cameraProbe, sceneSpan } from "./limits.ts";
 import { clampPolarOffset, decayGlide, emptyGlide, PAN_SPEED, PAN_STEP, PITCH_STEP, polarAngle, poseBroken, pushGlide, ROTATE_SPEED, takeStep, YAW_STEP, type Glide } from "./orbitGlide.ts";
 import { Exposure, PixelRatio, StageFloor, StudioEnv, StudioLights } from "./studio.tsx";
 import { CinematicFloor, EnergyRings, ParticleField, VoiceGrade } from "./voiceScenery.tsx";
+import { webglAvailable } from "./webgl.ts";
+import { WebglBoundary, WebglFallback } from "../ui/FallbackScreen.tsx";
 
 const VIEW_DIR: Record<ViewPreset | "three", THREE.Vector3> = {
   home: new THREE.Vector3(0.78, 0.22, 1).normalize(),
@@ -621,6 +623,9 @@ function Stage() {
 }
 
 export function LabCanvas() {
+  const supported = useMemo(() => webglAvailable(), []);
+  const [lost, setLost] = useState(false);
+
   useEffect(() => {
     const el = document.querySelector(".stage-slot");
     if (!el) return;
@@ -632,15 +637,25 @@ export function LabCanvas() {
     return () => observer.disconnect();
   }, []);
 
+  if (!supported || lost) return <WebglFallback />;
+
   return (
-    <Canvas
-      className="stage-canvas"
-      dpr={[1, 2]}
-      camera={{ position: [120, 150, 640], fov: 30, near: 0.5, far: 5000 }}
-      gl={{ antialias: true, alpha: false, preserveDrawingBuffer: true, powerPreference: "high-performance", localClippingEnabled: true }}
-      onPointerMissed={() => releaseFocus()}
-    >
-      <Stage />
-    </Canvas>
+    <WebglBoundary>
+      <Canvas
+        className="stage-canvas"
+        dpr={[1, 2]}
+        camera={{ position: [120, 150, 640], fov: 30, near: 0.5, far: 5000 }}
+        gl={{ antialias: true, alpha: false, preserveDrawingBuffer: true, powerPreference: "high-performance", localClippingEnabled: true }}
+        onPointerMissed={() => releaseFocus()}
+        onCreated={({ gl }) => {
+          gl.domElement.addEventListener("webglcontextlost", (event) => {
+            event.preventDefault();
+            setLost(true);
+          });
+        }}
+      >
+        <Stage />
+      </Canvas>
+    </WebglBoundary>
   );
 }

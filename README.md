@@ -43,3 +43,8 @@ This project is built using modern web and 3D technologies:
 - **GLB Support**: Implement a loader for non-procedural imported 3D models.
 - **LLM Integration**: Connect a Large Language Model behind the chat interpreter for more natural command parsing (falling back to the local regex parser).
 - **Image-to-3D Integration**: Add API support to generate non-round parts from user-uploaded photos.
+
+## Decisions
+
+- A share link (`#d=`) that omits a part, or was saved before `liquid` and `label` existed, fills the missing fields from the current defaults. A hash that cannot be read stays on the current design. If rendering still throws, a Hebrew screen offers איפוס back to a fresh bottle. If WebGL is unavailable or the renderer throws, the stage shows a Hebrew message instead of a blank page.
+- Browser Back closes one in-app layer at a time: a dialog, the presentation, search or help, a selected part, a wizard step, the carton stage, then explode. Once none of those are open, Back leaves the site. It does not push another history entry on that last step. The wizard’s הקודם button only changes the step; it is not what traps history.

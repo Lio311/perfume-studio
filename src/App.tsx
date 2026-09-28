@@ -4,6 +4,8 @@ import { applyTheme } from "./theme/themes.ts";
 import { partLabel, tx, wizardTitle } from "./i18n/copy.ts";
 import { pngDownloadName } from "./ui/pngName.ts";
 import { useLab } from "./store/labStore.ts";
+import { decodeShareDesign } from "./model/share.ts";
+import { backSurface, handleHistoryPop, syncHistoryTrap, type BackAction, type Trap } from "./nav/backHistory.ts";
 import { TopBar } from "./ui/TopBar.tsx";
 import { Library } from "./ui/Library.tsx";
 import { Inspector } from "./ui/Inspector.tsx";
@@ -15,6 +17,27 @@ import { CompareBoard } from "./ui/CompareBoard.tsx";
 import { Modals } from "./ui/Modals.tsx";
 import { stopSpeaking } from "./audio/speech.ts";
 import { loadPacks } from "./import/supplierDb.ts";
+
+function applyBackAction(action: Exclude<BackAction, "leave">) {
+  const lab = useLab.getState();
+  if (action === "modal") lab.setModal(null);
+  else if (action === "present") lab.setPresent(false);
+  else if (action === "overlays") {
+    lab.setPalette(false);
+    lab.setHelp(false);
+  } else if (action === "selection") lab.showFull();
+  else if (action === "wizard") {
+    const step = lab.design.step ?? 7;
+    const prev = Math.max(0, step - 1);
+    lab.applyCommands([{ type: "wizard_step", step: prev }]);
+    lab.setStage(prev >= 6 ? "box" : "bottle");
+  } else if (action === "stage") lab.setStage("bottle");
+  else if (action === "mode") {
+    // Zero before setMode so the assemble tween does not leave explode open and re-arm history.
+    useLab.setState({ explode: 0 });
+    lab.setMode("assemble");
+  }
+}
 
 export default function App() {
   const theme = useLab((s) => s.theme);
@@ -45,6 +68,10 @@ export default function App() {
   const modal = useLab((s) => s.modal);
   const setModal = useLab((s) => s.setModal);
   const toast = useLab((s) => s.toast);
+  const stage = useLab((s) => s.stage);
+  const explode = useLab((s) => s.explode);
+  const wizardStep = useLab((s) => s.design.step);
+  const trapRef = useRef<Trap>({ armed: false });
   const [hintOn, setHintOn] = useState(true);
   const [swapping, setSwapping] = useState(false);
 
@@ -75,32 +102,23 @@ export default function App() {
   useEffect(() => {
     const hash = location.hash.startsWith("#d=") ? location.hash.slice(3) : "";
     if (hash) {
-      try {
-        const json = decodeURIComponent(escape(atob(hash.replace(/-/g, "+").replace(/_/g, "/"))));
-        const design = JSON.parse(json);
-        if (design?.bottle && design?.cap) useLab.setState({ design });
-      } catch {
-        // A shared link that cannot be read stays on the current design.
-      }
+      const shared = decodeShareDesign(hash);
+      if (shared) useLab.setState({ design: shared });
     }
-    if (!history.state || !(history.state as { lab?: number }).lab) history.pushState({ lab: 1 }, "");
+    const trap = trapRef.current;
+    const surface = () => backSurface(useLab.getState());
+    syncHistoryTrap(history, surface(), trap);
     const onPop = () => {
-      const value = new URLSearchParams(location.search).get("voice");
-      useLab.getState().applyVoiceParam(value);
-      const lab = useLab.getState();
-      if (lab.modal) lab.setModal(null);
-      else if (lab.present) lab.setPresent(false);
-      else if (lab.palette || lab.help) {
-        lab.setPalette(false);
-        lab.setHelp(false);
-      } else if (lab.solo || lab.aimed) lab.showFull();
-      else if (lab.stage !== "bottle") lab.setStage("bottle");
-      else if (lab.mode !== "assemble" || lab.explode > 0.02) lab.setMode("assemble");
-      history.pushState({ lab: 1 }, "");
+      useLab.getState().applyVoiceParam(new URLSearchParams(location.search).get("voice"));
+      handleHistoryPop(history, surface(), applyBackAction, surface, trap);
     };
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
   }, []);
+
+  useEffect(() => {
+    syncHistoryTrap(history, backSurface(useLab.getState()), trapRef.current);
+  }, [aimed, explode, helpOpen, modal, mode, palette, present, solo, stage, wizardStep]);
 
   useEffect(() => {
     const fade = () => setHintOn(false);

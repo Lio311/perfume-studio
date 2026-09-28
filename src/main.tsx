@@ -1,6 +1,7 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App.tsx";
+import { AppErrorBoundary } from "./ui/FallbackScreen.tsx";
 import "./index.css";
 
 document.fonts?.load('500 16px Heebo');
@@ -12,6 +13,8 @@ document.fonts?.load('400 48px "Great Vibes"');
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <App />
+    <AppErrorBoundary>
+      <App />
+    </AppErrorBoundary>
   </StrictMode>,
 );

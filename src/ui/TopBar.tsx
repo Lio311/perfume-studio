@@ -8,6 +8,7 @@ import { useLab, type LabMode } from "../store/labStore.ts";
 import { pngDownloadName } from "./pngName.ts";
 import { downloadSpec } from "./specSheet.ts";
 import { VoiceSwitch } from "./VoiceSwitch.tsx";
+import { encodeShareDesign } from "../model/share.ts";
 
 const MODES: LabMode[] = ["assemble", "explode", "dimensions"];
 
@@ -47,8 +48,7 @@ export function TopBar() {
   }
 
   function share() {
-    const json = JSON.stringify(design);
-    const hash = btoa(unescape(encodeURIComponent(json))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+    const hash = encodeShareDesign(design);
     const url = `${location.origin}${location.pathname}${location.search}#d=${hash}`;
     void navigator.clipboard?.writeText(url).then(
       () => {
