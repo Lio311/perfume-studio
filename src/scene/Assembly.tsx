@@ -3,9 +3,12 @@ import { useFrame } from "@react-three/fiber";
 import { RoundedBox } from "@react-three/drei";
 import * as THREE from "three";
 import { bottleById, boxById, capById, collarById, logoById, pumpById } from "../model/catalog.ts";
-import { computeFit } from "../model/fit.ts";
+import { closureForForm } from "../model/boxFields.ts";
+import { trayLiftNow } from "./trayLift.ts";
+import { computeFit, type Fit } from "../model/fit.ts";
 import { isGlass } from "../model/materials.ts";
 import type { BoxForm, PartKey, PumpStyle } from "../model/types.ts";
+import { ClosureBox } from "./boxClosure.tsx";
 import { buildBottleGeometry, buildCapGeometry, buildLabelPatch } from "../geometry/sweep.ts";
 import { FOIL_ENV_FLOOR, labelEmissive, labelFinish, labelInk } from "../geometry/logos.ts";
 import type { LogoApplication } from "../model/types.ts";
@@ -99,7 +102,8 @@ function PartShell({
       ty = park[1];
       tz = park[2];
     } else if (state.stage === "box" && part !== "box") {
-      ty += 8;
+      const lying = state.design.box.insert?.orientation === "lying" && !state.solo && !state.aimed;
+      if (!lying) ty += (state.design.box.boardMm ?? 2.2) + 5;
     }
     const yaw = isolated ? 0 : local * 0.14 * (index % 2 === 0 ? 1 : -1);
     group.rotation.y = THREE.MathUtils.damp(group.rotation.y, yaw, 5, dt);
@@ -267,12 +271,14 @@ export function Assembly() {
     <LabelPaintProvider>
     <Clock.Provider value={clock}>
       <BoxPart />
-      <BottlePart />
-      <LiquidPart />
-      <LabelPart />
-      <CollarPart />
-      <PumpPart />
-      <CapPart />
+      <BottleSeat>
+        <BottlePart />
+        <LiquidPart />
+        <LabelPart />
+        <CollarPart />
+        <PumpPart />
+        <CapPart />
+      </BottleSeat>
       <PartGuides />
       <Callouts />
       <HoloShell />
@@ -282,6 +288,26 @@ export function Assembly() {
     </Clock.Provider>
     </LabelPaintProvider>
   );
+}
+
+function BottleSeat({ children }: { children: ReactNode }) {
+  const ref = useRef<THREE.Group>(null);
+  useFrame(() => {
+    const group = ref.current;
+    if (!group) return;
+    const state = useLab.getState();
+    const lying = state.stage === "box" && state.design.box.insert?.orientation === "lying" && !state.solo && !state.aimed;
+    const rise = state.stage === "box" ? trayLiftNow.mm : 0;
+    if (!lying) {
+      group.rotation.x = 0;
+      group.position.set(0, rise, 0);
+      return;
+    }
+    const seated = computeFit(state.design, false);
+    group.rotation.x = Math.PI / 2;
+    group.position.set(0, seated.lyingLift + rise, seated.lyingShiftZ);
+  });
+  return <group ref={ref}>{children}</group>;
 }
 
 function Turntable() {
@@ -307,6 +333,7 @@ function Turntable() {
 }
 
 function Shadow({ fitWidth }: { fitWidth: number }) {
+  const quality = useLab((s) => s.quality);
   const map = useMemo(() => {
     const canvas = document.createElement("canvas");
     canvas.width = 128;
@@ -325,7 +352,7 @@ function Shadow({ fitWidth }: { fitWidth: number }) {
   useEffect(() => {
     if (map) return () => map.dispose();
   }, [map]);
-  if (!map) return null;
+  if (quality !== "fallback" || !map) return null;
   return (
     <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.05, 0]}>
       <planeGeometry args={[fitWidth * 1.8, fitWidth * 1.35]} />
@@ -711,7 +738,7 @@ function BoxPart() {
   const shown = stage === "box" || (stage === "together" && design.box.visible);
   return (
     <PartShell part="box" index={0} home={home} explode={burst} visible={shown} variantKey={spec.id}>
-      <BoxFormMesh form={spec.form} w={fit.boxW} h={fit.boxH} d={fit.boxD} finish={design.box.finish} color={design.box.color} />
+      <BoxFormMesh form={spec.form} w={fit.boxW} h={fit.boxH} d={fit.boxD} fit={fit} finish={design.box.finish} color={design.box.color} />
     </PartShell>
   );
 }
@@ -876,6 +903,7 @@ function BoxFormMesh({
   w,
   h,
   d,
+  fit,
   finish,
   color,
 }: {
@@ -883,6 +911,7 @@ function BoxFormMesh({
   w: number;
   h: number;
   d: number;
+  fit: Fit;
   finish: Parameters<typeof FinishMaterial>[0]["finish"];
   color: string;
 }) {
@@ -915,6 +944,9 @@ function BoxFormMesh({
     const state = useLab.getState();
     state.setBoxOpen(!state.boxOpen);
   };
+  const structure = useLab((s) => s.design.box.structure ?? "lift-off");
+  const legacyForm = (form === "tube" || form === "plinth") && structure === closureForForm(form).structure;
+  if (!legacyForm) return <ClosureBox form={form} fit={fit} />;
   if (form === "tube") {
     return (
       <group>

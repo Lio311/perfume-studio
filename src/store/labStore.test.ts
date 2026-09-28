@@ -42,6 +42,9 @@ describe("labStore", () => {
   });
 
   it("shows the label when brand text is typed and keeps the previous visibility when the text is cleared", () => {
+    const hidden = createDefaultDesign();
+    hidden.label.visible = false;
+    useLab.setState({ design: hidden, past: [], future: [] });
     expect(useLab.getState().design.label.visible).toBe(false);
 
     useLab.getState().applyCommands([{ type: "text", text: "" }]);

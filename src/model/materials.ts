@@ -117,3 +117,11 @@ export function effectiveGlassOpacity(finish: FinishId, opacity?: number): numbe
   if (!glass) return null;
   return opacity ?? DEFAULT_GLASS_OPACITY[glass];
 }
+
+/** Stored transmission for a finish. The renderer reads `computeGlassProps`, which also follows the slider. */
+export function glassTransmission(finish: FinishId, opacity?: number): number {
+  const glass = glassFinish(finish);
+  if (!glass) return 0;
+  if (opacity !== undefined) return 1 - opacity;
+  return GLASS_FINISH_DEFAULTS[glass].transmission;
+}

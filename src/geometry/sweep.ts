@@ -277,12 +277,26 @@ function prepareLabelPatch(args: LabelPatchArgs) {
   const mid = (y0 + y1) / 2;
   const midSample = bottleRadii(mid, height, width, depth, args.profile, args.shoulder, neckR, args.finishMm);
   const half = Math.min(Math.max(6, args.patchW / 2), midSample.rx * 0.86);
+  const widest = (span: number) => {
+    let maxAbs = 0;
+    const ySteps = 12;
+    const aSteps = 16;
+    for (let yi = 0; yi <= ySteps; yi += 1) {
+      const y = y0 + ((y1 - y0) * yi) / ySteps;
+      const sample = bottleRadii(y, height, width, depth, args.profile, args.shoulder, neckR, args.finishMm);
+      for (let ai = 0; ai <= aSteps; ai += 1) {
+        const ang = Math.PI / 2 - span + ((ai / aSteps) * span * 2);
+        const [x] = sectionPoint(args.section, ang, sample.rx, sample.rz, args.softness, sample.morph, y);
+        maxAbs = Math.max(maxAbs, Math.abs(x));
+      }
+    }
+    return maxAbs;
+  };
   let lo = 0.08;
   let hi = Math.PI * 0.46;
-  for (let i = 0; i < 14; i += 1) {
+  for (let i = 0; i < 16; i += 1) {
     const span = (lo + hi) / 2;
-    const [x] = sectionPoint(args.section, Math.PI / 2 - span, midSample.rx, midSample.rz, args.softness, midSample.morph, mid);
-    if (Math.abs(x) < half) lo = span;
+    if (widest(span) < half) lo = span;
     else hi = span;
   }
   return { height, width, depth, neckR, y0, y1, mid, midSample, half, span: lo };
@@ -291,17 +305,22 @@ function prepareLabelPatch(args: LabelPatchArgs) {
 /** Width and height of the decal that `buildLabelPatch` will actually draw. */
 export function labelPatchExtent(args: LabelPatchArgs): { width: number; height: number } {
   const prep = prepareLabelPatch(args);
-  let maxAbsX = 0;
-  const steps = 8;
-  for (let i = 0; i <= steps; i += 1) {
-    const y = prep.y0 + ((prep.y1 - prep.y0) * i) / steps;
+  // Same grid as the mesh. Edge samples miss the widest point on a round section.
+  const ySteps = 28;
+  const aSteps = 64;
+  let minX = Infinity;
+  let maxX = -Infinity;
+  for (let yi = 0; yi <= ySteps; yi += 1) {
+    const y = prep.y0 + ((prep.y1 - prep.y0) * yi) / ySteps;
     const sample = bottleRadii(y, prep.height, prep.width, prep.depth, args.profile, args.shoulder, prep.neckR, args.finishMm);
-    for (const ang of [Math.PI / 2 - prep.span, Math.PI / 2 + prep.span]) {
+    for (let ai = 0; ai <= aSteps; ai += 1) {
+      const ang = Math.PI / 2 - prep.span + ((ai / aSteps) * prep.span * 2);
       const [x] = sectionPoint(args.section, ang, sample.rx, sample.rz, args.softness, sample.morph, y);
-      maxAbsX = Math.max(maxAbsX, Math.abs(x));
+      minX = Math.min(minX, x);
+      maxX = Math.max(maxX, x);
     }
   }
-  return { width: maxAbsX * 2, height: prep.y1 - prep.y0 };
+  return { width: maxX - minX, height: prep.y1 - prep.y0 };
 }
 
 /** A decal on the +Z face of the same sweep the glass uses, in label-local space. */
