@@ -126,28 +126,23 @@ export function TopBar() {
         <button type="button" className={stage === "box" ? "is-on" : ""} onClick={() => setStage("box")}>{t.stageBox}</button>
         <button type="button" className={stage === "together" ? "is-on" : ""} onClick={() => setStage("together")}>{t.stageTogether}</button>
       </div>
-      <div className="menu-wrap">
-        <button type="button" className={menu === "view" ? "text-btn is-on" : "text-btn"} onClick={() => setMenu(menu === "view" ? null : "view")}>{t.viewMenu}</button>
-        {menu === "view" && (
-          <div className="menu-pop">
-            <VoiceSwitch />
-            <button type="button" className={`text-btn blueprint-btn ${blueprint ? "is-on" : ""}`} aria-pressed={blueprint} onClick={() => { setBlueprint(!blueprint); setMenu(null); }}>{t.blueprint}</button>
-            <div className="voice-switch" role="group">
-              <button type="button" className={theme === "light" ? "is-on" : ""} onClick={() => {
-                if (theme === "light") return;
-                const toggle = () => { setTheme("light"); setMenu(null); };
-                if (document.startViewTransition) document.startViewTransition(() => flushSync(toggle));
-                else toggle();
-              }}>{t.themeToLight}</button>
-              <button type="button" className={theme === "dark" ? "is-on" : ""} onClick={() => {
-                if (theme === "dark") return;
-                const toggle = () => { setTheme("dark"); setMenu(null); };
-                if (document.startViewTransition) document.startViewTransition(() => flushSync(toggle));
-                else toggle();
-              }}>{t.themeToDark}</button>
-            </div>
-          </div>
-        )}
+      <div className="view-controls" style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+        <button type="button" className={`text-btn blueprint-btn ${blueprint ? "is-on" : ""}`} aria-pressed={blueprint} onClick={() => setBlueprint(!blueprint)}>{t.blueprint}</button>
+        <div className="voice-switch" role="group">
+          <button type="button" className={theme === "light" ? "is-on" : ""} onClick={() => {
+            if (theme === "light") return;
+            const toggle = () => setTheme("light");
+            if (document.startViewTransition) document.startViewTransition(() => flushSync(toggle));
+            else toggle();
+          }}>{t.themeToLight}</button>
+          <button type="button" className={theme === "dark" ? "is-on" : ""} onClick={() => {
+            if (theme === "dark") return;
+            const toggle = () => setTheme("dark");
+            if (document.startViewTransition) document.startViewTransition(() => flushSync(toggle));
+            else toggle();
+          }}>{t.themeToDark}</button>
+        </div>
+        <VoiceSwitch />
       </div>
       <div className="menu-wrap">
         <button type="button" className={menu === "export" ? "text-btn is-on" : "text-btn"} onClick={() => setMenu(menu === "export" ? null : "export")}>{t.exportMenu}</button>
