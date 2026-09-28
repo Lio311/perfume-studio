@@ -132,6 +132,53 @@ describe("imported crimp pumps", () => {
     expect(fit.headR).toBeCloseTo(6.2);
     expect(fit.headR).not.toBeCloseTo(fit.neckR * 0.9);
   });
+
+  function fitForWidth(id: string, widthMm: number) {
+    syncRegistry([{ id: "supplier", name: "Supplier", createdAt: 1, parts: [importedPump(id, widthMm)] }]);
+    const design = crimpDesign();
+    design.pump.variantId = id;
+    return computeFit(design, true);
+  }
+
+  it("clamps a supplier head above the collar radius", () => {
+    const collarOuter = computeFit(crimpDesign(), true).collarOuter;
+    const widthMm = (collarOuter + 2) * 2;
+    const fit = fitForWidth("imp-over", widthMm);
+    expect(widthMm / 2).toBeGreaterThan(fit.collarOuter);
+    expect(fit.headR).toBeCloseTo(fit.collarOuter);
+    expect(fit.headR).toBeLessThan(widthMm / 2);
+  });
+
+  it("keeps a supplier head equal to the collar radius", () => {
+    const collarOuter = computeFit(crimpDesign(), true).collarOuter;
+    const widthMm = collarOuter * 2;
+    const fit = fitForWidth("imp-equal", widthMm);
+    expect(fit.headR).toBeCloseTo(fit.collarOuter);
+    expect(fit.headR).toBeCloseTo(widthMm / 2);
+  });
+
+  it("keeps a supplier head below the collar radius", () => {
+    const collarOuter = computeFit(crimpDesign(), true).collarOuter;
+    const widthMm = (collarOuter - 1.2) * 2;
+    const fit = fitForWidth("imp-under", widthMm);
+    expect(widthMm / 2).toBeLessThan(fit.collarOuter);
+    expect(fit.headR).toBeCloseTo(widthMm / 2);
+  });
+});
+
+describe("stock pump heads", () => {
+  it("leaves every stock pump head unchanged", () => {
+    for (const spec of PUMPS) {
+      const design = createDefaultDesign();
+      design.pump.variantId = spec.id;
+      design.cap.visible = false;
+      const fit = computeFit(design, true);
+      expect(spec.widthMm, spec.id).toBeUndefined();
+      const factor = spec.radiusFactor ?? 0.42;
+      const expected = spec.style === "crimp" ? fit.neckR * factor : Math.max(fit.neckR * factor, fit.neckR * 0.42);
+      expect(fit.headR, spec.id).toBeCloseTo(expected);
+    }
+  });
 });
 
 describe("matte palette", () => {
