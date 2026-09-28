@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { flushSync } from "react-dom";
 import { tx } from "../i18n/copy.ts";
 import { bottleById } from "../model/catalog.ts";
@@ -6,6 +7,7 @@ import { estimateMl } from "../model/design.ts";
 import { requestShot } from "../scene/capture.ts";
 import { useLab, type LabMode } from "../store/labStore.ts";
 import { pngDownloadName } from "./pngName.ts";
+import { clipToast } from "./toast.ts";
 import { downloadSpec } from "./specSheet.ts";
 import { VoiceSwitch } from "./VoiceSwitch.tsx";
 import { encodeShareDesign } from "../model/share.ts";
@@ -31,6 +33,8 @@ export function TopBar() {
   const setLibraryOpen = useLab((s) => s.setLibraryOpen);
   const setSideOpen = useLab((s) => s.setSideOpen);
   const [notice, setNotice] = useState("");
+  const shareUrl = useLab((s) => s.shareUrl);
+  const setShareUrl = useLab((s) => s.setShareUrl);
   const [menu, setMenu] = useState<null | "view" | "export">(null);
   const t = tx(lang);
   const ml = estimateMl(design);
@@ -47,15 +51,31 @@ export function TopBar() {
     return pngDownloadName(design.label.text, spec.name.en, day);
   }
 
+  function dismissShare() {
+    setShareUrl("");
+    setNotice("");
+  }
+
   function share() {
     const hash = encodeShareDesign(design);
     const url = `${location.origin}${location.pathname}${location.search}#d=${hash}`;
-    void navigator.clipboard?.writeText(url).then(
+    const write = navigator.clipboard?.writeText?.(url);
+    const showLink = () => {
+      setShareUrl(url);
+      setNotice(lang === "he" ? "לא הצלחנו להעתיק. בחרו את הקישור והעתיקו אותו" : "Could not copy. Select the link and copy it");
+    };
+    if (!write) {
+      showLink();
+      setMenu(null);
+      return;
+    }
+    void write.then(
       () => {
+        setShareUrl("");
         setNotice(t.shared);
         window.setTimeout(() => setNotice(""), 1800);
       },
-      () => setNotice(url),
+      showLink,
     );
     setMenu(null);
   }
@@ -80,6 +100,15 @@ export function TopBar() {
     window.setTimeout(() => setNotice(""), 1600);
     setMenu(null);
   }
+
+  useEffect(() => {
+    if (!shareUrl) return undefined;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") dismissShare();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [shareUrl, setShareUrl]);
 
   useEffect(() => {
     if (!menu) return undefined;
@@ -163,7 +192,17 @@ export function TopBar() {
         <button type="button" className="text-btn panel-toggle" onClick={() => setLibraryOpen(!libraryOpen)}>{t.library}</button>
         <button type="button" className="text-btn panel-toggle" onClick={() => setSideOpen(!sideOpen)}>{t.properties}</button>
       </div>
-      {notice && <div className="toast">{notice}</div>}
+      {notice && createPortal(
+        <div className="toast" dir={lang === "he" ? "rtl" : "ltr"}>{clipToast(notice)}</div>,
+        document.body,
+      )}
+      {shareUrl && createPortal(
+        <form className="share-fallback" dir="ltr" onSubmit={(event) => event.preventDefault()}>
+          <button type="button" className="share-fallback-close" aria-label={lang === "he" ? "סגור" : "Close"} onClick={dismissShare}>×</button>
+          <textarea readOnly rows={Math.max(4, Math.ceil(shareUrl.length / 84))} value={shareUrl} aria-label={t.share} onFocus={(event) => event.currentTarget.select()} />
+        </form>,
+        document.body,
+      )}
     </header>
   );
 }

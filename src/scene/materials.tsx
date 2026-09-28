@@ -160,6 +160,7 @@ export function FinishMaterial({
   const theme = useLab((s) => s.theme);
   const glassLike = glass && isGlass(finish);
   const metal = finish === "gold" || finish === "silver" || finish === "rose";
+  const matte = finish === "matteBlack";
   const clear = finish === "clear";
   const fade = useMemo(() => ({ uFade: { value: 1 }, uColor: { value: new THREE.Color() } }), []);
   useEffect(() => {
@@ -193,16 +194,19 @@ export function FinishMaterial({
       bumpScale={leather ? 0.35 : paper ? 0.35 : 0}
       emissive="#000000"
       emissiveIntensity={0}
-      metalness={metal ? 1 : finish === "matteBlack" ? 0.02 : 0}
+      metalness={metal ? 1 : 0}
       roughness={
         clear ? 0.015 :
         finish === "frosted" ? 0.34 :
         finish === "tinted" ? 0.05 :
         metal ? 0.14 :
-        finish === "matteBlack" ? 0.86 :
+        matte ? 0.68 :
         finish === "wood" ? 0.7 :
         0.84
       }
+      sheen={matte ? 0.06 : 0}
+      sheenRoughness={0.62}
+      sheenColor="#4a4f56"
       transmission={materialTransmission}
       thickness={glassLike ? (finish === "tinted" ? 4.2 : 2.8) : 0}
       ior={clear ? 1.52 : 1.5}
@@ -210,8 +214,8 @@ export function FinishMaterial({
       clearcoatRoughness={metal ? 0.12 : 0.04}
       attenuationColor={clear ? "#fff8ee" : color}
       attenuationDistance={clear ? 160 : finish === "tinted" ? 36 : 36}
-      envMapIntensity={metal ? 1.65 : glassLike ? 1.7 : finish === "matteBlack" ? 0.28 : 0.7}
-      specularIntensity={glassLike || metal ? 1 : 0.3}
+      envMapIntensity={metal ? 1.65 : glassLike ? 1.7 : matte ? 0.35 : 0.7}
+      specularIntensity={glassLike || metal ? 1 : matte ? 0.4 : 0.3}
       transparent={glassLike}
       opacity={materialOpacity}
       depthWrite={!glassLike}

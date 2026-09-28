@@ -52,6 +52,8 @@ export function StudioLights() {
         <directionalLight position={[48, 110, 72]} color="#ffffff" intensity={2.15} />
         <directionalLight position={[-62, 28, 48]} color="#d5deea" intensity={0.55} />
         <directionalLight position={[-18, 36, -90]} color="#ffffff" intensity={0.42} />
+        <directionalLight position={[-78, 14, -28]} color="#f7f8fa" intensity={0.34} />
+        <directionalLight position={[70, 10, -46]} color="#d5deea" intensity={0.22} />
       </>
     );
   }
@@ -62,6 +64,8 @@ export function StudioLights() {
       <directionalLight position={[-48, 42, -36]} color="#c9d4e2" intensity={voice === 3 ? 1.6 : 0.9} />
       <directionalLight position={[18, 24, 70]} color="#f7f8fa" intensity={0.62} />
       <directionalLight position={[60, 18, 10]} color="#d5e4f4" intensity={0.42} />
+      <directionalLight position={[-86, 12, -22]} color="#e7eef8" intensity={voice === 2 ? 0.72 : 0.95} />
+      <directionalLight position={[74, 8, -58]} color="#c9d6e6" intensity={0.48} />
     </>
   );
 }

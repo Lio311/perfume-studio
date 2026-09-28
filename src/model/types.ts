@@ -65,6 +65,11 @@ export interface BottleSpec {
   profile: ProfileName;
   /** Fraction of height used to ease the shoulder into the neck. */
   shoulder: number;
+  /**
+   * Straight glass under the lip, in millimetres.
+   * Steep bulbs store about one neck radius. Other bottles store the crimp seat.
+   */
+  finishMm?: number;
   heightMm: number;
   widthMm: number;
   depthMm: number;
@@ -167,7 +172,13 @@ export interface PumpSpec {
   name: Localized;
   style: PumpStyle;
   actuatorHeightMm: number;
-  radiusFactor: number;
+  /**
+   * Button radius as a fraction of the neck radius.
+   * Omitted when the catalog does not size the head.
+   */
+  radiusFactor?: number;
+  /** Button diameter in millimetres. Wins over radiusFactor. */
+  widthMm?: number;
   nozzleMm: number;
   tags: string[];
   model: ModelSource;
@@ -181,6 +192,8 @@ export interface CollarSpec {
   rings: number;
   knurl: boolean;
   flareMm: number;
+  /** Crimp button radius as a fraction of the neck radius, when the pump sets neither a width nor a factor. */
+  radiusFactor?: number;
   tags: string[];
   model: ModelSource;
 }

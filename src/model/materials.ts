@@ -7,6 +7,9 @@ export interface FinishDef {
   group: "glass" | "metal" | "solid";
 }
 
+/** Matte-black default. The palette swatch uses this same constant. */
+export const MATTE_BLACK_COLOR = "#141414" as const;
+
 export const FINISHES: FinishDef[] = [
   { id: "clear", name: { he: "זכוכית שקופה", en: "Clear glass" }, color: "#f4f0e8", group: "glass" },
   { id: "frosted", name: { he: "זכוכית חלבית", en: "Frosted" }, color: "#f2f2f0", group: "glass" },
@@ -14,14 +17,14 @@ export const FINISHES: FinishDef[] = [
   { id: "gold", name: { he: "זהב", en: "Gold" }, color: "#D6B26A", group: "metal" },
   { id: "silver", name: { he: "כסף", en: "Silver" }, color: "#d5d8de", group: "metal" },
   { id: "rose", name: { he: "רוז גולד", en: "Rose gold" }, color: "#e4b7ae", group: "metal" },
-  { id: "matteBlack", name: { he: "שחור מט", en: "Matte black" }, color: "#141414", group: "solid" },
+  { id: "matteBlack", name: { he: "שחור מט", en: "Matte black" }, color: MATTE_BLACK_COLOR, group: "solid" },
   { id: "wood", name: { he: "עץ", en: "Wood" }, color: "#8a5a3a", group: "solid" },
   { id: "leather", name: { he: "עור", en: "Leather" }, color: "#6b3c32", group: "solid" },
 ];
 
 export const PALETTE = [
   "#f4f0e8",
-  "#141414",
+  MATTE_BLACK_COLOR,
   "#d4b48a",
   "#d5d8de",
   "#e4b7ae",
