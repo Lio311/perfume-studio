@@ -15,9 +15,7 @@ export function createDefaultDesign(): Design {
       heightMm: bottle.heightMm,
       widthMm: bottle.widthMm,
       depthMm: bottle.depthMm,
-      // Cara 50 is already the selected library bottle. Leave it on so the
-      // first mount draws it; a variant click is what used to flip this on.
-      visible: true,
+      visible: false,
     },
     cap: {
       variantId: cap.id,

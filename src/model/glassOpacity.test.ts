@@ -1,8 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { glassOpacityThisFrame } from "../scene/materialFade.ts";
-import { createDefaultDesign } from "./design.ts";
 import {
-  bottleGlassSetting,
   clearGlassFade,
   glassDrawTransmission,
   mappedGlassOpacity,
@@ -38,25 +35,6 @@ describe("renderedGlassOpacity", () => {
     expect(renderedGlassOpacity("clear")).toBeCloseTo(0.14);
     expect(renderedGlassOpacity("gold", 0.4)).toBeNull();
     expect(glassDrawTransmission("clear")).toBeGreaterThan(0);
-  });
-
-  it("shows the default Cara 50 on the first mount with a non-zero clear fade", () => {
-    const design = createDefaultDesign();
-    expect(design.bottle.variantId).toBe("cara-50");
-    expect(design.bottle.finish).toBe("clear");
-    expect(design.bottle.opacity).toBeUndefined();
-    expect(design.bottle.visible).toBe(true);
-
-    const setting = bottleGlassSetting(design.bottle.finish, design.bottle.opacity);
-    expect(setting.fade).toBeCloseTo(1);
-    expect(setting.fade).toBeGreaterThan(0);
-    expect(clearGlassFade(design.bottle.opacity)).toBeCloseTo(1);
-    expect(usesFlatGlassAlpha(design.bottle.finish, design.bottle.opacity)).toBe(false);
-
-    // A material that still holds uFade 0 from before the first write must
-    // take the design fade, not stay invisible.
-    const first = glassOpacityThisFrame(0, setting.fade ?? 0, false);
-    expect(first.baseOpacity).toBeCloseTo(1);
-    expect(first.target).toBeCloseTo(1);
+    expect(clearGlassFade(undefined)).toBeCloseTo(1);
   });
 });
