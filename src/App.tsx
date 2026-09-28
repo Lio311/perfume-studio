@@ -26,7 +26,8 @@ function applyBackAction(action: Exclude<BackAction, "leave">, trap: Trap) {
   else if (action === "overlays") {
     lab.setPalette(false);
     lab.setHelp(false);
-  } else if (action === "selection") lab.showFull();
+  }   else if (action === "selection") lab.showFull();
+  else if (action === "share") lab.setShareUrl("");
   else if (action === "stage") lab.setStage("bottle");
   else if (action === "wizard") {
     const step = wizardStepAfterPop(history, trap);
@@ -76,6 +77,7 @@ export default function App() {
   const stage = useLab((s) => s.stage);
   const explode = useLab((s) => s.explode);
   const wizardStep = useLab((s) => s.design.step);
+  const shareUrl = useLab((s) => s.shareUrl);
   const trapRef = useRef<Trap>({ armed: false });
   const [hintOn, setHintOn] = useState(true);
   const [shareLock, setShareLock] = useState(() => location.hash.startsWith("#d="));
@@ -175,7 +177,7 @@ export default function App() {
 
   useEffect(() => {
     syncHistoryTrap(history, backSurface(useLab.getState()), trapRef.current);
-  }, [aimed, explode, helpOpen, modal, mode, palette, present, solo, stage, wizardStep]);
+  }, [aimed, explode, helpOpen, modal, mode, palette, present, shareUrl, solo, stage, wizardStep]);
 
   useEffect(() => {
     const fade = () => setHintOn(false);

@@ -54,5 +54,28 @@ describe("share clipboard fallback", () => {
     expect(toast?.textContent).toBe("לא הצלחנו להעתיק. בחרו את הקישור והעתיקו אותו");
     expect(toast?.textContent?.includes(url)).toBe(false);
     expect((toast?.textContent ?? "").length).toBeLessThan(TOAST_MAX);
+
+    const close = document.querySelector<HTMLButtonElement>(".share-fallback-close");
+    expect(close).toBeTruthy();
+    await act(async () => {
+      close?.click();
+    });
+    expect(document.querySelector(".share-fallback")).toBeNull();
+
+    await act(async () => {
+      exportButton?.click();
+    });
+    const shareAgain = [...host.querySelectorAll("button")].find((button) => button.textContent === "שיתוף");
+    await act(async () => {
+      shareAgain?.click();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(document.querySelector<HTMLTextAreaElement>(".share-fallback textarea")?.value).toBe(url);
+    await act(async () => {
+      window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+    });
+    expect(document.querySelector(".share-fallback")).toBeNull();
+    useLab.getState().setShareUrl("");
   });
 });

@@ -259,13 +259,13 @@ export function applyIncomingShareHash(options: {
     const loc = options.read();
     const read = readShareHash(loc.hash);
     if (read === "none") return false;
-    // A broken payload does not need the supplier catalog. Clear it before the pack wait.
+    // Only a malformed payload is rejected before packs load. A valid link is decoded again
+    // after the catalog can resolve imported ids.
     if (read === "invalid") {
       rejectInvalidShare({ ...loc, replaceState: options.replaceState, noteInvalid: options.noteInvalid });
       return false;
     }
     const snapshot = options.baseline();
-    const capturedHash = loc.hash;
     return settleWithin(options.ready, timeoutMs).then(() => {
       if (options.cancelled?.()) return false;
       const next = options.read();
@@ -274,23 +274,16 @@ export function applyIncomingShareHash(options: {
         options.replaceState(next.state, "", `${next.pathname}${next.search}`);
         return false;
       }
-      if (next.hash !== capturedHash) {
-        return applyShareHash({
-          hash: next.hash,
-          pathname: next.pathname,
-          search: next.search,
-          state: next.state,
-          apply: options.apply,
-          replaceState: options.replaceState,
-          noteMissing: options.noteMissing,
-          noteInvalid: options.noteInvalid,
-        });
-      }
-      const missing = droppedVariantIds(read.raw, read.design);
-      if (missing.length) options.noteMissing?.(missing);
-      options.apply(read.design);
-      options.replaceState(next.state, "", `${next.pathname}${next.search}`);
-      return true;
+      return applyShareHash({
+        hash: next.hash,
+        pathname: next.pathname,
+        search: next.search,
+        state: next.state,
+        apply: options.apply,
+        replaceState: options.replaceState,
+        noteMissing: options.noteMissing,
+        noteInvalid: options.noteInvalid,
+      });
     });
   });
 }

@@ -24,6 +24,7 @@ function idle(over: Partial<BackSurface> = {}): BackSurface {
     explode: 0,
     wizard: false,
     step: 0,
+    shareLink: false,
     ...over,
   };
 }
@@ -175,6 +176,8 @@ describe("browser back", () => {
             surface.current = { ...surface.current, modal: false };
           } else if (action === "selection") {
             surface.current = { ...surface.current, aimed: false, solo: false };
+          } else if (action === "share") {
+            surface.current = { ...surface.current, shareLink: false };
           }
         },
         () => surface.current,
@@ -511,5 +514,52 @@ describe("browser back", () => {
     expect(surface.current.step).toBe(0);
     history.back();
     expect(history.left).toBe(true);
+  });
+
+  it("after a reload, Forward returns to the step Back just left", () => {
+    const { history, popWith } = createHistory();
+    const trap: Trap = { armed: false };
+    const surface = { current: idle({ wizard: true, step: 0 }) };
+    syncHistoryTrap(history, surface.current, trap);
+    bindWizard(history, popWith, surface, trap);
+    surface.current = { ...surface.current, step: 4 };
+    syncHistoryTrap(history, surface.current, trap);
+    expect(history.state).toEqual({ lab: 1, step: 4 });
+
+    const reloaded: Trap = { armed: false };
+    syncHistoryTrap(history, surface.current, reloaded);
+    bindWizard(history, popWith, surface, reloaded);
+    expect(history.pushCount).toBe(4);
+
+    history.back();
+    expect(surface.current.step).toBe(3);
+    history.forward();
+    expect(surface.current.step).toBe(4);
+    expect(history.left).toBe(false);
+  });
+
+  it("closes an open share link on back and leaves the wizard step", () => {
+    const { history, popWith } = createHistory();
+    const trap: Trap = { armed: false };
+    const surface = { current: idle({ wizard: true, step: 0 }) };
+    syncHistoryTrap(history, surface.current, trap);
+    bindWizard(history, popWith, surface, trap);
+    surface.current = { ...surface.current, step: 2 };
+    syncHistoryTrap(history, surface.current, trap);
+    surface.current = { ...surface.current, shareLink: true };
+    syncHistoryTrap(history, surface.current, trap);
+    expect(history.state).toEqual({ lab: 1, share: 1 });
+
+    history.back();
+    expect(surface.current.shareLink).toBe(false);
+    expect(surface.current.step).toBe(2);
+    expect(history.state).toEqual({ lab: 1, step: 2 });
+
+    surface.current = { ...surface.current, shareLink: true };
+    syncHistoryTrap(history, surface.current, trap);
+    surface.current = { ...surface.current, shareLink: false };
+    syncHistoryTrap(history, surface.current, trap);
+    expect(surface.current.step).toBe(2);
+    expect(history.state).toEqual({ lab: 1, step: 2 });
   });
 });

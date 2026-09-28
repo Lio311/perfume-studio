@@ -95,6 +95,8 @@ interface LabState {
   patch: (part: PartKey, partial: Record<string, unknown>) => void;
   applyCommands: (commands: LabCommand[], options?: { quiet?: boolean }) => void;
   toast: string;
+  /** Full share URL shown when the clipboard rejects the copy. Not persisted. */
+  shareUrl: string;
   cycle: (dir: number, part?: VariantPart) => void;
   randomize: () => void;
   setMode: (mode: LabMode) => void;
@@ -113,6 +115,7 @@ interface LabState {
   setLibraryOpen: (open: boolean) => void;
   setSideOpen: (open: boolean) => void;
   setModal: (modal: LabState["modal"]) => void;
+  setShareUrl: (url: string) => void;
   pushChat: (message: ChatMessage) => void;
   saveDesign: (name: string, thumb: string) => void;
   loadDesign: (id: string) => void;
@@ -342,6 +345,7 @@ export const useLab = create<LabState>()(
       mode: "assemble",
       explode: 0,
       toast: "",
+      shareUrl: "",
       exporting: false,
       viewPreset: "home",
       past: [],
@@ -491,6 +495,7 @@ export const useLab = create<LabState>()(
       setLibraryOpen: (libraryOpen) => set({ libraryOpen }),
       setSideOpen: (sideOpen) => set({ sideOpen }),
       setModal: (modal) => set({ modal }),
+      setShareUrl: (shareUrl) => set({ shareUrl }),
       pushChat: (message) => set((state) => ({ chat: [...state.chat, message].slice(-40) })),
       saveDesign: async (name, thumb) => {
         const id = uid("cfg");

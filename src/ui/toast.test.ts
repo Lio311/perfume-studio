@@ -23,4 +23,14 @@ describe("toast length", () => {
     expect(clipped.includes("\uD83D")).toBe(true);
     expect(clipped.includes("\uDE00")).toBe(true);
   });
+
+  it("does not cut between an isolate opener and its closer", () => {
+    const prefix = "א".repeat(TOAST_MAX - 3);
+    const text = `${prefix}\u2068abcdef\u2069`;
+    const clipped = clipToast(text);
+    expect(clipped.includes("\u2068")).toBe(false);
+    expect(clipped.includes("\u2069")).toBe(false);
+    expect(clipped.endsWith("…")).toBe(true);
+    expect(clipped.startsWith(prefix)).toBe(true);
+  });
 });

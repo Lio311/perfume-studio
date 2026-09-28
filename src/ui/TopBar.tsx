@@ -33,7 +33,8 @@ export function TopBar() {
   const setLibraryOpen = useLab((s) => s.setLibraryOpen);
   const setSideOpen = useLab((s) => s.setSideOpen);
   const [notice, setNotice] = useState("");
-  const [shareUrl, setShareUrl] = useState("");
+  const shareUrl = useLab((s) => s.shareUrl);
+  const setShareUrl = useLab((s) => s.setShareUrl);
   const [menu, setMenu] = useState<null | "view" | "export">(null);
   const t = tx(lang);
   const ml = estimateMl(design);
@@ -48,6 +49,11 @@ export function TopBar() {
   function fileName() {
     const day = new Date().toISOString().slice(0, 10);
     return pngDownloadName(design.label.text, spec.name.en, day);
+  }
+
+  function dismissShare() {
+    setShareUrl("");
+    setNotice("");
   }
 
   function share() {
@@ -94,6 +100,15 @@ export function TopBar() {
     window.setTimeout(() => setNotice(""), 1600);
     setMenu(null);
   }
+
+  useEffect(() => {
+    if (!shareUrl) return undefined;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") dismissShare();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [shareUrl, setShareUrl]);
 
   useEffect(() => {
     if (!menu) return undefined;
@@ -183,6 +198,7 @@ export function TopBar() {
       )}
       {shareUrl && createPortal(
         <form className="share-fallback" dir="ltr" onSubmit={(event) => event.preventDefault()}>
+          <button type="button" className="share-fallback-close" aria-label={lang === "he" ? "סגור" : "Close"} onClick={dismissShare}>×</button>
           <textarea readOnly rows={Math.max(4, Math.ceil(shareUrl.length / 84))} value={shareUrl} aria-label={t.share} onFocus={(event) => event.currentTarget.select()} />
         </form>,
         document.body,

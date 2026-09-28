@@ -35,6 +35,8 @@ export interface BackSurface {
   stage: "bottle" | "box" | "together";
   mode: string;
   explode: number;
+  /** The copy-failed share URL is on screen. Back closes it before a wizard step. */
+  shareLink: boolean;
   /**
    * The wizard is choosing the stage, including the carton step.
    * That stage is not its own Back layer. Wizard steps above 0 are.
@@ -49,6 +51,7 @@ export type BackAction =
   | "present"
   | "overlays"
   | "selection"
+  | "share"
   | "stage"
   | "mode"
   | "wizard"
@@ -102,17 +105,32 @@ function staleEntry(state: unknown, target: number): boolean {
 
 type PopDir = "back" | "forward" | "unknown";
 
-function notePop(trap: Trap, state: unknown): PopDir {
+function isShareGuard(state: unknown): boolean {
+  return isLabHistory(state) && (state as { share?: unknown }).share === 1;
+}
+
+/**
+ * Direction of one pop.
+ * Entries this page pushed are matched against the mirror.
+ * After a reload the mirror is only the current entry, so the step stored on the revealed entry decides:
+ * a higher step is Forward, a lower step is Back. Unknown is not treated as Back.
+ */
+function notePop(trap: Trap, state: unknown, fromStep: number | undefined): PopDir {
   const stack = trap.stack;
-  if (!stack) return "unknown";
   const index = trap.index ?? 0;
-  if (index > 0 && sameState(stack[index - 1], state)) {
-    trap.index = index - 1;
-    return "back";
+  if (stack) {
+    if (index > 0 && sameState(stack[index - 1], state)) {
+      trap.index = index - 1;
+      return "back";
+    }
+    if (index + 1 < stack.length && sameState(stack[index + 1], state)) {
+      trap.index = index + 1;
+      return "forward";
+    }
   }
-  if (index + 1 < stack.length && sameState(stack[index + 1], state)) {
-    trap.index = index + 1;
-    return "forward";
+  const revealed = historyWizardStep(state);
+  if (typeof fromStep === "number" && typeof revealed === "number" && revealed !== fromStep) {
+    return revealed > fromStep ? "forward" : "back";
   }
   return "unknown";
 }
@@ -133,6 +151,7 @@ export function wizardStepAfterPop(history: HistoryLike, trap: Trap): number | n
 export function backAction(surface: BackSurface): BackAction {
   if (surface.modal) return "modal";
   if (surface.present) return "present";
+  if (surface.shareLink) return "share";
   if (surface.palette || surface.help) return "overlays";
   if (surface.solo || surface.aimed) return "selection";
   if (surface.stage !== "bottle" && !surface.wizard) return "stage";
@@ -152,6 +171,7 @@ export function backSurface(state: {
   mode: string;
   explode: number;
   design: { step?: number };
+  shareUrl?: string;
 }): BackSurface {
   const raw = state.design.step;
   const known = typeof raw === "number" && Number.isInteger(raw) && raw >= 0 && raw <= 7;
@@ -166,6 +186,7 @@ export function backSurface(state: {
     stage: state.stage,
     mode: state.mode,
     explode: state.explode,
+    shareLink: Boolean(state.shareUrl),
     wizard,
     step: wizard ? raw : 0,
   };
@@ -220,6 +241,11 @@ function applyWizard(apply: (action: "wizard") => void, readAfter: () => BackSur
  */
 export function syncHistoryTrap(history: HistoryLike, surface: BackSurface, trap: Trap): void {
   ensureStack(trap, history.state);
+  if (!surface.shareLink && isShareGuard(history.state) && !trap.dropping && !trap.bounce && !trap.neutralizing) {
+    trap.bounce = true;
+    history.back();
+    return;
+  }
   if (trap.baselineStep === undefined) {
     trap.baselineStep = surface.step;
     trap.wizardStep = surface.step;
@@ -246,6 +272,11 @@ export function syncHistoryTrap(history: HistoryLike, surface: BackSurface, trap
   }
 
   const action = backAction(surface);
+  if (action === "share") {
+    if (!isShareGuard(history.state)) push(history, trap, { lab: 1, share: 1 });
+    trap.armed = true;
+    return;
+  }
   if (action === "wizard") {
     trap.armed = true;
     return;
@@ -271,7 +302,7 @@ export function handleHistoryPop(
   readAfter: () => BackSurface,
   trap: Trap,
 ): void {
-  const dir = notePop(trap, history.state);
+  const dir = notePop(trap, history.state, surface.step);
   if (trap.bounce) {
     trap.bounce = false;
     return;
@@ -327,9 +358,9 @@ export function handleHistoryPop(
     if (typeof revealed === "number") {
       const forwardMove = dir === "forward";
       if (forwardMove && revealed > surface.step) applyWizard(apply, readAfter, trap);
-      else if (!forwardMove && revealed < surface.step) applyWizard(apply, readAfter, trap);
+      else if (dir !== "forward" && revealed < surface.step) applyWizard(apply, readAfter, trap);
       else if (forwardMove) history.forward();
-      else history.back();
+      else if (dir === "back") history.back();
       return;
     }
     const baseline = trap.baselineStep ?? 0;

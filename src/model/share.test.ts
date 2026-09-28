@@ -213,6 +213,7 @@ describe("share links", () => {
       release = resolve;
     });
     const seen: string[] = [];
+    const missing: string[][] = [];
     const design = createDefaultDesign();
     design.bottle.variantId = "supplier-flask";
     const hash = `#d=${encodeShareDesign(design)}`;
@@ -222,14 +223,21 @@ describe("share links", () => {
       ready,
       baseline: () => anchor,
       apply: (next) => seen.push(next.bottle.variantId),
+      noteMissing: (ids) => missing.push(ids),
       replaceState: () => undefined,
     });
+    // Let the early malformed check run. Packs are still unloaded, so the link must not be applied yet.
     await Promise.resolve();
+    await Promise.resolve();
+    expect(seen).toEqual([]);
+    await new Promise((resolve) => setTimeout(resolve, 30));
     expect(seen).toEqual([]);
     setImportedCatalog({ bottles: [flask], caps: [], labels: [], pumps: [], collars: [], boxes: [] });
     release();
     await pending;
     expect(seen).toEqual(["supplier-flask"]);
+    expect(missing).toEqual([]);
+    setImportedCatalog({ bottles: [], caps: [], labels: [], pumps: [], collars: [], boxes: [] });
   });
 
   it("applies a share hash when packs do not load in time and notes the missing part", async () => {
