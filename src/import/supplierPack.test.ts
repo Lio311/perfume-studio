@@ -13,6 +13,7 @@ import { importedMeta, isVariantPart, syncRegistry, type SupplierPart } from "./
 import { parsePackFile, reviveStoredPack, serializePack } from "./supplierDb.ts";
 import { sanitizeSupplierPrice } from "../model/price.ts";
 import { applyVariant, createDefaultDesign } from "../model/design.ts";
+import { mergeShareDesign } from "../model/share.ts";
 import { boxById, capById, listFor } from "../model/catalog.ts";
 import { computeFit } from "../model/fit.ts";
 import { neckRadius } from "../model/necks.ts";
@@ -337,6 +338,29 @@ describe("capPackNotices", () => {
 
 describe("syncRegistry and selection", () => {
   afterEach(() => syncRegistry([]));
+
+  it("keeps imported supplier ids in the catalog a share link checks", () => {
+    syncRegistry([{
+      id: "sup",
+      name: "Share Glass",
+      createdAt: 1,
+      parts: [
+        { ...base, id: "supplier-flask", code: "B1", kind: "bottle" },
+        { ...base, id: "supplier-cap", code: "C1", kind: "cap" },
+        { ...base, id: "lid-1", code: "L1", kind: "lid" as SupplierPart["kind"] },
+      ],
+    }]);
+    const decoded = mergeShareDesign({
+      bottle: { variantId: "supplier-flask" },
+      cap: { variantId: "supplier-cap" },
+      box: { variantId: "lid-1" },
+    });
+    expect(decoded?.bottle.variantId).toBe("supplier-flask");
+    expect(decoded?.cap.variantId).toBe("supplier-cap");
+    expect(decoded?.box.variantId).toBe(createDefaultDesign().box.variantId);
+    expect(listFor("bottle").some((entry) => entry.id === "supplier-flask")).toBe(true);
+    expect(listFor("box").some((entry) => entry.id === "lid-1")).toBe(false);
+  });
 
   it("skips an unknown kind instead of registering it as a box", () => {
     const design = createDefaultDesign();
