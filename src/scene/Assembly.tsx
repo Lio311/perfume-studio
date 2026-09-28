@@ -663,7 +663,8 @@ function LabelFinishMaterial({
       roughnessMap={mask}
       bumpMap={finish.bumpScale !== 0 ? mask : undefined}
       bumpScale={finish.bumpScale}
-      envMapIntensity={finish.metalness >= 0.5 ? 1.5 : 1}
+      envMapIntensity={finish.metalness >= 0.5 ? 2.6 : 1}
+      toneMapped={finish.metalness < 0.5}
       depthWrite={!overlay}
       polygonOffset={!overlay}
       polygonOffsetFactor={-4}

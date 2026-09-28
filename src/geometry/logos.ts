@@ -73,11 +73,11 @@ export interface LabelFinish {
 export function labelFinish(application: LogoApplication = "decal"): LabelFinish {
   switch (application) {
     case "foil":
-      return { metalness: 1, roughness: 0.16, bumpScale: 0 };
+      return { metalness: 1, roughness: 0.08, bumpScale: 0 };
     case "emboss":
-      return { metalness: 0.04, roughness: 0.62, bumpScale: 2.4 };
+      return { metalness: 0.04, roughness: 0.55, bumpScale: 3.2 };
     case "engrave":
-      return { metalness: 0.04, roughness: 0.62, bumpScale: -2.4 };
+      return { metalness: 0.04, roughness: 0.55, bumpScale: -3.2 };
     default:
       return { metalness: 0, roughness: 1, bumpScale: 0 };
   }
