@@ -580,6 +580,8 @@ export const useLab = create<LabState>()(
           present: false,
           explode: 0,
           fullToken: state.fullToken + 1,
+          brief: { ceilingIls: 30, volumeMl: 50, confirmed: false },
+          briefEditing: false,
         }));
       },
       loadDesign: async (id) => {
