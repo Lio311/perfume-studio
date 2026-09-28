@@ -59,7 +59,7 @@ export function createDefaultDesign(): Design {
     liquid: {
       color: "#c98a2b",
       fill: 0.78,
-      visible: false,
+      visible: true,
     },
     step: 0,
   };

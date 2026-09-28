@@ -814,6 +814,9 @@ body:has(.share-fallback) .toast {
 .modal header button { border: 0; background: transparent; color: var(--muted); }
 .save-row, .modal-actions, .compare-picks { display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0; }
 .save-row input { flex: 1; margin: 0; }
+.save-status { margin: 0 0 8px; padding: 8px 10px; border-radius: 10px; font-size: 13px; line-height: 1.45; }
+.save-status.is-ok { color: var(--good); background: color-mix(in srgb, var(--good) 14%, transparent); }
+.save-status.is-err { color: var(--danger); background: color-mix(in srgb, var(--danger) 14%, transparent); }
 .saved-list, .compare-row { display: flex; flex-direction: column; gap: 8px; }
 .compare-row { flex-direction: row; align-items: stretch; }
 .compare-row article, .saved-list article {
