@@ -174,9 +174,19 @@ export function FinishMaterial({
   // For tinted glass, opacity controls attenuation distance (how dark the tint is) instead of breaking transmission
   const tintDistance = 120 - (actualOpacity * 110); // 0 -> 120 (faint), 1 -> 10 (very dark)
 
+  const baseColor = useMemo(() => {
+    if (glassLike && finish === "tinted") {
+      const target = new THREE.Color(color);
+      const white = new THREE.Color("#ffffff");
+      const t = Math.max(0, 1 - actualOpacity);
+      return "#" + target.lerp(white, t).getHexString();
+    }
+    return color;
+  }, [color, finish, glassLike, actualOpacity]);
+
   return (
     <meshPhysicalMaterial
-      color={color}
+      color={baseColor}
       flatShading={flat}
       map={wood ?? paper?.map ?? undefined}
       bumpMap={leather ?? paper?.bump ?? undefined}
