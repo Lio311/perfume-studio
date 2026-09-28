@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { partLabel, tx } from "../i18n/copy.ts";
-import { formatPackNotice } from "../import/notices.ts";
+import { capPackNotices, formatPackNotice } from "../import/notices.ts";
 import { downloadPack } from "../import/supplierDb.ts";
 import { isVariantPart } from "../import/registry.ts";
 import { entryMatches, listFor } from "../model/catalog.ts";
@@ -111,11 +111,11 @@ export function Library() {
         <button type="button" className="text-btn" onClick={() => randomize()}>{t.random}</button>
       </div>
       {packNotices.length > 0 && (
-        <div className="pack-notices">
-          {packNotices.map((notice, index) => (
-            <p key={`${notice.type}-${index}`} className="hint">{formatPackNotice(lang, notice)}</p>
+        <ul className="pack-warnings" role="status">
+          {capPackNotices(packNotices, lang).map((line, index) => (
+            <li key={index}>{line}</li>
           ))}
-        </div>
+        </ul>
       )}
       {tab !== "liquid" && tab !== "pending" && (
         <input className="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t.search} />

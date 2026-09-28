@@ -7,7 +7,7 @@ vi.mock("dompurify", () => ({
 import minimalText from "./fixtures/a-minimal-v1-pack.json?raw";
 import v2Text from "./fixtures/b-v2-bottle-photo-cap-scan-price.json?raw";
 import invalidText from "./fixtures/c-invalid-pack.json?raw";
-import { formatPackNotice } from "./notices.ts";
+import { capPackNotices, formatPackNotice, type PackNotice } from "./notices.ts";
 import { MAX_PACK_BYTES } from "./packValidate.ts";
 import { importedMeta, isVariantPart, syncRegistry, type SupplierPart } from "./registry.ts";
 import { parsePackFile, reviveStoredPack, serializePack } from "./supplierDb.ts";
@@ -93,8 +93,8 @@ describe("parsePackFile", () => {
     expect(result.pack.parts[0]).not.toHaveProperty("price");
     expect(result.warnings.map((notice) => notice.type === "priceIssue" ? notice.code : notice.type)).toEqual([
       "price_value",
-      "price_currency",
     ]);
+    expect(result.warnings[0]).toMatchObject({ severity: "warning" });
     expect(formatPackNotice("he", result.warnings[0])).toContain("המחיר");
     expect(formatPackNotice("en", result.warnings[0])).toContain("price");
     expect(formatPackNotice("he", result.warnings[0])).toContain("CAP-1");
@@ -310,12 +310,28 @@ describe("parsePackFile", () => {
     expect(result.warnings.some((notice) => notice.type === "droppedField" && notice.field === "mesh")).toBe(true);
     expect(sanitizeSupplierPrice(price)).toEqual({ price, issues: [] });
     expect(sanitizeSupplierPrice({ value: 0, currency: "USD" }).price).toBeUndefined();
-    expect(sanitizeSupplierPrice({ value: 1, currency: "usd" }).price).toBeUndefined();
+    expect(sanitizeSupplierPrice({ value: 1, currency: "usd" }).price).toEqual({ value: 1, currency: "USD" });
     const duplicate = sanitizeSupplierPrice({ value: 1, currency: "USD", tiers: [{ minQty: 5, value: 1 }, { minQty: 5, value: 0.9 }] });
     expect(duplicate.price?.tiers).toEqual([{ minQty: 5, value: 1 }]);
     expect(duplicate.issues.map((item) => item.code)).toEqual(["tier_not_ascending"]);
     expect(sanitizeSupplierPrice({ value: 1, currency: "USD", quotedAt: "2026-02-31" }).price).toBeUndefined();
-    expect(sanitizeSupplierPrice({ value: 1, currency: "USD", extra: true }).price).toBeUndefined();
+    expect(sanitizeSupplierPrice({ value: 1, currency: "USD", extra: true }).price).toEqual({ value: 1, currency: "USD" });
+  });
+});
+
+describe("capPackNotices", () => {
+  it("shows the first 20 warnings and one more-line", () => {
+    const notices: PackNotice[] = Array.from({ length: 25 }, (_, index) => ({
+      type: "droppedPart",
+      ref: `P${index}`,
+    }));
+    const lines = capPackNotices(notices, "en");
+    expect(lines).toHaveLength(21);
+    expect(lines[0]).toContain("P0");
+    expect(lines[19]).toContain("P19");
+    expect(lines[20]).toBe("+5 more");
+    expect(capPackNotices(notices, "he")[20]).toBe("ועוד 5");
+    expect(capPackNotices(notices.slice(0, 3), "en")).toHaveLength(3);
   });
 });
 
@@ -403,7 +419,7 @@ describe("reviveStoredPack", () => {
       createdAt: 4,
       version: "2",
       source: "scan",
-      parts: [{ ...base, price: { value: 1, currency: "usd" } }],
+      parts: [{ ...base, price: { value: 1, currency: "usd1" } }],
     });
     expect(revived.pack?.version).toBeUndefined();
     expect(revived.pack?.source).toBe("scan");

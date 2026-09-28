@@ -2,7 +2,7 @@ import { useRef, useState, type PointerEvent as ReactPointerEvent } from "react"
 import DOMPurify from "dompurify";
 import { partLabel, tx } from "../i18n/copy.ts";
 import { cropPage } from "../import/crop.ts";
-import { formatPackNotice } from "../import/notices.ts";
+import { capPackNotices } from "../import/notices.ts";
 import { MAX_PACK_BYTES } from "../import/packValidate.ts";
 import { parsePackFile } from "../import/supplierDb.ts";
 import { readPdfCatalog, type CatalogPageImage } from "../import/pdfCatalog.ts";
@@ -56,11 +56,13 @@ export function SupplierImport() {
   const [active, setActive] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [warnings, setWarnings] = useState<string[]>([]);
   const drag = useRef<NormRect | null>(null);
 
   async function ingest(file: File) {
     setBusy(true);
     setError("");
+    setWarnings([]);
     try {
       const nextPages = await readPdfCatalog(await file.arrayBuffer());
       const drafts = regexCatalogSource.extract(nextPages.map((page) => ({ page: page.page, text: page.text })));
@@ -186,6 +188,7 @@ export function SupplierImport() {
               event.currentTarget.value = "";
               if (!file) return;
               if (file.size > MAX_PACK_BYTES) {
+                setWarnings([]);
                 setError(t.packTooBig);
                 return;
               }
@@ -193,8 +196,12 @@ export function SupplierImport() {
                 const result = parsePackFile(text);
                 if (result.ok) {
                   upsertSupplier(result.pack, result.warnings);
-                  setError(result.warnings.map((notice) => formatPackNotice(lang, notice)).join(" "));
-                } else setError(lang === "he" ? result.error.he : result.error.en);
+                  setError("");
+                  setWarnings(capPackNotices(result.warnings, lang));
+                } else {
+                  setWarnings([]);
+                  setError(lang === "he" ? result.error.he : result.error.en);
+                }
               });
             }} />
           </label>
@@ -206,6 +213,11 @@ export function SupplierImport() {
         </div>
         {busy && <p className="hint">{lang === "he" ? "קורא עמודים…" : "Reading pages…"}</p>}
         {error && <p className="hint">{error}</p>}
+        {warnings.length > 0 && (
+          <ul className="pack-warnings" role="status">
+            {warnings.map((line, index) => <li key={index}>{line}</li>)}
+          </ul>
+        )}
         {blankPages.map((item) => <p key={item.page} className="hint">{t.noText} · {t.pages} {item.page}</p>)}
         <div className="supplier-body">
           <div className="supplier-table">

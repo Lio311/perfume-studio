@@ -14,7 +14,7 @@ import type { Lang } from "../model/types.ts";
 import type { LabCommand } from "../parser/interpret.ts";
 import { parseVoiceParam, readVoiceParam, type VoiceVariant } from "../audio/wake.ts";
 import { deletePack, savePack } from "../import/supplierDb.ts";
-import { formatPackNotice, type PackNotice } from "../import/notices.ts";
+import { capPackNotices, type PackNotice } from "../import/notices.ts";
 import { isVariantPart, syncRegistry, type SupplierPack } from "../import/registry.ts";
 import { apiClient } from "../api/client.ts";
 
@@ -342,7 +342,7 @@ function commitSuppliers(
   closeModal: boolean,
 ) {
   const notices = [...extra, ...syncRegistry(packs)];
-  const toast = notices.map((notice) => formatPackNotice(get().lang, notice)).join(" ");
+  const toast = capPackNotices(notices, get().lang).join(" ");
   set({
     suppliers: packs,
     packNotices: notices,

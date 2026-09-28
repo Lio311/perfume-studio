@@ -11,6 +11,8 @@
   --accent-2: #f3e6cc;
   --on-accent: #141109;
   --danger: #ff7a7a;
+  --warn: #e2b15a;
+  --warn-bg: rgba(226, 177, 90, 0.14);
   --good: #3ddc97;
   --shadow: 0 22px 60px rgba(0, 0, 0, 0.42);
   --inset: inset 0 1px 0 rgba(255, 248, 236, 0.08);
@@ -171,6 +173,18 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 }
 .count, .hint, .eyebrow { color: var(--muted); font-size: 12px; }
 .hint { margin: 0; line-height: 1.45; }
+.pack-warnings {
+  margin: 8px 0 0;
+  padding: 8px 12px;
+  list-style: none;
+  border: 1px solid var(--warn);
+  background: var(--warn-bg);
+  color: var(--warn);
+  border-radius: 10px;
+  font-size: 12px;
+  line-height: 1.45;
+}
+.pack-warnings li + li { margin-top: 4px; }
 .search, .modal input, .modal select, .composer input {
   width: 100%;
   margin-top: 10px;
@@ -1089,6 +1103,8 @@ html[data-theme="light"] {
   --accent-2: #1a1d22;
   --on-accent: #1a140c;
   --danger: #a33d3d;
+  --warn: #8a5a12;
+  --warn-bg: rgba(154, 123, 74, 0.14);
   --good: #2f6b4f;
   --shadow: 0 16px 40px rgba(22, 26, 34, 0.08);
   --inset: inset 0 1px 0 rgba(255, 255, 255, 0.9);

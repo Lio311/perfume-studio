@@ -1,11 +1,14 @@
 import { tx } from "../i18n/copy.ts";
-import type { PriceIssueCode } from "../model/price.ts";
+import type { PriceIssueCode, PriceIssueSeverity } from "../model/price.ts";
 import type { Lang } from "../model/types.ts";
+
+/** How many warning lines to show before one "+N more" line. */
+export const PACK_WARNING_LIMIT = 20;
 
 export type PackNotice =
   | { type: "unknownKind"; ref: string; kind: string }
   | { type: "badNeck"; ref: string; neck: string }
-  | { type: "priceIssue"; ref: string; path: string; code: PriceIssueCode; he: string; en: string }
+  | { type: "priceIssue"; ref: string; path: string; code: PriceIssueCode; severity: PriceIssueSeverity; he: string; en: string }
   | { type: "droppedField"; ref: string; field: "mesh" | "scan" | "measurements" }
   | { type: "droppedPart"; ref: string }
   | { type: "droppedPack" }
@@ -13,6 +16,14 @@ export type PackNotice =
 
 function fill(template: string, values: Record<string, string>): string {
   return template.replace(/\{(\w+)\}/g, (_, key: string) => values[key] ?? "");
+}
+
+/** Format warnings for display. The full list stays on the returned pack result. */
+export function capPackNotices(notices: PackNotice[], lang: Lang, limit = PACK_WARNING_LIMIT): string[] {
+  const lines = notices.map((notice) => formatPackNotice(lang, notice));
+  if (lines.length <= limit) return lines;
+  const more = tx(lang).warningsMore.replace("{n}", String(lines.length - limit));
+  return [...lines.slice(0, limit), more];
 }
 
 export function formatPackNotice(lang: Lang, notice: PackNotice): string {

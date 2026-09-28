@@ -273,7 +273,15 @@ function takePart(raw: Record<string, unknown>, warnings: PackNotice[]): Record<
   if (Object.hasOwn(raw, "price")) {
     const checked = sanitizeSupplierPrice(raw.price);
     for (const item of checked.issues) {
-      warnings.push({ type: "priceIssue", ref, path: item.path, code: item.code, he: item.he, en: item.en });
+      warnings.push({
+        type: "priceIssue",
+        ref,
+        path: item.path,
+        code: item.code,
+        severity: item.severity,
+        he: item.he,
+        en: item.en,
+      });
     }
     if (checked.price) copy.price = checked.price;
     else delete copy.price;
