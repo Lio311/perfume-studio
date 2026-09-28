@@ -10,7 +10,6 @@ import { clipToast } from "./ui/toast.ts";
 import { TopBar } from "./ui/TopBar.tsx";
 import { Library } from "./ui/Library.tsx";
 import { Inspector } from "./ui/Inspector.tsx";
-import { ChatPanel } from "./ui/ChatPanel.tsx";
 import { Crumb, Dock, Timeline } from "./ui/Dock.tsx";
 import { CommandPalette, Intro, ShortcutHelp } from "./ui/Palette.tsx";
 import { requestShot } from "./scene/capture.ts";

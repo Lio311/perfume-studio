@@ -7,7 +7,7 @@ import { isVariantPart } from "../import/registry.ts";
 import { entryMatches, listFor } from "../model/catalog.ts";
 import { formatSupplierAmount } from "../model/price.ts";
 import { markSwap } from "../scene/focusClick.ts";
-import { effectiveGlassOpacity, LIQUID_PALETTE } from "../model/materials.ts";
+import { LIQUID_PALETTE } from "../model/materials.ts";
 import type { VariantPart } from "../model/types.ts";
 import { historyWizardStep } from "../nav/backHistory.ts";
 import { useLab } from "../store/labStore.ts";
@@ -207,7 +207,7 @@ export function Library() {
               style={{ background: "var(--accent)", color: "var(--on-accent)" }}
               onClick={() => {
                 patch("liquid", { visible: true });
-                useLab.getState().setSelected("liquid");
+                useLab.getState().select("liquid");
               }}
             >
               {lang === "he" ? "הוסף נוזל" : "Add Liquid"}

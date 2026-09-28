@@ -9,7 +9,6 @@ import { useLab, type LabMode } from "../store/labStore.ts";
 import { pngDownloadName } from "./pngName.ts";
 import { clipToast } from "./toast.ts";
 import { downloadSpec } from "./specSheet.ts";
-import { VoiceSwitch } from "./VoiceSwitch.tsx";
 import { encodeShareDesign } from "../model/share.ts";
 
 const MODES: LabMode[] = ["assemble", "explode", "dimensions"];
