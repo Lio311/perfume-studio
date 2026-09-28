@@ -161,14 +161,21 @@ export function Library() {
               <button
                 key={color}
                 type="button"
-                className={design.liquid.color.toLowerCase() === color ? "swatch is-on" : "swatch"}
+                className={design.bottle.color.toLowerCase() === color ? "swatch is-on" : "swatch"}
                 style={{ background: color }}
-                onClick={() => patch("liquid", { color, visible: true })}
+                onClick={() => {
+                  const currentFinish = useLab.getState().design.bottle.finish;
+                  patch("bottle", { color, finish: currentFinish === "clear" ? "tinted" : currentFinish });
+                  // Also make sure liquid is visible so they can proceed
+                  patch("liquid", { visible: true });
+                }}
               />
             ))}
             <label className="picker">
-              <input type="color" value={typeof design.liquid.color === "string" ? design.liquid.color : "#000000"} onChange={(event) => {
-                patch("liquid", { color: event.target.value, visible: true });
+              <input type="color" value={typeof design.bottle.color === "string" ? design.bottle.color : "#000000"} onChange={(event) => {
+                const currentFinish = useLab.getState().design.bottle.finish;
+                patch("bottle", { color: event.target.value, finish: currentFinish === "clear" ? "tinted" : currentFinish });
+                patch("liquid", { visible: true });
               }} />
             </label>
           </div>
