@@ -1,5 +1,8 @@
 import { clampLabelText } from "../geometry/logos.ts";
 import { listFor } from "./catalog.ts";
+import { logoApplication } from "./catalog.ts";
+import { legacyLabelInk } from "../geometry/logos.ts";
+import { LAB_PERSIST_VERSION } from "../store/hydrate.ts";
 import { createDefaultDesign } from "./design.ts";
 import { FINISHES } from "./materials.ts";
 import { NECKS } from "./necks.ts";
@@ -147,11 +150,18 @@ export function mergeShareDesign(input: unknown): Design | null {
     const step = source.step;
     if (typeof step === "number" && Number.isInteger(step) && step >= 0 && step <= 7) design.step = step;
   }
+  if (label && !Object.hasOwn(source, "version")) {
+    const stored = label.color;
+    if (typeof stored === "string" && HEX_COLOR.test(stored)) {
+      const application = logoApplication(design.label.variantId);
+      if (application) design.label.color = legacyLabelInk(application, design.label.color);
+    }
+  }
   return design;
 }
 
 export function encodeShareDesign(design: Design): string {
-  const json = JSON.stringify(design);
+  const json = JSON.stringify({ ...design, version: LAB_PERSIST_VERSION });
   return btoa(unescape(encodeURIComponent(json))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
 }
 

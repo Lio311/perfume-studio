@@ -63,7 +63,7 @@ describe("shared label paint", () => {
     document.body.append(host);
     const root = createRoot(host);
     function Probe({ signature }: { signature: string }) {
-      useDebouncedLabelCanvas(signature, () => {
+      useDebouncedLabelCanvas("foil", signature, () => {
         paints += 1;
         const canvas = document.createElement("canvas");
         canvas.width = 4;
@@ -86,6 +86,41 @@ describe("shared label paint", () => {
       vi.advanceTimersByTime(80);
     });
     expect(paints).toBe(2);
+    await act(async () => {
+      root.unmount();
+    });
+    host.remove();
+  });
+
+  it("paints a finish change immediately and leaves the last plate until text settles", async () => {
+    vi.useFakeTimers();
+    let paints = 0;
+    const host = document.createElement("div");
+    document.body.append(host);
+    const root = createRoot(host);
+    function Probe({ finish, text }: { finish: string; text: string }) {
+      useDebouncedLabelCanvas(finish, text, () => {
+        paints += 1;
+        return document.createElement("canvas");
+      }, 80);
+      return null;
+    }
+    await act(async () => {
+      root.render(createElement(Probe, { finish: "foil", text: "NOIR" }));
+    });
+    expect(paints).toBe(1);
+    await act(async () => {
+      root.render(createElement(Probe, { finish: "engrave", text: "NOIR" }));
+    });
+    expect(paints).toBe(2);
+    await act(async () => {
+      root.render(createElement(Probe, { finish: "engrave", text: "ATELIER" }));
+    });
+    expect(paints).toBe(2);
+    await act(async () => {
+      vi.advanceTimersByTime(80);
+    });
+    expect(paints).toBe(3);
     await act(async () => {
       root.unmount();
     });

@@ -46,8 +46,10 @@ describe("label text layout", () => {
     expect(labelFontFamily("heebo", "בושם")).toContain("Heebo");
     expect(labelFontWeight("vibes", "ATELIER")).toBe(400);
     expect(labelFontWeight("italiana", "ATELIER")).toBe(400);
-    expect(labelFontWeight("cinzel", "ATELIER")).toBe(600);
-    expect(labelFontWeight("cinzel", "בושם")).toBe(600);
+    expect(labelFontWeight("cormorant", "ATELIER")).toBe(500);
+    expect(labelFontWeight("cinzel", "ATELIER")).toBe(500);
+    expect(labelFontWeight("heebo", "NOIR")).toBe(500);
+    expect(labelFontWeight("cinzel", "בושם")).toBe(500);
   });
 
   it("puts gold ink on a dark plate and black ink on a light plate", () => {
@@ -100,6 +102,35 @@ describe("label text layout", () => {
     expect(clampLabelText(boundary)).toBe(boundary);
     expect(boundary.slice(0, 32)).not.toBe(boundary);
     expect(Array.from(clampLabelText(boundary))).toHaveLength(32);
+  });
+
+  it("counts a joiner sequence and Hebrew niqqud as one grapheme", () => {
+    const family = "\u{1F468}\u200D\u{1F469}\u200D\u{1F467}\u200D\u{1F466}";
+    expect(Array.from(family).length).toBeGreaterThan(1);
+    expect(clampLabelText(family.repeat(40))).toBe(family.repeat(32));
+    const boundary = "a".repeat(31) + family;
+    expect(clampLabelText(boundary)).toBe(boundary);
+    expect(Array.from(boundary).length).toBeGreaterThan(32);
+    expect(clampLabelText("a".repeat(32) + family)).toBe("a".repeat(32));
+
+    const pointed = "\u05D1\u05BC";
+    expect(Array.from(pointed)).toHaveLength(2);
+    const hebrew = "\u05D0".repeat(31) + pointed;
+    expect(clampLabelText(hebrew)).toBe(hebrew);
+    expect(clampLabelText("\u05D0".repeat(32) + pointed)).toBe("\u05D0".repeat(32));
+  });
+
+  it("falls back to code points when Segmenter is missing", () => {
+    const descriptor = Object.getOwnPropertyDescriptor(Intl, "Segmenter");
+    Object.defineProperty(Intl, "Segmenter", { value: undefined, configurable: true });
+    try {
+      const family = "\u{1F468}\u200D\u{1F469}\u200D\u{1F467}\u200D\u{1F466}";
+      const clamped = clampLabelText(family.repeat(10));
+      expect(Array.from(clamped)).toHaveLength(32);
+      expect(clamped).not.toBe(family.repeat(10));
+    } finally {
+      if (descriptor) Object.defineProperty(Intl, "Segmenter", descriptor);
+    }
   });
 
   it("keeps the chosen ink and finishes each application differently", () => {
@@ -193,6 +224,21 @@ describe("label text layout", () => {
     expect(contrastingPlate("#D6B26A")).toBe("#16130f");
   });
 
+  it("gives a transparent margin no coverage, metal, or glow", () => {
+    const source = new Uint8ClampedArray(8);
+    source.set([0xd6, 0xb2, 0x6a, 0, 0xd6, 0xb2, 0x6a, 255]);
+    const target = new Uint8ClampedArray(8);
+    paintLabelSurface(source, "#D6B26A", "foil", target, 2, 1);
+    expect(target[0]).toBe(0);
+    expect(target[2]).toBe(0);
+    expect(target[6]).toBe(255);
+    paintLabelEmissive(source, "#D6B26A", "foil", target);
+    expect(target[0]).toBe(0);
+    expect(target[1]).toBe(0);
+    expect(target[2]).toBe(0);
+    expect(target[4]).toBeGreaterThan(0);
+  });
+
   it("repaints only when a new face loads", () => {
     expect(shouldRepaintLabel(true)).toBe(false);
     expect(shouldRepaintLabel(false)).toBe(true);
@@ -255,7 +301,7 @@ describe("label text layout", () => {
     expect(english[0]?.direction).toBe("ltr");
     expect(english[0]?.font).toContain("Cinzel");
     expect(english[0]?.font).toContain("Heebo");
-    expect(english[0]?.font.startsWith("600 ")).toBe(true);
+    expect(english[0]?.font.startsWith("500 ")).toBe(true);
     expect(english[0]?.fill).toBe("#f4efe6");
 
     ctx.texts.length = 0;

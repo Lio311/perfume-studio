@@ -31,16 +31,25 @@ export function labelDirection(text: string): "rtl" | "ltr" {
   return "ltr";
 }
 
-/** Cap stored brand text by Unicode code points so a surrogate pair is not split. */
-export function clampLabelText(text: string, max = 32): string {
-  return Array.from(text).slice(0, max).join("");
+/** Grapheme clusters, so a joiner sequence or Hebrew niqqud counts as one character. */
+function labelGraphemes(text: string): string[] {
+  const Segmenter = Intl.Segmenter;
+  if (typeof Segmenter !== "function") return Array.from(text);
+  return [...new Segmenter(undefined, { granularity: "grapheme" }).segment(text)].map((part) => part.segment);
 }
 
-/** Display faces that ship only at 400. Drawing them at 600 is faux bold. */
-export function labelFontWeight(font: LogoFont, text: string): 400 | 600 {
-  if (labelDirection(text) === "rtl") return 600;
+/** Cap stored brand text by grapheme so an emoji sequence or niqqud is not split. */
+export function clampLabelText(text: string, max = 32): string {
+  return labelGraphemes(text).slice(0, max).join("");
+}
+
+/**
+ * Italiana and Great Vibes ship only at 400. Cormorant, Cinzel, and Heebo (including a Hebrew paragraph) are 500.
+ */
+export function labelFontWeight(font: LogoFont, text: string): 400 | 500 {
+  if (labelDirection(text) === "rtl") return 500;
   if (font === "italiana" || font === "vibes") return 400;
-  return 600;
+  return 500;
 }
 
 export function labelFontSpec(font: LogoFont, text: string): string {
@@ -183,7 +192,8 @@ export function paintLabelSurface(
   const coverage = new Float32Array(count);
   for (let pixel = 0; pixel < count; pixel += 1) {
     const index = pixel * 4;
-    coverage[pixel] = inkCoverage(plate, [source[index], source[index + 1], source[index + 2]]);
+    // Letterboxed margins are transparent. Their RGB is empty, so coverage must stay 0 or the plate reads as ink.
+    coverage[pixel] = source[index + 3] === 0 ? 0 : inkCoverage(plate, [source[index], source[index + 1], source[index + 2]]);
   }
   const bevel = finish.bumpScale !== 0 && width >= 8 && height >= 8 && width * height === count;
   const radius = bevel ? Math.min(18, Math.max(1, Math.round(Math.min(width, height) * 0.018))) : 0;
@@ -214,7 +224,7 @@ export function paintLabelEmissive(
   const count = Math.floor(source.length / 4);
   for (let pixel = 0; pixel < count; pixel += 1) {
     const index = pixel * 4;
-    const cover = inkCoverage(plate, [source[index], source[index + 1], source[index + 2]]) * glow;
+    const cover = (source[index + 3] === 0 ? 0 : inkCoverage(plate, [source[index], source[index + 1], source[index + 2]])) * glow;
     const value = Math.round(Math.min(1, Math.max(0, cover)) * 255);
     target[index] = value;
     target[index + 1] = value;

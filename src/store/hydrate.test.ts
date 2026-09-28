@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { setImportedCatalog } from "../model/catalog.ts";
 import { createDefaultDesign } from "../model/design.ts";
-import type { Design } from "../model/types.ts";
+import type { Design, LogoSpec } from "../model/types.ts";
 import { createLabStorage, mergePersistedLab, migratePersisted, partializeLabState, readStorageValue, sanitizeDesign, type HydratedSlice } from "./hydrate.ts";
 import { useLab } from "./labStore.ts";
 
@@ -484,6 +485,58 @@ describe("saved design hydration", () => {
       design: { label: { variantId: "lg-foil-word", color: "#c9a36a", text: "NOIR" } },
     }, 6) as { design: { label: { color: string } } };
     expect(current.design.label.color).toBe("#c9a36a");
+  });
+
+  it("migrates engrave, emboss, and chat snapshots, and leaves a missing label alone", () => {
+    const migrated = migratePersisted({
+      design: { label: { variantId: "lg-engrave-word", color: "#141414", text: "NOIR" } },
+      past: [{ label: { variantId: "lg-emboss-mono", color: "#141414", text: "NOIR" } }],
+      chat: [{
+        id: "m1",
+        role: "lab",
+        snapshot: { label: { variantId: "lg-heebo-word", color: "#141414", text: "NOIR" } },
+      }],
+    }, 5) as {
+      design: { label: { color: string } };
+      past: Array<{ label: { color: string } }>;
+      chat: Array<{ snapshot: { label: { color: string } } }>;
+    };
+    expect(migrated.design.label.color).toBe("#0c0b0a");
+    expect(migrated.past[0]?.label.color).toBe("#f6f1e6");
+    expect(migrated.chat[0]?.snapshot.label.color).toBe("#f4eee4");
+
+    const missing = migratePersisted({ design: { bottle: { variantId: "cara-50" } } }, 5) as {
+      design: { label?: unknown };
+    };
+    expect(missing.design.label).toBeUndefined();
+  });
+
+  it("keeps an imported supplier finish instead of rewriting it as decal", () => {
+    const engraved: LogoSpec = {
+      id: "supplier-engrave",
+      name: { he: "ספק", en: "Supplier" },
+      plate: "plaque",
+      mark: "word",
+      application: "engrave",
+      font: "heebo",
+      frame: "none",
+      tags: ["imported"],
+      model: { type: "procedural" },
+    };
+    setImportedCatalog({ bottles: [], caps: [], labels: [engraved], pumps: [], collars: [], boxes: [] });
+    try {
+      const migrated = migratePersisted({
+        design: { label: { variantId: "supplier-engrave", color: "#141414", text: "NOIR" } },
+      }, 5) as { design: { label: { color: string } } };
+      expect(migrated.design.label.color).toBe("#0c0b0a");
+
+      const unknown = migratePersisted({
+        design: { label: { variantId: "supplier-missing", color: "#141414", text: "NOIR" } },
+      }, 5) as { design: { label: { color: string } } };
+      expect(unknown.design.label.color).toBe("#141414");
+    } finally {
+      setImportedCatalog({ bottles: [], caps: [], labels: [], pumps: [], collars: [], boxes: [] });
+    }
   });
 });
 

@@ -5,7 +5,7 @@ import { CAPS } from "../model/caps.ts";
 import { createDefaultDesign } from "../model/design.ts";
 import { BOXES } from "../model/hardware.ts";
 import { FINISHES } from "../model/materials.ts";
-import { LOGOS } from "../model/logos.ts";
+import { logoApplication } from "../model/catalog.ts";
 import { NECKS } from "../model/necks.ts";
 import type { ThemeId } from "../theme/themes.ts";
 import type {
@@ -471,16 +471,14 @@ export function mergePersistedLab<T extends HydratedSlice>(persisted: unknown, c
   }
 }
 
-function labelApplication(id: string): string {
-  return LOGOS.find((item) => item.id === id)?.application ?? "decal";
-}
-
 /** Old saves stored the plate colour. Replay the ink those plates used to draw. */
 function rewriteLabelRecord(label: Record<string, unknown>): void {
   const color = own(label, "color");
   if (typeof color !== "string" || !/^#[0-9a-f]{6}$/i.test(color)) return;
   const id = own(label, "variantId");
-  label.color = legacyLabelInk(labelApplication(typeof id === "string" ? id : ""), color);
+  const application = logoApplication(typeof id === "string" ? id : "");
+  if (!application) return;
+  label.color = legacyLabelInk(application, color);
 }
 
 function rewriteDesignLabel(design: Record<string, unknown>): void {

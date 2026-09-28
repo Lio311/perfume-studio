@@ -1,4 +1,4 @@
-import { createContext, createElement, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { createContext, createElement, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import * as THREE from "three";
 import { labelEmissiveCanvas, labelFinish, labelFontSpec, labelInk, labelSurfaceCanvas, logoTexture, shouldRepaintLabel } from "../geometry/logos.ts";
 import { logoById } from "../model/catalog.ts";
@@ -64,20 +64,37 @@ function useLabelFontTick(font: LogoFont, text: string): number {
   return fontTick;
 }
 
-/** Paint on the first frame, then once after rapid text or slider updates settle. */
-export function useDebouncedLabelCanvas(signature: string, paint: () => HTMLCanvasElement, waitMs = 80): HTMLCanvasElement {
+/**
+ * Paint a finish or font change before the frame is shown.
+ * Keystrokes and sliders wait, and the previous plate stays up until that paint lands.
+ */
+export function useDebouncedLabelCanvas(
+  immediate: string,
+  deferred: string,
+  paint: () => HTMLCanvasElement,
+  waitMs = 80,
+): HTMLCanvasElement {
   const paintRef = useRef(paint);
   paintRef.current = paint;
   const [canvas, setCanvas] = useState(() => paint());
-  const seen = useRef(signature);
-  useEffect(() => {
-    if (seen.current === signature) return undefined;
+  const seenImmediate = useRef(immediate);
+  const seenDeferred = useRef(deferred);
+  useLayoutEffect(() => {
+    const finishChanged = seenImmediate.current !== immediate;
+    const textChanged = seenDeferred.current !== deferred;
+    if (!finishChanged && !textChanged) return undefined;
+    if (finishChanged) {
+      seenImmediate.current = immediate;
+      seenDeferred.current = deferred;
+      setCanvas(paintRef.current());
+      return undefined;
+    }
     const handle = window.setTimeout(() => {
-      seen.current = signature;
+      seenDeferred.current = deferred;
       setCanvas(paintRef.current());
     }, waitMs);
     return () => window.clearTimeout(handle);
-  }, [signature, waitMs]);
+  }, [immediate, deferred, waitMs]);
   return canvas;
 }
 
@@ -92,8 +109,9 @@ export function LabelPaintProvider({ children }: { children: ReactNode }) {
   const longSide = 2048;
   const width = aspect >= 1 ? longSide : Math.max(256, Math.round(longSide * aspect));
   const height = aspect >= 1 ? Math.max(256, Math.round(longSide / Math.min(4.5, aspect))) : longSide;
-  const signature = [spec.id, design.label.text, ink, spec.application, width, height, fontTick].join("\u0000");
-  const canvas = useDebouncedLabelCanvas(signature, () => {
+  const immediate = [spec.id, spec.application, fontTick].join("\u0000");
+  const deferred = [design.label.text, ink, width, height].join("\u0000");
+  const canvas = useDebouncedLabelCanvas(immediate, deferred, () => {
     const drawn = logoTexture(spec, design.label.text, ink, width, height);
     drawn.dataset.fonts = String(fontTick);
     return drawn;
