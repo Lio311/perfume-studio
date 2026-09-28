@@ -37,6 +37,7 @@ This project is built using modern web and 3D technologies:
   - Decals (logos) are rendered as opaque meshes conforming to the bottle's curved surface to prevent z-fighting or mirrored text.
 - **Part Isolation**: Double-clicking a part isolates it on a turntable with dimension leader lines. The camera easing uses a cubic in-out curve but instantly yields to user gestures (scroll/pinch).
 - **Packaging Workflow**: The bottle and the carton are handled as separate entities. You can view the box alone, hinge the lid open, or render them side-by-side in a combined shot.
+- **Saved designs**: `perfume-lab-v1` is read without throwing. Unparseable JSON is ignored. The stored design is deep-merged onto the defaults: a missing slot, a slot that is not an object, or a slot with an unknown variant id is replaced by that slot's default, unknown keys are dropped, and a known id with a valid finish, colour, size, and visibility is kept. Theme, language, chat, saved sketches, pending uploads, compare ids, and any undo history in the blob are checked the same way. A fresh store shows the default Cara 50 bottle. If a render still throws, an error boundary around the whole app (not only the canvas) shows a short Hebrew or English message and **איפוס עיצוב ורענון** / **Reset design & reload**, which deletes only `perfume-lab-*` localStorage keys and reloads.
 
 ## 🚀 Roadmap
 
