@@ -249,15 +249,17 @@ export function Library() {
           {wizardStep === WIZARD_ORDER.length - 1 ? (lang === "he" ? "סיום" : "Finish") : (lang === "he" ? "לשלב הבא" : "Next Step")}
         </button>
       )}
-      <button type="button" className="upload-btn" data-photo3d onClick={() => setModal("photo")}>
-        {t.photo3d}
-      </button>
-      <button type="button" className="upload-btn" data-import-catalog onClick={() => setModal("supplier")}>
-        {t.importCatalog}
-      </button>
-      <button type="button" className="upload-btn" onClick={() => setModal("upload")}>
-        {t.addPart}
-      </button>
+      <div className="upload-group" style={{ marginTop: "auto", display: "flex", flexDirection: "column", gap: "12px" }}>
+        <button type="button" className="upload-btn" data-photo3d onClick={() => setModal("photo")}>
+          {t.photo3d}
+        </button>
+        <button type="button" className="upload-btn" data-import-catalog onClick={() => setModal("supplier")}>
+          {t.importCatalog}
+        </button>
+        <button type="button" className="upload-btn" onClick={() => setModal("upload")}>
+          {t.addPart}
+        </button>
+      </div>
     </aside>
   );
 }

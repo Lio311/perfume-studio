@@ -246,7 +246,6 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 .thumb.is-on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent), 0 10px 24px rgba(214, 178, 106, 0.12); color: var(--text); }
 
 .upload-btn {
-  margin-top: auto;
   border-radius: 12px;
   border: 1px dashed var(--line-strong);
   background: transparent;
