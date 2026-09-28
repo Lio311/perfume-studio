@@ -20,7 +20,7 @@ export function PixelRatio() {
   const quality = useLab((s) => s.quality);
   const gl = useThree((s) => s.gl);
   useLayoutEffect(() => {
-    const cap = quality === "high" ? 1.5 : 1.1;
+    const cap = quality === "high" ? 2 : 1.5;
     gl.setPixelRatio(Math.min(window.devicePixelRatio || 1, cap));
   }, [gl, quality]);
   return null;
@@ -57,12 +57,11 @@ export function StudioLights() {
   }
   return (
     <>
-      <ambientLight color="#f7f1e6" intensity={voice === 2 ? 0.38 : 0.48} />
-      <directionalLight position={[28, 90, 54]} color="#fffaf3" intensity={voice === 3 ? 3.3 : 2.05} />
-      <directionalLight position={[-48, 42, -36]} color="#f0d29a" intensity={voice === 3 ? 2.1 : 1.25} />
-      <directionalLight position={[18, 24, 70]} color="#fff1dc" intensity={0.72} />
-      <directionalLight position={[60, 18, 10]} color="#d5e4f4" intensity={0.38} />
-      <pointLight position={[8, 36, 42]} color="#ffd7a2" intensity={6} distance={260} decay={2} />
+      <ambientLight color="#e7edf4" intensity={voice === 2 ? 0.36 : 0.5} />
+      <directionalLight position={[28, 90, 54]} color="#f5f7fb" intensity={voice === 3 ? 3.1 : 2.2} />
+      <directionalLight position={[-48, 42, -36]} color="#c9d4e2" intensity={voice === 3 ? 1.6 : 0.9} />
+      <directionalLight position={[18, 24, 70]} color="#f7f8fa" intensity={0.62} />
+      <directionalLight position={[60, 18, 10]} color="#d5e4f4" intensity={0.42} />
     </>
   );
 }

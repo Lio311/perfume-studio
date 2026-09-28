@@ -423,7 +423,7 @@ function CollarPart() {
   return (
     <PartShell part="collar" index={3} home={[0, fit.collarBottom, 0]} explode={fit.explode.collar} visible={design.collar.visible && onStage} variantKey={spec.id + design.bottle.neck}>
       <mesh position={[0, y, 0]}>
-        <cylinderGeometry args={[fit.collarOuter, fit.collarOuter - spec.flareMm * 0.15, fit.collarHeight, spec.knurl ? 18 : 48, 1]} />
+        <cylinderGeometry args={[fit.collarOuter, fit.collarOuter - spec.flareMm * 0.15, fit.collarHeight, spec.knurl ? 48 : 96, 1]} />
         <FinishMaterial finish={design.collar.finish} color={design.collar.color} flat={spec.knurl} />
         <GoldRim part="collar" stamp={spec.id + design.bottle.neck} />
       </mesh>
@@ -435,7 +435,7 @@ function CollarPart() {
       ))}
       {spec.flareMm > 0.4 && (
         <mesh position={[0, fit.collarHeight - 0.8, 0]}>
-          <cylinderGeometry args={[fit.collarOuter + spec.flareMm, fit.collarOuter, 1.6, 40]} />
+          <cylinderGeometry args={[fit.collarOuter + spec.flareMm, fit.collarOuter, 1.6, 96]} />
           <FinishMaterial finish={design.collar.finish} color={design.collar.color} />
         </mesh>
       )}
@@ -508,13 +508,13 @@ function Actuator({
       </mesh>
       {style === "dome" || style === "soft" ? (
         <mesh position={[0, h * 0.55, 0]} scale={[1, style === "soft" ? 0.8 : 0.9, 1]}>
-          <sphereGeometry args={[r, 32, 24]} />
+          <sphereGeometry args={[r, 64, 40]} />
           <FinishMaterial finish={finish} color={color} />
           <GoldRim part="pump" stamp={`${style}-${h.toFixed(1)}`} />
         </mesh>
       ) : (
         <mesh position={[0, h / 2, 0]}>
-          <cylinderGeometry args={[style === "flat" ? r * 1.15 : r, style === "shroud" ? r * 1.05 : r * 0.92, h, style === "screw" ? 20 : 36]} />
+          <cylinderGeometry args={[style === "flat" ? r * 1.15 : r, style === "shroud" ? r * 1.05 : r * 0.92, h, style === "screw" ? 48 : 80]} />
           <FinishMaterial finish={finish} color={color} />
           <GoldRim part="pump" stamp={`${style}-${h.toFixed(1)}`} />
         </mesh>
@@ -527,7 +527,7 @@ function Actuator({
           </mesh>
         ))}
       <mesh position={[r * 0.2, h * 0.55, r * 0.35]} rotation={[Math.PI / 2, 0, 0]}>
-        <cylinderGeometry args={[0.7, 0.9, nozzle, 10]} />
+        <cylinderGeometry args={[0.7, 0.9, nozzle, 24]} />
         <FinishMaterial finish={finish} color={color} />
       </mesh>
     </group>
@@ -553,16 +553,17 @@ function LabelPart() {
       live = false;
     };
   }, []);
+  const quality = useLab((s) => s.quality);
   const canvas = useMemo(() => {
     const aspect = fit.labelW / Math.max(4, fit.labelH);
-    const width = 1024;
-    const height = Math.max(96, Math.round(width / Math.min(6, Math.max(0.45, aspect))));
+    const width = quality === "high" ? 2048 : 1280;
+    const height = Math.max(128, Math.round(width / Math.min(6, Math.max(0.45, aspect))));
     return logoTexture(spec, design.label.text, ink, width, height);
-  }, [spec, design.label.text, ink, fontTick, fit.labelW, fit.labelH]);
+  }, [spec, design.label.text, ink, fontTick, fit.labelW, fit.labelH, quality]);
   const texture = useMemo(() => {
     const map = new THREE.CanvasTexture(canvas);
     map.colorSpace = THREE.SRGBColorSpace;
-    map.anisotropy = 8;
+    map.anisotropy = 16;
     map.flipY = true;
     map.needsUpdate = true;
     return map;
@@ -645,6 +646,43 @@ function BrandPlate({ w, y, z }: { w: number; y: number; z: number }) {
 
 const LINING = "#e7e4df";
 
+function facePanel(width: number, height: number, thickness: number, radius: number): THREE.BufferGeometry {
+  const shape = new THREE.Shape();
+  const x = width / 2;
+  const y = height / 2;
+  const r = Math.min(radius, x * 0.4, y * 0.4);
+  shape.moveTo(-x + r, -y);
+  shape.lineTo(x - r, -y);
+  shape.absarc(x - r, -y + r, r, -Math.PI / 2, 0, false);
+  shape.lineTo(x, y - r);
+  shape.absarc(x - r, y - r, r, 0, Math.PI / 2, false);
+  shape.lineTo(-x + r, y);
+  shape.absarc(-x + r, y - r, r, Math.PI / 2, Math.PI, false);
+  shape.lineTo(-x, -y + r);
+  shape.absarc(-x + r, -y + r, r, Math.PI, Math.PI * 1.5, false);
+  const geo = new THREE.ExtrudeGeometry(shape, {
+    depth: thickness,
+    bevelEnabled: true,
+    bevelThickness: Math.min(0.55, thickness * 0.35),
+    bevelSize: Math.min(0.7, radius * 0.4),
+    bevelSegments: 3,
+    curveSegments: 8,
+  });
+  geo.translate(0, 0, -thickness / 2);
+  geo.computeVertexNormals();
+  return geo;
+}
+
+function FrontPanel({ w, h, t, y, z, finish, color }: { w: number; h: number; t: number; y: number; z: number; finish: Parameters<typeof FinishMaterial>[0]["finish"]; color: string }) {
+  const geo = useMemo(() => facePanel(w, h, t, 2.4), [w, h, t]);
+  useEffect(() => () => geo.dispose(), [geo]);
+  return (
+    <mesh geometry={geo} position={[0, y, z]}>
+      <FinishMaterial finish={finish} color={color} />
+    </mesh>
+  );
+}
+
 function liningMaterial() {
   return <meshStandardMaterial color={LINING} roughness={0.92} metalness={0} />;
 }
@@ -676,10 +714,7 @@ function CartonShell({
         <boxGeometry args={[w, h, wall]} />
         <FinishMaterial finish={finish} color={color} />
       </mesh>
-      <mesh position={[0, y, d / 2 - wall / 2]}>
-        <boxGeometry args={[w, h, wall]} />
-        <FinishMaterial finish={finish} color={color} />
-      </mesh>
+      <FrontPanel w={w} h={h} t={wall} y={y} z={d / 2 - wall / 2} finish={finish} color={color} />
       <mesh position={[-w / 2 + wall / 2, y, 0]}>
         <boxGeometry args={[wall, h, d - wall * 2]} />
         <FinishMaterial finish={finish} color={color} />
@@ -723,7 +758,7 @@ function BottleTray({ w, d, holeW, holeD, y }: { w: number; d: number; holeW: nu
     const ry = Math.min(hd * 0.78, Math.max(8, holeD / 2));
     hole.absellipse(0, 0, rx, ry, 0, Math.PI * 2, true, 0);
     shape.holes.push(hole);
-    const extruded = new THREE.ExtrudeGeometry(shape, { depth: 5.2, bevelEnabled: false, curveSegments: 28 });
+    const extruded = new THREE.ExtrudeGeometry(shape, { depth: 5.2, bevelEnabled: true, bevelThickness: 0.35, bevelSize: 0.45, bevelSegments: 2, curveSegments: 48 });
     extruded.rotateX(-Math.PI / 2);
     extruded.computeVertexNormals();
     return extruded;
@@ -794,7 +829,7 @@ function BoxFormMesh({
             onPointerDown={stopLid}
             onClick={toggleLid}
           >
-            <cylinderGeometry args={[Math.min(w, d) / 2, Math.min(w, d) / 2, h, 48, 1, true]} />
+            <cylinderGeometry args={[Math.min(w, d) / 2, Math.min(w, d) / 2, h, 96, 1, true]} />
             <FinishMaterial finish={finish} color={color} />
             <GoldRim part="box" stamp="box" />
           </mesh>
@@ -810,7 +845,7 @@ function BoxFormMesh({
   if (form === "plinth") {
     return (
       <group>
-        <RoundedBox args={[w, Math.max(16, h * 0.18), d]} radius={1.2} smoothness={3} position={[0, 8, 0]}>
+        <RoundedBox args={[w, Math.max(16, h * 0.18), d]} radius={2.4} smoothness={8} position={[0, 8, 0]}>
           <FinishMaterial finish={finish} color={color} />
           <GoldRim part="box" stamp="box" />
         </RoundedBox>
@@ -877,7 +912,7 @@ function BoxFormMesh({
           onClick={toggleLid}
           onDoubleClick={(event) => event.stopPropagation()}
         >
-          <RoundedBox args={[w, lidH, d]} radius={1.2} smoothness={3} position={[0, lidH / 2, d / 2]}>
+          <RoundedBox args={[w, lidH, d]} radius={2.6} smoothness={8} position={[0, lidH / 2, d / 2]}>
             <FinishMaterial finish={finish} color={color} />
           </RoundedBox>
           <mesh position={[0, 0.55, d / 2]}>

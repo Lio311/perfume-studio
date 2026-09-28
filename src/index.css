@@ -788,13 +788,13 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 }
 
 html[data-theme="dark"] .app[data-voice="1"] {
-  --bg: #050505;
-  --panel: rgba(18, 18, 20, 0.38);
-  --panel-2: rgba(10, 10, 12, 0.52);
-  --line: rgba(255, 255, 255, 0.14);
+  --bg: #07080c;
+  --panel: rgba(14, 16, 20, 0.92);
+  --panel-2: rgba(8, 10, 14, 0.96);
+  --line: rgba(255, 255, 255, 0.16);
   --line-strong: rgba(232, 215, 176, 0.7);
   --text: #f6f4f0;
-  --muted: #9a9a96;
+  --muted: #c9c5bd;
   --accent: #e7d7b4;
   --accent-2: #f7f4ee;
   --fill: rgba(255, 255, 255, 0.05);
@@ -806,15 +806,15 @@ html[data-theme="dark"] .app[data-voice="1"] .chrome { padding: 26px 28px; gap: 
 }
 html[data-theme="dark"] .app[data-voice="1"] .panel {
   border-radius: 28px;
-  background: linear-gradient(180deg, rgba(22, 22, 24, 0.42), rgba(8, 8, 10, 0.28));
+  background: linear-gradient(180deg, rgba(16, 18, 24, 0.92), rgba(8, 10, 14, 0.96));
   backdrop-filter: blur(28px) saturate(1.35);
-  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.16);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.1);
   animation: hud-in 0.55s ease both;
 }
 html[data-theme="dark"] .app[data-voice="1"] .panel::before { opacity: 0.35; }
 html[data-theme="dark"] .app[data-voice="1"] .topbar, html[data-theme="dark"] .app[data-voice="1"] .dock {
-  background: rgba(12, 12, 14, 0.46);
-  border-color: rgba(255, 255, 255, 0.12);
+  background: rgba(10, 12, 16, 0.9);
+  border-color: rgba(255, 255, 255, 0.14);
 }
 html[data-theme="dark"] .app[data-voice="1"] .modes button.is-on, html[data-theme="dark"] .app[data-voice="1"] .voice-switch button.is-on {
   background: #f4f1ea;

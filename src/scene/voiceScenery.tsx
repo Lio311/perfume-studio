@@ -1,6 +1,7 @@
 import { Component, useContext, useMemo, useRef, useState, type ReactNode } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
-import { Bloom, EffectComposer, Scanline, Vignette } from "@react-three/postprocessing";
+import { Bloom, EffectComposer, Scanline, SMAA, Vignette } from "@react-three/postprocessing";
+import { SMAAPreset } from "postprocessing";
 import * as THREE from "three";
 import { useLab } from "../store/labStore.ts";
 import { computeFit } from "../model/fit.ts";
@@ -147,7 +148,7 @@ const GRID_FRAG = `
     float line = smoothstep(0.47, 0.5, max(cell.x, cell.y));
     float fade = 1.0 - smoothstep(48.0, 170.0, dist);
     vec3 base = vec3(0.04, 0.045, 0.055);
-    vec3 gold = vec3(0.55, 0.44, 0.24);
+    vec3 gold = vec3(0.42, 0.4, 0.32);
     vec3 color = mix(base, gold, line * 0.85);
     gl_FragColor = vec4(color, fade * (0.22 + line * 0.55));
   }
@@ -238,23 +239,29 @@ function GradeWatch({ onFail }: { onFail: () => void }) {
 function GradePasses() {
   const voice = useLab((s) => s.voice);
   const theme = useLab((s) => s.theme);
+  const quality = useLab((s) => s.quality);
+  const samples = quality === "high" ? 4 : 2;
+  const smooth = quality === "high" ? <SMAA preset={SMAAPreset.HIGH} /> : null;
   if (theme === "light" || voice === 1) {
     return (
-      <EffectComposer enableNormalPass={false} multisampling={0}>
+      <EffectComposer enableNormalPass={false} multisampling={samples}>
+        {smooth}
         <Bloom intensity={theme === "light" ? 0.05 : 0.045} luminanceThreshold={0.96} luminanceSmoothing={0.2} mipmapBlur radius={0.2} />
       </EffectComposer>
     );
   }
   if (voice === 2) {
     return (
-      <EffectComposer enableNormalPass={false} multisampling={0}>
+      <EffectComposer enableNormalPass={false} multisampling={samples}>
+        {smooth}
         <Bloom intensity={0.12} luminanceThreshold={0.86} luminanceSmoothing={0.2} mipmapBlur radius={0.28} />
         <Scanline density={0.55} opacity={0.028} />
       </EffectComposer>
     );
   }
   return (
-    <EffectComposer enableNormalPass={false} multisampling={0}>
+    <EffectComposer enableNormalPass={false} multisampling={samples}>
+      {smooth}
       <Bloom intensity={0.35} luminanceThreshold={0.78} luminanceSmoothing={0.2} mipmapBlur radius={0.32} />
       <Vignette eskil={false} offset={0.35} darkness={0.42} />
     </EffectComposer>

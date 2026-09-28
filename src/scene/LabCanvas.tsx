@@ -89,9 +89,9 @@ function frameSignature(width: number, height: number): string {
 
 function stageWash(themeId: "dark" | "light", voice: 1 | 2 | 3): { top: string; bottom: string } {
   if (themeId === "light") return { top: themes.light.scene.top, bottom: themes.light.scene.bottom };
-  if (voice === 1) return { top: "#1a2230", bottom: "#0a0d14" };
-  if (voice === 2) return { top: "#152028", bottom: "#070b12" };
-  return { top: "#1c2230", bottom: "#090c12" };
+  if (voice === 2) return { top: "#12181e", bottom: "#07080c" };
+  if (voice === 3) return { top: "#141820", bottom: "#07080c" };
+  return { top: "#161b24", bottom: "#07080c" };
 }
 
 function Backdrop() {
@@ -116,7 +116,7 @@ function Backdrop() {
           bottom: { value: new THREE.Color(wash.bottom) },
         }}
         vertexShader="varying vec3 vPos; void main(){ vPos = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }"
-        fragmentShader="varying vec3 vPos; uniform vec3 top; uniform vec3 bottom; void main(){ float h = smoothstep(-1.05, 1.05, vPos.y); gl_FragColor = vec4(mix(bottom, top, h), 1.0); }"
+        fragmentShader="varying vec3 vPos; uniform vec3 top; uniform vec3 bottom; void main(){ float h = smoothstep(-1.35, 1.45, vPos.y); gl_FragColor = vec4(mix(bottom, top, h), 1.0); }"
       />
     </mesh>
   );
@@ -585,16 +585,12 @@ function Stage() {
   const blueprint = useLab((s) => s.blueprint);
   const stage = useLab((s) => s.stage);
   const dark = theme.id === "dark";
-  const showGrid = blueprint;
+  const showGrid = blueprint || (dark && voice !== 2);
   const grid = !dark
     ? { cell: theme.scene.gridCell, section: theme.scene.gridSection }
     : blueprint
-      ? { cell: "#3a3428", section: "#c4a15a" }
-      : voice === 1
-        ? { cell: "#1a3344", section: "#3d6e84" }
-        : voice === 2
-          ? { cell: "#163844", section: "#3d7480" }
-          : { cell: "#14110e", section: "#2a241c" };
+      ? { cell: "#3a4656", section: "#c4a15a" }
+      : { cell: "#6a788a", section: "#b5a27a" };
   return (
     <>
       <color attach="background" args={[theme.scene.bottom]} />
@@ -608,15 +604,15 @@ function Stage() {
       {showGrid && (
         <Grid
           args={[400, 400]}
-          position={[0, 0, 0]}
-          cellSize={voice === 1 ? 12 : 10}
-          cellThickness={blueprint ? 0.7 : 0.55}
+          position={[0, 0.15, 0]}
+          cellSize={16}
+          cellThickness={blueprint ? 1.15 : 0.9}
           cellColor={grid.cell}
-          sectionSize={voice === 1 ? 80 : 50}
-          sectionThickness={blueprint ? 0.85 : voice === 1 ? 0.5 : 0.9}
+          sectionSize={80}
+          sectionThickness={blueprint ? 1.45 : 1.15}
           sectionColor={grid.section}
-          fadeDistance={voice === 1 ? 360 : 420}
-          fadeStrength={1.2}
+          fadeDistance={880}
+          fadeStrength={1}
           infiniteGrid
         />
       )}
@@ -627,10 +623,10 @@ function Stage() {
           rotation={[Math.PI / 2, 0, 0]}
           cellSize={16}
           cellThickness={0.4}
-          cellColor={blueprint ? "#4a4030" : "#1c2a34"}
+          cellColor={blueprint ? "#3a4656" : "#1c2a34"}
           sectionSize={80}
           sectionThickness={0.55}
-          sectionColor={blueprint ? "#8a7044" : "#2a3c48"}
+          sectionColor={blueprint ? "#9a8458" : "#2a3c48"}
           fadeDistance={240}
           fadeStrength={1.7}
         />
@@ -654,7 +650,7 @@ export function LabCanvas() {
   return (
     <Canvas
       className="stage-canvas"
-      dpr={[1, 1.5]}
+      dpr={[1, 2]}
       camera={{ position: [120, 150, 640], fov: 30, near: 0.5, far: 5000 }}
       gl={{ antialias: true, alpha: false, preserveDrawingBuffer: true, powerPreference: "high-performance", localClippingEnabled: true }}
     >

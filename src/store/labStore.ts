@@ -294,7 +294,7 @@ export const useLab = create<LabState>()(
       palette: false,
       help: false,
       boxOpen: false,
-      theme: "light",
+      theme: "dark",
       lang: "he",
       libraryOpen: false,
       sideOpen: false,
@@ -477,13 +477,14 @@ export const useLab = create<LabState>()(
     }),
     {
       name: "perfume-lab-v1",
-      version: 3,
+      version: 4,
       migrate: (persisted, version) => {
         const state = persisted as { design?: Design; theme?: ThemeId };
         if (version < 2 && state.design?.cap.variantId === "cap-cyl-32" && state.design.label.text === "Nº 01") {
           state.design = createDefaultDesign();
         }
         if (version < 3) state.theme = "light";
+        if (version < 4) state.theme = "dark";
         return state;
       },
       partialize: (state) => ({

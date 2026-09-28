@@ -93,8 +93,8 @@ export function buildBottleGeometry(args: SweepArgs): THREE.BufferGeometry {
   const width = Math.max(10, args.width - (args.inset ?? 0) * 2);
   const depth = Math.max(10, args.depth - (args.inset ?? 0) * 2);
   const neckR = Math.max(3, args.neckR - (args.inset ?? 0) * 0.35);
-  const ySteps = args.faceted ? 28 : 40;
-  const aSteps = args.faceted ? 40 : 72;
+  const ySteps = args.faceted ? 36 : 80;
+  const aSteps = args.faceted ? 48 : 128;
   const positions: number[] = [];
   const uvs: number[] = [];
   const indices: number[] = [];
@@ -172,6 +172,22 @@ export function buildBottleGeometry(args: SweepArgs): THREE.BufferGeometry {
   return orientOutward(geo);
 }
 
+/** Pull the cap silhouette in at the lip and just above the crimp so the edges read as a chamfer. */
+function capBevel(t: number): number {
+  const inset = 0.07;
+  if (t > 0.94) {
+    const u = (1 - t) / 0.06;
+    const s = u * u * (3 - 2 * u);
+    return 1 - inset * (1 - s);
+  }
+  if (t > 0.08 && t < 0.15) {
+    const u = (t - 0.08) / 0.07;
+    const s = u * u * (3 - 2 * u);
+    return 1 - inset * 0.5 * (1 - s);
+  }
+  return 1;
+}
+
 export function buildCapGeometry(
   profile: CapProfileName,
   section: SectionKind,
@@ -183,8 +199,8 @@ export function buildCapGeometry(
   seatR: number,
 ): THREE.BufferGeometry {
   const h = Math.max(8, height);
-  const aSteps = faceted ? 36 : 64;
-  const ySteps = 28;
+  const aSteps = faceted ? 48 : 128;
+  const ySteps = faceted ? 36 : 64;
   const positions: number[] = [];
   const uvs: number[] = [];
   const indices: number[] = [];
@@ -200,6 +216,9 @@ export function buildCapGeometry(
       rx = Math.max(rx, seatR);
       rz = Math.max(rz, seatR);
     }
+    const bevel = capBevel(t);
+    rx *= bevel;
+    rz *= bevel;
     for (let a = 0; a <= aSteps; a++) {
       const ang = (a / aSteps) * Math.PI * 2;
       const [x, z] = sectionPoint(section, ang, rx, rz, softness, 0, y);
@@ -258,8 +277,8 @@ export function buildLabelPatch(args: SweepArgs & { yCenter: number; patchH: num
   }
   const span = lo;
   const anchor = bottleRadii(args.yCenter, height, width, depth, args.profile, args.shoulder, neckR);
-  const ySteps = 12;
-  const aSteps = 20;
+  const ySteps = 28;
+  const aSteps = 64;
   const positions: number[] = [];
   const uvs: number[] = [];
   const indices: number[] = [];

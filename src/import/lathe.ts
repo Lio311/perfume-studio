@@ -26,7 +26,7 @@ export function latheGeometry(radii: number[], height: number, radius: number): 
     const y = (index / Math.max(1, radii.length - 1)) * height;
     return new THREE.Vector2(Math.max(0.35, sample * radius), y);
   });
-  const geometry = new THREE.LatheGeometry(points, 56);
+  const geometry = new THREE.LatheGeometry(points, 128);
   geometry.computeVertexNormals();
   return geometry;
 }
