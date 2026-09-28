@@ -127,7 +127,9 @@ export function TopBar() {
         <button type="button" className={stage === "together" ? "is-on" : ""} onClick={() => setStage("together")}>{t.stageTogether}</button>
       </div>
       <div className="view-controls" style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-        <button type="button" className={`text-btn blueprint-btn ${blueprint ? "is-on" : ""}`} aria-pressed={blueprint} onClick={() => setBlueprint(!blueprint)}>{t.blueprint}</button>
+        <div className="voice-switch">
+          <button type="button" className={blueprint ? "is-on" : ""} aria-pressed={blueprint} onClick={() => setBlueprint(!blueprint)}>{t.blueprint}</button>
+        </div>
         <div className="voice-switch" role="group">
           <button type="button" className={theme === "light" ? "is-on" : ""} onClick={() => {
             if (theme === "light") return;

@@ -23,6 +23,7 @@ const BLUE_FRAG = `
   varying vec3 vView;
   varying vec3 vPos;
   uniform float uFade;
+  uniform vec3 uColor;
   void main() {
     vec3 n = normalize(vNormal);
     vec3 view = normalize(vView);
@@ -33,9 +34,8 @@ const BLUE_FRAG = `
     float spokeLine = 1.0 - smoothstep(0.015, 0.07, spokes);
     float ringLine = 1.0 - smoothstep(0.015, 0.07, rings);
     float cage = max(spokeLine, ringLine * 0.85);
-    vec3 color = vec3(0.965, 0.90, 0.78);
     float alpha = clamp(0.07 + fres * 0.78 + cage * 0.42, 0.0, 0.95);
-    gl_FragColor = vec4(color, alpha * uFade);
+    gl_FragColor = vec4(uColor, alpha * uFade);
   }
 `;
 
@@ -154,10 +154,14 @@ export function FinishMaterial({
     };
   }, [wood, leather, paper]);
   const blueprint = useLab((s) => s.blueprint);
+  const theme = useLab((s) => s.theme);
   const glassLike = glass && isGlass(finish);
   const metal = finish === "gold" || finish === "silver" || finish === "rose";
   const clear = finish === "clear";
-  const fade = useMemo(() => ({ uFade: { value: 1 } }), []);
+  const fade = useMemo(() => ({ uFade: { value: 1 }, uColor: { value: new THREE.Color() } }), []);
+  useEffect(() => {
+    fade.uColor.value.set(theme === "dark" ? 0xf6e5c7 : 0x2c3e50);
+  }, [theme, fade]);
   if (blueprint) {
     return <shaderMaterial transparent depthWrite toneMapped={false} uniforms={fade} vertexShader={BLUE_VERT} fragmentShader={BLUE_FRAG} />;
   }
