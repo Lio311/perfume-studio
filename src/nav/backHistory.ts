@@ -37,6 +37,8 @@ export interface BackSurface {
   explode: number;
   /** The copy-failed share URL is on screen. Back closes it before a wizard step. */
   shareLink: boolean;
+  /** The carton lid is open. One Back closes it, before the stage or wizard step. */
+  boxOpen: boolean;
   /**
    * The wizard is choosing the stage, including the carton step.
    * That stage is not its own Back layer. Wizard steps above 0 are.
@@ -52,6 +54,7 @@ export type BackAction =
   | "overlays"
   | "selection"
   | "share"
+  | "box"
   | "stage"
   | "mode"
   | "wizard"
@@ -154,6 +157,7 @@ export function backAction(surface: BackSurface): BackAction {
   if (surface.shareLink) return "share";
   if (surface.palette || surface.help) return "overlays";
   if (surface.solo || surface.aimed) return "selection";
+  if (surface.boxOpen) return "box";
   if (surface.stage !== "bottle" && !surface.wizard) return "stage";
   if (surface.mode !== "assemble" || surface.explode > 0.02) return "mode";
   if (surface.wizard && surface.step > 0) return "wizard";
@@ -172,6 +176,7 @@ export function backSurface(state: {
   explode: number;
   design: { step?: number };
   shareUrl?: string;
+  boxOpen?: boolean;
 }): BackSurface {
   const raw = state.design.step;
   const known = typeof raw === "number" && Number.isInteger(raw) && raw >= 0 && raw <= 7;
@@ -189,6 +194,7 @@ export function backSurface(state: {
     shareLink: Boolean(state.shareUrl),
     wizard,
     step: wizard ? raw : 0,
+    boxOpen: state.boxOpen === true,
   };
 }
 

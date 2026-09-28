@@ -31,6 +31,7 @@ function applyBackAction(action: Exclude<BackAction, "leave">, trap: Trap) {
     lab.setHelp(false);
   }   else if (action === "selection") lab.showFull();
   else if (action === "share") lab.setShareUrl("");
+  else if (action === "box") lab.setBoxOpen(false);
   else if (action === "stage") lab.setStage("bottle");
   else if (action === "wizard") {
     const step = wizardStepAfterPop(history, trap);
@@ -189,7 +190,7 @@ export default function App() {
 
   useEffect(() => {
     syncHistoryTrap(history, backSurface(useLab.getState()), trapRef.current);
-  }, [aimed, explode, helpOpen, modal, mode, palette, present, shareUrl, solo, stage, wizardStep]);
+  }, [aimed, boxOpen, explode, helpOpen, modal, mode, palette, present, shareUrl, solo, stage, wizardStep]);
 
   useEffect(() => {
     const applyShot = () => {

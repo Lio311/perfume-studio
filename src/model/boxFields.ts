@@ -4,7 +4,7 @@
  * different file, so a later rebase can move this without mixing the two.
  */
 import { bottleById, capById, collarById, pumpById } from "./catalog.ts";
-import { NECKS, neckRadius } from "./necks.ts";
+import { NECKS, neckRadius, neckStandard } from "./necks.ts";
 import { bottleRadii, capRadius } from "./sample.ts";
 import { closureById, listClosures, packById, resolveClosure } from "./closures/registry.ts";
 import { readMotions, type ClosureDimsRange, type ClosureSpec } from "./closures/types.ts";
@@ -719,7 +719,7 @@ export function cavityFromDesign(design: Design, orientation?: InsertOrientation
   const cap = capById(design.cap.variantId);
   const collar = collarById(design.collar.variantId);
   const pump = pumpById(design.pump.variantId);
-  const neck = NECKS[design.bottle.neck];
+  const neck = Object.hasOwn(NECKS, design.bottle.neck) ? NECKS[design.bottle.neck] : neckStandard(design.bottle.neck);
   const neckR = neckRadius(design.bottle.neck);
   const bottleH = design.bottle.heightMm;
   const ferrule = neck.ferrule;
@@ -750,7 +750,9 @@ export function cavityFromDesign(design: Design, orientation?: InsertOrientation
     includeCap: true,
     pumpBase: collarTop - 0.3,
     actuatorH: pump.actuatorHeightMm,
-    actuatorR: Math.max(neckR * pump.radiusFactor, neckR * 0.42),
+    actuatorR: typeof pump.radiusFactor === "number" && pump.radiusFactor > 0
+      ? Math.max(neckR * pump.radiusFactor, neckR * 0.42)
+      : neckR * 0.42,
     nozzle: pump.nozzleMm,
     includePump: true,
     clearanceMm: pack.insert.clearanceMm,
