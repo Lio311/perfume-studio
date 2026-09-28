@@ -34,7 +34,7 @@ This project is built using modern web and 3D technologies:
 - **Single Engine, Multiple Themes**: A single configurator engine drives everything. URL parameters (`?voice=1`) dynamically change the lighting, environment, and post-processing without duplicating the underlying catalog or fit rules.
 - **Rendering Quality**: 
   - Clear glass utilizes a custom shader with a fresnel shell and cool reflection to perform well on software renderers.
-  - Decals (logos) are rendered as opaque meshes conforming to the bottle's curved surface to prevent z-fighting or mirrored text. The typed brand word fills that plate (wrapped to two or three lines when it is long) in the label colour on a contrasting ground. Hebrew, including mixed English and digits, is one right-to-left paragraph in Heebo, because the display faces have no Hebrew glyphs. Typing in the label field shows the plate immediately. Texture U still runs left to right.
+  - Decals (logos) are rendered as opaque meshes conforming to the bottle's curved surface to prevent z-fighting or mirrored text.
 - **Part Isolation**: Double-clicking a part isolates it on a turntable with dimension leader lines. The camera easing uses a cubic in-out curve but instantly yields to user gestures (scroll/pinch).
 - **Packaging Workflow**: The bottle and the carton are handled as separate entities. You can view the box alone, hinge the lid open, or render them side-by-side in a combined shot.
 
