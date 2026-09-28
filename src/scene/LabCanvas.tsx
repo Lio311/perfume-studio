@@ -11,7 +11,7 @@ import { Assembly } from "./Assembly.tsx";
 import { clearPartPointer, consumePartPointer, releaseFocus } from "./focusClick.ts";
 import { assemblyBounds, fitPose, FOCUS_FILL, orbitLimits, partBounds, readStageFrame } from "./framing.ts";
 import { cameraProbe, sceneSpan } from "./limits.ts";
-import { decayGlide, emptyGlide, poseBroken, pushGlide, takeStep, type Glide } from "./orbitGlide.ts";
+import { clampPolarOffset, decayGlide, emptyGlide, polarAngle, poseBroken, pushGlide, takeStep, type Glide } from "./orbitGlide.ts";
 import { Exposure, PixelRatio, StageFloor, StudioEnv, StudioLights } from "./studio.tsx";
 import { CinematicFloor, EnergyRings, ParticleField, VoiceGrade } from "./voiceScenery.tsx";
 
@@ -19,7 +19,7 @@ const VIEW_DIR: Record<ViewPreset | "three", THREE.Vector3> = {
   home: new THREE.Vector3(0.78, 0.22, 1).normalize(),
   front: new THREE.Vector3(0.02, 0.3, 1).normalize(),
   three: new THREE.Vector3(0.9, 0.42, 1.08).normalize(),
-  top: new THREE.Vector3(0.05, 1, 0.2).normalize(),
+  top: new THREE.Vector3(0.42, 0.78, 0.95).normalize(),
   side: new THREE.Vector3(1, 0.24, 0.05).normalize(),
 };
 const UP = new THREE.Vector3(0, 1, 0);
@@ -30,8 +30,6 @@ const YAW_Q = new THREE.Quaternion();
 const PITCH_Q = new THREE.Quaternion();
 const ORBIT_TARGET = new THREE.Vector3(0, 48, 0);
 const HOME_FOCUS = new THREE.Vector3(0, 48, 0);
-
-const MAX_POLAR = 1.5;
 
 function tuneNear(camera: THREE.Camera, dist: number, radius: number) {
   if (!(camera instanceof THREE.PerspectiveCamera)) return;
@@ -50,15 +48,7 @@ function clampOrbit(camera: THREE.Camera, target: THREE.Vector3, radius: number)
   target.y = Math.max(6, target.y);
   OFFSET.copy(camera.position).sub(target);
   const len = THREE.MathUtils.clamp(OFFSET.length() || 1, limits.min, limits.max);
-  const polar = Math.acos(THREE.MathUtils.clamp(OFFSET.y / (OFFSET.length() || 1), -1, 1));
-  if (polar > MAX_POLAR) {
-    const horiz = Math.hypot(OFFSET.x, OFFSET.z) || 1;
-    OFFSET.x = (OFFSET.x / horiz) * Math.sin(MAX_POLAR) * len;
-    OFFSET.z = (OFFSET.z / horiz) * Math.sin(MAX_POLAR) * len;
-    OFFSET.y = Math.cos(MAX_POLAR) * len;
-  } else {
-    OFFSET.setLength(len);
-  }
+  clampPolarOffset(OFFSET, len);
   camera.position.copy(target).add(OFFSET);
 }
 
@@ -126,7 +116,7 @@ function Backdrop() {
           bottom: { value: new THREE.Color(wash.bottom) },
         }}
         vertexShader="varying vec3 vPos; void main(){ vPos = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }"
-        fragmentShader="varying vec3 vPos; uniform vec3 top; uniform vec3 bottom; void main(){ float h = smoothstep(-0.35, 0.55, vPos.y); gl_FragColor = vec4(mix(bottom, top, h), 1.0); }"
+        fragmentShader="varying vec3 vPos; uniform vec3 top; uniform vec3 bottom; void main(){ float h = smoothstep(-1.05, 1.05, vPos.y); gl_FragColor = vec4(mix(bottom, top, h), 1.0); }"
       />
     </mesh>
   );
@@ -477,14 +467,23 @@ function CameraRig() {
   useFrame(() => {
     const rig = controls as { target: THREE.Vector3; _lastAngle?: number } | null;
     const target = mode.current === "anim" ? look.current : (rig?.target ?? look.current);
-    if (mode.current !== "anim" && poseBroken(camera.position, target, camera.up)) recoverHome();
     const live = mode.current === "anim" ? look.current : (rig?.target ?? look.current);
-    clampOrbit(camera, live, radius.current);
+    const polar = polarAngle(camera.position, live);
+    const flipped = camera.up.y < 0.2 || polar < 0.2;
+    if (mode.current !== "anim" && (poseBroken(camera.position, target, camera.up) || flipped)) {
+      recoverHome();
+      if (rig) rig._lastAngle = 0;
+      glide.current.pitch = 0;
+      glide.current.yaw = 0;
+    }
+    const held = mode.current === "anim" ? look.current : (rig?.target ?? look.current);
+    clampOrbit(camera, held, radius.current);
     if (mode.current !== "anim") {
       if (rig && typeof rig._lastAngle === "number") {
-        rig._lastAngle = THREE.MathUtils.clamp(rig._lastAngle, -0.01, 0.01);
-        if (camera.up.dot(UP) < 0.9) rig._lastAngle = 0;
+        rig._lastAngle = THREE.MathUtils.clamp(rig._lastAngle, -0.008, 0.008);
+        if (camera.up.dot(UP) < 0.92 || polar < 0.9) rig._lastAngle = 0;
       }
+      if (polar < 0.9) glide.current.pitch = 0;
       camera.up.copy(UP);
       if (camera.position.distanceTo(live) > 1) camera.lookAt(live);
       look.current.copy(live);
@@ -574,22 +573,8 @@ function StageBlank() {
 
 function StageFog() {
   const scene = useThree((s) => s.scene);
-  const camera = useThree((s) => s.camera);
-  const theme = useLab((s) => s.theme);
-  const voice = useLab((s) => s.voice);
   useFrame(() => {
-    if (theme === "light") {
-      scene.fog = null;
-      return;
-    }
-    const color = voice === 2 ? "#05060a" : "#0c0e14";
-    const dist = Math.max(80, camera.position.distanceTo(ORBIT_TARGET));
-    const near = dist * 2.4;
-    const far = dist * 5.2;
-    if (!(scene.fog instanceof THREE.Fog)) scene.fog = new THREE.Fog(color, near, far);
-    scene.fog.color.set(color);
-    scene.fog.near = near;
-    scene.fog.far = far;
+    scene.fog = null;
   });
   return null;
 }
@@ -600,7 +585,7 @@ function Stage() {
   const blueprint = useLab((s) => s.blueprint);
   const stage = useLab((s) => s.stage);
   const dark = theme.id === "dark";
-  const showGrid = blueprint || (dark && voice !== 2);
+  const showGrid = blueprint;
   const grid = !dark
     ? { cell: theme.scene.gridCell, section: theme.scene.gridSection }
     : blueprint

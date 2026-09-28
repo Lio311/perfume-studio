@@ -229,18 +229,70 @@ function drawMark(ctx: CanvasRenderingContext2D, mark: LogoMark, font: LogoFont,
   ctx.restore();
 }
 
-export function drawLogo(spec: Pick<LogoSpec, "mark" | "font" | "frame">, text: string, ink: string, size: number): HTMLCanvasElement {
+function plateColor(ink: string): string {
+  const body = ink.trim().replace("#", "");
+  const n = Number.parseInt(body.length >= 6 ? body.slice(0, 6) : "ffffff", 16);
+  const r = (n >> 16) & 255;
+  const g = (n >> 8) & 255;
+  const b = n & 255;
+  return (r + g + b) / 3 > 170 ? "#171411" : "#f4efe6";
+}
+
+function fitWord(ctx: CanvasRenderingContext2D, word: string, family: string, maxPx: number, maxWidth: number): number {
+  let px = Math.max(18, Math.floor(maxPx));
+  ctx.font = `600 ${px}px ${family}`;
+  while (px > 16 && ctx.measureText(word).width > maxWidth) {
+    px -= 2;
+    ctx.font = `600 ${px}px ${family}`;
+  }
+  return px;
+}
+
+export function drawLogo(spec: Pick<LogoSpec, "mark" | "font" | "frame">, text: string, ink: string, size: number, height?: number): HTMLCanvasElement {
   const canvas = document.createElement("canvas");
-  canvas.width = size;
-  canvas.height = size;
+  const w = Math.max(32, Math.round(size));
+  const h = Math.max(32, Math.round(height ?? size));
+  canvas.width = w;
+  canvas.height = h;
   const ctx = canvas.getContext("2d");
   if (!ctx) return canvas;
-  ctx.clearRect(0, 0, size, size);
-  drawFrame(ctx, spec.frame, size, ink);
-  drawMark(ctx, spec.mark, spec.font, text, size, ink);
+  const plate = plateColor(ink);
+  const word = letters(text).slice(0, 12);
+  const family = inkFont(spec.font, text);
+  ctx.fillStyle = plate;
+  ctx.fillRect(0, 0, w, h);
+  ctx.fillStyle = ink;
+  ctx.strokeStyle = ink;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.direction = /[\u0590-\u05FF]/.test(word) ? "rtl" : "ltr";
+
+  // A wide plaque must keep the word's own aspect. A square texture stretched
+  // across that plaque turned the letters into a black smear.
+  if (w > h * 1.35) {
+    const inset = Math.max(3, h * 0.1);
+    ctx.globalAlpha = 0.7;
+    ctx.lineWidth = Math.max(2, h * 0.035);
+    ctx.strokeRect(inset, inset, w - inset * 2, h - inset * 2);
+    ctx.globalAlpha = 1;
+    fitWord(ctx, word, family, h * 0.62, w - inset * 4);
+    ctx.fillText(word, w / 2, h / 2);
+    return canvas;
+  }
+
+  drawFrame(ctx, spec.frame, w, ink);
+  drawMark(ctx, spec.mark, spec.font, text, w, ink);
+  ctx.fillStyle = plate;
+  ctx.fillRect(0, h * 0.62, w, h * 0.38);
+  ctx.fillStyle = ink;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.direction = /[\u0590-\u05FF]/.test(word) ? "rtl" : "ltr";
+  fitWord(ctx, word, family, h * (word.length > 6 ? 0.16 : 0.22), w * 0.84);
+  ctx.fillText(word, w / 2, h * 0.8);
   return canvas;
 }
 
-export function logoTexture(spec: LogoSpec, text: string, ink: string, size = 512): HTMLCanvasElement {
-  return drawLogo(spec, text, ink, size);
+export function logoTexture(spec: LogoSpec, text: string, ink: string, size = 512, height?: number): HTMLCanvasElement {
+  return drawLogo(spec, text, ink, size, height);
 }

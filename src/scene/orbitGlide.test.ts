@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import * as THREE from "three";
-import { decayGlide, emptyGlide, poseBroken, pushGlide, takeStep } from "./orbitGlide.ts";
+import { clampPolarOffset, decayGlide, emptyGlide, MAX_POLAR, MIN_POLAR, polarAngle, poseBroken, pushGlide, takeStep } from "./orbitGlide.ts";
 
 describe("trackpad glide", () => {
   it("caps a burst of wheel deltas", () => {
@@ -25,6 +25,17 @@ describe("trackpad glide", () => {
     glide.yaw = 0.008;
     for (let i = 0; i < 12; i += 1) decayGlide(glide, 1 / 60);
     expect(Math.abs(glide.yaw)).toBeLessThan(0.001);
+  });
+
+  it("refuses a top-down or flipped orbit", () => {
+    const down = clampPolarOffset(new THREE.Vector3(0, 200, 0), 200);
+    const polar = polarAngle(down, new THREE.Vector3(0, 0, 0));
+    expect(polar).toBeGreaterThanOrEqual(MIN_POLAR - 1e-4);
+    expect(polar).toBeLessThanOrEqual(MAX_POLAR + 1e-4);
+    expect(down.y).toBeLessThan(200);
+    const under = clampPolarOffset(new THREE.Vector3(0, -80, 10), 80);
+    expect(polarAngle(under, new THREE.Vector3(0, 0, 0))).toBeLessThanOrEqual(MAX_POLAR + 1e-4);
+    expect(under.y).toBeGreaterThan(0);
   });
 
   it("flags a broken camera", () => {

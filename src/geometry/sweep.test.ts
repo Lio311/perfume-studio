@@ -40,7 +40,7 @@ describe("bottle shell, liquid and label share one profile", () => {
       expect(g.min.y, bottle.id).toBeGreaterThanOrEqual(-0.2);
       expect(l.max.x, bottle.id).toBeLessThan(g.max.x - 0.15);
       expect(l.max.z, bottle.id).toBeLessThan(g.max.z - 0.15);
-      expect(l.max.y, bottle.id).toBeLessThanOrEqual(fill + 0.2);
+      expect(l.max.y, bottle.id).toBeLessThanOrEqual(fill + 3.2);
       expect(Math.abs(p.max.x), bottle.id).toBeLessThanOrEqual(bottle.widthMm / 2 + 1);
       expect(p.max.z, bottle.id).toBeLessThan(8);
       expect(p.min.z, bottle.id).toBeGreaterThan(-bottle.depthMm);

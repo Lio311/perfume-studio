@@ -1,4 +1,4 @@
-import { useContext, useEffect, useLayoutEffect, useMemo, useRef, type ReactNode } from "react";
+import { useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useFrame } from "@react-three/fiber";
 import { RoundedBox } from "@react-three/drei";
 import * as THREE from "three";
@@ -541,7 +541,24 @@ function LabelPart() {
   const spec = logoById(design.label.variantId);
   const fit = computeFit(design, false);
   const ink = useMemo(() => inkFor(spec.application, design.label.color), [spec.application, design.label.color]);
-  const canvas = useMemo(() => logoTexture(spec, design.label.text, ink, 512), [spec, design.label.text, ink]);
+  const [fontTick, setFontTick] = useState(0);
+  useEffect(() => {
+    let live = true;
+    const fonts = document.fonts;
+    if (!fonts) return undefined;
+    void fonts.ready.then(() => {
+      if (live) setFontTick(1);
+    });
+    return () => {
+      live = false;
+    };
+  }, []);
+  const canvas = useMemo(() => {
+    const aspect = fit.labelW / Math.max(4, fit.labelH);
+    const width = 1024;
+    const height = Math.max(96, Math.round(width / Math.min(6, Math.max(0.45, aspect))));
+    return logoTexture(spec, design.label.text, ink, width, height);
+  }, [spec, design.label.text, ink, fontTick, fit.labelW, fit.labelH]);
   const texture = useMemo(() => {
     const map = new THREE.CanvasTexture(canvas);
     map.colorSpace = THREE.SRGBColorSpace;
@@ -564,41 +581,11 @@ function LabelPart() {
     patchH: fit.labelH,
     patchW: fit.labelW,
   }), [fit.labelW, fit.labelH, fit.labelY, fit.neckR, design.bottle.heightMm, design.bottle.widthMm, design.bottle.depthMm, bottle]);
-  const inkGeo = useDisposable(() => {
-    const geometry = plate.clone();
-    const pos = geometry.attributes.position;
-    const nor = geometry.attributes.normal;
-    if (nor) {
-      for (let i = 0; i < pos.count; i += 1) {
-        pos.setXYZ(
-          i,
-          pos.getX(i) + nor.getX(i) * 0.28,
-          pos.getY(i) + nor.getY(i) * 0.28,
-          pos.getZ(i) + nor.getZ(i) * 0.28,
-        );
-      }
-      pos.needsUpdate = true;
-    }
-    return geometry;
-  }, [plate]);
   return (
     <PartShell part="label" index={4} home={[0, fit.labelY, fit.labelZ]} explode={fit.explode.label} visible={design.label.visible && onStage} variantKey={spec.id + design.label.text + bottle.id}>
-      <mesh geometry={plate} renderOrder={3}>
-        <meshPhysicalMaterial
-          color={design.label.color}
-          metalness={spec.application === "foil" ? 0.62 : spec.application === "emboss" ? 0.34 : 0.12}
-          roughness={spec.application === "foil" ? 0.32 : 0.48}
-          envMapIntensity={0.55}
-          clearcoat={spec.application === "foil" ? 0.4 : 0.08}
-          clearcoatRoughness={0.35}
-          polygonOffset
-          polygonOffsetFactor={-2}
-          polygonOffsetUnits={-2}
-        />
+      <mesh geometry={plate} renderOrder={8}>
+        <meshBasicMaterial map={texture} toneMapped={false} polygonOffset polygonOffsetFactor={-4} polygonOffsetUnits={-4} />
         <GoldRim part="label" stamp={spec.id + design.label.text} />
-      </mesh>
-      <mesh geometry={inkGeo} renderOrder={4}>
-        <meshBasicMaterial map={texture} transparent depthWrite={false} toneMapped polygonOffset polygonOffsetFactor={-4} polygonOffsetUnits={-4} />
       </mesh>
     </PartShell>
   );
@@ -638,12 +625,13 @@ function BrandPlate({ w, y, z }: { w: number; y: number; z: number }) {
   const text = useLab((s) => s.design.label.text);
   const variantId = useLab((s) => s.design.label.variantId);
   const tex = useMemo(() => {
-    const canvas = logoTexture(logoById(variantId), text, "#f6f1e6", 512);
+    const planeW = Math.min(w * 0.48, 52);
+    const canvas = logoTexture(logoById(variantId), text, "#f6f1e6", 1024, Math.max(96, Math.round(1024 * 18 / planeW)));
     const texture = new THREE.CanvasTexture(canvas);
     texture.colorSpace = THREE.SRGBColorSpace;
     texture.anisotropy = 4;
     return texture;
-  }, [text, variantId]);
+  }, [text, variantId, w]);
   useEffect(() => () => tex.dispose(), [tex]);
   if (blueprint) return null;
   return (

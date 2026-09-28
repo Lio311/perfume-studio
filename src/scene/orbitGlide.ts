@@ -50,6 +50,36 @@ export function decayGlide(glide: Glide, delta: number): void {
   }
 }
 
+/** Radians from straight down. Below this the bottle becomes a plan view. */
+export const MIN_POLAR = 0.78;
+/** Radians from straight down. Above this the camera skims or crosses the floor. */
+export const MAX_POLAR = 1.45;
+
+/** Keep an orbit offset inside the polar window. A zero-length or straight-up offset gets a front azimuth. */
+export function clampPolarOffset(offset: THREE.Vector3, length: number): THREE.Vector3 {
+  const span = Number.isFinite(length) ? Math.max(1, length) : 1;
+  if (offset.lengthSq() < 1e-8 || !Number.isFinite(offset.x)) offset.set(0.78, 0.22, 1);
+  const polar = Math.acos(THREE.MathUtils.clamp(offset.y / (offset.length() || 1), -1, 1));
+  const next = THREE.MathUtils.clamp(polar, MIN_POLAR, MAX_POLAR);
+  let hx = offset.x;
+  let hz = offset.z;
+  if (Math.hypot(hx, hz) < 1e-4) {
+    hx = 0.78;
+    hz = 1;
+  }
+  const h = Math.hypot(hx, hz) || 1;
+  offset.set((hx / h) * Math.sin(next) * span, Math.cos(next) * span, (hz / h) * Math.sin(next) * span);
+  return offset;
+}
+
+export function polarAngle(position: THREE.Vector3, target: THREE.Vector3): number {
+  const dx = position.x - target.x;
+  const dy = position.y - target.y;
+  const dz = position.z - target.z;
+  const len = Math.hypot(dx, dy, dz) || 1;
+  return Math.acos(THREE.MathUtils.clamp(dy / len, -1, 1));
+}
+
 export function poseBroken(position: THREE.Vector3, target: THREE.Vector3, up: THREE.Vector3): boolean {
   const nums = [position.x, position.y, position.z, target.x, target.y, target.z, up.x, up.y, up.z];
   if (nums.some((n) => !Number.isFinite(n))) return true;

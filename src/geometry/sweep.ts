@@ -140,10 +140,22 @@ export function buildBottleGeometry(args: SweepArgs): THREE.BufferGeometry {
   for (let a = 0; a < aSteps; a++) indices.push(bottomCenter, first + a + 1, first + a);
 
   if (args.closedTop) {
+    const cap = bottleRadii(clamp(topY, 0, height), height, width, depth, args.profile, args.shoulder, neckR);
+    const dome = Math.min(2.6, Math.max(1.2, topY * 0.055));
+    const rings = 8;
+    let ring = prev;
+    for (let s = 1; s <= rings; s += 1) {
+      const t = s / rings;
+      const shrink = Math.cos(t * Math.PI * 0.5) * 0.9 + 0.08;
+      const y = topY + dome * (1 - Math.cos(t * Math.PI * 0.5));
+      const next = ringAt(y, Math.max(0.6, cap.rx * shrink), Math.max(0.6, cap.rz * shrink), cap.morph);
+      connect(ring, next);
+      ring = next;
+    }
     const topCenter = positions.length / 3;
-    positions.push(0, topY, 0);
+    positions.push(0, topY + dome, 0);
     uvs.push(0.5, 1);
-    for (let a = 0; a < aSteps; a++) indices.push(topCenter, prev + a, prev + a + 1);
+    for (let a = 0; a < aSteps; a++) indices.push(topCenter, ring + a, ring + a + 1);
   } else {
     const lip = Math.max(1, Math.min(1.6, neckR * 0.22));
     const innerR = Math.max(2.4, neckR - lip);
