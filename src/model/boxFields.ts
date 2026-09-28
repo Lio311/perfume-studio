@@ -73,12 +73,27 @@ export const DEFAULT_BOX_PACK: Pick<
   | "outerWrap"
   | "insert"
 > = {
+  /** Inner box under the sleeve. The sleeve is the outer layer in `layers`. */
   structure: "lift-off",
   latch: "none",
   liftOff: { variant: "shoulder-neck", neckMm: 14, lidDepthMm: 28 },
   drawerPull: "none",
   shape: { type: "rect" },
+  /** Sleeve over an inner box. The sleeve slides off; the magnet stays off. */
   layers: [
+    {
+      role: "structure",
+      structure: "sleeve",
+      latch: "none",
+      hingeAxis: "",
+      doors: 1,
+      drawerCount: 1,
+      direction: "out",
+      neckHeight: 0,
+      splitPlaneAngle: 0,
+      window: null,
+      motion: null,
+    },
     {
       role: "structure",
       structure: "lift-off",
@@ -283,10 +298,11 @@ function resolveShape(raw: unknown): BoxShape {
 }
 
 /**
- * What the mesh should draw. Polygon, and cylinder on anything but lift-off, become a rect.
- * The warning fires once per shape so a saved design stays readable.
+ * What the mesh should draw. Polygon, and cylinder on anything but lift-off or tube, become a rect.
+ * A tube is round even when the saved plan is a rect. The warning fires once per shape.
  */
 export function renderedShape(shape: BoxShape, structureId: string): BoxShape {
+  if (structureId === "tube") return { type: "cylinder" };
   if (shape.type === "cylinder" && structureId === "lift-off") return { type: "cylinder" };
   if (shape.type === "rect") return { type: "rect" };
   const key = `${shape.type}:${structureId}`;

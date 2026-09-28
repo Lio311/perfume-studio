@@ -1,6 +1,6 @@
 import { sizedChannel, STANDARD_DIMS, linearMotion, type ClosureSpec } from "./types.ts";
 
-/** Tray-and-sleeve. The sleeve slides off; the tray stays put. */
+/** Outer sleeve. It slides off the inner box. Alone, the same entry is a tray-and-sleeve. */
 const spec: ClosureSpec = {
   id: "sleeve",
   order: 3,

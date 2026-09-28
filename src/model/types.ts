@@ -377,14 +377,14 @@ export interface BoxState {
   depthMm: number;
   linked: boolean;
   visible: boolean;
-  /** Hinged lid, lift-off, sleeve, drawer, book, or a later registry id. */
+  /** Inner structure: lift-off, tube, hinged lid, sleeve, drawer, book, or a later registry id. */
   structure: BoxStructure;
   latch: BoxLatch;
   liftOff: LiftOffState;
   drawerPull: DrawerPull;
   /** Rect, cylinder, or polygon. Polygon renders as a rect until that entry exists. */
   shape: BoxShape;
-  /** Outer to inner. One layer repeats `structure`. A leading sleeve is sleeve-over-box. */
+  /** Outer to inner. A leading sleeve slides off the inner box. `tube` is a round canister. */
   layers: BoxLayer[];
   insertMotion: InsertMotion;
   /** Greyboard / carton caliper. */

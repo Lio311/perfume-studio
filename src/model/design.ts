@@ -49,6 +49,7 @@ export function createDefaultDesign(): Design {
     },
     box: {
       ...DEFAULT_BOX_PACK,
+      layers: DEFAULT_BOX_PACK.layers.map((layer) => ({ ...layer })),
       variantId: box.id,
       finish: "matteBlack",
       color: "#14161c",

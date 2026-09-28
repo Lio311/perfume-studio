@@ -9,8 +9,8 @@ const SAMPLE = { w: 80, h: 120, d: 70, boardMm: 2.2 };
 describe("closure registry", () => {
   it("loads every structure with a preset, latches, parts, and named stages", () => {
     const specs = listClosures();
-    expect(specs.map((spec) => spec.id)).toEqual(["hinged-lid", "lift-off", "sleeve", "drawer", "book"]);
-    expect(specs.map((spec) => spec.preset.label.he)).toEqual(["מגנט", "לחיצה", "הזזה", "מגירה", "ספר"]);
+    expect(specs.map((spec) => spec.id)).toEqual(["hinged-lid", "lift-off", "sleeve", "drawer", "book", "tube"]);
+    expect(specs.map((spec) => spec.preset.label.he)).toEqual(["מגנט", "לחיצה", "הזזה", "מגירה", "ספר", "גליל"]);
     for (const spec of specs) {
       expect(spec.label.he.length).toBeGreaterThan(0);
       expect(spec.label.en.length).toBeGreaterThan(0);
@@ -47,7 +47,11 @@ describe("closure registry", () => {
     expect(sleeve?.latches).not.toContain("magnet");
     expect(drawer?.latches).not.toContain("magnet");
     expect(book?.latches).toContain("magnet");
-    expect(book?.preset.latch).toBe("magnet");
+    expect(book?.preset.latch).toBe("none");
+    const tube = listClosures().find((spec) => spec.id === "tube");
+    expect(tube?.latches).not.toContain("magnet");
+    expect(tube?.preset.latch).toBe("none");
+    expect(tube?.forms).toContain("tube");
     expect(packById("magnetic")).toMatchObject({ structure: { id: "hinged-lid" }, latch: "magnet" });
     expect(packById("magnet")?.latch).toBe("magnet");
   });
@@ -115,6 +119,22 @@ describe("closure registry", () => {
     expect(motions[1]?.params).toMatchObject({ rotationAxis: "y", rotationAngle: 180 });
     expect(motions[2]?.params.foldOrder).toEqual(["front", "left", "right", "back"]);
     expect(motions[2]?.params.flapCount).toBe(4);
+  });
+
+  it("slides a sleeve off the box and lifts a tube cap", () => {
+    const sleeve = listClosures().find((item) => item.id === "sleeve");
+    const tube = listClosures().find((item) => item.id === "tube");
+    if (!sleeve || !tube) throw new Error("sleeve or tube");
+    const sleeveDims = closureDims(SAMPLE, sleeve);
+    const shut = poseAt(sleeve, sleeveDims, 0).find((sample) => sample.group === "sleeve" && sample.axis === "y");
+    const slid = poseAt(sleeve, sleeveDims, 1).find((sample) => sample.group === "sleeve" && sample.axis === "y");
+    expect(slid && shut && slid.value).toBeGreaterThan(shut?.value ?? 0);
+    const tubeDims = closureDims(SAMPLE, tube);
+    expect(tubeDims.lidH).toBeGreaterThan(0);
+    expect(tubeDims.lidH).toBeLessThan(SAMPLE.h);
+    const capped = poseAt(tube, tubeDims, 0).find((sample) => sample.group === "lid" && sample.axis === "y");
+    const lifted = poseAt(tube, tubeDims, 1).find((sample) => sample.group === "lid" && sample.axis === "y");
+    expect(lifted && capped && lifted.value).toBeGreaterThan(capped?.value ?? 0);
   });
 
   it("warns once and falls back to lift-off for an unknown id", () => {

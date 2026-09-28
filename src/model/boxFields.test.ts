@@ -43,15 +43,16 @@ function cavityInput(overrides: Partial<CavityInput> = {}): CavityInput {
 }
 
 describe("box pack defaults and migration", () => {
-  it("opens a new design on a shoulder-neck lift-off and a standing insert", () => {
+  it("opens a new design on a sleeve over a lift-off box, with the magnet off", () => {
     const box = createDefaultDesign().box;
     expect(box.structure).toBe("lift-off");
     expect(box.latch).toBe("none");
     expect(box.liftOff).toEqual({ variant: "shoulder-neck", neckMm: 14, lidDepthMm: 28 });
     expect(box.drawerPull).toBe("none");
     expect(box.shape).toEqual({ type: "rect" });
-    expect(box.layers).toHaveLength(1);
-    expect(box.layers[0]?.structure).toBe("lift-off");
+    expect(sleeveOverActive(box.layers)).toBe(true);
+    expect(box.layers.map((layer) => layer.structure)).toEqual(["sleeve", "lift-off"]);
+    expect(box.layers.every((layer) => layer.latch === "none")).toBe(true);
     expect(box.insertMotion.trayLift).toEqual({ height: 0, trigger: "lidAngle" });
     expect(box.insert.orientation).toBe("standing");
     expect(box.material).toBe("rigid");
@@ -98,7 +99,18 @@ describe("box pack defaults and migration", () => {
     expect(box.latch).toBe("magnet");
     const book = hydrateBox({ closure: "book" });
     expect(book.structure).toBe("book");
-    expect(book.latch).toBe("magnet");
+    expect(book.latch).toBe("none");
+  });
+
+  it("keeps a tube layer beside a sleeve, with no magnet", () => {
+    const tube = hydrateBox({
+      layers: [{ closure: "sleeve" }, { closure: "tube" }],
+    } as unknown as Partial<BoxState>);
+    expect(tube.layers.map((layer) => layer.structure)).toEqual(["sleeve", "tube"]);
+    expect(sleeveOverActive(tube.layers)).toBe(true);
+    expect(tube.structure).toBe("tube");
+    expect(tube.latch).toBe("none");
+    expect(validateBoxFields(tube)).toEqual([]);
   });
 
   it("drops a magnet latch that the sleeve cannot use", () => {
@@ -120,9 +132,13 @@ describe("box pack defaults and migration", () => {
     expect(design.box.latch).toBe("none");
     applyVariant(design, "box", "box-coffret");
     expect(design.box.structure).toBe("book");
-    expect(design.box.latch).toBe("magnet");
+    expect(design.box.latch).toBe("none");
     expect(design.box.layers.at(-1)?.structure).toBe("book");
-    expect(design.box.layers.at(-1)?.latch).toBe("magnet");
+    expect(design.box.layers.at(-1)?.latch).toBe("none");
+    applyVariant(design, "box", "box-tube");
+    expect(design.box.structure).toBe("tube");
+    expect(design.box.latch).toBe("none");
+    expect(design.box.layers.at(-1)?.structure).toBe("tube");
     expect(design.box.insert.orientation).toBe("standing");
   });
 });
@@ -181,6 +197,7 @@ describe("layers, shape, and insert motion", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     expect(hydrateBox({ shape: { type: "cone" } as unknown as BoxState["shape"] }).shape).toEqual({ type: "rect" });
     expect(renderedShape({ type: "cylinder" }, "lift-off")).toEqual({ type: "cylinder" });
+    expect(renderedShape({ type: "rect" }, "tube")).toEqual({ type: "cylinder" });
     expect(renderedShape({ type: "cylinder" }, "book")).toEqual({ type: "rect" });
     expect(renderedShape({ type: "cylinder" }, "book")).toEqual({ type: "rect" });
     expect(renderedShape({ type: "polygon", sides: 8 }, "book")).toEqual({ type: "rect" });

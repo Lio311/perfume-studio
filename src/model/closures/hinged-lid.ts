@@ -1,8 +1,8 @@
 import { fixedChannel, STANDARD_DIMS, type ClosureSpec } from "./types.ts";
 
 /**
- * Magnetic closure box: a hinged lid with a flap over the front.
- * The magnet is the latch, not this structure.
+ * Hinged lid with a flap over the front.
+ * The magnet is an optional latch on this structure, not the starting carton.
  * The flap unlatches first; the lid follows, overlapping the way a folding-box timeline staggers flaps.
  */
 const spec: ClosureSpec = {
