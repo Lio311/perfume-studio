@@ -43,3 +43,11 @@ This project is built using modern web and 3D technologies:
 - **GLB Support**: Implement a loader for non-procedural imported 3D models.
 - **LLM Integration**: Connect a Large Language Model behind the chat interpreter for more natural command parsing (falling back to the local regex parser).
 - **Image-to-3D Integration**: Add API support to generate non-round parts from user-uploaded photos.
+
+## Budget planning
+
+- Before assembly, set a per-unit budget ceiling in ₪ and a perfume volume in ml. A bottle is offered when its nominal fill is within 15% of that volume, or within 2 ml, whichever is wider. Nominal fill is the supplier capacity when present, otherwise a fill token in the id, otherwise the geometric `capacityMl`. The brief can be changed later from the budget meter.
+- Library cards and the properties panel show a price. Built-in figures are synthetic multiples of 5 ILS and are labelled מחיר לדוגמה. A typed price is stored in the existing `localStorage` key `perfume-lab-v1`. The meter shows the unit total, what remains, and a clear over-budget state.
+- Selecting a part that crosses the ceiling lists the most similar in-budget parts from the built-in catalog and imported packs. Similarity requires the same kind and a compatible FEA neck, then scores 0.40 dimensions, 0.30 shape, 0.20 material, and 0.10 finish. One click swaps a suggestion in.
+- At the end of assembly, and from the meter, cheaper swaps are ranked by saving divided by design change. A swap needs at least 5 ₪ saved, similarity of at least 0.55, and a design-change score of at most 0.45. Each row shows the millimetre gap and the price gap.
+- `SupplierPart.price` is optional and does not bump the pack version. Old packs import unchanged. Unknown pack fields stay on the JSON. The shape is `{ value: number > 0, currency: ISO 4217, moq?: integer >= 1, tiers?: { minQty: integer >= 1, value: number > 0 }[] sorted by minQty ascending, quotedAt?: ISO 8601 date }`. A string price, a zero, a `qty` tier, or any other break drops that price with a message and the part still imports. `quotedAt`, when present, is shown next to the price. `₪`, `NIS`, and `ש״ח` are stored as `ILS`. Any other currency stays out of the ₪ total until the user enters a shekel rate. The per-unit total uses `value`.

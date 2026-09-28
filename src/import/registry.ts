@@ -1,7 +1,10 @@
+import type { SupplierPrice } from "../budget/money.ts";
 import { clearLatheProfiles, setLatheProfile } from "./lathe.ts";
 import { setImportedCatalog } from "../model/catalog.ts";
 import type { BottleSpec, BoxSpec, CapProfileName, CapSpec, CollarSpec, FinishId, LogoSpec, NeckId, PumpSpec, SectionKind, VariantPart } from "../model/types.ts";
 import type { DraftItem, ImportProfile } from "./parseCatalog.ts";
+
+export type { SupplierPrice, PriceTier } from "../budget/money.ts";
 
 export interface SupplierPart {
   id: string;
@@ -19,6 +22,12 @@ export interface SupplierPart {
   page: number;
   /** Normalised half-profile. Present for photo-revolved parts. */
   lathe?: number[];
+  /**
+   * Optional unit price. Absent on older packs.
+   * `value` is the per-unit price; `tiers` are quantity breaks and do not replace it unless a tier qty is ≤ 1.
+   * A currency other than ILS is not added to the shekel total unless the user sets a rate.
+   */
+  price?: SupplierPrice;
 }
 
 export interface SupplierPack {
@@ -26,6 +35,11 @@ export interface SupplierPack {
   name: string;
   createdAt: number;
   parts: SupplierPart[];
+  /**
+   * Optional. Price support does not require or write a version.
+   * A later pack may set `version: 2` with source, mesh, and measurements.
+   */
+  version?: number;
 }
 
 export interface ImportedMeta {
@@ -40,9 +54,14 @@ export interface ImportedMeta {
 }
 
 const meta = new Map<string, ImportedMeta>();
+const prices = new Map<string, SupplierPrice>();
 
 export function importedMeta(id: string): ImportedMeta | undefined {
   return meta.get(id);
+}
+
+export function importedPrice(id: string): SupplierPrice | undefined {
+  return prices.get(id);
 }
 
 export function partFromDraft(draft: DraftItem, supplier: { id: string; name: string }, index: number): SupplierPart {
@@ -86,6 +105,7 @@ function capSection(profile: ImportProfile): SectionKind {
 
 export function syncRegistry(packs: SupplierPack[]): void {
   meta.clear();
+  prices.clear();
   clearLatheProfiles();
   const bottles: BottleSpec[] = [];
   const caps: CapSpec[] = [];
@@ -106,6 +126,7 @@ export function syncRegistry(packs: SupplierPack[]): void {
         supplierName: pack.name,
       });
       if (part.lathe) setLatheProfile(part.id, { radii: part.lathe });
+      if (part.price) prices.set(part.id, part.price);
       const name = { he: part.name, en: part.name };
       const shared = tags(part, pack);
       if (part.kind === "bottle") {

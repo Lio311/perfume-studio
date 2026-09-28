@@ -16,6 +16,7 @@ import { parseVoiceParam, readVoiceParam, type VoiceVariant } from "../audio/wak
 import { deletePack, savePack } from "../import/supplierDb.ts";
 import { syncRegistry, type SupplierPack } from "../import/registry.ts";
 import { apiClient } from "../api/client.ts";
+import type { BudgetBrief, PriceOverride } from "../budget/types.ts";
 
 export type LabMode = "assemble" | "explode" | "dimensions" | "compare";
 export type ViewPreset = "home" | "front" | "three" | "top" | "side";
@@ -74,6 +75,12 @@ interface LabState {
   modal: "save" | "compare" | "upload" | "supplier" | "photo" | null;
   units: "mm" | "cm" | "in";
   suppliers: SupplierPack[];
+  brief: BudgetBrief;
+  /** Not persisted. True while the brief dialog is open over an existing brief. */
+  briefEditing: boolean;
+  priceOverrides: Record<string, PriceOverride>;
+  /** ILS received for 1 unit of a foreign currency. Empty until the user types a rate. */
+  exchangeRates: Record<string, number>;
   chat: ChatMessage[];
   saved: SavedDesign[];
   pending: PendingPart[];
@@ -124,6 +131,12 @@ interface LabState {
   setSuppliers: (packs: SupplierPack[]) => void;
   upsertSupplier: (pack: SupplierPack) => void;
   removeSupplier: (id: string) => void;
+  setBrief: (patch: Partial<Pick<BudgetBrief, "ceilingIls" | "volumeMl">>) => void;
+  confirmBrief: () => void;
+  openBrief: () => void;
+  closeBrief: () => void;
+  setPriceOverride: (id: string, price: PriceOverride | null) => void;
+  setExchangeRate: (currency: string, ilsPerUnit: number | null) => void;
   setVoice: (voice: VoiceVariant) => void;
   setSoundOn: (on: boolean) => void;
   setStage: (stage: StageMode) => void;
@@ -369,6 +382,10 @@ export const useLab = create<LabState>()(
       saved: seeds(),
       pending: [],
       suppliers: [],
+      brief: { ceilingIls: 30, volumeMl: 50, confirmed: false },
+      briefEditing: false,
+      priceOverrides: {},
+      exchangeRates: {},
       compareIds: ["seed-atelier", "seed-blush", "seed-noir"],
       voice: readVoiceParam(),
       soundOn: true,
@@ -553,6 +570,38 @@ export const useLab = create<LabState>()(
         set({ suppliers });
         void deletePack(id);
       },
+      setBrief: (patch) =>
+        set((state) => ({
+          brief: {
+            ...state.brief,
+            ceilingIls: patch.ceilingIls === undefined ? state.brief.ceilingIls : clamp(patch.ceilingIls, 1, 100000),
+            volumeMl: patch.volumeMl === undefined ? state.brief.volumeMl : clamp(patch.volumeMl, 1, 1000),
+          },
+        })),
+      confirmBrief: () =>
+        set((state) => ({
+          brief: { ...state.brief, confirmed: true },
+          briefEditing: false,
+          libraryOpen: true,
+          sideOpen: true,
+        })),
+      openBrief: () => set({ briefEditing: true }),
+      closeBrief: () => set({ briefEditing: false }),
+      setPriceOverride: (id, price) =>
+        set((state) => {
+          const priceOverrides = { ...state.priceOverrides };
+          if (!price || !Number.isFinite(price.value) || price.value < 0) delete priceOverrides[id];
+          else priceOverrides[id] = { value: price.value, currency: price.currency };
+          return { priceOverrides };
+        }),
+      setExchangeRate: (currency, ilsPerUnit) =>
+        set((state) => {
+          const exchangeRates = { ...state.exchangeRates };
+          const code = currency.trim().toUpperCase();
+          if (!code || ilsPerUnit === null || !Number.isFinite(ilsPerUnit) || ilsPerUnit <= 0) delete exchangeRates[code];
+          else exchangeRates[code] = ilsPerUnit;
+          return { exchangeRates };
+        }),
       setVoice: (voice) => {
         if (typeof location !== "undefined" && typeof history !== "undefined") {
           const url = new URL(location.href);
@@ -587,14 +636,25 @@ export const useLab = create<LabState>()(
     }),
     {
       name: "perfume-lab-v1",
-      version: 4,
+      version: 5,
       migrate: (persisted, version) => {
-        const state = persisted as { design?: Design; theme?: ThemeId };
+        const state = persisted as {
+          design?: Design;
+          theme?: ThemeId;
+          brief?: BudgetBrief;
+          priceOverrides?: Record<string, PriceOverride>;
+          exchangeRates?: Record<string, number>;
+        };
         if (version < 2 && state.design?.cap.variantId === "cap-cyl-32" && state.design.label.text === "Nº 01") {
           state.design = createDefaultDesign();
         }
         if (version < 3) state.theme = "light";
         if (version < 4) state.theme = "dark";
+        if (version < 5) {
+          if (!state.brief) state.brief = { ceilingIls: 30, volumeMl: 50, confirmed: false };
+          if (!state.priceOverrides) state.priceOverrides = {};
+          if (!state.exchangeRates) state.exchangeRates = {};
+        }
         return state;
       },
       partialize: (state) => ({
@@ -605,6 +665,9 @@ export const useLab = create<LabState>()(
         saved: state.saved,
         pending: state.pending,
         compareIds: state.compareIds,
+        brief: state.brief,
+        priceOverrides: state.priceOverrides,
+        exchangeRates: state.exchangeRates,
       }),
     },
   ),

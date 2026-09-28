@@ -1,10 +1,14 @@
+import { formatMoney } from "../budget/money.ts";
 import { bottleById, boxById, capById, collarById, logoById, pumpById } from "../model/catalog.ts";
 import { computeFit } from "../model/fit.ts";
 import { FINISHES, PALETTE, LIQUID_PALETTE } from "../model/materials.ts";
 import { NECK_IDS } from "../model/necks.ts";
-import type { FinishId, NeckId, PartKey } from "../model/types.ts";
+import type { FinishId, NeckId, PartKey, VariantPart } from "../model/types.ts";
 import { partLabel, tx } from "../i18n/copy.ts";
 import { useLab } from "../store/labStore.ts";
+import { Alternatives } from "./BudgetSuggestions.tsx";
+import { PartPriceEditor } from "./PriceTag.tsx";
+import { useBudgetModel } from "./useBudget.ts";
 
 export function Inspector() {
   const lang = useLab((s) => s.lang);
@@ -20,6 +24,7 @@ export function Inspector() {
   const duplicateDesign = useLab((s) => s.duplicateDesign);
   const applyCommands = useLab((s) => s.applyCommands);
   const part = selected;
+  const budget = useBudgetModel();
   const name = variantName(part, design, lang);
   let fit: ReturnType<typeof computeFit>;
   try {
@@ -47,7 +52,12 @@ export function Inspector() {
       {part && (
         <>
           {badge && <div className="badge is-fit" dir="ltr">{badge}</div>}
-          <SpecCard part={part} />
+          <p className="combo-total" data-combo-total>
+            <span>{t.totalPrice}</span>
+            <bdi dir="ltr">{formatMoney(budget.summary.totalIls, "ILS", lang)}</bdi>
+            {budget.includesExample && <em>{t.examplePrice}</em>}
+            {budget.summary.over && <em className="is-over">{t.budgetOver}</em>}
+          </p>
           <div className="part-title">
             <div>
               <span className="eyebrow">{partLabel[lang][part]}</span>
@@ -60,6 +70,9 @@ export function Inspector() {
               </div>
             )}
           </div>
+          {part !== "liquid" && <PartPriceEditor kind={part as VariantPart} partId={design[part].variantId} />}
+          <Alternatives />
+          <SpecCard part={part} />
           <h3>{t.color}</h3>
           <div className="swatches">
             {(part === "liquid" ? LIQUID_PALETTE : PALETTE).map((color) => {

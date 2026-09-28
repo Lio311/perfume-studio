@@ -1,5 +1,6 @@
 import DOMPurify from "dompurify";
-import type { SupplierPack } from "./registry.ts";
+import { sanitizeSupplierPrice } from "./packPrice.ts";
+import type { SupplierPack, SupplierPart } from "./registry.ts";
 
 const DB_NAME = "perfume-lab-suppliers";
 const STORE = "packs";
@@ -53,19 +54,33 @@ export function downloadPack(pack: SupplierPack): void {
   URL.revokeObjectURL(url);
 }
 
+function sanitizePart(part: SupplierPart): SupplierPart {
+  const next: SupplierPart = {
+    ...part,
+    name: DOMPurify.sanitize(part.name || ""),
+    code: DOMPurify.sanitize(part.code || ""),
+  };
+  if (part.price === undefined) {
+    delete next.price;
+    return next;
+  }
+  const price = sanitizeSupplierPrice(part.price);
+  if (!price) delete next.price;
+  else next.price = price;
+  return next;
+}
+
 export function parsePackFile(text: string): SupplierPack | null {
   try {
-    const value = JSON.parse(text) as SupplierPack;
+    const value = JSON.parse(text) as SupplierPack & Record<string, unknown>;
     if (!value || typeof value.name !== "string" || !Array.isArray(value.parts)) return null;
+    const { id, name, createdAt, parts, ...rest } = value;
     return {
-      id: value.id || `pack-${Date.now().toString(36)}`,
-      name: DOMPurify.sanitize(value.name),
-      createdAt: value.createdAt || Date.now(),
-      parts: value.parts.filter((part) => part && typeof part.id === "string" && typeof part.kind === "string").map(part => ({
-        ...part,
-        name: DOMPurify.sanitize(part.name || ""),
-        code: DOMPurify.sanitize(part.code || ""),
-      })),
+      ...rest,
+      id: typeof id === "string" && id ? id : `pack-${Date.now().toString(36)}`,
+      name: DOMPurify.sanitize(name),
+      createdAt: typeof createdAt === "number" ? createdAt : Date.now(),
+      parts: parts.filter((part) => part && typeof part.id === "string" && typeof part.kind === "string").map((part) => sanitizePart(part)),
     };
   } catch {
     return null;

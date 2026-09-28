@@ -1,4 +1,7 @@
 import { useEffect, useRef, useState } from "react";
+import { BudgetBrief } from "./ui/BudgetBrief.tsx";
+import { BudgetMeter } from "./ui/BudgetMeter.tsx";
+import { SavingsPanel } from "./ui/BudgetSuggestions.tsx";
 import { LabCanvas } from "./scene/LabCanvas.tsx";
 import { applyTheme } from "./theme/themes.ts";
 import { partLabel, tx, wizardTitle } from "./i18n/copy.ts";
@@ -70,6 +73,9 @@ export default function App() {
   const [hintOn, setHintOn] = useState(true);
   const [shareLock, setShareLock] = useState(() => location.hash.startsWith("#d="));
   const [swapping, setSwapping] = useState(false);
+  const [savingsOpen, setSavingsOpen] = useState(false);
+  const step = design.step ?? 7;
+  const prevStep = useRef(step);
 
   const sig = `${design.bottle.variantId}|${design.cap.variantId}|${design.pump.variantId}|${design.collar.variantId}|${design.label.variantId}|${design.box.variantId}`;
   const seen = useRef(sig);
@@ -186,6 +192,20 @@ export default function App() {
   useEffect(() => () => stopSpeaking(), [voice]);
 
   useEffect(() => {
+    const remember = () => {
+      prevStep.current = useLab.getState().design.step ?? 7;
+    };
+    if (useLab.persist.hasHydrated()) remember();
+    return useLab.persist.onFinishHydration(remember);
+  }, []);
+
+  useEffect(() => {
+    if (!useLab.persist.hasHydrated()) return;
+    if ((prevStep.current ?? 7) < 7 && step >= 7) setSavingsOpen(true);
+    prevStep.current = step;
+  }, [step]);
+
+  useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (shareLock) return;
       const target = event.target as HTMLElement | null;
@@ -253,6 +273,7 @@ export default function App() {
         <TopBar />
         <Library />
         <div className="stage-slot">
+          <BudgetMeter onSavings={() => setSavingsOpen(true)} />
           <div style={{ position: 'absolute', top: 12, right: 12, display: 'flex', gap: 8, pointerEvents: 'auto', zIndex: 10 }} dir={lang === "he" ? "rtl" : "ltr"}>
             <button type="button" className="icon-btn" style={{ background: 'var(--bg)' }} onClick={() => undo()} disabled={past === 0}>{t.undo}</button>
             <button type="button" className="icon-btn" style={{ background: 'var(--bg)' }} onClick={() => redo()} disabled={future === 0}>{t.redo}</button>
@@ -314,6 +335,8 @@ export default function App() {
       <CommandPalette />
       <ShortcutHelp />
       <Modals />
+      <BudgetBrief />
+      <SavingsPanel open={savingsOpen} onClose={() => setSavingsOpen(false)} />
     </div>
   );
 }
