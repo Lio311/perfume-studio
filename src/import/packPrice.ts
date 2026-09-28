@@ -1,9 +1,18 @@
 import { normalizeCurrency, type PriceTier, type SupplierPrice } from "../budget/money.ts";
 
-export type PriceDropReason = "value" | "currency" | "moq" | "tiers" | "quotedAt";
+/** The price itself is unusable. The part still imports, without a price. */
+export type PriceDropReason = "value" | "currency" | "moq" | "quotedAt";
 
-/** A single break was adjusted. The rest of the price is kept. */
+/** One break was adjusted. The rest of the price is kept. */
 export type PriceTierNotice = "tierDropped" | "tierRose";
+
+export interface PriceWarning {
+  partId: string;
+  reason: PriceDropReason | PriceTierNotice;
+}
+
+/** How many warning lines to show before a single "+N more" line. */
+export const PRICE_WARNING_LIMIT = 20;
 
 const ISO_8601 = /^\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:\d{2})?)?$/;
 
@@ -24,11 +33,22 @@ export function isIso8601Date(value: string): boolean {
 }
 
 /**
- * Keep a pack price only when it matches the shared shape.
- * A failure of the price itself drops it; the caller still imports the part and reports `reason`.
- * A tier whose `minQty` is not strictly above `moq` (when `moq` is set), or not strictly above
- * the previous break, is dropped on its own. A break that costs more than the previous price is kept.
- * Both cases are reported in `notices`.
+ * `minQty` when it is a whole number. A present but non-numeric `minQty` is invalid
+ * and does not fall through to legacy `qty`. `qty` is read only when `minQty` is absent.
+ */
+function tierQuantity(row: Record<string, unknown>): number | null {
+  const hasMinQty = Object.prototype.hasOwnProperty.call(row, "minQty") && row.minQty !== undefined;
+  if (hasMinQty) {
+    return typeof row.minQty === "number" && Number.isInteger(row.minQty) ? row.minQty : null;
+  }
+  return typeof row.qty === "number" && Number.isInteger(row.qty) ? row.qty : null;
+}
+
+/**
+ * Keep a pack price when the base quote is valid.
+ * A bad value, currency, or MOQ drops the whole price.
+ * Each tier is checked in the order it was written and is not reordered.
+ * A failing tier is dropped on its own. A tier that costs more than the previous price is kept.
  */
 export function sanitizeSupplierPrice(
   raw: unknown,
@@ -49,32 +69,35 @@ export function sanitizeSupplierPrice(
   const notices: PriceTierNotice[] = [];
   let tiers: PriceTier[] | undefined;
   if ("tiers" in price && price.tiers !== undefined) {
-    if (!Array.isArray(price.tiers)) return { reason: "tiers" };
-    const clean: PriceTier[] = [];
-    for (const tier of price.tiers) {
-      if (!tier || typeof tier !== "object" || Array.isArray(tier)) return { reason: "tiers" };
-      const row = tier as Record<string, unknown>;
-      const minQty = typeof row.minQty === "number" ? row.minQty : row.qty;
-      const tierValue = row.value;
-      if (typeof minQty !== "number" || !Number.isInteger(minQty) || minQty < 1) return { reason: "tiers" };
-      if (typeof tierValue !== "number" || !Number.isFinite(tierValue) || tierValue <= 0) return { reason: "tiers" };
-      clean.push({ minQty, value: tierValue });
-    }
-    clean.sort((a, b) => a.minQty - b.minQty);
-    const kept: PriceTier[] = [];
-    let previousQty = moq ?? 0;
-    let previousValue = price.value;
-    for (const tier of clean) {
-      if (tier.minQty <= previousQty) {
-        notices.push("tierDropped");
-        continue;
+    if (!Array.isArray(price.tiers)) notices.push("tierDropped");
+    else {
+      const kept: PriceTier[] = [];
+      let previousValue = price.value;
+      for (const tier of price.tiers) {
+        if (!tier || typeof tier !== "object" || Array.isArray(tier)) {
+          notices.push("tierDropped");
+          continue;
+        }
+        const row = tier as Record<string, unknown>;
+        const minQty = tierQuantity(row);
+        if (minQty === null) {
+          notices.push("tierDropped");
+          continue;
+        }
+        const aboveFloor = moq !== undefined ? minQty > moq : minQty >= 2;
+        const abovePrevious = kept.length === 0 || minQty > kept[kept.length - 1].minQty;
+        const tierValue = row.value;
+        const valueOk = typeof tierValue === "number" && Number.isFinite(tierValue) && tierValue > 0;
+        if (!aboveFloor || !abovePrevious || !valueOk) {
+          notices.push("tierDropped");
+          continue;
+        }
+        if (tierValue > previousValue) notices.push("tierRose");
+        kept.push({ minQty, value: tierValue });
+        previousValue = tierValue;
       }
-      if (tier.value > previousValue) notices.push("tierRose");
-      kept.push(tier);
-      previousQty = tier.minQty;
-      previousValue = tier.value;
+      if (kept.length) tiers = kept;
     }
-    if (kept.length) tiers = kept;
   }
 
   let quotedAt: string | undefined;
@@ -93,4 +116,34 @@ export function sanitizeSupplierPrice(
     },
     notices,
   };
+}
+
+/** Rewrite a stored pack so prices use `minQty` and only the breaks that passed the tier rule. */
+export function normalizeStoredPack<T extends { parts: Array<{ id: string; price?: unknown }> }>(
+  pack: T,
+): { pack: T; warnings: PriceWarning[]; changed: boolean } {
+  let changed = false;
+  const warnings: PriceWarning[] = [];
+  const parts = pack.parts.map((part) => {
+    if (part.price === undefined) return part;
+    const before = JSON.stringify(part.price);
+    const result = sanitizeSupplierPrice(part.price);
+    if ("reason" in result) {
+      changed = true;
+      warnings.push({ partId: part.id, reason: result.reason });
+      const next = { ...part };
+      delete next.price;
+      return next;
+    }
+    for (const notice of result.notices) warnings.push({ partId: part.id, reason: notice });
+    if (result.notices.length || JSON.stringify(result.price) !== before) changed = true;
+    return { ...part, price: result.price };
+  });
+  return { pack: { ...pack, parts }, warnings, changed };
+}
+
+/** Keep the first 20 lines and append one summary for the rest. */
+export function capPriceWarnings<T>(items: T[], more: (hidden: number) => T, limit = PRICE_WARNING_LIMIT): T[] {
+  if (items.length <= limit) return items;
+  return [...items.slice(0, limit), more(items.length - limit)];
 }

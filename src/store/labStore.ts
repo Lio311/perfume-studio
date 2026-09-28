@@ -13,6 +13,7 @@ import { type ThemeId, applyTheme } from "../theme/themes.ts";
 import type { Lang } from "../model/types.ts";
 import type { LabCommand } from "../parser/interpret.ts";
 import { parseVoiceParam, readVoiceParam, type VoiceVariant } from "../audio/wake.ts";
+import { normalizeStoredPack } from "../import/packPrice.ts";
 import { deletePack, savePack } from "../import/supplierDb.ts";
 import { syncRegistry, type SupplierPack } from "../import/registry.ts";
 import { apiClient } from "../api/client.ts";
@@ -131,7 +132,7 @@ interface LabState {
   setSuppliers: (packs: SupplierPack[]) => void;
   upsertSupplier: (pack: SupplierPack, close?: boolean) => void;
   removeSupplier: (id: string) => void;
-  setBrief: (patch: Partial<Pick<BudgetBrief, "ceilingIls" | "volumeMl">>) => void;
+  setBrief: (patch: Partial<Pick<BudgetBrief, "ceilingIls" | "volumeMl">> & { quantity?: number | null }) => void;
   confirmBrief: () => void;
   openBrief: () => void;
   closeBrief: () => void;
@@ -555,14 +556,16 @@ export const useLab = create<LabState>()(
       addPending: (part) => set((state) => ({ pending: [part, ...state.pending].slice(0, 30), modal: null })),
       removePending: (id) => set((state) => ({ pending: state.pending.filter((item) => item.id !== id) })),
       setSuppliers: (packs) => {
-        syncRegistry(packs);
-        set({ suppliers: packs });
+        const next = packs.map((pack) => normalizeStoredPack(pack).pack);
+        syncRegistry(next);
+        set({ suppliers: next });
       },
       upsertSupplier: (pack, close = true) => {
-        const suppliers = [pack, ...get().suppliers.filter((item) => item.id !== pack.id)];
+        const nextPack = normalizeStoredPack(pack).pack;
+        const suppliers = [nextPack, ...get().suppliers.filter((item) => item.id !== nextPack.id)];
         syncRegistry(suppliers);
         set(close ? { suppliers, modal: null } : { suppliers });
-        void savePack(pack);
+        void savePack(nextPack);
       },
       removeSupplier: (id) => {
         const suppliers = get().suppliers.filter((item) => item.id !== id);
@@ -576,6 +579,11 @@ export const useLab = create<LabState>()(
             ...state.brief,
             ceilingIls: patch.ceilingIls === undefined ? state.brief.ceilingIls : clamp(patch.ceilingIls, 1, 100000),
             volumeMl: patch.volumeMl === undefined ? state.brief.volumeMl : clamp(patch.volumeMl, 1, 1000),
+            quantity: patch.quantity === undefined
+              ? state.brief.quantity
+              : patch.quantity != null && Number.isInteger(patch.quantity) && patch.quantity >= 1
+                ? patch.quantity
+                : undefined,
           },
         })),
       confirmBrief: () =>

@@ -5,6 +5,8 @@ export interface BudgetBrief {
   ceilingIls: number;
   volumeMl: number;
   confirmed: boolean;
+  /** Planned order quantity. When set, totals use the tier price at this quantity. */
+  quantity?: number;
 }
 
 /**
@@ -35,6 +37,8 @@ export interface PartFacts {
   supplierName: string | null;
   /** True when a glass house or supplier name is attached. Drives the example-price band only. */
   namedSupplier: boolean;
+  /** True when the part came from a supplier pack. Those parts have no example price. */
+  fromPack: boolean;
 }
 
 export const BUDGET_KINDS = ["bottle", "cap", "pump", "collar", "label", "box"] as const satisfies readonly VariantPart[];

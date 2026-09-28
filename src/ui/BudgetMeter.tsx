@@ -1,6 +1,7 @@
-import { formatMoney } from "../budget/money.ts";
+import { formatCount, formatMoney } from "../budget/money.ts";
 import { tx } from "../i18n/copy.ts";
 import { useLab } from "../store/labStore.ts";
+import { PartialMark } from "./PriceTag.tsx";
 import { useBudgetModel } from "./useBudget.ts";
 
 export function BudgetMeter({ onSavings }: { onSavings: () => void }) {
@@ -18,17 +19,23 @@ export function BudgetMeter({ onSavings }: { onSavings: () => void }) {
     <aside className={over ? "budget-meter is-over" : "budget-meter"} data-budget-meter data-over={over ? "true" : "false"} dir={lang === "he" ? "rtl" : "ltr"}>
       <div className="budget-meter-top">
         <strong>{t.budgetMeter}</strong>
-        <bdi dir="ltr">{formatMoney(summary.totalIls, "ILS", lang)} / {formatMoney(brief.ceilingIls, "ILS", lang)}</bdi>
+        <span className={summary.unpricedCount > 0 ? "is-partial" : undefined}>
+          <bdi dir="ltr">{formatMoney(summary.totalIls, "ILS", lang)} / {formatMoney(brief.ceilingIls, "ILS", lang)}</bdi>
+          <PartialMark count={summary.unpricedCount} />
+        </span>
       </div>
       <div className="budget-bar" aria-hidden="true"><i style={{ width: `${over ? 100 : ratio * 100}%` }} /></div>
       <div className="budget-meter-top">
         <span>{over ? t.budgetOver : t.budgetLeft}</span>
-        <bdi dir="ltr">{formatMoney(Math.abs(summary.remainingIls), "ILS", lang)}</bdi>
+        <span className={summary.unpricedCount > 0 ? "is-partial" : undefined}>
+          <bdi dir="ltr">{formatMoney(Math.abs(summary.remainingIls), "ILS", lang)}</bdi>
+          <PartialMark count={summary.unpricedCount} />
+        </span>
       </div>
       <p className="hint">
         {t.budgetUsed} · {brief.volumeMl} {t.capacityShort}
+        {brief.quantity ? <> · {t.briefQuantity} <bdi dir="ltr">{formatCount(brief.quantity, lang)}</bdi></> : ` · ${t.basePriceNote}`}
         {includesExample ? ` · ${t.exampleTotal}` : ""}
-        {summary.unpricedCount > 0 && <> · <bdi dir="ltr">{summary.unpricedCount}</bdi> {t.unpricedParts}</>}
         {summary.incomplete ? ` · ${t.budgetPartial}` : ""}
       </p>
       {foreign.map((code) => (

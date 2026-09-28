@@ -1,4 +1,4 @@
-import { formatMoney, type ResolvedPrice } from "../budget/money.ts";
+import { formatCount, formatMoney, formatQuoteDate, type ResolvedPrice } from "../budget/money.ts";
 import { tx } from "../i18n/copy.ts";
 import type { VariantPart } from "../model/types.ts";
 import { useLab } from "../store/labStore.ts";
@@ -6,8 +6,21 @@ import { useBudgetModel } from "./useBudget.ts";
 
 const CURRENCIES = ["ILS", "USD", "EUR", "CNY", "GBP"];
 
+export function PartialMark({ count }: { count: number }) {
+  const lang = useLab((s) => s.lang);
+  const t = tx(lang);
+  if (count <= 0) return null;
+  return (
+    <em className="is-partial">
+      {t.excluding}{" "}
+      {count === 1 ? t.unpricedOne : <><bdi dir="ltr">{formatCount(count, lang)}</bdi> {t.unpricedMany}</>}
+    </em>
+  );
+}
+
 export function PriceTag({ price, compact = false }: { price: ResolvedPrice | null; compact?: boolean }) {
   const lang = useLab((s) => s.lang);
+  const quantity = useLab((s) => s.brief.quantity);
   const t = tx(lang);
   if (!price) return <span className={compact ? "price-tag is-compact" : "price-tag"}><em>{t.noPrice}</em></span>;
   return (
@@ -19,8 +32,9 @@ export function PriceTag({ price, compact = false }: { price: ResolvedPrice | nu
       {price.source === "user" && !compact && <em>{t.userPrice}</em>}
       {price.currency !== "ILS" && !price.converted && <em>{t.notInTotal}</em>}
       {price.converted && <em>{t.converted}</em>}
-      {price.moq ? <em dir="ltr">{t.moqShort} {price.moq}</em> : null}
-      {price.quotedAt ? <em className="quoted-at">{t.quotedAt} <bdi dir="ltr">{price.quotedAt}</bdi></em> : null}
+      {!quantity && price.tiers?.length ? <em>{t.basePriceNote}</em> : null}
+      {price.moq != null && <em>{t.moqShort} <bdi dir="ltr">{formatCount(price.moq, lang)}</bdi></em>}
+      {price.quotedAt ? <em className="quoted-at">{t.quotedAt} <bdi dir="ltr">{formatQuoteDate(price.quotedAt, lang)}</bdi></em> : null}
     </span>
   );
 }

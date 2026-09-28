@@ -18,10 +18,10 @@ export function materialFromTags(tags: string[], kind: VariantPart): string {
   return "other";
 }
 
-function supplierOf(id: string, named: string | undefined): { supplierName: string | null; namedSupplier: boolean } {
+function supplierOf(id: string, named: string | undefined): { supplierName: string | null; namedSupplier: boolean; fromPack: boolean } {
   const meta = importedMeta(id);
   const supplierName = meta?.supplierName || named || null;
-  return { supplierName, namedSupplier: Boolean(supplierName) };
+  return { supplierName, namedSupplier: Boolean(supplierName), fromPack: Boolean(meta) };
 }
 
 function bottleFacts(spec: BottleSpec): PartFacts {

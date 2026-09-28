@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { allFacts, factsById } from "../budget/descriptors.ts";
-import { resolvePartPrice, summarizeBudget, type ResolvedPrice } from "../budget/money.ts";
+import { priceAtQuantity, resolvePartPrice, summarizeBudget, type ResolvedPrice } from "../budget/money.ts";
 import { rankAssemblySavings, suggestAlternatives, type Alternative, type SavingSwap } from "../budget/similar.ts";
 import { BUDGET_KINDS, type PartFacts } from "../budget/types.ts";
 import { importedPrice } from "../import/registry.ts";
@@ -46,7 +46,8 @@ export function useBudgetModel(): BudgetModel {
     const priceFor = (kind: VariantPart, id: string): ResolvedPrice | null => {
       const facts = factsFor(kind, id);
       if (!facts) return null;
-      return resolvePartPrice(facts, importedPrice(id), overrides[id], rates);
+      const resolved = resolvePartPrice(facts, importedPrice(id), overrides[id], rates);
+      return resolved ? priceAtQuantity(resolved, brief.quantity) : null;
     };
     const lines: BudgetLine[] = [];
     const amounts: Array<number | null | "unpriced"> = [];
@@ -108,5 +109,5 @@ export function useBudgetModel(): BudgetModel {
       includesExample: lines.some((line) => line.price.source === "example"),
     };
     // suppliers refreshes imported prices and facts after a pack sync.
-  }, [brief.ceilingIls, brief.volumeMl, design, overrides, rates, selected, suppliers]);
+  }, [brief.ceilingIls, brief.quantity, brief.volumeMl, design, overrides, rates, selected, suppliers]);
 }

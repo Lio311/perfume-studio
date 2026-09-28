@@ -1,11 +1,8 @@
 import DOMPurify from "dompurify";
-import { sanitizeSupplierPrice, type PriceDropReason, type PriceTierNotice } from "./packPrice.ts";
+import { normalizeStoredPack, type PriceWarning } from "./packPrice.ts";
 import type { SupplierPack, SupplierPart } from "./registry.ts";
 
-export interface PriceWarning {
-  partId: string;
-  reason: PriceDropReason | PriceTierNotice;
-}
+export type { PriceWarning };
 
 const DB_NAME = "perfume-lab-suppliers";
 const STORE = "packs";
@@ -24,11 +21,14 @@ function openDb(): Promise<IDBDatabase> {
 
 export async function loadPacks(): Promise<SupplierPack[]> {
   const db = await openDb();
-  return new Promise((resolve, reject) => {
+  const stored = await new Promise<SupplierPack[]>((resolve, reject) => {
     const request = db.transaction(STORE, "readonly").objectStore(STORE).getAll();
     request.onsuccess = () => resolve((request.result as SupplierPack[]).sort((a, b) => b.createdAt - a.createdAt));
     request.onerror = () => reject(request.error);
   });
+  const normalized = stored.map((pack) => normalizeStoredPack(pack));
+  await Promise.all(normalized.filter((item) => item.changed).map((item) => savePack(item.pack)));
+  return normalized.map((item) => item.pack);
 }
 
 export async function savePack(pack: SupplierPack): Promise<void> {
@@ -59,49 +59,29 @@ export function downloadPack(pack: SupplierPack): void {
   URL.revokeObjectURL(url);
 }
 
-/** Warnings from the most recent `parsePackFile` call. Cleared when read. */
-let pendingPriceWarnings: PriceWarning[] = [];
-
-export function consumePriceWarnings(): PriceWarning[] {
-  const next = pendingPriceWarnings;
-  pendingPriceWarnings = [];
-  return next;
-}
-
-function sanitizePart(part: SupplierPart): SupplierPart {
-  const next: SupplierPart = {
+function cleanPart(part: SupplierPart): SupplierPart {
+  return {
     ...part,
     name: DOMPurify.sanitize(part.name || ""),
     code: DOMPurify.sanitize(part.code || ""),
   };
-  if (part.price === undefined) {
-    delete next.price;
-    return next;
-  }
-  const price = sanitizeSupplierPrice(part.price);
-  if ("reason" in price) {
-    delete next.price;
-    pendingPriceWarnings.push({ partId: part.id, reason: price.reason });
-    return next;
-  }
-  next.price = price.price;
-  for (const notice of price.notices) pendingPriceWarnings.push({ partId: part.id, reason: notice });
-  return next;
 }
 
-export function parsePackFile(text: string): SupplierPack | null {
-  pendingPriceWarnings = [];
+/** A parsed pack plus the price warnings collected while reading it. */
+export function parsePackFile(text: string): { pack: SupplierPack; warnings: PriceWarning[] } | null {
   try {
     const value = JSON.parse(text) as SupplierPack & Record<string, unknown>;
     if (!value || typeof value.name !== "string" || !Array.isArray(value.parts)) return null;
     const { id, name, createdAt, parts, ...rest } = value;
-    return {
+    const draft: SupplierPack = {
       ...rest,
       id: typeof id === "string" && id ? id : `pack-${Date.now().toString(36)}`,
       name: DOMPurify.sanitize(name),
       createdAt: typeof createdAt === "number" ? createdAt : Date.now(),
-      parts: parts.filter((part) => part && typeof part.id === "string" && typeof part.kind === "string").map((part) => sanitizePart(part)),
+      parts: parts.filter((part) => part && typeof part.id === "string" && typeof part.kind === "string").map((part) => cleanPart(part)),
     };
+    const normalized = normalizeStoredPack(draft);
+    return { pack: normalized.pack, warnings: normalized.warnings };
   } catch {
     return null;
   }

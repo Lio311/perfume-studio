@@ -1,6 +1,6 @@
 import type { PartFacts } from "./types.ts";
 
-/** A quantity break. `minQty` is an integer of at least 1, strictly above `moq` when set, and strictly above the previous break. */
+/** A quantity break kept in the order it was written. `minQty` is an integer above `moq`, or at least 2 when there is no MOQ. */
 export interface PriceTier {
   minQty: number;
   value: number;
@@ -8,7 +8,7 @@ export interface PriceTier {
 
 /**
  * Optional supplier quote. `value` is the unit price and must be greater than 0.
- * `tiers` are strictly ascending by `minQty`, and each break is above `moq` when `moq` is set.
+ * `tiers` stay in the order they were accepted: each `minQty` is above `moq` when set, otherwise at least 2, and above the previous break.
  */
 export interface SupplierPrice {
   value: number;
@@ -141,8 +141,18 @@ export function resolvePartPrice(
       converted,
     };
   }
+  if (facts.fromPack) return null;
   const value = exampleIls(facts);
   return { value, currency: "ILS", source: "example", ils: value, converted: false };
+}
+
+/** Unit price at a planned quantity. Without one, the base quote is unchanged. */
+export function priceAtQuantity(price: ResolvedPrice, qty: number | undefined): ResolvedPrice {
+  if (qty == null || qty < 1) return price;
+  const unit = unitValue(price, qty);
+  if (unit === price.value) return price;
+  const rate = price.ils == null || price.value === 0 ? null : price.ils / price.value;
+  return { ...price, value: unit, ils: rate == null ? null : unit * rate };
 }
 
 export function summarizeBudget(ilsAmounts: Array<number | null | "unpriced">, ceilingIls: number): BudgetSummary {
@@ -162,12 +172,36 @@ export function summarizeBudget(ilsAmounts: Array<number | null | "unpriced">, c
   };
 }
 
+export function formatCount(value: number, lang: "he" | "en"): string {
+  return new Intl.NumberFormat(lang === "he" ? "he-IL" : "en").format(value);
+}
+
+/** Quote date in the active locale. Date-only strings stay on that calendar day. */
+export function formatQuoteDate(iso: string, lang: "he" | "en"): string {
+  const date = new Date(iso.length === 10 ? `${iso}T00:00:00Z` : iso);
+  if (Number.isNaN(date.getTime())) return iso;
+  return new Intl.DateTimeFormat(lang === "he" ? "he-IL" : "en", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    timeZone: "UTC",
+  }).format(date);
+}
+
 export function formatMoney(value: number, currency: string, lang: "he" | "en"): string {
-  const locale = lang === "he" ? "he-IL" : "en-US";
+  const locale = lang === "he" ? "he-IL" : "en";
   const digits = Number.isInteger(value) ? 0 : 2;
-  const amount = new Intl.NumberFormat(locale, { minimumFractionDigits: digits, maximumFractionDigits: 2 }).format(value);
   const code = normalizeCurrency(currency) ?? currency;
-  if (code === "ILS") return `${amount} ₪`;
+  if (code === "ILS") {
+    return new Intl.NumberFormat(locale, {
+      style: "currency",
+      currency: "ILS",
+      currencyDisplay: "narrowSymbol",
+      minimumFractionDigits: digits,
+      maximumFractionDigits: 2,
+    }).format(value);
+  }
+  const amount = new Intl.NumberFormat(locale, { minimumFractionDigits: digits, maximumFractionDigits: 2 }).format(value);
   return `${amount} ${code}`;
 }
 

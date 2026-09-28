@@ -4,8 +4,11 @@ vi.mock("dompurify", () => ({
   default: { sanitize: (value: string) => value },
 }));
 
+import { capPriceWarnings, normalizeStoredPack } from "./packPrice.ts";
 import { importedPrice, syncRegistry } from "./registry.ts";
-import { consumePriceWarnings, parsePackFile } from "./supplierDb.ts";
+import { parsePackFile } from "./supplierDb.ts";
+import { factsById } from "../budget/descriptors.ts";
+import { resolvePartPrice, summarizeBudget } from "../budget/money.ts";
 
 const basePart = {
   id: "aurora-cap",
@@ -23,26 +26,31 @@ const basePart = {
   page: 1,
 };
 
+function read(text: string) {
+  const result = parsePackFile(text);
+  expect(result).toBeTruthy();
+  return result!;
+}
+
 describe("parsePackFile prices", () => {
   afterEach(() => syncRegistry([]));
 
   it("imports an old pack that has no price field", () => {
-    const pack = parsePackFile(JSON.stringify({
+    const parsed = read(JSON.stringify({
       name: "Legacy",
       parts: [{ id: "legacy-cap", kind: "cap", name: "Old cap", code: "OLD" }],
     }));
-    expect(pack).toBeTruthy();
-    expect(consumePriceWarnings()).toEqual([]);
-    expect(pack!.version).toBeUndefined();
-    expect(pack!.parts).toHaveLength(1);
-    expect(pack!.parts[0].price).toBeUndefined();
-    expect(pack!.parts[0].name).toBe("Old cap");
-    syncRegistry([pack!]);
+    expect(parsed.warnings).toEqual([]);
+    expect(parsed.pack.version).toBeUndefined();
+    expect(parsed.pack.parts).toHaveLength(1);
+    expect(parsed.pack.parts[0].price).toBeUndefined();
+    expect(parsed.pack.parts[0].name).toBe("Old cap");
+    syncRegistry([parsed.pack]);
     expect(importedPrice("legacy-cap")).toBeUndefined();
   });
 
-  it("keeps a valid price, sorts extra breaks, and registers the quote date", () => {
-    const pack = parsePackFile(JSON.stringify({
+  it("keeps breaks in the written order and drops a later break that is not higher", () => {
+    const parsed = read(JSON.stringify({
       id: "aurora",
       name: "Aurora",
       createdAt: 10,
@@ -53,15 +61,15 @@ describe("parsePackFile prices", () => {
           currency: "usd",
           moq: 5000,
           tiers: [
-            { minQty: 20000, value: 3.9 },
             { minQty: 10000, value: 4.2 },
+            { minQty: 20000, value: 3.9 },
           ],
           quotedAt: "2026-09-01",
         },
       }],
     }));
-    expect(consumePriceWarnings()).toEqual([]);
-    expect(pack!.parts[0].price).toEqual({
+    expect(parsed.warnings).toEqual([]);
+    expect(parsed.pack.parts[0].price).toEqual({
       value: 4.5,
       currency: "USD",
       moq: 5000,
@@ -71,27 +79,51 @@ describe("parsePackFile prices", () => {
       ],
       quotedAt: "2026-09-01",
     });
-    syncRegistry([pack!]);
+    syncRegistry([parsed.pack]);
     expect(importedPrice("aurora-cap")).toMatchObject({ value: 4.5, currency: "USD", moq: 5000, quotedAt: "2026-09-01" });
+
+    const reversed = read(JSON.stringify({
+      name: "Aurora",
+      parts: [{
+        ...basePart,
+        price: {
+          value: 4.5,
+          currency: "USD",
+          moq: 5000,
+          tiers: [
+            { minQty: 20000, value: 3.9 },
+            { minQty: 10000, value: 4.2 },
+          ],
+        },
+      }],
+    }));
+    expect(reversed.pack.parts[0].price?.tiers).toEqual([{ minQty: 20000, value: 3.9 }]);
+    expect(reversed.warnings).toEqual([{ partId: "aurora-cap", reason: "tierDropped" }]);
   });
 
-  it("reads a legacy qty break as minQty when minQty is absent", () => {
-    const pack = parsePackFile(JSON.stringify({
+  it("reads a legacy qty break as minQty only when minQty is absent", () => {
+    const parsed = read(JSON.stringify({
       name: "Legacy tiers",
       parts: [
         { ...basePart, id: "from-qty", price: { value: 4, currency: "ILS", tiers: [{ qty: 10, value: 3 }, { qty: 2, value: 3.5 }] } },
         { ...basePart, id: "min-wins", price: { value: 4, currency: "ILS", tiers: [{ minQty: 5, qty: 9, value: 2 }] } },
+        { ...basePart, id: "bad-min", price: { value: 4, currency: "ILS", tiers: [{ minQty: "5", qty: 10, value: 3 }] } },
       ],
     }));
-    expect(consumePriceWarnings()).toEqual([]);
-    expect(pack!.parts[0].price?.tiers).toEqual([{ minQty: 2, value: 3.5 }, { minQty: 10, value: 3 }]);
-    expect(pack!.parts[1].price?.tiers).toEqual([{ minQty: 5, value: 2 }]);
-    syncRegistry([pack!]);
-    expect(importedPrice("from-qty")?.tiers).toEqual([{ minQty: 2, value: 3.5 }, { minQty: 10, value: 3 }]);
+    expect(parsed.pack.parts[0].price?.tiers).toEqual([{ minQty: 10, value: 3 }]);
+    expect(parsed.pack.parts[1].price?.tiers).toEqual([{ minQty: 5, value: 2 }]);
+    expect(parsed.pack.parts[2].price).toEqual({ value: 4, currency: "ILS" });
+    expect(parsed.warnings).toEqual([
+      { partId: "from-qty", reason: "tierDropped" },
+      { partId: "bad-min", reason: "tierDropped" },
+    ]);
+    syncRegistry([parsed.pack]);
+    expect(importedPrice("from-qty")?.tiers).toEqual([{ minQty: 10, value: 3 }]);
+    expect(JSON.stringify(parsed.pack)).not.toContain('"qty"');
   });
 
-  it("drops an invalid price, names the reason, and still imports the part", () => {
-    const pack = parsePackFile(JSON.stringify({
+  it("drops an invalid base price, and drops only the bad tier", () => {
+    const parsed = read(JSON.stringify({
       name: "Mixed",
       parts: [
         { ...basePart, id: "text", price: { value: "4", currency: "USD" } },
@@ -104,20 +136,19 @@ describe("parsePackFile prices", () => {
         { ...basePart, id: "good", price: { value: 12, currency: "ILS", moq: 100, tiers: [{ minQty: 1, value: 11 }, { minQty: 100, value: 9 }] } },
       ],
     }));
-    expect(pack!.parts.map((part) => part.id)).toEqual(["text", "zero", "words", "fraction-moq", "zero-tier", "low-qty", "stale", "good"]);
-    expect(pack!.parts.slice(0, 7).every((part) => part.price === undefined)).toBe(true);
-    expect(pack!.parts[7].price).toEqual({
-      value: 12,
-      currency: "ILS",
-      moq: 100,
-    });
-    expect(consumePriceWarnings()).toEqual([
+    expect(parsed.pack.parts.map((part) => part.id)).toEqual(["text", "zero", "words", "fraction-moq", "zero-tier", "low-qty", "stale", "good"]);
+    expect(parsed.pack.parts.slice(0, 4).every((part) => part.price === undefined)).toBe(true);
+    expect(parsed.pack.parts[4].price).toEqual({ value: 4, currency: "ILS" });
+    expect(parsed.pack.parts[5].price).toEqual({ value: 4, currency: "ILS" });
+    expect(parsed.pack.parts[6].price).toBeUndefined();
+    expect(parsed.pack.parts[7].price).toEqual({ value: 12, currency: "ILS", moq: 100 });
+    expect(parsed.warnings).toEqual([
       { partId: "text", reason: "value" },
       { partId: "zero", reason: "value" },
       { partId: "words", reason: "currency" },
       { partId: "fraction-moq", reason: "moq" },
-      { partId: "zero-tier", reason: "tiers" },
-      { partId: "low-qty", reason: "tiers" },
+      { partId: "zero-tier", reason: "tierDropped" },
+      { partId: "low-qty", reason: "tierDropped" },
       { partId: "stale", reason: "quotedAt" },
       { partId: "good", reason: "tierDropped" },
       { partId: "good", reason: "tierDropped" },
@@ -125,7 +156,7 @@ describe("parsePackFile prices", () => {
   });
 
   it("drops a break that is not above moq or the previous break, and keeps a more expensive one", () => {
-    const pack = parsePackFile(JSON.stringify({
+    const parsed = read(JSON.stringify({
       name: "Breaks",
       parts: [{
         ...basePart,
@@ -143,7 +174,7 @@ describe("parsePackFile prices", () => {
         },
       }],
     }));
-    expect(pack!.parts[0].price).toEqual({
+    expect(parsed.pack.parts[0].price).toEqual({
       value: 10,
       currency: "ILS",
       moq: 100,
@@ -152,29 +183,74 @@ describe("parsePackFile prices", () => {
         { minQty: 1000, value: 8.5 },
       ],
     });
-    expect(consumePriceWarnings()).toEqual([
+    expect(parsed.warnings).toEqual([
       { partId: "breaks", reason: "tierDropped" },
       { partId: "breaks", reason: "tierDropped" },
       { partId: "breaks", reason: "tierRose" },
     ]);
-    syncRegistry([pack!]);
+    syncRegistry([parsed.pack]);
     expect(importedPrice("breaks")?.tiers).toEqual([
       { minQty: 500, value: 8 },
       { minQty: 1000, value: 8.5 },
     ]);
   });
 
+  it("rewrites a stored legacy qty break to minQty so a re-export does not write qty", () => {
+    const normalized = normalizeStoredPack({
+      id: "old",
+      name: "Old",
+      createdAt: 1,
+      parts: [{ ...basePart, id: "stored", price: { value: 4, currency: "ils", tiers: [{ qty: 10, value: 3 }] } }],
+    });
+    expect(normalized.changed).toBe(true);
+    expect(normalized.pack.parts[0].price).toEqual({
+      value: 4,
+      currency: "ILS",
+      tiers: [{ minQty: 10, value: 3 }],
+    });
+    expect(JSON.stringify(normalized.pack)).not.toContain('"qty"');
+    expect(capPriceWarnings([1, 2, 3], (hidden) => hidden, 2)).toEqual([1, 2, 1]);
+  });
+
+  it("does not invent a price for a pack part with no price or a dropped price", () => {
+    const missing = read(JSON.stringify({
+      name: "No price",
+      parts: [{ ...basePart, id: "pack-missing" }],
+    }));
+    const dropped = read(JSON.stringify({
+      name: "Bad price",
+      parts: [{ ...basePart, id: "pack-dropped", price: { value: 0, currency: "ILS" } }],
+    }));
+    expect(dropped.warnings).toEqual([{ partId: "pack-dropped", reason: "value" }]);
+    expect(dropped.pack.parts[0].price).toBeUndefined();
+    syncRegistry([missing.pack, dropped.pack]);
+
+    const missingFacts = factsById("cap", "pack-missing");
+    const droppedFacts = factsById("cap", "pack-dropped");
+    const builtin = factsById("cap", "cap-cyl-32");
+    expect(missingFacts?.fromPack).toBe(true);
+    expect(droppedFacts?.fromPack).toBe(true);
+    expect(builtin?.fromPack).toBe(false);
+    expect(resolvePartPrice(missingFacts!, importedPrice("pack-missing"), undefined, {})).toBeNull();
+    expect(resolvePartPrice(droppedFacts!, importedPrice("pack-dropped"), undefined, {})).toBeNull();
+    const example = resolvePartPrice(builtin!, undefined, undefined, {});
+    expect(example?.source).toBe("example");
+    const summary = summarizeBudget(["unpriced", "unpriced", example!.ils], 100);
+    expect(summary.unpricedCount).toBe(2);
+    expect(summary.totalIls).toBe(example!.ils);
+  });
+
   it("keeps unknown pack fields so a later version can ride along", () => {
-    const pack = parsePackFile(JSON.stringify({
+    const parsed = read(JSON.stringify({
       name: "Scan",
       version: 2,
       source: "scan",
       parts: [{ ...basePart, measurements: [{ name: "height", mm: 32 }] }],
     }));
-    expect(pack!.version).toBe(2);
-    expect((pack as { source?: string }).source).toBe("scan");
-    expect((pack!.parts[0] as { measurements?: unknown[] }).measurements).toEqual([{ name: "height", mm: 32 }]);
-    expect(pack!.parts[0].price).toBeUndefined();
-    expect(consumePriceWarnings()).toEqual([]);
+    expect(parsed.pack.version).toBe(2);
+    expect((parsed.pack as { source?: string }).source).toBe("scan");
+    expect((parsed.pack.parts[0] as { measurements?: unknown[] }).measurements).toEqual([{ name: "height", mm: 32 }]);
+    expect(parsed.pack.parts[0].price).toBeUndefined();
+    expect(parsed.warnings).toEqual([]);
   });
 });

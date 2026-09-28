@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { formatMoney } from "../budget/money.ts";
 import { tx } from "../i18n/copy.ts";
 import { useLab } from "../store/labStore.ts";
 
@@ -57,7 +58,7 @@ export function BudgetBrief() {
         <div className="brief-presets">
           {BUDGETS.map((amount) => (
             <button key={amount} type="button" className={brief.ceilingIls === amount ? "is-on" : ""} onClick={() => setBrief({ ceilingIls: amount })}>
-              <bdi dir="ltr">{amount} ₪</bdi>
+              <bdi dir="ltr">{formatMoney(amount, "ILS", lang)}</bdi>
             </button>
           ))}
         </div>
@@ -83,6 +84,26 @@ export function BudgetBrief() {
             </button>
           ))}
         </div>
+        <label className="brief-field">
+          <span>{t.briefQuantity}</span>
+          <input
+            type="number"
+            dir="ltr"
+            min={1}
+            step={1}
+            placeholder={t.briefQuantityPh}
+            value={brief.quantity ?? ""}
+            onChange={(event) => {
+              if (event.target.value === "") {
+                setBrief({ quantity: null });
+                return;
+              }
+              const next = Number(event.target.value);
+              if (Number.isInteger(next) && next >= 1) setBrief({ quantity: next });
+            }}
+          />
+        </label>
+        <p className="hint">{brief.quantity ? t.briefQuantityOn : t.basePriceNote}</p>
         <p className="hint">{t.briefNote}</p>
         <div className="modal-actions">
           {brief.confirmed && <button type="button" onClick={() => closeBrief()}>{t.briefCancel}</button>}

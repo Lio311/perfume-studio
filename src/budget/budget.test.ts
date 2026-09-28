@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { FinishId, VariantPart } from "../model/types.ts";
 import { allFacts, factsById } from "./descriptors.ts";
-import { exampleIls, resolvePartPrice, summarizeBudget, toIls, unitValue } from "./money.ts";
+import { exampleIls, formatCount, formatMoney, formatQuoteDate, priceAtQuantity, resolvePartPrice, summarizeBudget, toIls, unitValue } from "./money.ts";
 import { rankAssemblySavings, rankCostReductions, suggestAlternatives } from "./similar.ts";
 import type { PartFacts } from "./types.ts";
 import { capacityFitsVolume, matchingBottleIds, nominalFillMl } from "./volume.ts";
@@ -20,6 +20,7 @@ function facts(partial: Partial<PartFacts> & Pick<PartFacts, "id" | "kind">): Pa
     fillMl: partial.kind === "bottle" ? 50 : null,
     supplierName: null,
     namedSupplier: false,
+    fromPack: false,
     ...partial,
   };
 }
@@ -71,6 +72,31 @@ describe("budget totals", () => {
     expect(unitValue({ value: 4.5, moq: 1000, tiers }, 1)).toBe(4.5);
     expect(unitValue({ value: 4.5, moq: 1000, tiers }, 5000)).toBe(4.2);
     expect(unitValue({ value: 4.5, moq: 1000, tiers }, 20000)).toBe(3.9);
+  });
+
+  it("uses the tier price only when a planned quantity reaches that break", () => {
+    const row = facts({ id: "quoted", kind: "cap" });
+    const resolved = resolvePartPrice(row, {
+      value: 4.5,
+      currency: "ILS",
+      moq: 1000,
+      tiers: [{ minQty: 5000, value: 4.2 }, { minQty: 20000, value: 3.9 }],
+    }, undefined, {});
+    expect(resolved).not.toBeNull();
+    expect(priceAtQuantity(resolved!, undefined).value).toBe(4.5);
+    expect(priceAtQuantity(resolved!, 5000)).toMatchObject({ value: 4.2, ils: 4.2 });
+    const foreign = resolvePartPrice(row, { value: 4, currency: "USD", tiers: [{ minQty: 10, value: 3 }] }, undefined, { USD: 4 });
+    expect(priceAtQuantity(foreign!, 10)).toMatchObject({ value: 3, ils: 12, converted: true });
+  });
+
+  it("formats shekels with the locale symbol and isolates a quote date", () => {
+    expect(formatMoney(12, "ILS", "en")).toBe("₪12");
+    expect(formatMoney(12.5, "ILS", "en")).toBe("₪12.50");
+    expect(formatMoney(12, "ILS", "he")).toContain("₪");
+    expect(formatCount(5000, "en")).toBe("5,000");
+    expect(formatCount(5000, "he")).toBe("5,000");
+    expect(formatQuoteDate("2026-09-01", "en")).toBe("Sep 1, 2026");
+    expect(formatQuoteDate("2026-09-01", "he")).toContain("2026");
   });
 });
 
@@ -319,6 +345,21 @@ describe("resolved prices", () => {
 
     expect(resolvePartPrice(row, { value: 4, currency: "ILS" }, { absent: true }, {})).toBeNull();
     expect(resolvePartPrice(row, { value: 4, currency: "ILS" }, { value: 0, currency: "ILS" }, {})?.source).toBe("import");
+  });
+
+  it("keeps an example price for a built-in part and returns no price for a pack part", () => {
+    const builtin = facts({ id: "square-50", kind: "bottle", namedSupplier: true, supplierName: "House" });
+    expect(builtin.fromPack).toBe(false);
+    expect(resolvePartPrice(builtin, undefined, undefined, {})?.source).toBe("example");
+
+    const missing = facts({ id: "pack-missing", kind: "cap", fromPack: true, namedSupplier: true, supplierName: "Aurora" });
+    const dropped = facts({ id: "pack-dropped", kind: "cap", fromPack: true, namedSupplier: true, supplierName: "Aurora" });
+    expect(resolvePartPrice(missing, undefined, undefined, {})).toBeNull();
+    expect(resolvePartPrice(dropped, undefined, undefined, {})).toBeNull();
+    expect(resolvePartPrice(dropped, undefined, { value: 18, currency: "ILS" }, {})).toMatchObject({ source: "user", value: 18 });
+    const summary = summarizeBudget(["unpriced", "unpriced"], 40);
+    expect(summary.unpricedCount).toBe(2);
+    expect(summary.totalIls).toBe(0);
   });
 
   it("charges a named house bottle more than a similar studio bottle", () => {

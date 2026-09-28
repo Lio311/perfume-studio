@@ -2,7 +2,8 @@ import { useRef, useState, type PointerEvent as ReactPointerEvent } from "react"
 import DOMPurify from "dompurify";
 import { partLabel, tx } from "../i18n/copy.ts";
 import { cropPage } from "../import/crop.ts";
-import { consumePriceWarnings, parsePackFile, type PriceWarning } from "../import/supplierDb.ts";
+import { capPriceWarnings, type PriceWarning } from "../import/packPrice.ts";
+import { parsePackFile } from "../import/supplierDb.ts";
 import { readPdfCatalog, type CatalogPageImage } from "../import/pdfCatalog.ts";
 import { regexCatalogSource, type DraftItem, type ImportProfile, type NormRect } from "../import/parseCatalog.ts";
 import { partFromDraft } from "../import/registry.ts";
@@ -54,6 +55,7 @@ export function SupplierImport() {
   const [active, setActive] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [warnings, setWarnings] = useState<string[]>([]);
   const drag = useRef<NormRect | null>(null);
 
   async function ingest(file: File) {
@@ -183,29 +185,28 @@ export function SupplierImport() {
               const file = event.target.files?.[0];
               if (!file) return;
               void file.text().then((text) => {
-                const pack = parsePackFile(text);
-                if (!pack) {
+                const parsed = parsePackFile(text);
+                if (!parsed) {
+                  setWarnings([]);
                   setError(lang === "he" ? "הקובץ אינו חבילת ספק." : "That file is not a supplier pack.");
                   return;
                 }
-                const warnings = consumePriceWarnings();
-                if (warnings.length) {
-                  const reasonText: Record<PriceWarning["reason"], string> = {
-                    value: t.priceDropValue,
-                    currency: t.priceDropCurrency,
-                    moq: t.priceDropMoq,
-                    tiers: t.priceDropTiers,
-                    quotedAt: t.priceDropQuotedAt,
-                    tierDropped: t.tierDropped,
-                    tierRose: t.tierRose,
-                  };
-                  const dropsPrice = new Set<PriceWarning["reason"]>(["value", "currency", "moq", "tiers", "quotedAt"]);
-                  setError(warnings.map((warning) => {
-                    const line = `${warning.partId}: ${reasonText[warning.reason]}.`;
-                    return dropsPrice.has(warning.reason) ? `${line} ${t.priceDropped}` : line;
-                  }).join(" "));
-                } else setError("");
-                upsertSupplier(pack, warnings.length === 0);
+                const reasonText: Record<PriceWarning["reason"], string> = {
+                  value: t.priceDropValue,
+                  currency: t.priceDropCurrency,
+                  moq: t.priceDropMoq,
+                  quotedAt: t.priceDropQuotedAt,
+                  tierDropped: t.tierDropped,
+                  tierRose: t.tierRose,
+                };
+                const dropsPrice = new Set<PriceWarning["reason"]>(["value", "currency", "moq", "quotedAt"]);
+                const lines = parsed.warnings.map((warning) => {
+                  const line = `${warning.partId}: ${reasonText[warning.reason]}.`;
+                  return dropsPrice.has(warning.reason) ? `${line} ${t.priceDropped}` : line;
+                });
+                setError("");
+                setWarnings(capPriceWarnings(lines, (hidden) => t.warningsMore.replace("{n}", String(hidden))));
+                upsertSupplier(parsed.pack, parsed.warnings.length === 0);
               });
             }} />
           </label>
@@ -217,6 +218,11 @@ export function SupplierImport() {
         </div>
         {busy && <p className="hint">{lang === "he" ? "קורא עמודים…" : "Reading pages…"}</p>}
         {error && <p className="hint">{error}</p>}
+        {warnings.length > 0 && (
+          <ul className="pack-warnings" role="status">
+            {warnings.map((line, index) => <li key={index}>{line}</li>)}
+          </ul>
+        )}
         {blankPages.map((item) => <p key={item.page} className="hint">{t.noText} · {t.pages} {item.page}</p>)}
         <div className="supplier-body">
           <div className="supplier-table">
