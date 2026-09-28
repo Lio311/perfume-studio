@@ -79,14 +79,16 @@ function drawMark(ctx: CanvasRenderingContext2D, mark: LogoMark, font: LogoFont,
   const label = letters(text);
 
   if (mark === "monogram" || mark === "numeral") {
-    ctx.font = `500 ${s * (mark === "numeral" ? 0.34 : 0.42)}px ${family}`;
-    ctx.fillText(mark === "numeral" ? label : initial(label), s / 2, s / 2 + s * 0.02);
+    const textToDraw = mark === "numeral" ? label : initial(label);
+    if (mark === "numeral") fitWord(ctx, textToDraw, family, s * 0.34, s * 0.75, "500");
+    else ctx.font = `500 ${s * 0.42}px ${family}`;
+    ctx.fillText(textToDraw, s / 2, s / 2 + s * 0.02, s * 0.8);
   } else if (mark === "double") {
     ctx.font = `500 ${s * 0.28}px ${family}`;
-    ctx.fillText(initial(label).slice(0, 2), s / 2, s / 2);
+    ctx.fillText(initial(label).slice(0, 2), s / 2, s / 2, s * 0.8);
   } else if (mark === "word" || mark === "horizon") {
-    ctx.font = `500 ${s * 0.16}px ${family}`;
-    ctx.fillText(label, s / 2, s * 0.56);
+    fitWord(ctx, label, family, s * 0.16, s * 0.85, "500");
+    ctx.fillText(label, s / 2, s * 0.56, s * 0.85);
     if (mark === "horizon") {
       ctx.lineWidth = Math.max(1, s * 0.01);
       ctx.beginPath();
@@ -97,19 +99,21 @@ function drawMark(ctx: CanvasRenderingContext2D, mark: LogoMark, font: LogoFont,
   } else if (mark === "vertical") {
     ctx.font = `500 ${s * 0.09}px ${family}`;
     const chars = label.slice(0, 10).split("");
-    chars.forEach((ch, i) => ctx.fillText(ch, s / 2, s * 0.22 + i * s * 0.07));
+    chars.forEach((ch, i) => ctx.fillText(ch, s / 2, s * 0.22 + i * s * 0.07, s * 0.8));
   } else if (mark === "stacked") {
     const parts = label.split(" ");
-    ctx.font = `500 ${s * 0.13}px ${family}`;
     const rows = parts.length > 1 ? parts.slice(0, 3) : [label];
-    rows.forEach((row, i) => ctx.fillText(row, s / 2, s * 0.4 + i * s * 0.16));
+    rows.forEach((row, i) => {
+      fitWord(ctx, row, family, s * 0.13, s * 0.85, "500");
+      ctx.fillText(row, s / 2, s * 0.4 + i * s * 0.16, s * 0.85);
+    });
   } else if (mark === "seal") {
     ctx.lineWidth = Math.max(1, s * 0.015);
     ctx.beginPath();
     ctx.arc(s / 2, s / 2, s * 0.34, 0, Math.PI * 2);
     ctx.stroke();
-    ctx.font = `500 ${s * 0.11}px ${family}`;
-    ctx.fillText(label.slice(0, 14), s / 2, s / 2);
+    fitWord(ctx, label.slice(0, 14), family, s * 0.11, s * 0.55, "500");
+    ctx.fillText(label.slice(0, 14), s / 2, s / 2, s * 0.6);
   } else if (mark === "droplet") {
     ctx.beginPath();
     ctx.moveTo(s / 2, s * 0.22);
@@ -190,8 +194,8 @@ function drawMark(ctx: CanvasRenderingContext2D, mark: LogoMark, font: LogoFont,
     ctx.beginPath();
     ctx.arc(s * 0.58, s / 2, s * 0.28, -Math.PI * 0.35, Math.PI * 0.35);
     ctx.stroke();
-    ctx.font = `500 ${s * 0.1}px ${family}`;
-    ctx.fillText(label.slice(0, 12), s / 2, s / 2);
+    fitWord(ctx, label.slice(0, 12), family, s * 0.1, s * 0.65, "500");
+    ctx.fillText(label.slice(0, 12), s / 2, s / 2, s * 0.7);
   } else if (mark === "dots") {
     for (let i = 0; i < 9; i++) {
       const a = (i / 9) * Math.PI * 2;
@@ -207,8 +211,8 @@ function drawMark(ctx: CanvasRenderingContext2D, mark: LogoMark, font: LogoFont,
     ctx.lineTo(s / 2, s * 0.38);
     ctx.lineTo(s * 0.72, s * 0.62);
     ctx.stroke();
-    ctx.font = `500 ${s * 0.1}px ${family}`;
-    ctx.fillText(label.slice(0, 14), s / 2, s * 0.74);
+    fitWord(ctx, label.slice(0, 14), family, s * 0.1, s * 0.8, "500");
+    ctx.fillText(label.slice(0, 14), s / 2, s * 0.74, s * 0.85);
   } else if (mark === "oval") {
     ctx.lineWidth = Math.max(1, s * 0.012);
     ctx.beginPath();
@@ -238,12 +242,12 @@ function plateColor(ink: string): string {
   return (r + g + b) / 3 > 170 ? "#171411" : "#f4efe6";
 }
 
-function fitWord(ctx: CanvasRenderingContext2D, word: string, family: string, maxPx: number, maxWidth: number): number {
+function fitWord(ctx: CanvasRenderingContext2D, word: string, family: string, maxPx: number, maxWidth: number, weight = "600"): number {
   let px = Math.max(18, Math.floor(maxPx));
-  ctx.font = `600 ${px}px ${family}`;
+  ctx.font = `${weight} ${px}px ${family}`;
   while (px > 16 && ctx.measureText(word).width > maxWidth) {
     px -= 2;
-    ctx.font = `600 ${px}px ${family}`;
+    ctx.font = `${weight} ${px}px ${family}`;
   }
   return px;
 }
