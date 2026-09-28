@@ -60,7 +60,7 @@ function draftProblems(row: Row, clash?: SlugClash): FieldIssue[] {
       profile: row.profile,
       page: row.page,
     }),
-    ...(clash ? [duplicateClashIssue(row.code.trim(), clash)] : []),
+    ...(clash ? [duplicateClashIssue(clash)] : []),
   ];
 }
 

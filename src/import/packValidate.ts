@@ -6,7 +6,7 @@ import type { VariantPart } from "../model/types.ts";
 import { bdi, FIELD_LABEL, ltr, type FieldLabelKey } from "./fieldText.ts";
 import type { PackNotice } from "./notices.ts";
 import type { ImportProfile } from "./parseCatalog.ts";
-import { generatedPartId, isVariantPart } from "./registry.ts";
+import { generatedPartId, isVariantPart, preparedPartCode } from "./registry.ts";
 import { isDataObject, plainData, safeRecord } from "./safeJson.ts";
 
 export interface PackFileError {
@@ -200,7 +200,11 @@ function validatePart(raw: unknown): FieldIssue[] {
     add("color", `הצבע חייב להיות בפורמט ${bdi("#rrggbb")}.`, `Color must be a ${bdi("#rrggbb")} hex.`);
   }
   if (typeof raw.thumb !== "string" || (raw.thumb !== "" && !THUMB.test(raw.thumb))) {
-    add("thumb", "התמונה הממוזערת חייבת להיות ריקה או data URL של jpeg, png או webp.", "Thumb must be empty or a jpeg, png, or webp data URL.");
+    add(
+      "thumb",
+      `התמונה הממוזערת חייבת להיות ריקה או data URL של ${ltr("jpeg")}, ${ltr("png")} או ${ltr("webp")}.`,
+      `Thumb must be empty or a ${ltr("jpeg")}, ${ltr("png")}, or ${ltr("webp")} data URL.`,
+    );
   }
   if (typeof raw.page !== "number" || !Number.isInteger(raw.page) || raw.page < 1) {
     const name = labels("page");
@@ -253,9 +257,17 @@ export function issuesForDraft(row: {
 const DRAFT_SUPPLIER = "draft";
 
 export interface SlugClash {
+  /** This row's code, or its generated fallback id when the code is empty. */
+  self: string;
+  /** The other row's code, or its generated fallback id when that code is empty. */
   code: string;
   /** 1-based position of the other row in the save order. */
   row: number;
+}
+
+function shownCode(code: string, kind: string, index: number): string {
+  const trimmed = code.trim();
+  return trimmed || preparedPartCode(code, kind, index).slug;
 }
 
 /**
@@ -278,16 +290,20 @@ export function duplicateClashes(rows: readonly { id: string; code: string; kind
   for (const item of generated) {
     const other = byPart.get(item.partId)?.find((entry) => entry.row.id !== item.row.id);
     if (!other) continue;
-    clashes.set(item.row.id, { code: other.row.code.trim(), row: other.index + 1 });
+    clashes.set(item.row.id, {
+      self: shownCode(item.row.code, item.row.kind, item.index),
+      code: shownCode(other.row.code, other.row.kind, other.index),
+      row: other.index + 1,
+    });
   }
   return clashes;
 }
 
-export function duplicateClashIssue(code: string, clash: SlugClash): FieldIssue {
+export function duplicateClashIssue(clash: SlugClash): FieldIssue {
   return {
     field: "code",
-    he: `הקוד ${ltr(code)} מתנגש עם ${ltr(clash.code)} (שורה ${ltr(clash.row)}).`,
-    en: `Code ${ltr(code)} clashes with ${ltr(clash.code)} (row ${ltr(clash.row)}).`,
+    he: `הקוד ${ltr(clash.self)} מתנגש עם ${ltr(clash.code)} (שורה ${ltr(clash.row)}).`,
+    en: `Code ${ltr(clash.self)} clashes with ${ltr(clash.code)} (row ${ltr(clash.row)}).`,
   };
 }
 
@@ -297,7 +313,7 @@ export function duplicateSlugIssues(
   rows: readonly { id: string; code: string; kind: string }[],
 ): FieldIssue[] {
   const clash = duplicateClashes(rows).get(row.id);
-  return clash ? [duplicateClashIssue(row.code.trim(), clash)] : [];
+  return clash ? [duplicateClashIssue(clash)] : [];
 }
 
 function identityIssues(part: Record<string, unknown>, seen: Set<string>): PackFileError[] {

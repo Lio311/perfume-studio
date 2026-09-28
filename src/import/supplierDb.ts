@@ -9,7 +9,9 @@ import { sanitizeSupplierPrice, type SupplierPrice } from "../model/price.ts";
 export { sanitizeSupplierPrice };
 export type { PriceIssue, SupplierPriceResult } from "../model/price.ts";
 
-const DB_NAME = "perfume-lab-suppliers";
+/** IndexedDB database for imported supplier packs. A design reset must not delete it. */
+export const SUPPLIER_DB_NAME = "perfume-lab-suppliers";
+const DB_NAME = SUPPLIER_DB_NAME;
 const STORE = "packs";
 
 function openDb(): Promise<IDBDatabase> {

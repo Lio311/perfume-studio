@@ -1,3 +1,4 @@
+import { useId } from "react";
 import { bottleById, boxById, capById, collarById, logoById, pumpById } from "../model/catalog.ts";
 import { computeFit } from "../model/fit.ts";
 import { FINISHES, PALETTE, LIQUID_PALETTE } from "../model/materials.ts";
@@ -5,6 +6,7 @@ import { NECK_IDS } from "../model/necks.ts";
 import type { FinishId, NeckId, PartKey } from "../model/types.ts";
 import { partLabel, tx } from "../i18n/copy.ts";
 import { useLab } from "../store/labStore.ts";
+import { BrandTextField, labelVisibleAfterTextChange } from "./brandField.tsx";
 
 export function Inspector() {
   const lang = useLab((s) => s.lang);
@@ -20,6 +22,7 @@ export function Inspector() {
   const duplicateDesign = useLab((s) => s.duplicateDesign);
   const applyCommands = useLab((s) => s.applyCommands);
   const suppliers = useLab((s) => s.suppliers);
+  const brandHeadingId = useId();
   const part = selected;
   const hidden = hiddenDesignPart(part, design, suppliers);
   const name = hidden ? (hidden.name || hidden.code || hidden.id) : variantName(part, design, lang);
@@ -188,15 +191,19 @@ export function Inspector() {
           {part === "pump" && (
             <>
               <p className="hint">{t.snap}</p>
-              <Readout label={t.width} value={fit.actuatorR * 2} />
+              <Readout label={t.width} value={fit.headR * 2} />
               <Readout label={t.height} value={fit.actuatorH} />
             </>
           )}
           {part === "label" && (
             <>
-              <h3>{t.brand}</h3>
-              <input className="search" value={design.label.text} placeholder="Nº 01" onChange={(event) => patch("label", { text: event.target.value.slice(0, 32) })} />
-              <p className="hint">{t.brandHint}</p>
+              <h3 id={brandHeadingId}>{t.brand}</h3>
+              <BrandTextField
+                value={design.label.text}
+                hint={t.brandHint}
+                labelId={brandHeadingId}
+                onChange={(text) => patch("label", { text, visible: labelVisibleAfterTextChange(text, design.label.visible) })}
+              />
               <Slider label={t.scale} value={design.label.scale * 100} min={55} max={160} suffix="%" onGesture={beginGesture} onGestureEnd={endGesture} onChange={(value) => patch("label", { scale: value / 100 })} />
               <Readout label={t.width} value={fit.labelW} />
               <Readout label={t.height} value={fit.labelH} />
@@ -343,7 +350,7 @@ function SpecCard({ part }: { part: PartKey }) {
         : part === "collar"
           ? `Ø${(fit.collarOuter * 2).toFixed(1)} × ${fit.collarHeight.toFixed(1)}`
           : part === "pump"
-            ? `Ø${(fit.actuatorR * 2).toFixed(1)} × ${fit.actuatorH.toFixed(1)}`
+            ? `Ø${(fit.headR * 2).toFixed(1)} × ${fit.actuatorH.toFixed(1)}`
             : part === "label"
               ? `${fit.labelW.toFixed(1)} × ${fit.labelH.toFixed(1)}`
               : `${lang === "he" ? "מילוי" : "Fill"} ${Math.round(design.liquid.fill * 100)}%`;

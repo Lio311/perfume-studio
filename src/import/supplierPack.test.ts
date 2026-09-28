@@ -180,6 +180,7 @@ describe("parsePackFile", () => {
       [{ neck: "FEA16" }, "FEA16"],
       [{ widthMm: -3 }, "רוחב"],
       [{ color: "gold" }, "#rrggbb"],
+      [{ thumb: "nope" }, ltr("jpeg")],
     ];
     for (const [patch, token] of cases) {
       const result = parsePackFile(packWith(patch));
@@ -187,6 +188,11 @@ describe("parsePackFile", () => {
       if (result.ok) continue;
       expect(result.error.he).toContain("נדחה");
       expect(result.error.he).toContain(token);
+      if ("thumb" in patch) {
+        expect(result.error.he).toContain(ltr("png"));
+        expect(result.error.he).toContain(ltr("webp"));
+        expect(result.error.en).toContain(ltr("jpeg"));
+      }
     }
   });
 
@@ -745,6 +751,14 @@ describe("reviveStoredPack", () => {
     expect(issue.en).toBe(`Code ${ltr("A-1")} clashes with ${ltr("a 1")} (row ${ltr(2)}).`);
     expect(duplicateSlugIssues(rows[1], rows)[0].he).toContain(ltr("A-1"));
     expect(duplicateSlugIssues(rows[0], [rows[0]])).toEqual([]);
+    const empty = [
+      { id: "row-1", code: "", kind: "cap" },
+      { id: "row-2", code: "cap-1", kind: "cap" },
+    ];
+    const emptyIssue = duplicateSlugIssues(empty[0], empty)[0];
+    expect(emptyIssue.he).toBe(`הקוד ${ltr("cap-1")} מתנגש עם ${ltr("cap-1")} (שורה ${ltr(2)}).`);
+    expect(emptyIssue.he).not.toContain("\u2066\u2069");
+    expect(emptyIssue.en).toContain(ltr("cap-1"));
   });
 
   it("formats price and pack notices without a part prefix", () => {
