@@ -36,7 +36,7 @@ const EPHEMERAL_KEYS = new Set([
   "selected", "hovered", "mode", "explode", "viewPreset", "gesturing", "autoRotate",
   "viewToken", "focusToken", "libraryOpen", "sideOpen", "modal", "units", "suppliers",
   "voice", "soundOn", "stage", "blueprint", "fullToken", "aimed", "solo", "present",
-  "exporting", "palette", "help", "boxOpen", "toast", "shareUrl",
+  "exporting", "palette", "help", "boxOpen", "toast", "shareUrl", "packNotices",
 ]);
 
 let storageWritesOpen = true;
@@ -531,9 +531,7 @@ export function readStorageValue(raw: string | null): { state: unknown; version?
 const PERSISTED_FIELDS = ["design", "theme", "lang", "chat", "saved", "pending", "compareIds"] as const;
 
 /**
- * Allowlist the persisted fields. A key this store does not know (a later feature's
- * data) is copied through so the next write does not erase it. Functions and live UI
- * fields, including `shareUrl`, are left out.
+ * passes all keys except EPHEMERAL_KEYS (not an allowlist)
  */
 export function partializeLabState(state: object): Record<string, unknown> {
   const source = state as Record<string, unknown>;

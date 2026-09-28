@@ -32,7 +32,7 @@ const COPY: Record<Lang, {
     appBody: "אירעה שגיאה בטעינת העיצוב. רענון שומר את העיצוב. איפוס מוחק אותו ומתחיל מחדש.",
     reload: "רענון",
     resetDesign: "איפוס עיצוב",
-    appConfirmBody: "האיפוס מאפס את העיצוב ואת מצב הממשק ומוחק את היסטוריית הביטול",
+    appConfirmBody: "האיפוס מאפס את העיצוב ואת מצב הממשק ומוחק את היסטוריית הביטול. הסקיצות השמורות, הצ'אט וההעלאות נשארים. קטלוגי הספקים נשארים.",
     reset: "איפוס",
     retry: "נסו שוב",
     confirmTitle: "לאפס את העיצוב?",
@@ -49,7 +49,7 @@ const COPY: Record<Lang, {
     appBody: "Something went wrong while loading the design. Reload keeps it. Reset clears it and starts over.",
     reload: "Reload",
     resetDesign: "Reset design",
-    appConfirmBody: "Resets the design and interface state and clears undo history",
+    appConfirmBody: "Resets the design and interface state and clears undo history. Saved sketches, chat, and uploads stay. Supplier catalogs stay.",
     reset: "Reset",
     retry: "Try again",
     confirmTitle: "Reset this design?",
@@ -276,12 +276,25 @@ function writeResetBlob(json: string): void {
     if (key && key !== DESIGN_STORAGE_KEY && isResetStorageKey(key)) spare.push(key);
   }
   for (const key of spare) localStorage.removeItem(key);
+  
+  const previous = localStorage.getItem(DESIGN_STORAGE_KEY);
   try {
     localStorage.setItem(DESIGN_STORAGE_KEY, json);
   } catch (error) {
     if (!isQuotaError(error)) throw error;
     localStorage.removeItem(DESIGN_STORAGE_KEY);
-    localStorage.setItem(DESIGN_STORAGE_KEY, json);
+    try {
+      localStorage.setItem(DESIGN_STORAGE_KEY, json);
+    } catch (secondError) {
+      if (previous !== null) {
+        try {
+          localStorage.setItem(DESIGN_STORAGE_KEY, previous);
+        } catch {
+          // Ignore
+        }
+      }
+      throw secondError;
+    }
   }
 }
 
