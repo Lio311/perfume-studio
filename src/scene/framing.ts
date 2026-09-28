@@ -121,7 +121,7 @@ export function fitPose(
   };
 
   const targetPx = Math.min(frame.stageHeight * FILL, frame.openHeight * 0.92);
-  const allowedW = Math.max(80, frame.stageWidth - frame.gutter * 2);
+  const allowedW = Math.max(80, frame.stageWidth - Math.min(frame.gutter, 72) * 2);
   let best = 480;
   const target = center.clone();
   for (let pass = 0; pass < 4; pass += 1) {

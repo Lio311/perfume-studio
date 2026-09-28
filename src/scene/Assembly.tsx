@@ -256,8 +256,8 @@ function LiquidPart() {
         <meshPhysicalMaterial
           color={design.liquid.color}
           emissive={design.liquid.color}
-          emissiveIntensity={1.35}
-          transmission={0.32}
+          emissiveIntensity={0.7}
+          transmission={0.08}
           thickness={6}
           roughness={0.08}
           metalness={0}
@@ -284,9 +284,9 @@ function LiquidPart() {
           opacity={0.98}
         />
       </mesh>
-      <mesh position={[0, Math.max(6, surface) / 2, 0]}>
-        <cylinderGeometry args={[rx * 0.62, rx * 0.7, Math.max(8, surface - 3), 28]} />
-        <meshStandardMaterial color={design.liquid.color} emissive={design.liquid.color} emissiveIntensity={1.6} roughness={0.4} />
+      <mesh position={[0, Math.max(6, surface) / 2, 0]} renderOrder={1}>
+        <cylinderGeometry args={[rx * 0.78, rx * 0.86, Math.max(8, surface - 3), 32]} />
+        <meshStandardMaterial color={design.liquid.color} emissive={design.liquid.color} emissiveIntensity={0.72} roughness={0.45} />
       </mesh>
       <pointLight position={[0, Math.max(8, surface * 0.55), 0]} color={design.liquid.color} intensity={4} distance={90} decay={2} />
     </PartShell>

@@ -9,7 +9,7 @@ export function Exposure() {
   const gl = useThree((s) => s.gl);
   useLayoutEffect(() => {
     gl.toneMapping = THREE.ACESFilmicToneMapping;
-    gl.toneMappingExposure = theme === "dark" ? 1.48 : 1.15;
+    gl.toneMappingExposure = theme === "dark" ? 1.18 : 1.05;
   }, [gl, theme]);
   return null;
 }
@@ -30,12 +30,12 @@ export function StudioEnv() {
   const resolution = quality === "high" ? 256 : 128;
   const dark = theme === "dark";
   return (
-    <Environment frames={1} resolution={resolution} environmentIntensity={dark ? 1.55 : 1.05}>
-      <Lightformer form="rect" intensity={dark ? 6.5 : 3.4} color={dark ? "#fff8ef" : "#ffffff"} position={[0, 5, 4]} scale={[14, 6, 1]} />
-      <Lightformer form="rect" intensity={dark ? 3.6 : 1.6} color="#f3d7a2" position={[-6, 2.2, -1]} rotation={[0, Math.PI / 2, 0]} scale={[10, 4, 1]} />
-      <Lightformer form="rect" intensity={dark ? 2.2 : 1.2} color={dark ? "#d7e6f6" : "#e7eef6"} position={[6, 1.8, 2]} rotation={[0, -Math.PI / 2.4, 0]} scale={[6, 3, 1]} />
-      <Lightformer form="rect" intensity={dark ? 2.8 : 1.2} color="#fff4e2" position={[1.2, 2.4, 6]} scale={[3.2, 7, 1]} />
-      <Lightformer form="ring" intensity={dark ? 0.7 : 0.3} color="#e7c48a" position={[0, 0.15, 0]} scale={7} />
+    <Environment frames={1} resolution={resolution} environmentIntensity={dark ? 1.25 : 1}>
+      <Lightformer form="rect" intensity={dark ? 4.4 : 3.2} color={dark ? "#fff8ef" : "#ffffff"} position={[0, 5, 4]} scale={[14, 6, 1]} />
+      <Lightformer form="rect" intensity={dark ? 2.4 : 1.4} color="#f3d7a2" position={[-6, 2.2, -1]} rotation={[0, Math.PI / 2, 0]} scale={[10, 4, 1]} />
+      <Lightformer form="rect" intensity={dark ? 1.5 : 1.1} color={dark ? "#d7e6f6" : "#e7eef6"} position={[6, 1.8, 2]} rotation={[0, -Math.PI / 2.4, 0]} scale={[6, 3, 1]} />
+      <Lightformer form="rect" intensity={dark ? 1.8 : 1} color="#fff4e2" position={[1.2, 2.4, 6]} scale={[3.2, 7, 1]} />
+      <Lightformer form="ring" intensity={dark ? 0.45 : 0.25} color="#e7c48a" position={[0, 0.15, 0]} scale={7} />
     </Environment>
   );
 }
@@ -55,12 +55,12 @@ export function StudioLights() {
   }
   return (
     <>
-      <ambientLight color="#f7f1e6" intensity={voice === 2 ? 0.42 : 0.55} />
-      <directionalLight position={[28, 90, 54]} color="#fffaf3" intensity={voice === 3 ? 3.4 : 2.9} />
-      <directionalLight position={[-48, 42, -36]} color="#f0d29a" intensity={voice === 3 ? 2.4 : 1.85} />
-      <directionalLight position={[18, 24, 70]} color="#fff1dc" intensity={1.15} />
-      <directionalLight position={[60, 18, 10]} color="#d5e4f4" intensity={0.55} />
-      <pointLight position={[8, 36, 42]} color="#ffd7a2" intensity={18} distance={0} decay={0} />
+      <ambientLight color="#f7f1e6" intensity={voice === 2 ? 0.38 : 0.48} />
+      <directionalLight position={[28, 90, 54]} color="#fffaf3" intensity={voice === 3 ? 2.5 : 2.05} />
+      <directionalLight position={[-48, 42, -36]} color="#f0d29a" intensity={voice === 3 ? 1.7 : 1.25} />
+      <directionalLight position={[18, 24, 70]} color="#fff1dc" intensity={0.72} />
+      <directionalLight position={[60, 18, 10]} color="#d5e4f4" intensity={0.38} />
+      <pointLight position={[8, 36, 42]} color="#ffd7a2" intensity={6} distance={260} decay={2} />
     </>
   );
 }

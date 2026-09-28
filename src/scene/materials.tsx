@@ -41,6 +41,48 @@ function mattePaper(hex: string): { map: THREE.CanvasTexture; bump: THREE.Canvas
   return { map, bump };
 }
 
+const CLEAR_VERT = `
+  varying vec3 vNormal;
+  varying vec3 vWorld;
+  void main() {
+    vec4 world = modelMatrix * vec4(position, 1.0);
+    vWorld = world.xyz;
+    vNormal = normalize(mat3(modelMatrix) * normal);
+    gl_Position = projectionMatrix * viewMatrix * world;
+  }
+`;
+
+const CLEAR_FRAG = `
+  varying vec3 vNormal;
+  varying vec3 vWorld;
+  void main() {
+    vec3 N = normalize(vNormal);
+    vec3 V = normalize(cameraPosition - vWorld);
+    float fres = pow(1.0 - max(dot(N, V), 0.0), 2.15);
+    vec3 L = normalize(vec3(0.35, 0.82, 0.55));
+    vec3 R = reflect(-L, N);
+    float spec = pow(max(dot(R, V), 0.0), 56.0);
+    vec3 rimLight = normalize(vec3(-0.7, 0.35, -0.4));
+    float rim = pow(1.0 - max(dot(N, normalize(V + rimLight)), 0.0), 2.4);
+    vec3 glass = vec3(0.96, 0.94, 0.90);
+    vec3 gold = vec3(1.0, 0.86, 0.58);
+    vec3 color = mix(glass, gold, fres * 0.45) + gold * rim * 0.35 + vec3(1.0, 0.97, 0.9) * spec;
+    float alpha = 0.045 + fres * 0.62 + spec * 0.35;
+    gl_FragColor = vec4(color, clamp(alpha, 0.0, 0.92));
+  }
+`;
+
+function ClearGlass() {
+  return (
+    <shaderMaterial
+      transparent
+      depthWrite={false}
+      vertexShader={CLEAR_VERT}
+      fragmentShader={CLEAR_FRAG}
+    />
+  );
+}
+
 export function FinishMaterial({
   finish,
   color,
@@ -58,6 +100,7 @@ export function FinishMaterial({
   const glassLike = glass && isGlass(finish);
   const metal = finish === "gold" || finish === "silver" || finish === "rose";
   const clear = finish === "clear";
+  if (clear && glass) return <ClearGlass />;
   return (
     <meshPhysicalMaterial
       color={paper ? "#ffffff" : color}
@@ -77,17 +120,19 @@ export function FinishMaterial({
         finish === "wood" ? 0.7 :
         0.84
       }
-      transmission={glassLike ? (clear ? 1 : finish === "frosted" ? 0.82 : 0.92) : 0}
-      thickness={glassLike ? (finish === "tinted" ? 4.2 : 3.4) : 0}
-      ior={clear ? 1.5 : 1.48}
+      transmission={glassLike ? (clear ? 0.15 : finish === "frosted" ? 0.35 : 0.55) : 0}
+      thickness={glassLike ? (finish === "tinted" ? 4.2 : 2.8) : 0}
+      ior={clear ? 1.52 : 1.5}
       clearcoat={clear || finish === "tinted" ? 1 : metal ? 0.65 : 0.04}
       clearcoatRoughness={metal ? 0.12 : 0.04}
       attenuationColor={clear ? "#fff8ee" : color}
       attenuationDistance={clear ? 160 : finish === "tinted" ? 22 : 36}
-      envMapIntensity={metal ? 2.15 : glassLike ? 2.4 : finish === "matteBlack" ? 0.28 : 0.7}
+      envMapIntensity={metal ? 1.65 : glassLike ? 1.7 : finish === "matteBlack" ? 0.28 : 0.7}
       specularIntensity={glassLike || metal ? 1 : 0.3}
-      transparent={glassLike}
-      side={glassLike ? THREE.FrontSide : THREE.FrontSide}
+      transparent
+      opacity={glassLike ? (clear ? 0.14 : finish === "frosted" ? 0.45 : 0.32) : 1}
+      depthWrite={!glassLike}
+      side={THREE.FrontSide}
     />
   );
 }

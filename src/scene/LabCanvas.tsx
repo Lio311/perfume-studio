@@ -14,7 +14,7 @@ import { Exposure, PixelRatio, StageFloor, StudioEnv, StudioLights } from "./stu
 import { CinematicFloor, EnergyRings, MinimalRing, ParticleField, VoiceGrade } from "./voiceScenery.tsx";
 
 const VIEW_DIR: Record<ViewPreset | "three", THREE.Vector3> = {
-  home: new THREE.Vector3(0.36, 0.48, 1).normalize(),
+  home: new THREE.Vector3(0.55, 0.18, 1).normalize(),
   front: new THREE.Vector3(0.02, 0.3, 1).normalize(),
   three: new THREE.Vector3(0.9, 0.42, 1.08).normalize(),
   top: new THREE.Vector3(0.05, 1, 0.2).normalize(),

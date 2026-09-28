@@ -95,7 +95,7 @@ export function computeFit(design: Design, exploded = false): Fit {
   const boxD = design.box.linked ? contentD + box.padMm * 2 : design.box.depthMm;
   const boxH = design.box.linked ? contentH + box.liftMm : design.box.heightMm;
   // Standing on the bottle's right, clear of the glass, slightly behind the front face.
-  const gap = 28;
+  const gap = 16;
   const boxX = bottleW / 2 + boxW / 2 + gap;
   const boxZ = -(boxD * 0.22 + 4);
 
