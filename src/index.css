@@ -16,6 +16,7 @@
   --inset: inset 0 1px 0 rgba(255, 248, 236, 0.08);
   --thumb: rgba(255, 255, 255, 0.035);
   --fill: rgba(214, 178, 106, 0.14);
+  --pill-bg: rgba(0, 0, 0, 0.22);
   --vignette: rgba(0, 0, 0, 0.32);
   --sans: "Heebo", "Segoe UI", sans-serif;
   --num: "Inter", "Heebo", sans-serif;
@@ -341,7 +342,7 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 .presets button.is-on { border-color: var(--accent); background: var(--fill); color: var(--accent-2); }
 .modes button.is-on { background: var(--accent); color: var(--on-accent); border-color: transparent; font-weight: 600; }
 
-.modes { display: flex; gap: 2px; padding: 3px; border-radius: 999px; border: 1px solid var(--line); background: rgba(0, 0, 0, 0.22); }
+.modes { display: flex; gap: 2px; padding: 3px; border-radius: 999px; border: 1px solid var(--line); background: var(--pill-bg); }
 .modes button { border: 0; padding: 7px 11px; font-size: 12.5px; color: var(--muted); }
 .voice-switch {
   display: flex;
@@ -349,7 +350,7 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   padding: 3px;
   border-radius: 999px;
   border: 1px solid var(--line);
-  background: rgba(0, 0, 0, 0.22);
+  background: var(--pill-bg);
 }
 .voice-switch button {
   border: 0;
@@ -1092,6 +1093,7 @@ html[data-theme="light"] {
   --inset: inset 0 1px 0 rgba(255, 255, 255, 0.9);
   --thumb: rgba(255, 255, 255, 0.7);
   --fill: #ffffff;
+  --pill-bg: rgba(26, 29, 34, 0.06);
   --vignette: rgba(30, 36, 48, 0.05);
 }
 

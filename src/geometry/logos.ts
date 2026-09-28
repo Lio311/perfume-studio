@@ -270,7 +270,7 @@ export function drawLogo(spec: Pick<LogoSpec, "mark" | "font" | "frame">, text: 
   // Draw the mark in a square so a wide label cannot squash a diamond into a bracket.
   const side = Math.min(w, h);
   const ox = (w - side) / 2;
-  const oy = Math.max(0, (h - side) * 0.04);
+  const oy = (h - side) / 2;
   ctx.save();
   ctx.translate(ox, oy);
   drawFrame(ctx, spec.frame, side, ink);

@@ -29,7 +29,7 @@ export function createDefaultDesign(): Design {
       variantId: "lg-foil-diamond",
       finish: "gold",
       color: "#D6B26A",
-      text: "OUD",
+      text: "",
       scale: 1,
       visible: true,
     },

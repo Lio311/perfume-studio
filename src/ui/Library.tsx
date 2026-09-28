@@ -129,6 +129,9 @@ export function Library() {
           ))}
         </div>
       )}
+      {tab === "label" && (
+        <input className="search" style={{ marginTop: "-8px", marginBottom: "12px" }} value={design.label.text} placeholder={t.brand} onChange={(event) => patch("label", { text: event.target.value.slice(0, 32) })} />
+      )}
       {tab === "liquid" ? (
         <div className="swatches liquid-swatches" ref={gridRef}>
           {LIQUID_PALETTE.map((color) => (
