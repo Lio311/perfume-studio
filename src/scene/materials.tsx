@@ -200,7 +200,7 @@ export function FinishMaterial({
   }, [wood, leather, paper]);
   const glassLike = glass && isGlass(finish);
   const gp = useMemo(
-    () => (glassLike ? computeGlassProps(finish, opacity) : null),
+    () => (glassLike ? computeGlassProps(finish, opacity ?? undefined) : null),
     [glassLike, finish, opacity],
   );
   const metal = finish === "gold" || finish === "silver" || finish === "rose";

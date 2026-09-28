@@ -1,11 +1,10 @@
 import { useEffect, useMemo, useRef, type MutableRefObject } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
-import { logoById } from "../../model/catalog.ts";
 import type { InsertMaterial } from "../../model/types.ts";
 import type { Fit } from "../../model/fit.ts";
-import { logoTexture } from "../../geometry/logos.ts";
 import { useLab } from "../../store/labStore.ts";
+import { CartonMark } from "../cartonMark.tsx";
 import { FinishMaterial, WrapMaterial } from "../materials.tsx";
 import { sectionPlane } from "../sectionPlane.ts";
 import { trayLiftNow } from "../trayLift.ts";
@@ -30,25 +29,7 @@ export function Skin({ section = true }: { section?: boolean }) {
 }
 
 export function BrandMark({ w, y, z }: { w: number; y: number; z: number }) {
-  const blueprint = useLab((s) => s.blueprint);
-  const text = useLab((s) => s.design.label.text);
-  const variantId = useLab((s) => s.design.label.variantId);
-  const tex = useMemo(() => {
-    const planeW = Math.min(w * 0.48, 52);
-    const canvas = logoTexture(logoById(variantId), text, "#f6f1e6", 1024, Math.max(96, Math.round((1024 * 18) / planeW)));
-    const texture = new THREE.CanvasTexture(canvas);
-    texture.colorSpace = THREE.SRGBColorSpace;
-    texture.anisotropy = 4;
-    return texture;
-  }, [text, variantId, w]);
-  useEffect(() => () => tex.dispose(), [tex]);
-  if (blueprint) return null;
-  return (
-    <mesh position={[0, y, z]}>
-      <planeGeometry args={[Math.min(w * 0.48, 52), 18]} />
-      <meshBasicMaterial map={tex} transparent toneMapped={false} depthWrite={false} />
-    </mesh>
-  );
+  return <CartonMark w={w} y={y} z={z} />;
 }
 
 function useWell(width: number, depth: number, height: number, holeW: number, holeD: number) {
