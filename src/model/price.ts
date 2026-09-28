@@ -1,4 +1,5 @@
 import { tx } from "../i18n/copy.ts";
+import { FIELD_LABEL, ltr } from "../import/fieldText.ts";
 
 /**
  * Canonical supplier price. The budget tools should call `sanitizeSupplierPrice`
@@ -172,7 +173,12 @@ export function sanitizeSupplierPrice(raw: unknown): SupplierPriceResult {
   }
   const hasMoq = Object.hasOwn(raw, "moq") && raw.moq !== undefined;
   if (hasMoq && (typeof raw.moq !== "number" || !Number.isInteger(raw.moq) || raw.moq < 1)) {
-    issues.push(issue("moq", "price_moq", "moq חייב להיות מספר שלם מ־1 ומעלה.", "moq must be an integer of 1 or more."));
+    issues.push(issue(
+      "moq",
+      "price_moq",
+      `${FIELD_LABEL.he.moq} חייב להיות מספר שלם מ־1 ומעלה.`,
+      `${FIELD_LABEL.en.moq} must be an integer of 1 or more.`,
+    ));
   }
   if (issues.length) return { issues };
 
@@ -181,8 +187,8 @@ export function sanitizeSupplierPrice(raw: unknown): SupplierPriceResult {
     issues.push(issue(
       key,
       "price_unknown_field",
-      `השדה ${key} אינו חלק מהמחיר, ולכן הוא לא נשמר. המחיר עצמו נשאר.`,
-      `Field ${key} is not part of the price, so it was ignored. The price itself was kept.`,
+      `השדה ${ltr(key)} אינו חלק מהמחיר, ולכן הוא לא נשמר. המחיר עצמו נשאר.`,
+      `Field ${ltr(key)} is not part of the price, so it was ignored. The price itself was kept.`,
     ));
   }
 
@@ -199,8 +205,8 @@ export function sanitizeSupplierPrice(raw: unknown): SupplierPriceResult {
   else {
     unpriced = true;
     if (rawCurrency) price.currencyText = rawCurrency;
-    const quoted = rawCurrency ? ` («${rawCurrency}»)` : "";
-    const quotedEn = rawCurrency ? ` ("${rawCurrency}")` : "";
+    const quoted = rawCurrency ? ` (${ltr(`«${rawCurrency}»`)})` : "";
+    const quotedEn = rawCurrency ? ` (${ltr(`"${rawCurrency}"`)})` : "";
     issues.push(issue(
       "currency",
       "price_currency",
@@ -218,8 +224,14 @@ export function sanitizeSupplierPrice(raw: unknown): SupplierPriceResult {
       let previousPrice = price.value;
       raw.tiers.forEach((tier, index) => {
         const path = `tiers[${index}]`;
+        const tierHe = `מדרגה ${ltr(index + 1)}`;
+        const tierEn = `Tier ${ltr(index + 1)}`;
+        const qtyHe = FIELD_LABEL.he.minQty;
+        const qtyEn = FIELD_LABEL.en.minQty;
+        const moqHe = FIELD_LABEL.he.moq;
+        const moqEn = FIELD_LABEL.en.moq;
         if (!isDataObject(tier)) {
-          issues.push(issue(path, "tier_invalid", `מדרגה ${index} אינה תקינה ולכן הוסרה.`, `Tier ${index} is invalid, so it was removed.`));
+          issues.push(issue(path, "tier_invalid", `${tierHe} אינה תקינה ולכן הוסרה.`, `${tierEn} is invalid, so it was removed.`));
           return;
         }
         const minQty = tierQuantity(tier);
@@ -227,8 +239,8 @@ export function sanitizeSupplierPrice(raw: unknown): SupplierPriceResult {
           issues.push(issue(
             `${path}.minQty`,
             "tier_min_qty",
-            `מדרגה ${index}: minQty חייב להיות מספר שלם, ולכן המדרגה הוסרה.`,
-            `Tier ${index}: minQty must be an integer, so the tier was removed.`,
+            `${tierHe}: ${qtyHe} חייב להיות מספר שלם, ולכן המדרגה הוסרה.`,
+            `${tierEn}: ${qtyEn} must be an integer, so the tier was removed.`,
           ));
           return;
         }
@@ -238,15 +250,15 @@ export function sanitizeSupplierPrice(raw: unknown): SupplierPriceResult {
             issues.push(issue(
               `${path}.minQty`,
               "tier_not_above_moq",
-              `מדרגה ${index}: minQty חייב להיות גדול מ־moq, ולכן המדרגה הוסרה.`,
-              `Tier ${index}: minQty must be greater than moq, so the tier was removed.`,
+              `${tierHe}: ${qtyHe} חייב להיות גדול מ־${moqHe}, ולכן המדרגה הוסרה.`,
+              `${tierEn}: ${qtyEn} must be greater than ${moqEn}, so the tier was removed.`,
             ));
           } else {
             issues.push(issue(
               `${path}.minQty`,
               "tier_below_min",
-              `מדרגה ${index}: minQty חייב להיות גדול מ־1 כשאין moq, ולכן המדרגה הוסרה.`,
-              `Tier ${index}: minQty must be greater than 1 when moq is not set, so the tier was removed.`,
+              `${tierHe}: ${qtyHe} חייב להיות גדול מ־1 כשאין ${moqHe}, ולכן המדרגה הוסרה.`,
+              `${tierEn}: ${qtyEn} must be greater than 1 when ${moqEn} is not set, so the tier was removed.`,
             ));
           }
           return;
@@ -256,8 +268,8 @@ export function sanitizeSupplierPrice(raw: unknown): SupplierPriceResult {
           issues.push(issue(
             `${path}.minQty`,
             "tier_not_ascending",
-            `מדרגה ${index}: minQty חייב לעלות ממש, ולכן המדרגה הוסרה.`,
-            `Tier ${index}: minQty must ascend strictly, so the tier was removed.`,
+            `${tierHe}: ${qtyHe} חייב לעלות ממש, ולכן המדרגה הוסרה.`,
+            `${tierEn}: ${qtyEn} must ascend strictly, so the tier was removed.`,
           ));
           return;
         }
@@ -265,8 +277,8 @@ export function sanitizeSupplierPrice(raw: unknown): SupplierPriceResult {
           issues.push(issue(
             `${path}.value`,
             "tier_value",
-            `מדרגה ${index}: הערך חייב להיות מספר גדול מ־0, ולכן המדרגה הוסרה.`,
-            `Tier ${index}: the value must be a number greater than 0, so the tier was removed.`,
+            `${tierHe}: הערך חייב להיות מספר גדול מ־0, ולכן המדרגה הוסרה.`,
+            `${tierEn}: the value must be a number greater than 0, so the tier was removed.`,
           ));
           return;
         }
@@ -274,8 +286,8 @@ export function sanitizeSupplierPrice(raw: unknown): SupplierPriceResult {
           issues.push(issue(
             `${path}.value`,
             "tier_value_rose",
-            `מדרגה ${index}: המחיר גבוה מהמחיר הקודם.`,
-            `Tier ${index}: the value is higher than the previous price.`,
+            `${tierHe}: המחיר גבוה מהמחיר הקודם.`,
+            `${tierEn}: the value is higher than the previous price.`,
           ));
         }
         kept.push({ minQty, value: tier.value });

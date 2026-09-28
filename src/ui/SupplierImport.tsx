@@ -166,24 +166,18 @@ export function SupplierImport() {
     const rawName = name.trim() || (lang === "he" ? "ספק" : "Supplier");
     const supplier = DOMPurify.sanitize(rawName);
     const id = `sup-${Date.now().toString(36)}`;
-    const parts = rows.map((row, index) => {
-      const safeCode = DOMPurify.sanitize(row.code || `${row.kind}-${index + 1}`);
-      const safeName = `${safeCode} · ${supplier}`;
-      return {
-        ...partFromDraft({ ...row, code: safeCode }, { id, name: supplier }, index),
-        color: row.color || "#c4a15a",
-        thumb: row.thumb,
-        neck: row.neck,
-        widthMm: Number(row.widthMm) || 30,
-        heightMm: Number(row.heightMm) || 30,
-        depthMm: Number(row.depthMm) || Number(row.widthMm) || 30,
-        capacityMl: row.capacityMl,
-        profile: row.profile,
-        kind: row.kind,
-        code: safeCode,
-        name: safeName,
-      };
-    });
+    const parts = rows.map((row, index) => ({
+      ...partFromDraft(row, { id, name: supplier }, index),
+      color: row.color || "#c4a15a",
+      thumb: row.thumb,
+      neck: row.neck,
+      widthMm: Number(row.widthMm) || 30,
+      heightMm: Number(row.heightMm) || 30,
+      depthMm: Number(row.depthMm) || Number(row.widthMm) || 30,
+      capacityMl: row.capacityMl,
+      profile: row.profile,
+      kind: row.kind,
+    }));
     upsertSupplier({ id, name: supplier, createdAt: Date.now(), parts });
   }
 
@@ -278,7 +272,7 @@ export function SupplierImport() {
                   <tr key={row.id} className={row.id === active ? "is-on" : ""} onClick={() => setActive(row.id)}>
                     <td><img src={row.thumb} alt="" /> <bdi>{row.page}</bdi></td>
                     <td>
-                      <input aria-invalid={message("code") ? true : undefined} value={row.code} onChange={(event) => patch(row.id, { code: event.target.value })} />
+                      <input dir="ltr" aria-invalid={message("code") ? true : undefined} value={row.code} onChange={(event) => patch(row.id, { code: event.target.value })} />
                       {message("code") && <span className="field-error" data-field-error="code">{message("code")}</span>}
                     </td>
                     <td>
@@ -288,15 +282,15 @@ export function SupplierImport() {
                       {message("kind") && <span className="field-error" data-field-error="kind">{message("kind")}</span>}
                     </td>
                     <td>
-                      <input aria-invalid={message("widthMm") ? true : undefined} type="number" value={row.widthMm} onChange={(event) => patch(row.id, { widthMm: Number(event.target.value) })} />
+                      <input dir="ltr" aria-invalid={message("widthMm") ? true : undefined} type="number" value={row.widthMm} onChange={(event) => patch(row.id, { widthMm: Number(event.target.value) })} />
                       {message("widthMm") && <span className="field-error" data-field-error="widthMm">{message("widthMm")}</span>}
                     </td>
                     <td>
-                      <input aria-invalid={message("heightMm") ? true : undefined} type="number" value={row.heightMm} onChange={(event) => patch(row.id, { heightMm: Number(event.target.value) })} />
+                      <input dir="ltr" aria-invalid={message("heightMm") ? true : undefined} type="number" value={row.heightMm} onChange={(event) => patch(row.id, { heightMm: Number(event.target.value) })} />
                       {message("heightMm") && <span className="field-error" data-field-error="heightMm">{message("heightMm")}</span>}
                     </td>
                     <td>
-                      <input aria-invalid={message("depthMm") ? true : undefined} type="number" value={row.depthMm} onChange={(event) => patch(row.id, { depthMm: Number(event.target.value) })} />
+                      <input dir="ltr" aria-invalid={message("depthMm") ? true : undefined} type="number" value={row.depthMm} onChange={(event) => patch(row.id, { depthMm: Number(event.target.value) })} />
                       {message("depthMm") && <span className="field-error" data-field-error="depthMm">{message("depthMm")}</span>}
                     </td>
                     <td>
@@ -306,7 +300,7 @@ export function SupplierImport() {
                       {message("neck") && <span className="field-error" data-field-error="neck">{message("neck")}</span>}
                     </td>
                     <td>
-                      <input aria-invalid={message("capacityMl") ? true : undefined} type="number" value={row.capacityMl ?? ""} onChange={(event) => patch(row.id, { capacityMl: event.target.value ? Number(event.target.value) : null })} />
+                      <input dir="ltr" aria-invalid={message("capacityMl") ? true : undefined} type="number" value={row.capacityMl ?? ""} onChange={(event) => patch(row.id, { capacityMl: event.target.value ? Number(event.target.value) : null })} />
                       {message("capacityMl") && <span className="field-error" data-field-error="capacityMl">{message("capacityMl")}</span>}
                     </td>
                     <td><button type="button" onClick={(event) => { event.stopPropagation(); setRows((currentRows) => currentRows.filter((item) => item.id !== row.id)); }}>{t.delete}</button></td>

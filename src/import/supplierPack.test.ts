@@ -11,7 +11,7 @@ import minimalText from "./fixtures/a-minimal-v1-pack.json?raw";
 import v2Text from "./fixtures/b-v2-bottle-photo-cap-scan-price.json?raw";
 import invalidText from "./fixtures/c-invalid-pack.json?raw";
 import { capPackNotices, formatPackNotice, type PackNotice } from "./notices.ts";
-import { bdi } from "./fieldText.ts";
+import { bdi, FIELD_LABEL, ltr } from "./fieldText.ts";
 import { duplicateSlugIssues, issuesForDraft, KIND_DEFAULT_MM, MAX_PACK_BYTES } from "./packValidate.ts";
 import { codeSlug, importedMeta, isVariantPart, partFromDraft, syncRegistry, type SupplierPack, type SupplierPart } from "./registry.ts";
 import { adoptLoadedSuppliers, exportPackDocument, parsePackFile, reviveStoredPack, serializePack } from "./supplierDb.ts";
@@ -155,8 +155,10 @@ describe("parsePackFile", () => {
         severity: "warning",
       }),
     ]);
-    expect(formatPackNotice("he", result.warnings[0])).toContain("moq");
-    expect(formatPackNotice("en", result.warnings[0])).toContain("moq");
+    expect(formatPackNotice("he", result.warnings[0])).toContain(FIELD_LABEL.he.moq);
+    expect(formatPackNotice("he", result.warnings[0])).toContain(`מדרגה ${ltr(1)}`);
+    expect(formatPackNotice("en", result.warnings[0])).toContain(FIELD_LABEL.en.moq);
+    expect(formatPackNotice("en", result.warnings[0])).toContain(ltr("CAP-1"));
   });
 
   it("rejects the invalid sample pack with a Hebrew error", () => {
@@ -255,10 +257,15 @@ describe("parsePackFile", () => {
     expect(versionOne.ok).toBe(false);
     const source = parsePackFile(asText({ source: "email" }));
     expect(source.ok).toBe(false);
-    if (!source.ok) expect(source.error.en).toContain("pdf, photo, scan");
+    if (!source.ok) {
+      expect(source.error.en).toContain(ltr("pdf"));
+      expect(source.error.en).toContain(ltr("photo"));
+      expect(source.error.en).toContain(ltr("scan"));
+      expect(source.error.en).toContain(ltr("manual"));
+    }
     const supplier = parsePackFile(asText({ supplier: "Gulf" }));
     expect(supplier.ok).toBe(false);
-    if (!supplier.ok) expect(supplier.error.en).toContain("supplier must be an object");
+    if (!supplier.ok) expect(supplier.error.en).toContain("Supplier must be an object");
     const ok = parsePackFile(asText({ version: 2, source: "manual", supplier: { company: "Meta" } }));
     expect(ok.ok).toBe(true);
     if (!ok.ok) return;
@@ -728,12 +735,47 @@ describe("reviveStoredPack", () => {
     const first = partFromDraft({ ...draft, code: "A-1" }, supplier, 0);
     const second = partFromDraft({ ...draft, code: "a 1" }, supplier, 1);
     expect(first.id).toBe(second.id);
-    const rows = [{ id: "row-1", code: "A-1" }, { id: "row-2", code: "a 1" }];
+    const rows = [
+      { id: "row-1", code: "A-1", kind: "cap" },
+      { id: "row-2", code: "a 1", kind: "cap" },
+    ];
     const issue = duplicateSlugIssues(rows[1], rows)[0];
     expect(issue.field).toBe("code");
-    expect(issue.he).toContain(bdi("a 1"));
+    expect(issue.he).toContain(ltr("a 1"));
     expect(issue.en).toContain("already used");
     expect(duplicateSlugIssues(rows[0], [rows[0]])).toEqual([]);
+  });
+
+  it("formats price and pack notices without a part prefix", () => {
+    const neck = formatPackNotice("he", { type: "badNeck", ref: "N 1", neck: "FEA16" });
+    expect(neck.startsWith(ltr("N 1"))).toBe(true);
+    expect(neck).toContain("·");
+    expect(neck.startsWith("החלק")).toBe(false);
+    expect(neck).toContain(ltr("FEA16"));
+    expect(neck).toContain(ltr("FEA13"));
+    expect(neck).toContain(ltr("FEA20"));
+    const neckEn = formatPackNotice("en", { type: "badNeck", ref: "N 1", neck: "FEA16" });
+    expect(neckEn.startsWith("Part")).toBe(false);
+    expect(neckEn).toContain(ltr("FEA20"));
+    const dropped = formatPackNotice("he", { type: "droppedPart", ref: "A 1" });
+    expect(dropped.startsWith(ltr("A 1"))).toBe(true);
+    expect(dropped.startsWith("החלק")).toBe(false);
+    expect(formatPackNotice("en", { type: "droppedPart", ref: "A 1" }).startsWith("Part")).toBe(false);
+    expect(formatPackNotice("he", { type: "droppedMeta", field: "createdAt" })).toBe(
+      "השדה תאריך יצירה הוסר מהחבילה כי אינו בפורמט הנדרש.",
+    );
+    expect(formatPackNotice("en", { type: "droppedMeta", field: "createdAt" })).toContain("Created date");
+    expect(formatPackNotice("he", { type: "droppedMeta", field: "version" })).toContain("גרסה");
+    expect(formatPackNotice("en", { type: "droppedMeta", field: "version" })).not.toContain("{field}");
+    expect(formatPackNotice("en", { type: "unknownKind", ref: "X1", kind: "lid" }).startsWith(ltr("X1"))).toBe(true);
+  });
+
+  it("does not list an unreadable pack as a dropped part", () => {
+    const revived = reviveStoredPack({ id: "broken-pack", name: "Broken", createdAt: 4, parts: "nope" });
+    expect(revived.pack?.unreadable).toBe(true);
+    const exported = exportPackDocument(revived.pack!);
+    expect(exported.warnings.filter((notice) => notice.type === "droppedPart")).toEqual([]);
+    expect(JSON.parse(exported.text).unreadable).toBeUndefined();
   });
 
   it("warns that hidden parts were left out of an export", () => {

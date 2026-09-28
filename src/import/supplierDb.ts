@@ -1,5 +1,5 @@
 import DOMPurify from "dompurify";
-import { bdi } from "./fieldText.ts";
+import { bdi, ltr } from "./fieldText.ts";
 import type { PackNotice } from "./notices.ts";
 import { checkPack, validatePackText, type PackFileError, type ValidatedPack } from "./packValidate.ts";
 import type { SupplierPack } from "./registry.ts";
@@ -34,6 +34,7 @@ function shellForInvalidPack(raw: unknown, error: { he: string; en: string }): S
     name,
     createdAt,
     parts: [],
+    unreadable: true,
     hiddenParts: [{ id, code: "", name, he: error.he, en: error.en }],
   };
 }
@@ -254,14 +255,17 @@ export function exportPackDocument(pack: SupplierPack): { text: string; warnings
   }
   const parts = Array.isArray(pack.parts) ? pack.parts : [];
   body.parts = parts.map((part) => exportPart(part, warnings));
-  warnings.push(...hiddenExportNotices(pack.hiddenParts));
+  warnings.push(...hiddenExportNotices(pack));
   return { text: JSON.stringify(body, null, 2), warnings };
 }
 
 const HIDDEN_EXPORT_EACH = 8;
 
-function hiddenExportNotices(hidden: SupplierPack["hiddenParts"]): PackNotice[] {
-  if (!hidden?.length) return [];
+function hiddenExportNotices(pack: SupplierPack): PackNotice[] {
+  const hidden = pack.hiddenParts;
+  const selfOnly = pack.unreadable
+    || (pack.parts.length === 0 && hidden?.length === 1 && hidden[0].id === pack.id);
+  if (selfOnly || !hidden?.length) return [];
   if (hidden.length > HIDDEN_EXPORT_EACH) {
     return [{
       type: "droppedPart",
@@ -271,14 +275,14 @@ function hiddenExportNotices(hidden: SupplierPack["hiddenParts"]): PackNotice[] 
     }];
   }
   return hidden.map((part) => {
-    const label = part.name || part.code || part.id;
+    const token = part.name ? bdi(part.name) : ltr(part.code || part.id);
     const reasonHe = part.he ? ` ${part.he}` : "";
     const reasonEn = part.en ? ` ${part.en}` : "";
     return {
       type: "droppedPart",
       ref: part.code || part.name || part.id,
-      he: `${bdi(label)} לא נכלל בייצוא.${reasonHe}`,
-      en: `${bdi(label)} was left out of the export.${reasonEn}`,
+      he: `${token} לא נכלל בייצוא.${reasonHe}`,
+      en: `${token} was left out of the export.${reasonEn}`,
     };
   });
 }

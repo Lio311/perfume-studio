@@ -1,3 +1,4 @@
+import DOMPurify from "dompurify";
 import { clearLatheProfiles, setLatheProfile } from "./lathe.ts";
 import type { PackNotice } from "./notices.ts";
 import { setImportedCatalog } from "../model/catalog.ts";
@@ -48,6 +49,10 @@ export interface SupplierPack {
    * Present only on the in-memory view returned by `loadPacks`.
    */
   hiddenParts?: Array<{ id: string; code: string; name: string; he: string; en: string }>;
+  /**
+   * The stored record failed as a whole. In-memory only, and not a dropped part on export.
+   */
+  unreadable?: true;
 }
 
 export interface ImportedMeta {
@@ -72,14 +77,25 @@ export function codeSlug(code: string): string {
   return code.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 }
 
+/** Sanitised code and the slug that becomes the part id, including the item-N fallback. */
+export function preparedPartCode(code: string, kind: string, index: number): { code: string; slug: string } {
+  const raw = code || `${kind}-${index + 1}`;
+  const sanitized = DOMPurify.sanitize(raw);
+  return { code: sanitized, slug: codeSlug(sanitized) || `item-${index + 1}` };
+}
+
+/** Final part id: supplier id plus the sanitised slug. */
+export function generatedPartId(supplierId: string, code: string, kind: string, index: number): string {
+  return `${supplierId}-${preparedPartCode(code, kind, index).slug}`;
+}
+
 export function partFromDraft(draft: DraftItem, supplier: { id: string; name: string }, index: number): SupplierPart {
-  const code = draft.code || `${draft.kind}-${index + 1}`;
-  const safe = codeSlug(code) || `item-${index + 1}`;
+  const prepared = preparedPartCode(draft.code, draft.kind, index);
   return {
-    id: `${supplier.id}-${safe}`,
+    id: `${supplier.id}-${prepared.slug}`,
     kind: draft.kind,
-    code,
-    name: `${code} · ${supplier.name}`,
+    code: prepared.code,
+    name: `${prepared.code} · ${supplier.name}`,
     neck: draft.neck,
     widthMm: draft.widthMm,
     heightMm: draft.heightMm,

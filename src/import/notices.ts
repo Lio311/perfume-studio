@@ -1,5 +1,5 @@
 import { tx } from "../i18n/copy.ts";
-import { bdi } from "./fieldText.ts";
+import { FIELD_LABEL, ltr } from "./fieldText.ts";
 import type { PriceIssueCode, PriceIssueSeverity } from "../model/price.ts";
 import type { Lang } from "../model/types.ts";
 
@@ -31,19 +31,19 @@ export function formatPackNotice(lang: Lang, notice: PackNotice): string {
   const t = tx(lang);
   switch (notice.type) {
     case "unknownKind":
-      return fill(t.noticeUnknownKind, { ref: bdi(notice.ref), kind: bdi(notice.kind) });
+      return fill(t.noticeUnknownKind, { ref: ltr(notice.ref), kind: ltr(notice.kind) });
     case "badNeck":
-      return fill(t.noticeBadNeck, { ref: bdi(notice.ref), neck: bdi(notice.neck) });
+      return fill(t.noticeBadNeck, { ref: ltr(notice.ref), neck: ltr(notice.neck) });
     case "priceIssue":
-      return `${bdi(notice.ref)} · ${lang === "he" ? notice.he : notice.en}`;
+      return `${ltr(notice.ref)} · ${lang === "he" ? notice.he : notice.en}`;
     case "droppedField":
-      return fill(t.noticeDroppedField, { ref: bdi(notice.ref), field: bdi(notice.field) });
+      return fill(t.noticeDroppedField, { ref: ltr(notice.ref), field: ltr(notice.field) });
     case "droppedPart":
       if (notice.he && notice.en) return lang === "he" ? notice.he : notice.en;
-      return fill(t.noticeDroppedPart, { ref: notice.ref });
+      return fill(t.noticeDroppedPart, { ref: ltr(notice.ref) });
     case "droppedPack":
       return t.noticeDroppedPack;
     case "droppedMeta":
-      return fill(t.noticeDroppedMeta, { field: notice.field });
+      return fill(t.noticeDroppedMeta, { field: FIELD_LABEL[lang][notice.field] });
   }
 }

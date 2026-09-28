@@ -339,7 +339,9 @@ function tweenExplode(to: number, ms: number) {
 
 function noticeToast(notices: PackNotice[], lang: Lang): string {
   if (!notices.length) return "";
-  const count = tx(lang).packWarningCount.replace("{n}", String(notices.length));
+  const count = notices.length === 1
+    ? tx(lang).packWarningOne
+    : tx(lang).packWarningCount.replace("{n}", String(notices.length));
   if (notices.length > 1) return count;
   const line = formatPackNotice(lang, notices[0]);
   return line.length > 120 ? count : line;

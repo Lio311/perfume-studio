@@ -1,6 +1,11 @@
-/** First Strong Isolate / Pop Directional Isolate. Keeps a code or number in order inside Hebrew. */
+/** First Strong Isolate / Pop Directional Isolate. For names and numbers whose direction follows the text. */
 export function bdi(value: string | number): string {
   return `\u2068${value}\u2069`;
+}
+
+/** Left-to-Right Isolate / Pop Directional Isolate. Codes and ids are always left to right. */
+export function ltr(value: string | number): string {
+  return `\u2066${value}\u2069`;
 }
 
 /** Labels for pack fields. English labels start a sentence. */
@@ -20,6 +25,12 @@ export const FIELD_LABEL = {
     thumb: "תמונה",
     page: "עמוד",
     lathe: "חריטה",
+    minQty: "כמות מינימלית",
+    moq: "כמות הזמנה מינימלית",
+    createdAt: "תאריך יצירה",
+    version: "גרסה",
+    source: "מקור",
+    supplier: "ספק",
   },
   en: {
     widthMm: "Width",
@@ -36,6 +47,12 @@ export const FIELD_LABEL = {
     thumb: "Thumb",
     page: "Page",
     lathe: "Lathe",
+    minQty: "Minimum quantity",
+    moq: "Minimum order quantity",
+    createdAt: "Created date",
+    version: "Version",
+    source: "Source",
+    supplier: "Supplier",
   },
 } as const;
 

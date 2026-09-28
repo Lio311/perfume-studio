@@ -3,10 +3,10 @@ import { isBuiltinCatalogId } from "../model/catalog.ts";
 import { isNeckId } from "../model/necks.ts";
 import { sanitizeSupplierPrice } from "../model/price.ts";
 import type { VariantPart } from "../model/types.ts";
-import { bdi, FIELD_LABEL, type FieldLabelKey } from "./fieldText.ts";
+import { bdi, FIELD_LABEL, ltr, type FieldLabelKey } from "./fieldText.ts";
 import type { PackNotice } from "./notices.ts";
 import type { ImportProfile } from "./parseCatalog.ts";
-import { codeSlug, isVariantPart } from "./registry.ts";
+import { generatedPartId, isVariantPart } from "./registry.ts";
 import { isDataObject, plainData, safeRecord } from "./safeJson.ts";
 
 export interface PackFileError {
@@ -105,19 +105,13 @@ function partRef(part: Record<string, unknown>): string {
   return "";
 }
 
-/** Name, otherwise code, otherwise id. Empty when the part has none of them. */
-function partDisplay(part: Record<string, unknown>): string {
-  const name = typeof part.name === "string" ? part.name.trim() : "";
-  if (name) return name;
-  const code = typeof part.code === "string" ? part.code.trim() : "";
-  if (code) return code;
-  return typeof part.id === "string" ? part.id.trim() : "";
-}
-
 function citePart(part: Record<string, unknown> | null, he: string, en: string): { he: string; en: string } {
-  const label = part ? partDisplay(part) : "";
-  if (!label) return { he, en };
-  const token = bdi(label);
+  if (!part) return { he, en };
+  const name = typeof part.name === "string" ? part.name.trim() : "";
+  const code = typeof part.code === "string" ? part.code.trim() : "";
+  const id = typeof part.id === "string" ? part.id.trim() : "";
+  const token = name ? bdi(name) : code ? ltr(code) : id ? ltr(id) : "";
+  if (!token) return { he, en };
   return { he: `${token} · ${he}`, en: `${token} · ${en}` };
 }
 
@@ -164,8 +158,8 @@ function validatePart(raw: unknown): FieldIssue[] {
     const shown = typeof raw.kind === "string" && raw.kind ? raw.kind : "—";
     add(
       "kind",
-      `הסוג ${bdi(shown)} אינו מוכר, ולכן החלק נדחה ולא יהפוך לקופסה. הסוגים הנתמכים הם בקבוק, פקק, תווית, משאבה, צווארון וקופסה.`,
-      `Kind ${bdi(shown)} is not supported, so the part was rejected and will not become a box. Supported kinds are bottle, cap, label, pump, collar, and box.`,
+      `הסוג ${ltr(shown)} אינו מוכר, ולכן החלק נדחה ולא יהפוך לקופסה. הסוגים הנתמכים הם בקבוק, פקק, תווית, משאבה, צווארון וקופסה.`,
+      `Kind ${ltr(shown)} is not supported, so the part was rejected and will not become a box. Supported kinds are bottle, cap, label, pump, collar, and box.`,
     );
   }
   if (typeof raw.code !== "string") {
@@ -176,9 +170,9 @@ function validatePart(raw: unknown): FieldIssue[] {
   }
   if (raw.neck !== null && !isNeckId(raw.neck)) {
     const shown = typeof raw.neck === "string" && raw.neck ? raw.neck : "";
-    const necks = `${bdi("FEA13")}, ${bdi("FEA15")}, ${bdi("FEA17")}, ${bdi("FEA18")}, ${bdi("FEA20")}`;
+    const necks = `${ltr("FEA13")}, ${ltr("FEA15")}, ${ltr("FEA17")}, ${ltr("FEA18")}, ${ltr("FEA20")}`;
     if (shown) {
-      add("neck", `הצוואר ${bdi(shown)} אינו נתמך, ולכן החלק נדחה. הצווארים הנתמכים הם ${necks}.`, `Neck ${bdi(shown)} is not supported, so the part was rejected. Supported necks are ${necks}.`);
+      add("neck", `הצוואר ${ltr(shown)} אינו נתמך, ולכן החלק נדחה. הצווארים הנתמכים הם ${necks}.`, `Neck ${ltr(shown)} is not supported, so the part was rejected. Supported necks are ${necks}.`);
     } else {
       add("neck", `חסר צוואר. הערך חייב להיות ריק או אחד מ־${necks}.`, `Missing neck. It must be empty or one of ${necks}.`);
     }
@@ -256,17 +250,25 @@ export function issuesForDraft(row: {
   return issues;
 }
 
-/** A second row whose code slugs the same way (`A-1` and `a 1`) cannot be saved. */
-export function duplicateSlugIssues(row: { id: string; code: string }, rows: readonly { id: string; code: string }[]): FieldIssue[] {
-  const slug = codeSlug(row.code);
-  if (!slug) return [];
-  const clash = rows.some((other) => other.id !== row.id && codeSlug(other.code) === slug);
+const DRAFT_SUPPLIER = "draft";
+
+/** A second row whose final part id matches (`A-1` and `a 1`, or a sanitised code and item-N) cannot be saved. */
+export function duplicateSlugIssues(
+  row: { id: string; code: string; kind: string },
+  rows: readonly { id: string; code: string; kind: string }[],
+): FieldIssue[] {
+  const index = rows.findIndex((item) => item.id === row.id);
+  if (index < 0) return [];
+  const id = generatedPartId(DRAFT_SUPPLIER, row.code, row.kind, index);
+  const clash = rows.some((other, otherIndex) =>
+    other.id !== row.id && generatedPartId(DRAFT_SUPPLIER, other.code, other.kind, otherIndex) === id,
+  );
   if (!clash) return [];
   const code = row.code.trim();
   return [{
     field: "code",
-    he: `הקוד ${bdi(code)} כבר בשימוש בשורה אחרת.`,
-    en: `Code ${bdi(code)} is already used on another row.`,
+    he: `הקוד ${ltr(code)} כבר בשימוש בשורה אחרת.`,
+    en: `Code ${ltr(code)} is already used on another row.`,
   }];
 }
 
@@ -276,15 +278,15 @@ function identityIssues(part: Record<string, unknown>, seen: Set<string>): PackF
   const issues: PackFileError[] = [];
   if (seen.has(id)) {
     issues.push({
-      he: `המזהה ${bdi(id)} מופיע יותר מפעם אחת בחבילה.`,
-      en: `Id ${bdi(id)} is duplicated in this pack.`,
+      he: `המזהה ${ltr(id)} מופיע יותר מפעם אחת בחבילה.`,
+      en: `Id ${ltr(id)} is duplicated in this pack.`,
     });
   }
   seen.add(id);
   if (isBuiltinCatalogId(id)) {
     issues.push({
-      he: `המזהה ${bdi(id)} שמור לקטלוג המובנה.`,
-      en: `Id ${bdi(id)} belongs to the built-in catalog.`,
+      he: `המזהה ${ltr(id)} שמור לקטלוג המובנה.`,
+      en: `Id ${ltr(id)} belongs to the built-in catalog.`,
     });
   }
   return issues;
@@ -296,27 +298,27 @@ function envelopeIssues(value: Record<string, unknown>): PackFileError[] {
     const createdAt = value.createdAt;
     if (typeof createdAt !== "number" || !Number.isFinite(createdAt) || createdAt < 0) {
       issues.push({
-        he: "createdAt חייב להיות מספר אי-שלילי.",
-        en: "createdAt must be a non-negative number.",
+        he: `${FIELD_LABEL.he.createdAt} חייב להיות מספר אי-שלילי.`,
+        en: `${FIELD_LABEL.en.createdAt} must be a non-negative number.`,
       });
     }
   }
   if (Object.hasOwn(value, "version") && value.version !== undefined && !isVersion(value.version)) {
     issues.push({
-      he: "version חייב להיות המספר השלם 2.",
-      en: "version must be the integer 2.",
+      he: `${FIELD_LABEL.he.version} חייב להיות המספר השלם 2.`,
+      en: `${FIELD_LABEL.en.version} must be the integer 2.`,
     });
   }
   if (Object.hasOwn(value, "source") && value.source !== undefined && !isSource(value.source)) {
     issues.push({
-      he: "source חייב להיות pdf, photo, scan או manual.",
-      en: "source must be pdf, photo, scan, or manual.",
+      he: `${FIELD_LABEL.he.source} חייב להיות ${ltr("pdf")}, ${ltr("photo")}, ${ltr("scan")} או ${ltr("manual")}.`,
+      en: `${FIELD_LABEL.en.source} must be ${ltr("pdf")}, ${ltr("photo")}, ${ltr("scan")}, or ${ltr("manual")}.`,
     });
   }
   if (Object.hasOwn(value, "supplier") && value.supplier !== undefined && !isDataObject(value.supplier)) {
     issues.push({
-      he: "supplier חייב להיות אובייקט.",
-      en: "supplier must be an object.",
+      he: `${FIELD_LABEL.he.supplier} חייב להיות אובייקט.`,
+      en: `${FIELD_LABEL.en.supplier} must be an object.`,
     });
   }
   return issues;
@@ -401,10 +403,10 @@ export function validatePackText(text: string): PackCheck {
 }
 
 function metaWarning(issue: PackFileError): PackNotice | undefined {
-  if (issue.en.startsWith("version")) return { type: "droppedMeta", field: "version" };
-  if (issue.en.startsWith("source")) return { type: "droppedMeta", field: "source" };
-  if (issue.en.startsWith("supplier")) return { type: "droppedMeta", field: "supplier" };
-  if (issue.en.startsWith("createdAt")) return { type: "droppedMeta", field: "createdAt" };
+  if (issue.en.startsWith(FIELD_LABEL.en.version)) return { type: "droppedMeta", field: "version" };
+  if (issue.en.startsWith(FIELD_LABEL.en.source)) return { type: "droppedMeta", field: "source" };
+  if (issue.en.startsWith(FIELD_LABEL.en.supplier)) return { type: "droppedMeta", field: "supplier" };
+  if (issue.en.startsWith(FIELD_LABEL.en.createdAt)) return { type: "droppedMeta", field: "createdAt" };
   return undefined;
 }
 

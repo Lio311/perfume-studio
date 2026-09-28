@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { tx } from "../i18n/copy.ts";
+import { FIELD_LABEL, ltr } from "../import/fieldText.ts";
 import { formatSupplierAmount, sanitizeSupplierPrice, type PriceIssue } from "./price.ts";
 
 const clean = {
@@ -56,8 +57,13 @@ describe("sanitizeSupplierPrice", () => {
         severity: "warning",
       }),
     ]);
-    expect(result.issues[0].he).toContain("moq");
-    expect(result.issues[0].en).toContain("moq");
+    expect(result.issues[0].he).toContain(`מדרגה ${ltr(1)}`);
+    expect(result.issues[0].he).not.toContain("מדרגה 0");
+    expect(result.issues[0].he).toContain(FIELD_LABEL.he.minQty);
+    expect(result.issues[0].he).toContain(FIELD_LABEL.he.moq);
+    expect(result.issues[0].en).toContain(`Tier ${ltr(1)}`);
+    expect(result.issues[0].en).toContain(FIELD_LABEL.en.minQty);
+    expect(result.issues[0].en).toContain(FIELD_LABEL.en.moq);
   });
 
   it("drops a tier that does not ascend and keeps the ones that do", () => {
@@ -276,11 +282,12 @@ describe("sanitizeSupplierPrice", () => {
     const foo = sanitizeSupplierPrice({ value: 2, currency: "FOO" });
     expect(foo.unpriced).toBe(true);
     expect(foo.price).toEqual({ value: 2, currencyText: "FOO" });
-    expect(foo.issues[0].en).toContain("FOO");
+    expect(foo.issues[0].en).toContain(ltr("\"FOO\""));
     expect(foo.issues[0].he).toContain("מטבע לא ידוע");
     const dollar = sanitizeSupplierPrice({ value: 3, currency: "dollar" });
     expect(dollar.price?.currencyText).toBe("dollar");
-    expect(dollar.issues[0].en).toContain("dollar");
+    expect(dollar.issues[0].he).toContain(ltr("«dollar»"));
+    expect(dollar.issues[0].en).toContain(ltr("\"dollar\""));
     expect(badCurrency.issues[0]).toMatchObject({ path: "currency", code: "price_currency", severity: "warning" });
     expect(badCurrency.issues[0].he).toContain("מטבע לא ידוע");
     expect(badCurrency.issues[0].en).toContain("Unknown currency");
@@ -295,7 +302,8 @@ describe("sanitizeSupplierPrice", () => {
     expect(result.issues).toEqual([
       expect.objectContaining({ path: "note", code: "price_unknown_field", severity: "warning" }),
     ]);
-    expect(result.issues[0].he).toContain("note");
+    expect(result.issues[0].he).toContain(ltr("note"));
+    expect(result.issues[0].en).toContain(ltr("note"));
     expect(result.issues[0].en).toContain("ignored");
   });
 
