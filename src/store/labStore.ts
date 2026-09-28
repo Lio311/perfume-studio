@@ -19,6 +19,7 @@ import { formatPackNotice, type PackNotice } from "../import/notices.ts";
 import { tx } from "../i18n/copy.ts";
 import { isVariantPart, syncRegistry, type SupplierPack } from "../import/registry.ts";
 import { apiClient } from "../api/client.ts";
+import type { BudgetBrief, PriceOverride } from "../budget/types.ts";
 
 export type LabMode = "assemble" | "explode" | "dimensions" | "compare";
 export type ViewPreset = "home" | "front" | "three" | "top" | "side";
@@ -78,6 +79,12 @@ interface LabState {
   units: "mm" | "cm" | "in";
   suppliers: SupplierPack[];
   packNotices: PackNotice[];
+  brief: BudgetBrief;
+  /** Not persisted. True while the brief dialog is open over an existing brief. */
+  briefEditing: boolean;
+  priceOverrides: Record<string, PriceOverride>;
+  /** ILS received for 1 unit of a foreign currency. Empty until the user types a rate. */
+  exchangeRates: Record<string, number>;
   chat: ChatMessage[];
   saved: SavedDesign[];
   pending: PendingPart[];
@@ -133,6 +140,12 @@ interface LabState {
   showPackNotices: (notices: PackNotice[]) => void;
   upsertSupplier: (pack: SupplierPack, notices?: PackNotice[]) => void;
   removeSupplier: (id: string) => void;
+  setBrief: (patch: Partial<Pick<BudgetBrief, "ceilingIls" | "volumeMl">> & { quantity?: number | null }) => void;
+  confirmBrief: () => void;
+  openBrief: () => void;
+  closeBrief: () => void;
+  setPriceOverride: (id: string, price: PriceOverride | null) => void;
+  setExchangeRate: (currency: string, ilsPerUnit: number | null) => void;
   setVoice: (voice: VoiceVariant) => void;
   setSoundOn: (on: boolean) => void;
   setStage: (stage: StageMode) => void;
@@ -406,6 +419,10 @@ export const useLab = create<LabState>()(
       pending: [],
       suppliers: [],
       packNotices: [],
+      brief: { ceilingIls: 30, volumeMl: 50, confirmed: false },
+      briefEditing: false,
+      priceOverrides: {},
+      exchangeRates: {},
       compareIds: ["seed-atelier", "seed-blush", "seed-noir"],
       voice: readVoiceParam(),
       soundOn: true,
@@ -594,6 +611,51 @@ export const useLab = create<LabState>()(
         commitSuppliers(set, get, suppliers, [], false);
         void deletePack(id);
       },
+      setBrief: (patch) =>
+        set((state) => ({
+          brief: {
+            ...state.brief,
+            ceilingIls: patch.ceilingIls === undefined ? state.brief.ceilingIls : clamp(patch.ceilingIls, 1, 100000),
+            volumeMl: patch.volumeMl === undefined ? state.brief.volumeMl : clamp(patch.volumeMl, 1, 1000),
+            quantity: patch.quantity === undefined
+              ? state.brief.quantity
+              : patch.quantity != null && Number.isInteger(patch.quantity) && patch.quantity >= 1
+                ? patch.quantity
+                : undefined,
+          },
+        })),
+      confirmBrief: () =>
+        set((state) => ({
+          brief: { ...state.brief, confirmed: true },
+          briefEditing: false,
+          libraryOpen: true,
+          sideOpen: true,
+        })),
+      openBrief: () => set({ briefEditing: true }),
+      closeBrief: () => set({ briefEditing: false }),
+      setPriceOverride: (id, price) =>
+        set((state) => {
+          const priceOverrides = { ...state.priceOverrides };
+          if (!price) {
+            delete priceOverrides[id];
+            return { priceOverrides };
+          }
+          if ("absent" in price) {
+            priceOverrides[id] = { absent: true };
+            return { priceOverrides };
+          }
+          if (!Number.isFinite(price.value) || price.value <= 0) return {};
+          priceOverrides[id] = { value: price.value, currency: price.currency };
+          return { priceOverrides };
+        }),
+      setExchangeRate: (currency, ilsPerUnit) =>
+        set((state) => {
+          const exchangeRates = { ...state.exchangeRates };
+          const code = currency.trim().toUpperCase();
+          if (!code || ilsPerUnit === null || !Number.isFinite(ilsPerUnit) || ilsPerUnit <= 0) delete exchangeRates[code];
+          else exchangeRates[code] = ilsPerUnit;
+          return { exchangeRates };
+        }),
       setVoice: (voice) => {
         if (typeof location !== "undefined" && typeof history !== "undefined") {
           const url = new URL(location.href);
