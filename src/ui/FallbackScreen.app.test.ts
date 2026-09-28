@@ -113,6 +113,10 @@ describe("app error boundary", () => {
     expect(localStorage.getItem(DESIGN_STORAGE_KEY)).toBeNull();
     expect(localStorage.getItem(SUPPLIER_DB_NAME)).toBe("{\"packs\":[1]}");
     expect(localStorage.getItem("token")).toBe("keep-me");
+    const fresh = createDefaultDesign();
+    expect(fresh.bottle.variantId).toBe("cara-50");
+    expect(fresh.bottle.visible).toBe(true);
+    expect(fresh.bottle.heightMm).toBeGreaterThan(0);
     view.root.unmount();
   });
 

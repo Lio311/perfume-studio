@@ -19,6 +19,22 @@ function slice(design: Design = createDefaultDesign()): HydratedSlice {
 }
 
 describe("saved design hydration", () => {
+  it("starts a cleared store on a visible Cara 50", () => {
+    const fresh = createDefaultDesign();
+    expect(fresh.bottle.variantId).toBe("cara-50");
+    expect(fresh.bottle.visible).toBe(true);
+    expect(fresh.bottle.heightMm).toBeGreaterThan(0);
+    expect(fresh.bottle.widthMm).toBeGreaterThan(0);
+    expect(fresh.bottle.depthMm).toBeGreaterThan(0);
+
+    const cleared = mergePersistedLab(undefined, slice());
+    expect(cleared.design.bottle).toEqual(fresh.bottle);
+
+    const hiddenSlot = mergePersistedLab({ design: { bottle: { visible: false }, cap: {} } }, slice());
+    expect(hiddenSlot.design.bottle).toEqual(fresh.bottle);
+    expect(hiddenSlot.design.bottle.visible).toBe(true);
+  });
+
   it("keeps a full default when the stored state is {}", () => {
     const current = slice();
     const merged = mergePersistedLab({}, current);
