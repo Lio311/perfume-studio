@@ -4,6 +4,8 @@ import { applyTheme } from "./theme/themes.ts";
 import { partLabel, tx, wizardTitle } from "./i18n/copy.ts";
 import { pngDownloadName } from "./ui/pngName.ts";
 import { useLab } from "./store/labStore.ts";
+import { applyIncomingShareHash, respondToLocation } from "./model/share.ts";
+import { backSurface, handleHistoryPop, syncHistoryTrap, type BackAction, type Trap } from "./nav/backHistory.ts";
 import { TopBar } from "./ui/TopBar.tsx";
 import { Library } from "./ui/Library.tsx";
 import { Inspector } from "./ui/Inspector.tsx";
@@ -15,6 +17,22 @@ import { CompareBoard } from "./ui/CompareBoard.tsx";
 import { Modals } from "./ui/Modals.tsx";
 import { stopSpeaking } from "./audio/speech.ts";
 import { loadPacks } from "./import/supplierDb.ts";
+
+function applyBackAction(action: Exclude<BackAction, "leave">) {
+  const lab = useLab.getState();
+  if (action === "modal") lab.setModal(null);
+  else if (action === "present") lab.setPresent(false);
+  else if (action === "overlays") {
+    lab.setPalette(false);
+    lab.setHelp(false);
+  } else if (action === "selection") lab.showFull();
+  else if (action === "stage") lab.setStage("bottle");
+  else if (action === "mode") {
+    // Zero before setMode so the assemble tween does not leave explode open and re-arm history.
+    useLab.setState({ explode: 0 });
+    lab.setMode("assemble");
+  }
+}
 
 export default function App() {
   const theme = useLab((s) => s.theme);
@@ -45,7 +63,12 @@ export default function App() {
   const modal = useLab((s) => s.modal);
   const setModal = useLab((s) => s.setModal);
   const toast = useLab((s) => s.toast);
+  const stage = useLab((s) => s.stage);
+  const explode = useLab((s) => s.explode);
+  const wizardStep = useLab((s) => s.design.step);
+  const trapRef = useRef<Trap>({ armed: false });
   const [hintOn, setHintOn] = useState(true);
+  const [shareLock, setShareLock] = useState(() => location.hash.startsWith("#d="));
   const [swapping, setSwapping] = useState(false);
 
   const sig = `${design.bottle.variantId}|${design.cap.variantId}|${design.pump.variantId}|${design.collar.variantId}|${design.label.variantId}|${design.box.variantId}`;
@@ -67,40 +90,82 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    void loadPacks().then((packs) => {
+    let cancelled = false;
+    const ready = loadPacks().then((packs) => {
+      if (cancelled) return;
       if (packs.length && useLab.getState().suppliers.length === 0) useLab.getState().setSuppliers(packs);
     }).catch(() => undefined);
+    const hydrated = new Promise<void>((resolve) => {
+      if (useLab.persist.hasHydrated()) {
+        resolve();
+        return;
+      }
+      const unsub = useLab.persist.onFinishHydration(() => {
+        unsub();
+        resolve();
+      });
+    });
+    const applyShare = () => {
+      if (location.hash.startsWith("#d=")) setShareLock(true);
+      return applyIncomingShareHash({
+        read: () => ({
+          hash: location.hash,
+          pathname: location.pathname,
+          search: location.search,
+          state: history.state,
+        }),
+        ready,
+        hydrated,
+        cancelled: () => cancelled,
+        baseline: () => useLab.getState().design,
+        noteMissing: (ids) => {
+          const lang = useLab.getState().lang;
+          const list = ids.join(", ");
+          useLab.setState({
+            toast: lang === "he" ? `חלקים מהקישור לא נמצאו: ${list}` : `Parts from the link were not found: ${list}`,
+          });
+        },
+        apply: (design) => useLab.setState({ design }),
+        replaceState: (state, title, url) => history.replaceState(state, title, url),
+      }).finally(() => {
+        if (!cancelled) setShareLock(false);
+      });
+    };
+    void applyShare();
+    const trap = trapRef.current;
+    const surface = () => backSurface(useLab.getState());
+    syncHistoryTrap(history, surface(), trap);
+    const onPop = () => {
+      void respondToLocation({
+        kind: "pop",
+        hash: location.hash,
+        applyShare,
+        back: () => {
+          useLab.getState().applyVoiceParam(new URLSearchParams(location.search).get("voice"));
+          handleHistoryPop(history, surface(), applyBackAction, surface, trap);
+        },
+      });
+    };
+    const onHash = () => {
+      void respondToLocation({
+        kind: "hash",
+        hash: location.hash,
+        applyShare,
+        back: () => undefined,
+      });
+    };
+    window.addEventListener("popstate", onPop);
+    window.addEventListener("hashchange", onHash);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("popstate", onPop);
+      window.removeEventListener("hashchange", onHash);
+    };
   }, []);
 
   useEffect(() => {
-    const hash = location.hash.startsWith("#d=") ? location.hash.slice(3) : "";
-    if (hash) {
-      try {
-        const json = decodeURIComponent(escape(atob(hash.replace(/-/g, "+").replace(/_/g, "/"))));
-        const design = JSON.parse(json);
-        if (design?.bottle && design?.cap) useLab.setState({ design });
-      } catch {
-        // A shared link that cannot be read stays on the current design.
-      }
-    }
-    if (!history.state || !(history.state as { lab?: number }).lab) history.pushState({ lab: 1 }, "");
-    const onPop = () => {
-      const value = new URLSearchParams(location.search).get("voice");
-      useLab.getState().applyVoiceParam(value);
-      const lab = useLab.getState();
-      if (lab.modal) lab.setModal(null);
-      else if (lab.present) lab.setPresent(false);
-      else if (lab.palette || lab.help) {
-        lab.setPalette(false);
-        lab.setHelp(false);
-      } else if (lab.solo || lab.aimed) lab.showFull();
-      else if (lab.stage !== "bottle") lab.setStage("bottle");
-      else if (lab.mode !== "assemble" || lab.explode > 0.02) lab.setMode("assemble");
-      history.pushState({ lab: 1 }, "");
-    };
-    window.addEventListener("popstate", onPop);
-    return () => window.removeEventListener("popstate", onPop);
-  }, []);
+    syncHistoryTrap(history, backSurface(useLab.getState()), trapRef.current);
+  }, [aimed, explode, helpOpen, modal, mode, palette, present, solo, stage, wizardStep]);
 
   useEffect(() => {
     const fade = () => setHintOn(false);
@@ -122,6 +187,7 @@ export default function App() {
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
+      if (shareLock) return;
       const target = event.target as HTMLElement | null;
       const typing = target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.tagName === "SELECT" || target.isContentEditable);
       if (event.key === "Escape") {
@@ -175,10 +241,10 @@ export default function App() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [cycle, helpOpen, lang, modal, mode, palette, present, redo, resetView, setHelp, setModal, setMode, setPalette, setPresent, showFull, undo]);
+  }, [cycle, helpOpen, lang, modal, mode, palette, present, redo, resetView, setHelp, setModal, setMode, setPalette, setPresent, shareLock, showFull, undo]);
 
   return (
-    <div className={`app ${present ? "is-present" : ""} ${swapping ? "is-swapping" : ""}`.trim()} data-voice={voice}>
+    <div className={`app ${present ? "is-present" : ""} ${swapping ? "is-swapping" : ""} ${shareLock ? "is-share-lock" : ""}`.trim()} data-voice={voice} inert={shareLock ? true : undefined}>
       <LabCanvas />
       <div className="vignette" />
       <div className="grain" />

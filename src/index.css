@@ -40,6 +40,7 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 }
 
 .app { height: 100%; position: relative; max-width: 100%; overflow: hidden; }
+.app.is-share-lock { pointer-events: none; }
 .stage-canvas { position: absolute !important; inset: 0; width: 100% !important; height: 100% !important; touch-action: none; }
 .vignette {
   position: absolute;
@@ -1153,6 +1154,59 @@ html[data-theme="light"] .crumb {
 .app.is-present .dock { display: none !important; }
 .app.is-present .chrome { grid-template-columns: 1fr !important; }
 .app.is-present .stage-slot { grid-column: 1; grid-row: 1 / -1; }
+
+.boot-fallback {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+  pointer-events: auto;
+  background:
+    radial-gradient(ellipse at center, rgba(22, 27, 36, 0.2), rgba(6, 7, 11, 0.94) 68%),
+    #06070b;
+  color: var(--text);
+}
+.boot-fallback.is-page {
+  position: fixed;
+  z-index: 40;
+}
+.boot-fallback-card {
+  width: min(440px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  align-items: center;
+  text-align: center;
+}
+.boot-fallback h1 {
+  margin: 0;
+  font-family: var(--display);
+  font-size: 28px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+.boot-fallback p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.65;
+  font-size: 16px;
+}
+.boot-fallback button {
+  margin-top: 8px;
+  border: 1px solid var(--line-strong);
+  background: var(--accent);
+  color: var(--on-accent);
+  border-radius: 999px;
+  padding: 10px 22px;
+  font-weight: 600;
+}
+.boot-fallback button.is-ghost {
+  background: transparent;
+  color: var(--text);
+}
 
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; animation: none !important; }

@@ -21,7 +21,17 @@ export function Inspector() {
   const applyCommands = useLab((s) => s.applyCommands);
   const part = selected;
   const name = variantName(part, design, lang);
-  const fit = computeFit(design, explode > 0.45);
+  let fit: ReturnType<typeof computeFit>;
+  try {
+    fit = computeFit(design, explode > 0.45);
+  } catch {
+    return (
+      <section className={`panel props ${open ? "is-open" : ""}`} dir={lang === "he" ? "rtl" : "ltr"}>
+        <div className="panel-head"><h2>{t.properties}</h2></div>
+        <p className="empty">{t.emptySelect}</p>
+      </section>
+    );
+  }
   const neckLabel = design.bottle.neck.replace("FEA", "FEA ");
   const badge = !part || part === "liquid" || part === "label" || part === "box"
     ? ""
