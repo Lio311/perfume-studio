@@ -64,23 +64,47 @@ export interface LabelFinish {
   roughness: number;
   /** Bump height of the glyph mask. Positive raises the ink, negative recesses it, zero stays flat. */
   bumpScale: number;
+  /** Environment reflection strength. Foil never falls below {@link FOIL_ENV_FLOOR}. */
+  envMapIntensity: number;
+  /**
+   * Emissive strength in the ink colour, masked to the glyphs.
+   * Zero leaves print, emboss, and engrave unlit.
+   */
+  emissive: number;
 }
 
 /**
- * Finish of the ink region. Print is flat. Foil is glossy metal.
+ * Hot foil must not be a black mirror of a dark studio.
+ * The face is rough enough to carry the ink colour, and this is the least environment response it keeps.
+ */
+export const FOIL_ENV_FLOOR = 1.2;
+
+/**
+ * Finish of the ink region. Print is flat. Foil is coloured metal.
  * Emboss is raised and engrave is recessed, from the same glyph mask with opposite bump.
  */
 export function labelFinish(application: LogoApplication = "decal"): LabelFinish {
   switch (application) {
     case "foil":
-      return { metalness: 1, roughness: 0.08, bumpScale: 0 };
+      return {
+        metalness: 1,
+        roughness: 0.4,
+        bumpScale: 0,
+        envMapIntensity: FOIL_ENV_FLOOR,
+        emissive: 0.36,
+      };
     case "emboss":
-      return { metalness: 0.04, roughness: 0.55, bumpScale: 3.2 };
+      return { metalness: 0.04, roughness: 0.55, bumpScale: 3.2, envMapIntensity: 1, emissive: 0 };
     case "engrave":
-      return { metalness: 0.04, roughness: 0.55, bumpScale: -3.2 };
+      return { metalness: 0.04, roughness: 0.55, bumpScale: -3.2, envMapIntensity: 1, emissive: 0 };
     default:
-      return { metalness: 0, roughness: 1, bumpScale: 0 };
+      return { metalness: 0, roughness: 1, bumpScale: 0, envMapIntensity: 1, emissive: 0 };
   }
+}
+
+/** Emissive colour for a finish. Foil glows in the ink; every other application stays black. */
+export function labelEmissive(ink: string, application: LogoApplication = "decal"): string {
+  return labelFinish(application).emissive > 0 ? ink : "#000000";
 }
 
 /** 0 on the contrasting plate, 1 on solid ink. Edges in between stay partial so anti-aliasing survives. */
@@ -158,6 +182,54 @@ export function paintLabelSurface(
     target[index + 2] = Math.round(cover * 255);
     target[index + 3] = 255;
   }
+}
+
+/**
+ * White on the ink and black on the plate, so an emissive colour can be multiplied in without lighting the ground.
+ * Applications with no emissive stay fully black.
+ */
+export function paintLabelEmissive(
+  source: Uint8ClampedArray,
+  ink: string,
+  application: LogoApplication,
+  target: Uint8ClampedArray,
+): void {
+  const glow = labelFinish(application).emissive > 0 ? 1 : 0;
+  const plate = plateRgb(ink);
+  const count = Math.floor(source.length / 4);
+  for (let pixel = 0; pixel < count; pixel += 1) {
+    const index = pixel * 4;
+    const cover = inkCoverage(plate, [source[index], source[index + 1], source[index + 2]]) * glow;
+    const value = Math.round(Math.min(1, Math.max(0, cover)) * 255);
+    target[index] = value;
+    target[index + 1] = value;
+    target[index + 2] = value;
+    target[index + 3] = 255;
+  }
+}
+
+/** Emissive mask aligned to the colour canvas. Plate pixels stay black. */
+export function labelEmissiveCanvas(source: HTMLCanvasElement, ink: string, application: LogoApplication): HTMLCanvasElement {
+  const limit = 1024;
+  const scale = Math.min(1, limit / Math.max(source.width, source.height, 1));
+  const width = Math.max(1, Math.round(source.width * scale));
+  const height = Math.max(1, Math.round(source.height * scale));
+  const sample = document.createElement("canvas");
+  sample.width = width;
+  sample.height = height;
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const sampleCtx = sample.getContext("2d", { willReadFrequently: true });
+  const dst = canvas.getContext("2d");
+  if (!sampleCtx || !dst) return canvas;
+  sampleCtx.imageSmoothingEnabled = true;
+  sampleCtx.drawImage(source, 0, 0, width, height);
+  const image = sampleCtx.getImageData(0, 0, width, height);
+  const out = dst.createImageData(width, height);
+  paintLabelEmissive(image.data, ink, application, out.data);
+  dst.putImageData(out, 0, 0);
+  return canvas;
 }
 
 /** Mask derived from the painted plate. Same pixels as the colour canvas, so the ink lines up. */

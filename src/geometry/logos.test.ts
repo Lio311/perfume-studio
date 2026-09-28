@@ -4,7 +4,9 @@ import {
   clampLabelText,
   contrastingPlate,
   contrastRatio,
+  FOIL_ENV_FLOOR,
   labelDirection,
+  labelEmissive,
   labelFinish,
   labelFontFamily,
   labelFontWeight,
@@ -12,6 +14,7 @@ import {
   labelTypeface,
   layoutLabelLines,
   paintLabel,
+  paintLabelEmissive,
   paintLabelSurface,
   relativeLuminance,
   shouldRepaintLabel,
@@ -101,12 +104,13 @@ describe("label text layout", () => {
     expect(labelInk("#D6B26A", "emboss")).toBe("#D6B26A");
     expect(labelInk("#D6B26A", "engrave")).toBe("#D6B26A");
     expect(labelInk("#D6B26A", "decal")).toBe("#D6B26A");
-    expect(labelFinish("decal")).toEqual({ metalness: 0, roughness: 1, bumpScale: 0 });
+    expect(labelFinish("decal")).toEqual({ metalness: 0, roughness: 1, bumpScale: 0, envMapIntensity: 1, emissive: 0 });
     const foil = labelFinish("foil");
     const emboss = labelFinish("emboss");
     const engrave = labelFinish("engrave");
     expect(foil.metalness).toBeGreaterThan(0.8);
-    expect(foil.roughness).toBeLessThan(0.35);
+    expect(foil.roughness).toBeGreaterThanOrEqual(0.35);
+    expect(foil.roughness).toBeLessThanOrEqual(0.45);
     expect(foil.bumpScale).toBe(0);
     expect(emboss.bumpScale).toBeGreaterThan(0);
     expect(engrave.bumpScale).toBeLessThan(0);
@@ -115,6 +119,51 @@ describe("label text layout", () => {
     expect(engrave.metalness).toBe(emboss.metalness);
     expect(foil.roughness).toBeLessThan(emboss.roughness);
     expect(emboss.roughness).toBeLessThan(1);
+    expect(emboss).toEqual({ metalness: 0.04, roughness: 0.55, bumpScale: 3.2, envMapIntensity: 1, emissive: 0 });
+    expect(engrave).toEqual({ metalness: 0.04, roughness: 0.55, bumpScale: -3.2, envMapIntensity: 1, emissive: 0 });
+  });
+
+  it("pins foil roughness, an environment floor, and emissive in the ink colour", () => {
+    const foil = labelFinish("foil");
+    expect(foil.roughness).toBeGreaterThanOrEqual(0.35);
+    expect(foil.roughness).toBeLessThanOrEqual(0.45);
+    expect(FOIL_ENV_FLOOR).toBeGreaterThan(0);
+    expect(foil.envMapIntensity).toBeGreaterThanOrEqual(FOIL_ENV_FLOOR);
+    expect(foil.emissive).toBeGreaterThan(0);
+    expect(labelEmissive("#c9a36a", "foil")).toBe("#c9a36a");
+    expect(labelEmissive("#141414", "foil")).toBe("#141414");
+    expect(labelEmissive("#c9a36a", "emboss")).toBe("#000000");
+    expect(labelEmissive("#c9a36a", "engrave")).toBe("#000000");
+    expect(labelEmissive("#c9a36a", "decal")).toBe("#000000");
+    expect(labelFinish("emboss").emissive).toBe(0);
+    expect(labelFinish("engrave").emissive).toBe(0);
+    expect(labelFinish("decal").emissive).toBe(0);
+
+    const width = 32;
+    const height = 32;
+    const source = new Uint8ClampedArray(width * height * 4);
+    const plate: [number, number, number] = [0x16, 0x13, 0x0f];
+    const ink: [number, number, number] = [0xc9, 0xa3, 0x6a];
+    for (let y = 0; y < height; y += 1) {
+      for (let x = 0; x < width; x += 1) {
+        const index = (y * width + x) * 4;
+        const on = x >= 8 && x < 24 && y >= 8 && y < 24;
+        const rgb = on ? ink : plate;
+        source[index] = rgb[0];
+        source[index + 1] = rgb[1];
+        source[index + 2] = rgb[2];
+        source[index + 3] = 255;
+      }
+    }
+    const target = new Uint8ClampedArray(source.length);
+    paintLabelEmissive(source, "#c9a36a", "foil", target);
+    const at = (x: number, y: number) => target[(y * width + x) * 4];
+    expect(at(2, 2)).toBe(0);
+    expect(at(16, 16)).toBe(255);
+    paintLabelEmissive(source, "#c9a36a", "emboss", target);
+    expect(at(16, 16)).toBe(0);
+    paintLabelEmissive(source, "#c9a36a", "decal", target);
+    expect(at(16, 16)).toBe(0);
   });
 
   it("masks metal and height to the ink so the plate stays matte", () => {

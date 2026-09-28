@@ -7,7 +7,7 @@ import { computeFit } from "../model/fit.ts";
 import { isGlass } from "../model/materials.ts";
 import type { BoxForm, PartKey, PumpStyle } from "../model/types.ts";
 import { buildBottleGeometry, buildCapGeometry, buildLabelPatch } from "../geometry/sweep.ts";
-import { labelFinish, labelFontSpec, labelInk, labelSurfaceCanvas, logoTexture, shouldRepaintLabel } from "../geometry/logos.ts";
+import { FOIL_ENV_FLOOR, labelEmissive, labelEmissiveCanvas, labelFinish, labelFontSpec, labelInk, labelSurfaceCanvas, logoTexture, shouldRepaintLabel } from "../geometry/logos.ts";
 import type { LogoApplication, LogoFont } from "../model/types.ts";
 import { useLab } from "../store/labStore.ts";
 import { latheGeometry, latheProfile } from "../import/lathe.ts";
@@ -619,21 +619,37 @@ function useLabelMaps(canvas: HTMLCanvasElement, ink: string, application: LogoA
     map.needsUpdate = true;
     return map;
   }, [canvas, ink, application, finish.metalness, finish.bumpScale]);
+  const emissive = useMemo(() => {
+    if (finish.emissive <= 0) return null;
+    const surface = labelEmissiveCanvas(canvas, ink, application);
+    const map = new THREE.CanvasTexture(surface);
+    map.colorSpace = THREE.NoColorSpace;
+    map.anisotropy = 8;
+    map.flipY = true;
+    map.generateMipmaps = true;
+    map.needsUpdate = true;
+    return map;
+  }, [canvas, ink, application, finish.emissive]);
   useEffect(() => () => {
     color.dispose();
     mask?.dispose();
-  }, [color, mask]);
-  return { color, mask };
+    emissive?.dispose();
+  }, [color, mask, emissive]);
+  return { color, mask, emissive };
 }
 
 function LabelFinishMaterial({
   map,
   mask,
+  emissiveMap,
+  ink,
   application,
   overlay = false,
 }: {
   map: THREE.Texture;
   mask: THREE.Texture | null;
+  emissiveMap: THREE.Texture | null;
+  ink: string;
   application: LogoApplication;
   overlay?: boolean;
 }) {
@@ -654,6 +670,9 @@ function LabelFinishMaterial({
   }
   // Roughness is multiplied by the map. The uniform stays 1 so the plate (green = 1) stays matte
   // and the ink uses labelFinish().roughness, stored in that channel. Metalness uses the blue channel.
+  // Foil keeps an environment floor and a small ink-coloured emissive so the face stays the ink colour
+  // when the studio behind the camera is dark. The emissive map is black on the plate.
+  const envMapIntensity = application === "foil" ? Math.max(finish.envMapIntensity, FOIL_ENV_FLOOR) : finish.envMapIntensity;
   return (
     <meshStandardMaterial
       map={map}
@@ -663,7 +682,10 @@ function LabelFinishMaterial({
       roughnessMap={mask}
       bumpMap={finish.bumpScale !== 0 ? mask : undefined}
       bumpScale={finish.bumpScale}
-      envMapIntensity={finish.metalness >= 0.5 ? 2.6 : 1}
+      envMapIntensity={envMapIntensity}
+      emissive={labelEmissive(ink, application)}
+      emissiveIntensity={finish.emissive}
+      emissiveMap={finish.emissive > 0 ? emissiveMap ?? undefined : undefined}
       toneMapped={finish.metalness < 0.5}
       depthWrite={!overlay}
       polygonOffset={!overlay}
@@ -693,7 +715,7 @@ function LabelPart() {
     drawn.dataset.fonts = String(fontTick);
     return drawn;
   }, [spec, design.label.text, ink, fontTick, fit.labelW, fit.labelH]);
-  const { color: texture, mask } = useLabelMaps(canvas, ink, spec.application);
+  const { color: texture, mask, emissive } = useLabelMaps(canvas, ink, spec.application);
   const plate = useDisposable(() => buildLabelPatch({
     height: design.bottle.heightMm,
     width: design.bottle.widthMm,
@@ -711,7 +733,7 @@ function LabelPart() {
   return (
     <PartShell part="label" index={4} home={[0, fit.labelY, fit.labelZ]} explode={fit.explode.label} visible={design.label.visible && onStage} variantKey={spec.id + design.label.text + bottle.id}>
       <mesh geometry={plate} renderOrder={8}>
-        <LabelFinishMaterial map={texture} mask={mask} application={spec.application} />
+        <LabelFinishMaterial map={texture} mask={mask} emissiveMap={emissive} ink={ink} application={spec.application} />
         <GoldRim part="label" stamp={spec.id + design.label.text} />
       </mesh>
     </PartShell>
@@ -748,12 +770,12 @@ function BrandPlate({ w, y, z }: { w: number; y: number; z: number }) {
     drawn.dataset.fonts = String(fontTick);
     return drawn;
   }, [text, spec, ink, fontTick, planeW]);
-  const { color: tex, mask } = useLabelMaps(canvas, ink, spec.application);
+  const { color: tex, mask, emissive } = useLabelMaps(canvas, ink, spec.application);
   if (blueprint) return null;
   return (
     <mesh position={[0, y, z]}>
       <planeGeometry args={[planeW, 18]} />
-      <LabelFinishMaterial map={tex} mask={mask} application={spec.application} overlay />
+      <LabelFinishMaterial map={tex} mask={mask} emissiveMap={emissive} ink={ink} application={spec.application} overlay />
     </mesh>
   );
 }
