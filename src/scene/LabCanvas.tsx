@@ -2,7 +2,6 @@ import { useLayoutEffect, useRef } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Grid, TrackballControls } from "@react-three/drei";
 import * as THREE from "three";
-import { damp3 } from "maath/easing";
 import { themes } from "../theme/themes.ts";
 import { useLab } from "../store/labStore.ts";
 import { takeShot } from "./capture.ts";
@@ -110,6 +109,16 @@ function CameraRig() {
   const seenSig = useRef("");
   const greeted = useRef(false);
   const focused = useRef(false);
+  const fromPos = useRef(new THREE.Vector3());
+  const fromLook = useRef(new THREE.Vector3());
+  const animStart = useRef(0);
+
+  const begin = () => {
+    fromPos.current.copy(camera.position);
+    fromLook.current.copy(look.current);
+    animStart.current = performance.now();
+    mode.current = "anim";
+  };
 
   const poseFor = (dir: THREE.Vector3, bounds = assemblyBounds(useLab.getState().design, useLab.getState().explode, useLab.getState().stage)) => {
     const frame = readStageFrame(gl.domElement);
@@ -128,7 +137,7 @@ function CameraRig() {
     const pose = poseFor(dir, bounds);
     goalPos.current.copy(pose.position);
     goalTarget.current.copy(pose.target);
-    mode.current = "anim";
+    begin();
   };
 
   const aim = (dir: THREE.Vector3, pullBack = 1) => {
@@ -143,8 +152,10 @@ function CameraRig() {
       camera.up.set(0, 1, 0);
       camera.lookAt(pose.target);
       look.current.copy(pose.target);
+      fromPos.current.copy(camera.position);
+      fromLook.current.copy(look.current);
     }
-    mode.current = "anim";
+    begin();
   };
 
   useLayoutEffect(() => {
@@ -195,11 +206,12 @@ function CameraRig() {
 
     if (mode.current === "anim") {
       if (controls) controls.enabled = false;
-      const step = Math.min(delta, 0.033);
-      damp3(camera.position, goalPos.current, 0.26, step);
-      damp3(look.current, goalTarget.current, 0.26, step);
+      const t = Math.min(1, (performance.now() - animStart.current) / 720);
+      const eased = t * t * (3 - 2 * t);
+      camera.position.lerpVectors(fromPos.current, goalPos.current, eased);
+      look.current.lerpVectors(fromLook.current, goalTarget.current, eased);
       camera.lookAt(look.current);
-      if (camera.position.distanceTo(goalPos.current) < 1.4 && look.current.distanceTo(goalTarget.current) < 1.4) {
+      if (t >= 1) {
         mode.current = "idle";
         camera.position.copy(goalPos.current);
         look.current.copy(goalTarget.current);
