@@ -655,6 +655,7 @@ function LabelFinishMaterial({
       emissiveMap={finish.emissive > 0 ? emissiveMap ?? undefined : undefined}
       toneMapped={finish.metalness < 0.5}
       transparent={overlay}
+      alphaTest={overlay ? 0.4 : 0}
       depthWrite={!overlay}
       polygonOffset={!overlay}
       polygonOffsetFactor={-4}

@@ -1,7 +1,7 @@
 import { Component, useContext, useMemo, useRef, useState, type ReactNode } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
-import { Bloom, EffectComposer, Scanline, SMAA, Vignette } from "@react-three/postprocessing";
-import { SMAAPreset } from "postprocessing";
+import { Bloom, EffectComposer, Scanline, SMAA, ToneMapping, Vignette } from "@react-three/postprocessing";
+import { SMAAPreset, ToneMappingMode } from "postprocessing";
 import * as THREE from "three";
 import { useLab } from "../store/labStore.ts";
 import { computeFit } from "../model/fit.ts";
@@ -242,27 +242,34 @@ function GradePasses() {
   
   const samples = 4;
   const smooth = <SMAA preset={SMAAPreset.HIGH} />;
+  // The composer forces NoToneMapping on the renderer and copies a half-float buffer to the
+  // screen. Without this pass, a lit cream face (radiance above 1) clips to pure white while
+  // the unlit backdrop, which is already in display range, stays normal.
+  const grade = <ToneMapping mode={ToneMappingMode.ACES_FILMIC} />;
   if (theme === "light" || voice === 1) {
     return (
       <EffectComposer enableNormalPass={false} multisampling={samples}>
-        {smooth}
         <Bloom intensity={theme === "light" ? 0.05 : 0.045} luminanceThreshold={0.96} luminanceSmoothing={0.2} mipmapBlur radius={0.2} />
+        {grade}
+        {smooth}
       </EffectComposer>
     );
   }
   if (voice === 2) {
     return (
       <EffectComposer enableNormalPass={false} multisampling={samples}>
-        {smooth}
         <Bloom intensity={0.12} luminanceThreshold={0.86} luminanceSmoothing={0.2} mipmapBlur radius={0.28} />
+        {grade}
+        {smooth}
         <Scanline density={0.55} opacity={0.028} />
       </EffectComposer>
     );
   }
   return (
     <EffectComposer enableNormalPass={false} multisampling={samples}>
-      {smooth}
       <Bloom intensity={0.35} luminanceThreshold={0.78} luminanceSmoothing={0.2} mipmapBlur radius={0.32} />
+      {grade}
+      {smooth}
       <Vignette eskil={false} offset={0.35} darkness={0.42} />
     </EffectComposer>
   );
