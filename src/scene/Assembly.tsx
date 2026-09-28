@@ -7,9 +7,9 @@ import { computeFit } from "../model/fit.ts";
 import { isGlass } from "../model/materials.ts";
 import type { BoxForm, PartKey, PumpStyle } from "../model/types.ts";
 import { buildBottleGeometry, buildCapGeometry, buildLabelPatch } from "../geometry/sweep.ts";
-import { FOIL_ENV_FLOOR, labelEmissive, labelFinish, labelInk } from "../geometry/logos.ts";
+import { cartonMarkSize, FOIL_ENV_FLOOR, labelEmissive, labelFinish, labelInk } from "../geometry/logos.ts";
 import type { LogoApplication } from "../model/types.ts";
-import { copyLabelCanvas, LabelPaintProvider, useLabelMaps, useSharedLabelCanvas } from "./labelPaint.ts";
+import { LabelPaintProvider, useCartonLabelCanvas, useLabelMaps, useSharedLabelCanvas } from "./labelPaint.ts";
 import { useLab } from "../store/labStore.ts";
 import { latheGeometry, latheProfile } from "../import/lathe.ts";
 import { clickPart, doubleClickPart, markPartPointer, swapFlashOn } from "./focusClick.ts";
@@ -720,23 +720,14 @@ function BrandPlate({ w, y, z }: { w: number; y: number; z: number }) {
   const blueprint = useLab((s) => s.blueprint);
   const variantId = useLab((s) => s.design.label.variantId);
   const color = useLab((s) => s.design.label.color);
+  const text = useLab((s) => s.design.label.text);
   const spec = logoById(variantId);
   const ink = labelInk(color, spec.application);
-  const shared = useSharedLabelCanvas();
-  const maxW = Math.min(w * 0.48, 52);
-  const maxH = 18;
-  const aspect = shared && shared.width > 0 && shared.height > 0 ? shared.width / shared.height : maxW / maxH;
-  const planeW = Math.min(maxW, maxH * aspect);
-  const planeH = planeW / aspect;
-  const canvas = useMemo(() => {
-    if (!shared) return document.createElement("canvas");
-    const longSide = 1024;
-    const destW = aspect >= 1 ? longSide : Math.max(64, Math.round(longSide * aspect));
-    const destH = aspect >= 1 ? Math.max(64, Math.round(longSide / aspect)) : longSide;
-    return copyLabelCanvas(shared, destW, destH);
-  }, [shared, aspect]);
+  const canvas = useCartonLabelCanvas();
+  const aspect = Number(canvas.dataset.aspect);
+  const { width: planeW, height: planeH } = cartonMarkSize(w, aspect);
   const { color: tex, mask, emissive } = useLabelMaps(canvas, ink, spec.application);
-  if (blueprint) return null;
+  if (blueprint || text.trim().length === 0) return null;
   return (
     <mesh position={[0, y, z]}>
       <planeGeometry args={[planeW, planeH]} />

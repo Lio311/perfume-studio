@@ -381,6 +381,41 @@ export function layoutLabelLines(
   return { ...chosen, direction, text: clean };
 }
 
+/** Horizontal inset so the brand line fills the carton face without touching the mesh edge. */
+const CARTON_PAD_X = 0.04;
+/** Vertical inset matching the line box the painter uses. */
+const CARTON_PAD_Y = 0.06;
+export const CARTON_MARK_MAX_W = 52;
+export const CARTON_MARK_MAX_H = 18;
+
+/**
+ * Width/height of the brand line, including the painter's padding.
+ * A long Latin word stays wide; the carton mesh uses this instead of the bottle plate.
+ */
+export function cartonTextAspect(text: string, measure: (line: string, px: number) => number): number {
+  const clean = clampLabelText(text.replace(/\s+/g, " ").trim());
+  if (!clean) return 3;
+  const px = 100;
+  const width = Math.max(1, measure(clean, px));
+  const lineHeight = px * 1.16;
+  const contentW = 1 - CARTON_PAD_X * 2;
+  const contentH = 1 - CARTON_PAD_Y * 2;
+  return (width / contentW) / (lineHeight / contentH);
+}
+
+/** Fit the line to the 52 mm carton budget, then the 18 mm height, without stretching it. */
+export function cartonMarkSize(faceWidth: number, aspect: number): { width: number; height: number } {
+  const maxW = Math.min(CARTON_MARK_MAX_W, Math.max(8, faceWidth) * 0.92);
+  const safe = Number.isFinite(aspect) && aspect > 0.15 ? aspect : 3;
+  let width = maxW;
+  let height = width / safe;
+  if (height > CARTON_MARK_MAX_H) {
+    height = CARTON_MARK_MAX_H;
+    width = Math.min(maxW, height * safe);
+  }
+  return { width, height };
+}
+
 function fitFontSize(
   lines: string[],
   maxWidth: number,
@@ -716,6 +751,85 @@ export function paintLabel(
   }
   ctx.restore();
   return layout;
+}
+
+/**
+ * Brand line for the carton face.
+ * Foil, emboss, and engrave sit on the paper. Only print (decal) gets a contrasting plate.
+ */
+export function paintCartonMark(
+  ctx: CanvasRenderingContext2D,
+  spec: Pick<LogoSpec, "font">,
+  text: string,
+  ink: string,
+  w: number,
+  h: number,
+  application: LogoApplication,
+): void {
+  const plate = application === "decal";
+  ctx.clearRect(0, 0, w, h);
+  if (plate) {
+    ctx.fillStyle = contrastingPlate(ink);
+    ctx.fillRect(0, 0, w, h);
+  }
+  const family = labelFontFamily(spec.font, text);
+  const weight = labelFontWeight(spec.font, text);
+  const direction = labelDirection(text);
+  const canvasEl = ctx.canvas as HTMLCanvasElement | undefined;
+  if (canvasEl?.setAttribute) canvasEl.setAttribute("dir", direction);
+  ctx.save();
+  ctx.direction = direction;
+  const maxWidth = Math.max(8, w * (1 - CARTON_PAD_X * 2));
+  const maxHeight = Math.max(8, h * (1 - CARTON_PAD_Y * 2));
+  const layout = layoutLabelLines(text, maxWidth, maxHeight, (line, px) => {
+    ctx.font = `${weight} ${px}px ${family}`;
+    return ctx.measureText(line).width;
+  });
+  if (!layout.text) {
+    ctx.restore();
+    return;
+  }
+  ctx.font = `${weight} ${layout.px}px ${family}`;
+  ctx.fillStyle = ink;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  const leading = layout.px * 1.16;
+  const block = layout.lines.length * leading;
+  let y = (h - block) / 2 + leading * 0.5;
+  for (const line of layout.lines) {
+    ctx.direction = layout.direction;
+    ctx.fillText(line, w / 2, y);
+    y += leading;
+  }
+  ctx.restore();
+}
+
+/** Canvas whose aspect is the brand line, so the mesh can be 52 mm wide without letterboxing. */
+export function cartonMarkCanvas(
+  spec: Pick<LogoSpec, "font">,
+  text: string,
+  ink: string,
+  application: LogoApplication,
+): HTMLCanvasElement {
+  const probe = document.createElement("canvas");
+  const probeCtx = probe.getContext("2d");
+  const family = labelFontFamily(spec.font, text);
+  const weight = labelFontWeight(spec.font, text);
+  const aspect = cartonTextAspect(text, (line, px) => {
+    if (!probeCtx) return Math.max(1, [...line].length * px * 0.55);
+    probeCtx.font = `${weight} ${px}px ${family}`;
+    return probeCtx.measureText(line).width || 1;
+  });
+  const longSide = 1024;
+  const width = aspect >= 1 ? longSide : Math.max(64, Math.round(longSide * aspect));
+  const height = aspect >= 1 ? Math.max(64, Math.round(longSide / aspect)) : longSide;
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  canvas.dataset.aspect = String(aspect);
+  const ctx = canvas.getContext("2d");
+  if (ctx) paintCartonMark(ctx, spec, text, ink, width, height, application);
+  return canvas;
 }
 
 export function drawLogo(spec: Pick<LogoSpec, "mark" | "font" | "frame">, text: string, ink: string, size: number, height?: number): HTMLCanvasElement {

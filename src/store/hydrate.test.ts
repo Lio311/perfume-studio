@@ -97,7 +97,7 @@ describe("saved design hydration", () => {
     expect(merged.design.label.scale).toBe(1.6);
     expect(merged.design.liquid.color).toBe(defaults.liquid.color);
     expect(merged.design.liquid.fill).toBe(0);
-    expect(merged.design.liquid.visible).toBe(false);
+    expect(merged.design.liquid.visible).toBe(true);
     expect(merged.theme).toBe("dark");
     expect(merged.lang).toBe("he");
     expect(merged.chat).toEqual([
@@ -441,7 +441,7 @@ describe("saved design hydration", () => {
     expect(reset.state.lang).toBe("en");
     expect(reset.state.shareUrl).toBeUndefined();
     expect(reset.state.brief).toEqual({ title: "עבודה" });
-    expect(reset.version).toBe(5);
+    expect(reset.version).toBe(6);
     const fromRecord = resetPersistedPayload({ lang: "en", chat: [] });
     expect(fromRecord.state.lang).toBe("en");
 
