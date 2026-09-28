@@ -25,7 +25,8 @@ export default function App() {
   const undo = useLab((s) => s.undo);
   const redo = useLab((s) => s.redo);
   const resetView = useLab((s) => s.resetView);
-  const select = useLab((s) => s.select);
+  const showFull = useLab((s) => s.showFull);
+  const modal = useLab((s) => s.modal);
   const setModal = useLab((s) => s.setModal);
 
   useEffect(() => {
@@ -48,8 +49,11 @@ export default function App() {
       const target = event.target as HTMLElement | null;
       const typing = target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.tagName === "SELECT" || target.isContentEditable);
       if (event.key === "Escape") {
-        setModal(null);
-        if (!typing) select(null);
+        if (modal) {
+          setModal(null);
+          return;
+        }
+        if (!typing) showFull();
         return;
       }
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "z") {
@@ -69,7 +73,7 @@ export default function App() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [cycle, lang, mode, redo, resetView, select, setModal, setMode, undo]);
+  }, [cycle, lang, modal, mode, redo, resetView, setModal, setMode, showFull, undo]);
 
   return (
     <div className="app" data-voice={voice}>

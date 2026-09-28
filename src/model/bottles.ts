@@ -98,4 +98,8 @@ export const BOTTLES: BottleSpec[] = [
   bottle("low-50", "כתף נמוכה", "Low shoulder", "oval", "lowShoulder", 0.3, 96, 56, 40, "FEA15", 0.75, false, ["shoulder", "כתף", "low", "נמוכה"]),
   bottle("step-100", "מדרגה", "Stepped", "rect", "stepped", 0.12, 122, 58, 42, "FEA15", 0.4, false, ["step", "מדרגה", "stepped"]),
   bottle("tower-50", "מגדל", "Tower", "squircle", "slim", 0.14, 136, 36, 36, "FEA13", 0.45, false, ["tower", "מגדל", "slim", "צר", "tall"]),
+  bottle("pochet-50", "פושה 50", "Pochet column", "circle", "column", 0.06, 108, 42, 42, "FEA15", 0.35, false, ["column", "עמוד", "pochet", "50"]),
+  bottle("viro-30", "וירו 30", "Viro oval", "oval", "classic", 0.22, 78, 46, 28, "FEA15", 0.82, false, ["oval", "אובל", "virospack", "30"]),
+  bottle("rect-30", "מלבן 30", "Rectangle 30", "rect", "classic", 0.16, 72, 40, 28, "FEA15", 0.42, false, ["rect", "מלבן", "baralan", "30"]),
+  bottle("cylinder-100", "גליל 100", "Cylinder 100", "circle", "column", 0.04, 118, 48, 48, "FEA15", 0.15, false, ["cylinder", "גליל", "estal", "100"]),
 ];

@@ -19,8 +19,8 @@ export function Dock() {
   const voice = useLab((s) => s.voice);
   const setExplode = useLab((s) => s.setExplode);
   const setView = useLab((s) => s.setView);
-  const boxOn = useLab((s) => s.design.box.visible);
-  const patch = useLab((s) => s.patch);
+  const aimed = useLab((s) => s.aimed);
+  const showFull = useLab((s) => s.showFull);
   return (
     <div className="dock" dir={lang === "he" ? "rtl" : "ltr"}>
       <span className="dock-label">{t.explode}</span>
@@ -41,14 +41,11 @@ export function Dock() {
           </button>
         ))}
       </div>
-      <button
-        type="button"
-        className={boxOn ? "is-on" : ""}
-        aria-pressed={boxOn}
-        onClick={() => patch("box", { visible: !boxOn })}
-      >
-        {boxOn ? t.boxHide : t.boxShow}
-      </button>
+      {aimed && (
+        <button type="button" onClick={() => showFull()}>
+          {t.fullView}
+        </button>
+      )}
       <div className="dock-voice">
         {voice === 1 && <VoiceAssistant />}
         {voice === 2 && <HandsFree />}

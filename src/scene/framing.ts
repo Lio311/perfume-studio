@@ -2,7 +2,8 @@ import * as THREE from "three";
 import { computeFit } from "../model/fit.ts";
 import type { Design, PartKey } from "../model/types.ts";
 import { explodeLocal } from "./explodeCurve.ts";
-import { frameFor } from "./Guides.tsx";
+import type { StageMode } from "../store/labStore.ts";
+import { frameFor, posedFrame } from "./Guides.tsx";
 
 const PARTS: PartKey[] = ["bottle", "liquid", "label", "collar", "pump", "cap", "box"];
 const scratch = new THREE.PerspectiveCamera(30, 1, 0.5, 5000);
@@ -42,30 +43,55 @@ export function readStageFrame(canvas: HTMLCanvasElement): StageFrame {
   return { width, height, stageLeft, stageTop, stageWidth, stageHeight, gutter, openTop, openHeight };
 }
 
-export function assemblyBounds(design: Design, explode: number): THREE.Box3 {
+function expandFrame(box: THREE.Box3, frame: ReturnType<typeof frameFor>, explode: number, pad = 2) {
+  const local = explodeLocal(frame.index, explode);
+  const cx = frame.home[0] + frame.explode[0] * local + frame.center[0];
+  const cy = frame.home[1] + frame.explode[1] * local + frame.center[1];
+  const cz = frame.home[2] + frame.explode[2] * local + frame.center[2];
+  const hx = frame.size[0] / 2 + pad;
+  const hy = frame.size[1] / 2 + pad;
+  const hz = frame.size[2] / 2 + pad;
+  box.expandByPoint(new THREE.Vector3(cx - hx, cy - hy, cz - hz));
+  box.expandByPoint(new THREE.Vector3(cx + hx, cy + hy, cz + hz));
+}
+
+export function assemblyBounds(design: Design, explode: number, stage: StageMode = "bottle"): THREE.Box3 {
   const fit = computeFit(design, explode > 0.45);
   const box = new THREE.Box3();
+  if (stage === "box") {
+    const frame = posedFrame("box", fit, "box");
+    expandFrame(box, frame, explode, 4);
+    box.max.y += explode * fit.boxH * 0.42;
+    return box;
+  }
   for (const part of PARTS) {
     if (!design[part].visible) continue;
     if (part === "liquid" && !design.bottle.visible) continue;
-    // The carton sits behind the bottle. Framing it would shrink the glass.
+    // The carton is a separate product. Framing it would shrink the glass.
     if (part === "box") continue;
-    const frame = frameFor(part, fit);
-    const local = explodeLocal(frame.index, explode);
-    const originX = frame.home[0] + frame.explode[0] * local;
-    const originY = frame.home[1] + frame.explode[1] * local;
-    const originZ = frame.home[2] + frame.explode[2] * local;
-    const cx = originX + frame.center[0];
-    const cy = originY + frame.center[1];
-    const cz = originZ + frame.center[2];
-    const hx = frame.size[0] / 2 + 2;
-    const hy = frame.size[1] / 2 + 2;
-    const hz = frame.size[2] / 2 + 2;
-    box.expandByPoint(new THREE.Vector3(cx - hx, cy - hy, cz - hz));
-    box.expandByPoint(new THREE.Vector3(cx + hx, cy + hy, cz + hz));
+    expandFrame(box, frameFor(part, fit), explode);
   }
   if (box.isEmpty()) box.set(new THREE.Vector3(-30, 0, -30), new THREE.Vector3(30, 80, 30));
   box.expandByPoint(new THREE.Vector3(0, 0, 0));
+  return box;
+}
+
+export function partBounds(design: Design, explode: number, part: PartKey, stage: StageMode): THREE.Box3 {
+  const fit = computeFit(design, explode > 0.45);
+  const frame = posedFrame(part, fit, stage);
+  const box = new THREE.Box3();
+  expandFrame(box, frame, explode, 4);
+  const minHalf = 18;
+  const cx = (box.min.x + box.max.x) / 2;
+  const cy = (box.min.y + box.max.y) / 2;
+  const cz = (box.min.z + box.max.z) / 2;
+  box.min.x = Math.min(box.min.x, cx - minHalf);
+  box.max.x = Math.max(box.max.x, cx + minHalf);
+  box.min.y = Math.min(box.min.y, cy - minHalf);
+  box.max.y = Math.max(box.max.y, cy + minHalf);
+  box.min.z = Math.min(box.min.z, cz - minHalf);
+  box.max.z = Math.max(box.max.z, cz + minHalf);
+  if (stage === "box" && part === "box") box.max.y += explode * fit.boxH * 0.28;
   return box;
 }
 

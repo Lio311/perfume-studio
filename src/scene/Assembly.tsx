@@ -46,7 +46,7 @@ function PartShell({
   }, []);
 
   useEffect(() => {
-    pop.current = 0.9;
+    pop.current = 0.82;
   }, [variantKey]);
 
   useLayoutEffect(() => {
@@ -60,7 +60,7 @@ function PartShell({
     const group = ref.current;
     if (!group) return;
     const local = explodeLocal(index, clock.current);
-    pop.current = THREE.MathUtils.damp(pop.current, 1, 7, dt);
+    pop.current = THREE.MathUtils.damp(pop.current, 1, 4.2, dt);
     const shown = visible ? pop.current : 0.001;
     const scale = THREE.MathUtils.damp(group.scale.x || shown, shown, 8, dt);
     group.scale.setScalar(Math.max(0.001, scale));
@@ -106,6 +106,10 @@ function PartShell({
         event.stopPropagation();
         if (Math.hypot(event.clientX - down.current.x, event.clientY - down.current.y) > 6) return;
         select(part);
+      }}
+      onDoubleClick={(event) => {
+        event.stopPropagation();
+        useLab.getState().showFull();
       }}
     >
       <primitive object={line} />
@@ -195,6 +199,7 @@ function Shadow({ fitWidth }: { fitWidth: number }) {
 
 function BottlePart() {
   const design = useLab((s) => s.design);
+  const onStage = useLab((s) => s.stage) !== "box";
   const spec = bottleById(design.bottle.variantId);
   const fit = computeFit(design, false);
   const geo = useDisposable(
@@ -213,7 +218,7 @@ function BottlePart() {
     [design.bottle.heightMm, design.bottle.widthMm, design.bottle.depthMm, design.bottle.neck, spec],
   );
   return (
-    <PartShell part="bottle" index={5} home={[0, 0, 0]} explode={[0, 0, 0]} visible={design.bottle.visible} variantKey={spec.id}>
+    <PartShell part="bottle" index={5} home={[0, 0, 0]} explode={[0, 0, 0]} visible={design.bottle.visible && onStage} variantKey={spec.id}>
       <mesh geometry={geo} renderOrder={2}>
         <FinishMaterial finish={design.bottle.finish} color={design.bottle.color} flat={spec.faceted} glass />
         <HotOutline part="bottle" />
@@ -224,6 +229,7 @@ function BottlePart() {
 
 function LiquidPart() {
   const design = useLab((s) => s.design);
+  const onStage = useLab((s) => s.stage) !== "box";
   const spec = bottleById(design.bottle.variantId);
   const fit = computeFit(design, false);
   const geo = useDisposable(
@@ -251,7 +257,7 @@ function LiquidPart() {
   const rx = Math.max(4, design.bottle.widthMm / 2 - 4);
   const rz = Math.max(4, design.bottle.depthMm / 2 - 4);
   return (
-    <PartShell part="liquid" index={5} home={[0, 0, 0]} explode={[0, 0, 0]} visible={design.liquid.visible && design.bottle.visible} variantKey={spec.id + design.liquid.color}>
+    <PartShell part="liquid" index={5} home={[0, 0, 0]} explode={[0, 0, 0]} visible={design.liquid.visible && design.bottle.visible && onStage} variantKey={spec.id + design.liquid.color}>
       <mesh geometry={geo} renderOrder={1}>
         <meshPhysicalMaterial
           color={design.liquid.color}
@@ -295,6 +301,7 @@ function LiquidPart() {
 
 function CapPart() {
   const design = useLab((s) => s.design);
+  const onStage = useLab((s) => s.stage) !== "box";
   const spec = capById(design.cap.variantId);
   const fit = computeFit(design, false);
   const geo = useDisposable(
@@ -303,7 +310,7 @@ function CapPart() {
   );
   const glass = isGlass(design.cap.finish);
   return (
-    <PartShell part="cap" index={1} home={[0, fit.capBottom, 0]} explode={fit.explode.cap} visible={design.cap.visible} variantKey={spec.id}>
+    <PartShell part="cap" index={1} home={[0, fit.capBottom, 0]} explode={fit.explode.cap} visible={design.cap.visible && onStage} variantKey={spec.id}>
       <mesh geometry={geo}>
         <FinishMaterial finish={design.cap.finish} color={design.cap.color} flat={spec.faceted} glass={glass} />
         <HotOutline part="cap" />
@@ -314,11 +321,12 @@ function CapPart() {
 
 function CollarPart() {
   const design = useLab((s) => s.design);
+  const onStage = useLab((s) => s.stage) !== "box";
   const spec = collarById(design.collar.variantId);
   const fit = computeFit(design, false);
   const y = fit.collarHeight / 2;
   return (
-    <PartShell part="collar" index={3} home={[0, fit.collarBottom, 0]} explode={fit.explode.collar} visible={design.collar.visible} variantKey={spec.id + design.bottle.neck}>
+    <PartShell part="collar" index={3} home={[0, fit.collarBottom, 0]} explode={fit.explode.collar} visible={design.collar.visible && onStage} variantKey={spec.id + design.bottle.neck}>
       <mesh position={[0, y, 0]}>
         <cylinderGeometry args={[fit.collarOuter, fit.collarOuter - spec.flareMm * 0.15, fit.collarHeight, spec.knurl ? 18 : 48, 1]} />
         <FinishMaterial finish={design.collar.finish} color={design.collar.color} flat={spec.knurl} />
@@ -342,6 +350,7 @@ function CollarPart() {
 
 function PumpPart() {
   const design = useLab((s) => s.design);
+  const onStage = useLab((s) => s.stage) !== "box";
   const spec = pumpById(design.pump.variantId);
   const exploded = useLab((s) => s.explode) > 0.45;
   const fit = computeFit(design, exploded || !design.cap.visible);
@@ -355,7 +364,7 @@ function PumpPart() {
     return new THREE.TubeGeometry(curve, 28, 0.72, 8, false);
   }, [fit.pumpBase]);
   return (
-    <PartShell part="pump" index={2} home={[0, fit.pumpBase, 0]} explode={fit.explode.pump} visible={design.pump.visible} variantKey={spec.id}>
+    <PartShell part="pump" index={2} home={[0, fit.pumpBase, 0]} explode={fit.explode.pump} visible={design.pump.visible && onStage} variantKey={spec.id}>
       <mesh geometry={tube} position={[0, -1, 0]}>
         <FinishMaterial finish={design.pump.finish} color={design.pump.color} />
       </mesh>
@@ -417,6 +426,7 @@ function Actuator({
 
 function LabelPart() {
   const design = useLab((s) => s.design);
+  const onStage = useLab((s) => s.stage) !== "box";
   const bottle = bottleById(design.bottle.variantId);
   const spec = logoById(design.label.variantId);
   const fit = computeFit(design, false);
@@ -447,7 +457,7 @@ function LabelPart() {
   }, [spec.plate, fit.labelW, fit.labelH, round, design.bottle.depthMm]);
   const z = spec.plate === "band" && round ? design.bottle.depthMm / 2 + 0.4 : fit.labelZ;
   return (
-    <PartShell part="label" index={4} home={[0, fit.labelY, z]} explode={fit.explode.label} visible={design.label.visible} variantKey={spec.id + design.label.text}>
+    <PartShell part="label" index={4} home={[0, fit.labelY, z]} explode={fit.explode.label} visible={design.label.visible && onStage} variantKey={spec.id + design.label.text}>
       <mesh geometry={plate} renderOrder={3}>
         <meshPhysicalMaterial
           color={design.label.color}
@@ -482,12 +492,37 @@ function inkFor(application: string, plate: string): string {
 
 function BoxPart() {
   const design = useLab((s) => s.design);
+  const stage = useLab((s) => s.stage);
   const spec = boxById(design.box.variantId);
   const fit = computeFit(design, false);
+  const home: [number, number, number] = stage === "box" ? [0, 0, 0] : [fit.boxX, 0, fit.boxZ];
+  const burst: [number, number, number] = stage === "box" ? [0, 0, 0] : fit.explode.box;
+  const shown = stage === "box" || (stage === "together" && design.box.visible);
   return (
-    <PartShell part="box" index={0} home={[fit.boxX, 0, fit.boxZ]} explode={fit.explode.box} visible={design.box.visible} variantKey={spec.id}>
+    <PartShell part="box" index={0} home={home} explode={burst} visible={shown} variantKey={spec.id}>
       <BoxFormMesh form={spec.form} w={fit.boxW} h={fit.boxH} d={fit.boxD} finish={design.box.finish} color={design.box.color} />
     </PartShell>
+  );
+}
+
+function BrandPlate({ w, y, z }: { w: number; y: number; z: number }) {
+  const blueprint = useLab((s) => s.blueprint);
+  const text = useLab((s) => s.design.label.text);
+  const variantId = useLab((s) => s.design.label.variantId);
+  const tex = useMemo(() => {
+    const canvas = logoTexture(logoById(variantId), text, "#f6f1e6", 512);
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.anisotropy = 4;
+    return texture;
+  }, [text, variantId]);
+  useEffect(() => () => tex.dispose(), [tex]);
+  if (blueprint) return null;
+  return (
+    <mesh position={[0, y, z]}>
+      <planeGeometry args={[Math.min(w * 0.48, 52), 18]} />
+      <meshBasicMaterial map={tex} transparent toneMapped={false} depthWrite={false} />
+    </mesh>
   );
 }
 
@@ -507,21 +542,44 @@ function BoxFormMesh({
   color: string;
 }) {
   const wall = 1.6;
+  const stage = useLab((s) => s.stage);
+  const blueprint = useLab((s) => s.blueprint);
+  const clock = useContext(Clock);
+  const lid = useRef<THREE.Group>(null);
+  const insert = useRef<THREE.Group>(null);
+  const drawer = useRef<THREE.Group>(null);
+  const hasLid = form === "rigid" || form === "magnetic" || form === "coffret";
+  const lidH = form === "coffret" ? h * 0.34 : h * 0.28;
+  useFrame(() => {
+    const amount = stage === "box" ? clock.current : 0;
+    if (lid.current) {
+      const rest = stage === "together" && (form === "magnetic" || form === "coffret") ? 0.22 : 0;
+      lid.current.rotation.x = hasLid ? rest + (stage === "box" ? amount * 1.05 : 0) : 0;
+    }
+    if (insert.current) insert.current.position.y = 3 + amount * Math.min(26, h * 0.2);
+    if (drawer.current) drawer.current.position.x = (stage === "box" ? amount : 0.16) * w * 0.48;
+  });
   if (form === "tube") {
     return (
-      <mesh position={[0, h / 2, 0]}>
-        <cylinderGeometry args={[Math.min(w, d) / 2, Math.min(w, d) / 2, h, 48, 1, true]} />
-        <FinishMaterial finish={finish} color={color} />
-        <HotOutline part="box" />
-      </mesh>
+      <group>
+        <mesh position={[0, h / 2, 0]}>
+          <cylinderGeometry args={[Math.min(w, d) / 2, Math.min(w, d) / 2, h, 48, 1, true]} />
+          <FinishMaterial finish={finish} color={color} />
+          <HotOutline part="box" />
+        </mesh>
+        <BrandPlate w={w} y={h * 0.62} z={Math.min(w, d) / 2 + 0.4} />
+      </group>
     );
   }
   if (form === "plinth") {
     return (
-      <RoundedBox args={[w, Math.max(16, h * 0.18), d]} radius={1.2} smoothness={3} position={[0, 8, 0]}>
-        <FinishMaterial finish={finish} color={color} />
-        <HotOutline part="box" />
-      </RoundedBox>
+      <group>
+        <RoundedBox args={[w, Math.max(16, h * 0.18), d]} radius={1.2} smoothness={3} position={[0, 8, 0]}>
+          <FinishMaterial finish={finish} color={color} />
+          <HotOutline part="box" />
+        </RoundedBox>
+        <BrandPlate w={w} y={Math.max(18, h * 0.18) + 1} z={d / 2 + 0.4} />
+      </group>
     );
   }
   if (form === "sleeve") {
@@ -530,10 +588,10 @@ function BoxFormMesh({
         <mesh position={[0, 0, -d / 2 + wall / 2]}><boxGeometry args={[w, h, wall]} /><FinishMaterial finish={finish} color={color} /><HotOutline part="box" /></mesh>
         <mesh position={[-w / 2 + wall / 2, 0, 0]}><boxGeometry args={[wall, h, d]} /><FinishMaterial finish={finish} color={color} /></mesh>
         <mesh position={[w / 2 - wall / 2, 0, 0]}><boxGeometry args={[wall, h, d]} /><FinishMaterial finish={finish} color={color} /></mesh>
+        <BrandPlate w={w} y={h * 0.12} z={0.4} />
       </group>
     );
   }
-  const lidOpen = form === "magnetic" || form === "coffret" ? 0.85 : form === "rigid" ? 0.22 : 0;
   const baseH = form === "drawer" ? h * 0.78 : h * (form === "window" ? 1 : 0.72);
   return (
     <group>
@@ -541,34 +599,40 @@ function BoxFormMesh({
         <FinishMaterial finish={finish} color={color} />
         <HotOutline part="box" />
       </RoundedBox>
-      {form === "rigid" && (
+      {form === "rigid" && !blueprint && (
         <mesh position={[0, baseH * 0.62, 0]}>
           <boxGeometry args={[w + 1.4, 4.4, d + 1.4]} />
           <meshStandardMaterial color="#ffe3a4" metalness={1} roughness={0.16} emissive="#c4923a" emissiveIntensity={0.7} />
         </mesh>
       )}
-      {form === "window" && (
+      {form === "window" && !blueprint && (
         <mesh position={[0, baseH * 0.55, d / 2 + 0.2]}>
           <planeGeometry args={[w * 0.62, baseH * 0.48]} />
           <meshPhysicalMaterial color="#d4b48a" metalness={0.8} roughness={0.3} transparent opacity={0.35} />
         </mesh>
       )}
-      {form === "drawer" && (
-        <RoundedBox args={[w * 0.9, baseH * 0.42, d * 0.92]} radius={0.8} smoothness={2} position={[w * 0.28, baseH * 0.28, 0]}>
-          <FinishMaterial finish={finish} color={color} />
-        </RoundedBox>
-      )}
-      {lidOpen > 0 && (
-        <group position={[0, baseH, -d / 2]} rotation={[lidOpen, 0, 0]}>
-          <RoundedBox args={[w, form === "coffret" ? h * 0.34 : h * 0.28, d]} radius={1.2} smoothness={3} position={[0, (form === "coffret" ? h * 0.34 : h * 0.28) / 2, d / 2]}>
+      {form !== "drawer" && (
+        <group ref={insert}>
+          <RoundedBox args={[w * 0.82, Math.max(8, baseH * 0.16), d * 0.82]} radius={0.6} smoothness={2} position={[0, 0, 0]}>
             <FinishMaterial finish={finish} color={color} />
           </RoundedBox>
         </group>
       )}
-      <mesh position={[0, baseH + 0.3, d / 2 + 0.3]}>
-        <planeGeometry args={[w * 0.7, 0.45]} />
-        <meshBasicMaterial color="#d4b48a" />
-      </mesh>
+      {form === "drawer" && (
+        <group ref={drawer}>
+          <RoundedBox args={[w * 0.9, baseH * 0.42, d * 0.92]} radius={0.8} smoothness={2} position={[0, baseH * 0.28, 0]}>
+            <FinishMaterial finish={finish} color={color} />
+          </RoundedBox>
+        </group>
+      )}
+      {hasLid && (
+        <group ref={lid} position={[0, baseH, -d / 2]}>
+          <RoundedBox args={[w, lidH, d]} radius={1.2} smoothness={3} position={[0, lidH / 2, d / 2]}>
+            <FinishMaterial finish={finish} color={color} />
+          </RoundedBox>
+        </group>
+      )}
+      <BrandPlate w={w} y={baseH * 0.58} z={d / 2 + 0.6} />
     </group>
   );
 }

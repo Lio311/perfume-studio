@@ -7,7 +7,7 @@ import type { Design, PartKey } from "../model/types.ts";
 import { useLab } from "../store/labStore.ts";
 import { Clock } from "./clock.ts";
 import { explodeLocal } from "./explodeCurve.ts";
-import { frameFor } from "./Guides.tsx";
+import { posedFrame } from "./Guides.tsx";
 
 const SIDES: Record<PartKey, -1 | 1> = {
   cap: -1,
@@ -90,14 +90,20 @@ export function Callouts() {
     }
     root.hidden = false;
     const fit = computeFit(state.design, state.explode > 0.45);
-    const showNames = state.explode > 0.08;
-    const showDims = state.mode === "dimensions" || state.mode === "explode";
+    const showNames = state.explode > 0.08 || state.blueprint;
+    const showDims = state.mode === "dimensions" || state.mode === "explode" || state.blueprint;
     const items: Slot[] = [];
 
     for (const part of NAME_PARTS) {
+      if (state.stage === "bottle" && part === "box") continue;
+      if (state.stage === "box" && part !== "box") continue;
+      if (state.stage === "together" && part === "box" && !state.design.box.visible) continue;
       if (!showNames || !state.design[part].visible) continue;
       if (part === "liquid" && !state.design.bottle.visible) continue;
-      const frame = frameFor(part, fit);
+      if (state.stage === "box" && part === "box") {
+        /* carton is the product; visibility is forced by the stage */
+      } else if (state.stage !== "bottle" && part !== "box" && state.stage === "box") continue;
+      const frame = posedFrame(part, fit, state.stage);
       const local = explodeLocal(frame.index, clock.current);
       anchor.current.set(
         frame.home[0] + frame.explode[0] * local + frame.center[0],
@@ -119,7 +125,12 @@ export function Callouts() {
 
     if (showDims && state.selected && state.design[state.selected].visible) {
       const part = state.selected;
-      const frame = frameFor(part, fit);
+      if (state.stage === "bottle" && part === "box") {
+        /* no box leader on the bottle stage */
+      } else if (state.stage === "box" && part !== "box") {
+        /* box stage only measures the carton */
+      } else {
+      const frame = posedFrame(part, fit, state.stage);
       const local = explodeLocal(frame.index, clock.current);
       const [w, h, d] = frame.size;
       anchor.current.set(
@@ -137,6 +148,7 @@ export function Callouts() {
         dim: true,
         anchor: anchor.current.clone(),
       });
+      }
     }
 
     const rect = slot.getBoundingClientRect();
@@ -181,7 +193,14 @@ export function Callouts() {
       const point = project(entry.item.anchor);
       const tag = tags[index];
       if (!tag) return;
-      tag.className = `callout-tag ${entry.item.dim ? "dim-tag" : "explode-tag"}${entry.item.selected ? " is-sel" : ""}${entry.item.side > 0 ? " is-right" : ""}`;
+      tag.className = `callout-tag ${entry.item.dim ? "dim-tag" : "explode-tag is-hit"}${entry.item.selected ? " is-sel" : ""}${entry.item.side > 0 ? " is-right" : ""}`;
+      tag.dataset.part = entry.item.dim ? "" : entry.item.key;
+      if (!tag.onclick) {
+        tag.onclick = () => {
+          const key = tag.dataset.part;
+          if (key) useLab.getState().select(key as PartKey);
+        };
+      }
       tag.style.left = `${entry.x}px`;
       tag.style.top = `${entry.y}px`;
       const name = entry.item.dim ? "" : `<b>${entry.item.title}</b>`;

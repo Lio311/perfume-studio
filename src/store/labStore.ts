@@ -15,6 +15,7 @@ import { parseVoiceParam, readVoiceParam, type VoiceVariant } from "../audio/wak
 
 export type LabMode = "assemble" | "explode" | "dimensions" | "compare";
 export type ViewPreset = "home" | "front" | "three" | "top" | "side";
+export type StageMode = "bottle" | "box" | "together";
 
 export interface ChatMessage {
   id: string;
@@ -74,6 +75,10 @@ interface LabState {
   voice: VoiceVariant;
   soundOn: boolean;
   quality: "high" | "medium";
+  stage: StageMode;
+  blueprint: boolean;
+  fullToken: number;
+  aimed: boolean;
   select: (part: PartKey | null) => void;
   hover: (part: PartKey | null, x?: number, y?: number) => void;
   patch: (part: PartKey, partial: Record<string, unknown>) => void;
@@ -106,6 +111,9 @@ interface LabState {
   setVoice: (voice: VoiceVariant) => void;
   setSoundOn: (on: boolean) => void;
   setQuality: (quality: "high" | "medium") => void;
+  setStage: (stage: StageMode) => void;
+  setBlueprint: (on: boolean) => void;
+  showFull: () => void;
   applyVoiceParam: (value: string | null) => void;
 }
 
@@ -246,7 +254,7 @@ export const useLab = create<LabState>()(
   persist(
     (set, get) => ({
       design: createDefaultDesign(),
-      selected: "cap",
+      selected: null,
       hovered: null,
       mode: "explode",
       explode: 0.25,
@@ -258,6 +266,10 @@ export const useLab = create<LabState>()(
       autoRotate: false,
       viewToken: 0,
       focusToken: 0,
+      stage: "bottle",
+      blueprint: false,
+      fullToken: 0,
+      aimed: false,
       theme: "dark",
       lang: "he",
       libraryOpen: false,
@@ -269,7 +281,7 @@ export const useLab = create<LabState>()(
       compareIds: ["seed-atelier", "seed-blush", "seed-noir"],
       voice: readVoiceParam(),
       soundOn: true,
-      select: (part) => set((state) => ({ selected: part, focusToken: part ? state.focusToken + 1 : state.focusToken, sideOpen: part ? true : state.sideOpen })),
+      select: (part) => set((state) => ({ selected: part, aimed: Boolean(part), focusToken: part ? state.focusToken + 1 : state.focusToken, sideOpen: part ? true : state.sideOpen })),
       hover: (part, x = 0, y = 0) => set({ hovered: part ? { part, x, y } : null }),
       patch: (part, partial) =>
         set((state) => {
@@ -297,6 +309,7 @@ export const useLab = create<LabState>()(
             design,
             ...ui,
             sideOpen: ui.selected ? true : state.sideOpen,
+            aimed: ui.focusToken !== state.focusToken ? true : state.aimed,
             past: [...state.past, structuredClone(state.design)].slice(-30),
             future: [],
           };
@@ -391,6 +404,19 @@ export const useLab = create<LabState>()(
       },
       setSoundOn: (soundOn) => set({ soundOn }),
       setQuality: (quality) => set({ quality }),
+      setStage: (stage) =>
+        set((state) => ({
+          stage,
+          selected: stage === "box" ? "box" : null,
+          aimed: false,
+          fullToken: state.fullToken + 1,
+          design:
+            stage === "bottle"
+              ? state.design
+              : { ...state.design, box: { ...state.design.box, visible: true } },
+        })),
+      setBlueprint: (blueprint) => set({ blueprint }),
+      showFull: () => set((state) => ({ selected: null, aimed: false, fullToken: state.fullToken + 1 })),
       applyVoiceParam: (value: string | null) => set({ voice: parseVoiceParam(value) }),
     }),
     {

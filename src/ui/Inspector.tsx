@@ -18,6 +18,7 @@ export function Inspector() {
   const beginGesture = useLab((s) => s.beginGesture);
   const endGesture = useLab((s) => s.endGesture);
   const duplicateDesign = useLab((s) => s.duplicateDesign);
+  const applyCommands = useLab((s) => s.applyCommands);
   const part = selected;
   const name = variantName(part, design, lang);
   const fit = computeFit(design, explode > 0.45);
@@ -171,6 +172,30 @@ export function Inspector() {
           )}
           {part === "box" && (
             <>
+              <h3>{t.boxForm}</h3>
+              <div className="chips">
+                {(
+                  [
+                    ["box-rigid", "מכסה", "Lid"],
+                    ["box-window", "חלון", "Window"],
+                    ["box-drawer", "מגירה", "Insert"],
+                    ["box-magnetic", "מגנט", "Magnetic"],
+                    ["box-coffret", "קופרה", "Coffret"],
+                    ["box-sleeve", "שרוול", "Sleeve"],
+                  ] as const
+                ).map(([id, he, en]) => (
+                  <button
+                    key={id}
+                    type="button"
+                    className={design.box.variantId === id ? "chip is-on" : "chip"}
+                    onClick={() => applyCommands([{ type: "variant", part: "box", id }, { type: "select", part: "box" }])}
+                  >
+                    {lang === "he" ? he : en}
+                  </button>
+                ))}
+              </div>
+              <h3>{t.logoOnBox}</h3>
+              <input className="search" value={design.label.text} onChange={(event) => patch("label", { text: event.target.value.slice(0, 32) })} />
               <Slider label={t.width} value={fit.boxW} min={40} max={160} onGesture={beginGesture} onGestureEnd={endGesture} onChange={(widthMm) => patch("box", { widthMm })} />
               <Slider label={t.depth} value={fit.boxD} min={30} max={140} onGesture={beginGesture} onGestureEnd={endGesture} onChange={(depthMm) => patch("box", { depthMm })} />
               <Slider label={t.height} value={fit.boxH} min={70} max={240} onGesture={beginGesture} onGestureEnd={endGesture} onChange={(heightMm) => patch("box", { heightMm })} />

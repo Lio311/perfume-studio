@@ -6,7 +6,7 @@ import { useLab } from "../store/labStore.ts";
 import { computeFit } from "../model/fit.ts";
 import { Clock } from "./clock.ts";
 import { explodeLocal } from "./explodeCurve.ts";
-import { frameFor } from "./Guides.tsx";
+import { posedFrame } from "./Guides.tsx";
 
 const HOLO_VERT = `
   varying vec3 vWorld;
@@ -45,8 +45,9 @@ export function HoloShell() {
   const material = useRef<THREE.ShaderMaterial>(null);
   const group = useRef<THREE.Group>(null);
   const clock = useContext(Clock);
+  const stage = useLab((s) => s.stage);
   const fit = computeFit(design, explodeAmt > 0.45);
-  const frame = selected ? frameFor(selected, fit) : null;
+  const frame = selected ? posedFrame(selected, fit, stage) : null;
 
   useFrame(({ clock: threeClock }) => {
     if (material.current) material.current.uniforms.uTime.value = threeClock.elapsedTime;

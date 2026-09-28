@@ -8,6 +8,17 @@ import { thumbFor } from "../thumbnails/thumbs.ts";
 
 const TABS: Array<VariantPart | "liquid" | "pending"> = ["bottle", "cap", "label", "pump", "collar", "box", "liquid", "pending"];
 
+const CAP_CATS: Array<{ id: string; label: "catAll" | "catZamac" | "catSurlyn" | "catWood" | "catAcrylic" | "catMagnetic" | "catSculptural" | "catMinimal"; tags: string[] }> = [
+  { id: "all", label: "catAll", tags: [] },
+  { id: "zamac", label: "catZamac", tags: ["zamac", "זמק"] },
+  { id: "surlyn", label: "catSurlyn", tags: ["surlyn", "סורלין"] },
+  { id: "wood", label: "catWood", tags: ["wood", "עץ"] },
+  { id: "acrylic", label: "catAcrylic", tags: ["acrylic", "אקריליק", "crystal"] },
+  { id: "magnetic", label: "catMagnetic", tags: ["magnetic", "מגנטי"] },
+  { id: "sculptural", label: "catSculptural", tags: ["sculptural", "פיסולי"] },
+  { id: "minimal", label: "catMinimal", tags: ["minimal", "מינימל"] },
+];
+
 export function Library() {
   const lang = useLab((s) => s.lang);
   const t = tx(lang);
@@ -22,12 +33,18 @@ export function Library() {
   const removePending = useLab((s) => s.removePending);
   const [tab, setTab] = useState<(typeof TABS)[number]>("cap");
   const [query, setQuery] = useState("");
+  const [cat, setCat] = useState("all");
 
   const items = useMemo(() => {
     if (tab === "liquid" || tab === "pending") return [];
     const q = query.trim().toLowerCase();
-    return listFor(tab).filter((item) => !q || `${item.he} ${item.en} ${item.id} ${item.tags.join(" ")}`.toLowerCase().includes(q));
-  }, [tab, query]);
+    const family = CAP_CATS.find((entry) => entry.id === cat);
+    return listFor(tab).filter((item) => {
+      if (q && !`${item.he} ${item.en} ${item.id} ${item.tags.join(" ")}`.toLowerCase().includes(q)) return false;
+      if (tab !== "cap" || !family || family.tags.length === 0) return true;
+      return family.tags.some((tag) => item.tags.includes(tag));
+    });
+  }, [tab, query, cat]);
 
   const activeId =
     tab === "bottle" ? design.bottle.variantId :
@@ -53,6 +70,15 @@ export function Library() {
           </button>
         ))}
       </div>
+      {tab === "cap" && (
+        <div className="cat-row" role="tablist">
+          {CAP_CATS.map((entry) => (
+            <button key={entry.id} type="button" className={cat === entry.id ? "is-on" : ""} onClick={() => setCat(entry.id)}>
+              {t[entry.label]}
+            </button>
+          ))}
+        </div>
+      )}
       {tab === "liquid" ? (
         <div className="swatches liquid-swatches">
           {LIQUID_PALETTE.map((color) => (
@@ -84,7 +110,7 @@ export function Library() {
           ))}
         </div>
       ) : (
-        <div className="thumb-grid">
+        <div className={tab !== "cap" && items.length <= 16 ? "thumb-row" : "thumb-grid"}>
           {items.map((item) => (
             <button
               key={item.id}

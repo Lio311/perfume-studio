@@ -5,11 +5,11 @@ import * as THREE from "three";
 import { damp3 } from "maath/easing";
 import { themes } from "../theme/themes.ts";
 import { useLab } from "../store/labStore.ts";
-import { computeFit } from "../model/fit.ts";
 import { takeShot } from "./capture.ts";
+import type { PartKey } from "../model/types.ts";
 import type { ViewPreset } from "../store/labStore.ts";
 import { Assembly } from "./Assembly.tsx";
-import { assemblyBounds, fitPose, readStageFrame } from "./framing.ts";
+import { assemblyBounds, fitPose, partBounds, readStageFrame } from "./framing.ts";
 import { Exposure, PixelRatio, StageFloor, StudioEnv, StudioLights } from "./studio.tsx";
 import { CinematicFloor, EnergyRings, MinimalRing, ParticleField, VoiceGrade } from "./voiceScenery.tsx";
 
@@ -47,7 +47,11 @@ function frameSignature(width: number, height: number): string {
     design.pump.visible ? 1 : 0,
     design.collar.visible ? 1 : 0,
     design.label.visible ? 1 : 0,
+    state.stage,
     design.box.visible ? 1 : 0,
+    design.box.widthMm,
+    design.box.heightMm,
+    design.box.depthMm,
     design.box.variantId,
     design.liquid.visible ? 1 : 0,
   ].join("|");
@@ -101,16 +105,30 @@ function CameraRig() {
   const look = useRef(new THREE.Vector3(0, 48, 0));
   const direction = useRef(VIEW_DIR.home.clone());
   const seenFocus = useRef(0);
+  const seenFull = useRef(0);
   const seenView = useRef(0);
   const seenSig = useRef("");
   const greeted = useRef(false);
+  const focused = useRef(false);
 
-  const poseFor = (dir: THREE.Vector3) => {
-    const state = useLab.getState();
-    const bounds = assemblyBounds(state.design, state.explode);
+  const poseFor = (dir: THREE.Vector3, bounds = assemblyBounds(useLab.getState().design, useLab.getState().explode, useLab.getState().stage)) => {
     const frame = readStageFrame(gl.domElement);
     const fov = camera instanceof THREE.PerspectiveCamera ? camera.fov : 30;
     return fitPose(bounds, dir, fov, frame);
+  };
+
+  const aimPart = (part: PartKey) => {
+    const state = useLab.getState();
+    const bounds = partBounds(state.design, state.explode, part, state.stage);
+    const dir = camera.position.clone().sub(look.current);
+    if (dir.length() < 10) dir.copy(direction.current);
+    if (dir.y < 0.08) dir.y = 0.16;
+    dir.normalize();
+    direction.current.copy(dir);
+    const pose = poseFor(dir, bounds);
+    goalPos.current.copy(pose.position);
+    goalTarget.current.copy(pose.target);
+    mode.current = "anim";
   };
 
   const aim = (dir: THREE.Vector3, pullBack = 1) => {
@@ -137,25 +155,33 @@ function CameraRig() {
   useFrame((_, delta) => {
     const state = useLab.getState();
     const signature = frameSignature(size.width, size.height);
-    if (state.focusToken !== seenFocus.current && state.selected) {
+    if (state.fullToken !== seenFull.current) {
+      seenFull.current = state.fullToken;
       seenFocus.current = state.focusToken;
-      const fit = computeFit(state.design, state.explode > 0.45);
-      const anchor = fit.anchors[state.selected];
-      const dist = state.selected === "box" ? 280 : state.selected === "bottle" || state.selected === "liquid" ? 220 : 150;
-      goalTarget.current.set(anchor[0], anchor[1], anchor[2]);
-      goalPos.current.set(anchor[0] + dist * 0.42, anchor[1] + dist * 0.22, anchor[2] + dist);
-      mode.current = "anim";
+      focused.current = false;
       seenSig.current = signature;
+      camera.up.set(0, 1, 0);
+      aim(direction.current);
     } else if (state.viewToken !== seenView.current) {
       seenView.current = state.viewToken;
+      seenFocus.current = state.focusToken;
+      focused.current = false;
       seenSig.current = signature;
       camera.up.set(0, 1, 0);
       aim(VIEW_DIR[state.viewPreset]);
+    } else if (state.focusToken !== seenFocus.current && state.selected) {
+      seenFocus.current = state.focusToken;
+      focused.current = true;
+      seenSig.current = signature;
+      aimPart(state.selected);
     } else if (state.voice === 3 && state.theme === "dark" && !greeted.current && !dragging.current) {
       greeted.current = true;
       seenSig.current = signature;
       camera.up.set(0, 1, 0);
       aim(VIEW_DIR.three, 1.42);
+    } else if (signature !== seenSig.current && focused.current && state.selected && !dragging.current) {
+      seenSig.current = signature;
+      aimPart(state.selected);
     } else if (signature !== seenSig.current && !dragging.current) {
       if (mode.current === "anim" && greeted.current && state.voice === 3) pendingFit.current = true;
       else {
@@ -169,8 +195,9 @@ function CameraRig() {
 
     if (mode.current === "anim") {
       if (controls) controls.enabled = false;
-      damp3(camera.position, goalPos.current, 0.38, delta);
-      damp3(look.current, goalTarget.current, 0.38, delta);
+      const step = Math.min(delta, 0.033);
+      damp3(camera.position, goalPos.current, 0.26, step);
+      damp3(look.current, goalTarget.current, 0.26, step);
       camera.lookAt(look.current);
       if (camera.position.distanceTo(goalPos.current) < 1.4 && look.current.distanceTo(goalTarget.current) < 1.4) {
         mode.current = "idle";
@@ -209,13 +236,13 @@ function CameraRig() {
       makeDefault
       target={ORBIT_TARGET}
       staticMoving={false}
-      dynamicDampingFactor={0.14}
+      dynamicDampingFactor={0.08}
       rotateSpeed={1.55}
-      zoomSpeed={0.9}
+      zoomSpeed={0.55}
       panSpeed={0.35}
-      minDistance={70}
+      minDistance={40}
       maxDistance={2400}
-      cursorZoom={false}
+      cursorZoom
       onStart={() => {
         dragging.current = true;
         mode.current = "idle";
@@ -234,14 +261,18 @@ function CameraRig() {
 function Stage() {
   const theme = useLab((s) => themes[s.theme]);
   const voice = useLab((s) => s.voice);
+  const blueprint = useLab((s) => s.blueprint);
+  const stage = useLab((s) => s.stage);
   const dark = theme.id === "dark";
   const grid = !dark
     ? { cell: theme.scene.gridCell, section: theme.scene.gridSection }
-    : voice === 1
-      ? { cell: "#1a3344", section: "#3d6e84" }
-      : voice === 2
-        ? { cell: "#163844", section: "#3d7480" }
-        : { cell: "#14110e", section: "#2a241c" };
+    : blueprint
+      ? { cell: "#3a3428", section: "#c4a15a" }
+      : voice === 1
+        ? { cell: "#1a3344", section: "#3d6e84" }
+        : voice === 2
+          ? { cell: "#163844", section: "#3d7480" }
+          : { cell: "#14110e", section: "#2a241c" };
   return (
     <>
       <color attach="background" args={[theme.scene.bottom]} />
@@ -251,19 +282,34 @@ function Stage() {
       <StudioEnv />
       <StudioLights />
       <StageFloor />
-      {(voice !== 3 || !dark) && (
+      {(voice !== 3 || !dark || blueprint) && (
         <Grid
           args={[400, 400]}
           position={[0, 0, 0]}
           cellSize={voice === 1 ? 12 : 10}
-          cellThickness={voice === 1 ? 0.55 : 0.55}
+          cellThickness={blueprint ? 0.7 : 0.55}
           cellColor={grid.cell}
           sectionSize={voice === 1 ? 80 : 50}
-          sectionThickness={voice === 1 ? 0.5 : 0.9}
+          sectionThickness={blueprint ? 0.85 : voice === 1 ? 0.5 : 0.9}
           sectionColor={grid.section}
-          fadeDistance={voice === 1 ? 320 : 380}
-          fadeStrength={1.35}
+          fadeDistance={voice === 1 ? 360 : 420}
+          fadeStrength={1.2}
           infiniteGrid
+        />
+      )}
+      {stage !== "together" && (
+        <Grid
+          args={[340, 220]}
+          position={[0, 100, stage === "box" ? -150 : -190]}
+          rotation={[Math.PI / 2, 0, 0]}
+          cellSize={16}
+          cellThickness={0.4}
+          cellColor={blueprint ? "#4a4030" : "#1c2a34"}
+          sectionSize={80}
+          sectionThickness={0.55}
+          sectionColor={blueprint ? "#8a7044" : "#2a3c48"}
+          fadeDistance={240}
+          fadeStrength={1.7}
         />
       )}
       {dark && voice === 1 && <MinimalRing />}

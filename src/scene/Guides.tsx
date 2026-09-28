@@ -4,7 +4,7 @@ import { Line } from "@react-three/drei";
 import * as THREE from "three";
 import { computeFit } from "../model/fit.ts";
 import type { PartKey } from "../model/types.ts";
-import { useLab } from "../store/labStore.ts";
+import { useLab, type StageMode } from "../store/labStore.ts";
 import { Clock } from "./clock.ts";
 import { explodeLocal } from "./explodeCurve.ts";
 
@@ -39,15 +39,29 @@ export function frameFor(part: PartKey, fit: ReturnType<typeof computeFit>): Fra
   return { home: [0, 0, 0], explode: [0, 0, 0], index: 5, center: [0, fit.bottleH / 2, 0], size: [fit.bottleW, fit.bottleH, fit.bottleD] };
 }
 
+/** Box mode parks the carton on the origin. Together keeps the far presentation offset. */
+export function posedFrame(part: PartKey, fit: ReturnType<typeof computeFit>, stage: StageMode): Frame {
+  const frame = frameFor(part, fit);
+  if (stage === "box" && part === "box") return { ...frame, home: [0, 0, 0], explode: [0, 0, 0] };
+  return frame;
+}
+
 export function PartGuides() {
   const selected = useLab((s) => s.selected);
   const mode = useLab((s) => s.mode);
   const design = useLab((s) => s.design);
   const explodeAmt = useLab((s) => s.explode);
-  if (!selected || mode === "compare" || !design[selected].visible) return null;
+  const stage = useLab((s) => s.stage);
+  const blueprint = useLab((s) => s.blueprint);
+  const hero: PartKey = stage === "box" ? "box" : "bottle";
+  const picked = selected && (stage === "box" ? selected === "box" : stage === "bottle" ? selected !== "box" : true) ? selected : null;
+  const part = picked ?? (blueprint ? hero : null);
+  if (!part || mode === "compare" || !design[part].visible) return null;
+  if (stage === "bottle" && part === "box") return null;
+  if (stage === "box" && part !== "box") return null;
   const fit = computeFit(design, explodeAmt > 0.45);
-  const frame = frameFor(selected, fit);
-  return <GuideFrame frame={frame} dims={mode === "dimensions" || mode === "explode"} />;
+  const frame = posedFrame(part, fit, stage);
+  return <GuideFrame frame={frame} dims={mode === "dimensions" || mode === "explode" || blueprint} />;
 }
 
 function GuideFrame({ frame, dims }: { frame: Frame; dims: boolean }) {

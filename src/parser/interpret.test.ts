@@ -28,7 +28,7 @@ describe("catalog", () => {
   it("ships the requested range of variants", () => {
     expect(CATALOG_COUNTS.bottle).toBeGreaterThanOrEqual(40);
     expect(CATALOG_COUNTS.bottle).toBeLessThanOrEqual(60);
-    expect(CATALOG_COUNTS.cap).toBeGreaterThanOrEqual(48);
+    expect(CATALOG_COUNTS.cap).toBeGreaterThanOrEqual(90);
     expect(CATALOG_COUNTS.label).toBeGreaterThanOrEqual(48);
     expect(CATALOG_COUNTS.pump).toBeGreaterThanOrEqual(8);
     expect(CATALOG_COUNTS.collar).toBeGreaterThanOrEqual(8);

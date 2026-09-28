@@ -3,6 +3,40 @@ import * as THREE from "three";
 import type { FinishId } from "../model/types.ts";
 import { isGlass } from "../model/materials.ts";
 import { leatherBump, woodMap } from "../geometry/textures.ts";
+import { useLab } from "../store/labStore.ts";
+
+const BLUE_VERT = `
+  varying vec3 vNormal;
+  varying vec3 vView;
+  varying vec3 vPos;
+  void main() {
+    vPos = position;
+    vec4 mv = modelViewMatrix * vec4(position, 1.0);
+    vView = -mv.xyz;
+    vNormal = normalize(normalMatrix * normal);
+    gl_Position = projectionMatrix * mv;
+  }
+`;
+
+const BLUE_FRAG = `
+  varying vec3 vNormal;
+  varying vec3 vView;
+  varying vec3 vPos;
+  void main() {
+    vec3 n = normalize(vNormal);
+    vec3 view = normalize(vView);
+    float fres = pow(1.0 - abs(dot(n, view)), 1.7);
+    float ang = atan(vPos.x, vPos.z);
+    float spokes = abs(fract(ang / 6.2831853 * 16.0) - 0.5);
+    float rings = abs(fract(vPos.y * 0.07) - 0.5);
+    float spokeLine = 1.0 - smoothstep(0.015, 0.07, spokes);
+    float ringLine = 1.0 - smoothstep(0.015, 0.07, rings);
+    float cage = max(spokeLine, ringLine * 0.85);
+    vec3 color = vec3(0.965, 0.90, 0.78);
+    float alpha = clamp(0.07 + fres * 0.78 + cage * 0.42, 0.0, 0.95);
+    gl_FragColor = vec4(color, alpha);
+  }
+`;
 
 function mattePaper(hex: string): { map: THREE.CanvasTexture; bump: THREE.CanvasTexture } {
   const canvas = document.createElement("canvas");
@@ -99,9 +133,13 @@ export function FinishMaterial({
   const wood = useMemo(() => (finish === "wood" ? woodMap() : null), [finish]);
   const leather = useMemo(() => (finish === "leather" ? leatherBump() : null), [finish]);
   const paper = useMemo(() => (finish === "matteBlack" ? mattePaper(color) : null), [finish, color]);
+  const blueprint = useLab((s) => s.blueprint);
   const glassLike = glass && isGlass(finish);
   const metal = finish === "gold" || finish === "silver" || finish === "rose";
   const clear = finish === "clear";
+  if (blueprint) {
+    return <shaderMaterial transparent depthWrite toneMapped={false} vertexShader={BLUE_VERT} fragmentShader={BLUE_FRAG} />;
+  }
   if (clear && glass) return <ClearGlass />;
   return (
     <meshPhysicalMaterial

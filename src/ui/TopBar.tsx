@@ -21,6 +21,10 @@ export function TopBar() {
   const quality = useLab((s) => s.quality);
   const setQuality = useLab((s) => s.setQuality);
   const setMode = useLab((s) => s.setMode);
+  const stage = useLab((s) => s.stage);
+  const blueprint = useLab((s) => s.blueprint);
+  const setStage = useLab((s) => s.setStage);
+  const setBlueprint = useLab((s) => s.setBlueprint);
   const undo = useLab((s) => s.undo);
   const redo = useLab((s) => s.redo);
   const libraryOpen = useLab((s) => s.libraryOpen);
@@ -79,6 +83,12 @@ export function TopBar() {
           </button>
         ))}
       </div>
+      <div className="voice-switch stage-switch" role="group" aria-label={t.stageBottle}>
+        <button type="button" className={stage === "bottle" ? "is-on" : ""} onClick={() => setStage("bottle")}>{t.stageBottle}</button>
+        <button type="button" className={stage === "box" ? "is-on" : ""} onClick={() => setStage("box")}>{t.stageBox}</button>
+        <button type="button" className={stage === "together" ? "is-on" : ""} onClick={() => setStage("together")}>{t.stageTogether}</button>
+      </div>
+      <button type="button" className={`text-btn blueprint-btn ${blueprint ? "is-on" : ""}`} aria-pressed={blueprint} onClick={() => setBlueprint(!blueprint)}>{t.blueprint}</button>
       <VoiceSwitch />
       <div className="voice-switch" role="group" aria-label={t.quality}>
         <button type="button" className={quality === "high" ? "is-on" : ""} onClick={() => setQuality("high")}>{t.qualityHigh}</button>
