@@ -1,7 +1,7 @@
 import { useMemo, useEffect } from "react";
 import * as THREE from "three";
 import type { FinishId } from "../model/types.ts";
-import { DEFAULT_GLASS_OPACITY, glassDrawTransmission, isGlass, renderedGlassOpacity } from "../model/materials.ts";
+import { assignClearGlassFade, DEFAULT_GLASS_OPACITY, glassDrawTransmission, isGlass, renderedGlassOpacity } from "../model/materials.ts";
 import { leatherBump, woodMap } from "../geometry/textures.ts";
 import { useLab } from "../store/labStore.ts";
 
@@ -111,10 +111,8 @@ const CLEAR_FRAG = `
 `;
 
 function ClearGlass({ opacity = DEFAULT_GLASS_OPACITY.clear }: { opacity?: number }) {
-  const userFade = opacity / DEFAULT_GLASS_OPACITY.clear;
-  const uniforms = useMemo(() => ({ uFade: { value: userFade } }), []);
-  // Write before commit so the first frame cannot sample a leftover 0.
-  uniforms.uFade.value = userFade;
+  const uniforms = useMemo(() => ({ uFade: { value: 0 } }), []);
+  const userFade = assignClearGlassFade(uniforms, opacity);
   return (
     <shaderMaterial
       transparent
@@ -175,7 +173,7 @@ export function FinishMaterial({
     materialOpacity = renderedGlassOpacity(finish, opacity) ?? 1.0;
     // Frosted and tinted use transmission 0 for the whole slider so the shared
     // 0.15+0.85·o alpha is what is drawn. Clear glass returns above this.
-    materialTransmission = glassDrawTransmission(finish, opacity);
+    materialTransmission = glassDrawTransmission(finish);
   }
 
   if (blueprint) {

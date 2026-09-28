@@ -11,7 +11,7 @@ import { logoTexture } from "../geometry/logos.ts";
 import { useLab } from "../store/labStore.ts";
 import { latheGeometry, latheProfile } from "../import/lathe.ts";
 import { clickPart, doubleClickPart, markPartPointer, swapFlashOn } from "./focusClick.ts";
-import { glassOpacityThisFrame, materialOpacityTarget, type OpacityFadeState } from "./materialFade.ts";
+import { materialOpacityTarget, writeBottleGlassFrame, type OpacityFadeState } from "./materialFade.ts";
 import { FinishMaterial, JuiceMaterial } from "./materials.tsx";
 import { Callouts } from "./Callouts.tsx";
 import { explodeLocal } from "./explodeCurve.ts";
@@ -19,10 +19,8 @@ import { PartGuides, posedFrame, turntableHome } from "./Guides.tsx";
 import { HoloShell } from "./voiceScenery.tsx";
 import { Clock } from "./clock.ts";
 
-function rememberFade(mat: THREE.Material, resolved: { baseOpacity: number; opacitySetting?: number }): void {
-  mat.userData.fadeBase = resolved.baseOpacity;
-  if (resolved.opacitySetting === undefined) delete mat.userData.fadeSetting;
-  else mat.userData.fadeSetting = resolved.opacitySetting;
+function rememberFade(mat: THREE.Material, baseOpacity: number): void {
+  mat.userData.fadeBase = baseOpacity;
 }
 
 function PartShell({
@@ -142,38 +140,15 @@ function PartShell({
         : null;
       for (const mat of mats) {
         const shader = mat as THREE.ShaderMaterial;
-        if (mat.userData.glassBody && glassSetting) {
-          const setting = shader.uniforms?.uFade && glassSetting.fade !== null ? glassSetting.fade : glassSetting.alpha;
-          if (setting !== null) {
-            const previousBase = typeof mat.userData.baseOpacity === "number" ? mat.userData.baseOpacity : undefined;
-            const resolved = glassOpacityThisFrame(previousBase, setting, ghost);
-            const firstWrite = previousBase === undefined;
-            mat.userData.baseOpacity = resolved.baseOpacity;
-            if (shader.uniforms?.uFade && glassSetting.fade !== null) {
-              const next = firstWrite ? resolved.target : THREE.MathUtils.damp(shader.uniforms.uFade.value, resolved.target, 7, dt);
-              if (Math.abs(shader.uniforms.uFade.value - next) > 0.001) shader.uniforms.uFade.value = next;
-              if (!mat.transparent) mat.transparent = true;
-              const newDepthWrite = shader.uniforms.uFade.value > 0.55;
-              if (mat.depthWrite !== newDepthWrite) mat.depthWrite = newDepthWrite;
-              continue;
-            }
-            const newTransparent = ghost || resolved.baseOpacity < 0.999;
-            if (mat.transparent !== newTransparent) mat.transparent = newTransparent;
-            const next = firstWrite ? resolved.target : THREE.MathUtils.damp(mat.opacity, resolved.target, 7, dt);
-            if (Math.abs(mat.opacity - next) > 0.001) mat.opacity = next;
-            const newDepthWrite = mat.opacity > 0.5;
-            if (mat.depthWrite !== newDepthWrite) mat.depthWrite = newDepthWrite;
-            continue;
-          }
+        if (mat.userData.glassBody && glassSetting && writeBottleGlassFrame(mat as THREE.ShaderMaterial, glassSetting, ghost, dt)) {
+          continue;
         }
-        const setting = typeof mat.userData.opacitySetting === "number" ? mat.userData.opacitySetting : undefined;
         const memory: OpacityFadeState = {
           baseOpacity: typeof mat.userData.fadeBase === "number" ? mat.userData.fadeBase : undefined,
-          opacitySetting: typeof mat.userData.fadeSetting === "number" ? mat.userData.fadeSetting : undefined,
         };
         if (shader.uniforms?.uFade) {
-          const resolved = materialOpacityTarget(memory, setting, shader.uniforms.uFade.value, ghost);
-          rememberFade(mat, resolved);
+          const resolved = materialOpacityTarget(memory, shader.uniforms.uFade.value, ghost);
+          rememberFade(mat, resolved.baseOpacity);
           const next = THREE.MathUtils.damp(shader.uniforms.uFade.value, resolved.target, 7, dt);
           if (Math.abs(shader.uniforms.uFade.value - next) > 0.001) shader.uniforms.uFade.value = next;
           if (!mat.transparent) mat.transparent = true;
@@ -181,8 +156,8 @@ function PartShell({
           if (mat.depthWrite !== newDepthWrite) mat.depthWrite = newDepthWrite;
           continue;
         }
-        const resolved = materialOpacityTarget(memory, setting, mat.opacity, ghost);
-        rememberFade(mat, resolved);
+        const resolved = materialOpacityTarget(memory, mat.opacity, ghost);
+        rememberFade(mat, resolved.baseOpacity);
         const newTransparent = ghost || resolved.baseOpacity < 0.999;
         if (mat.transparent !== newTransparent) mat.transparent = newTransparent;
         const next = THREE.MathUtils.damp(mat.opacity, resolved.target, 7, dt);

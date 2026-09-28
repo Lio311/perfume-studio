@@ -104,8 +104,7 @@ export function mappedGlassOpacity(opacity: number): number {
  * default. Transmission stays 0 so the slider changes the picture; refraction was
  * hiding the difference between 0% and 100%. Clear glass stays on the fresnel shader.
  */
-export function usesFlatGlassAlpha(finish: FinishId, opacity?: number): boolean {
-  void opacity;
+export function usesFlatGlassAlpha(finish: FinishId): boolean {
   const glass = glassFinish(finish);
   return glass !== null && glass !== "clear";
 }
@@ -114,13 +113,20 @@ export function usesFlatGlassAlpha(finish: FinishId, opacity?: number): boolean 
 export function renderedGlassOpacity(finish: FinishId, opacity?: number): number | null {
   const slider = effectiveGlassOpacity(finish, opacity);
   if (slider === null) return null;
-  if (usesFlatGlassAlpha(finish, opacity)) return mappedGlassOpacity(slider);
+  if (usesFlatGlassAlpha(finish)) return mappedGlassOpacity(slider);
   return slider;
 }
 
 /** Clear-glass shader fade for a slider value. 1 is the untouched default. */
 export function clearGlassFade(opacity?: number): number {
   return (opacity ?? DEFAULT_GLASS_OPACITY.clear) / DEFAULT_GLASS_OPACITY.clear;
+}
+
+/** Write that fade onto the shader uniform before the first frame is drawn. */
+export function assignClearGlassFade(uniforms: { uFade: { value: number } }, opacity?: number): number {
+  const userFade = clearGlassFade(opacity);
+  uniforms.uFade.value = userFade;
+  return userFade;
 }
 
 /** Per-frame glass target taken from the design, not from a material snapshot. */
@@ -142,8 +148,8 @@ export function glassTransmission(finish: FinishId, opacity?: number): number {
  * Frosted and tinted glass use 0 so `mappedGlassOpacity` is the opacity you see.
  * Clear glass keeps the refractive default; the fresnel shader does not read this.
  */
-export function glassDrawTransmission(finish: FinishId, opacity?: number): number {
+export function glassDrawTransmission(finish: FinishId): number {
   if (!isGlass(finish)) return 0;
-  if (usesFlatGlassAlpha(finish, opacity)) return 0;
+  if (usesFlatGlassAlpha(finish)) return 0;
   return Math.max(0.01, glassTransmission(finish));
 }
