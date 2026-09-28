@@ -1,6 +1,6 @@
 import { bottleById, boxById, capById, collarById, logoById, pumpById } from "../model/catalog.ts";
 import { computeFit, type Fit } from "../model/fit.ts";
-import { effectiveGlassOpacity, FINISHES } from "../model/materials.ts";
+import { FINISHES, renderedGlassOpacity } from "../model/materials.ts";
 import { isNeckId, NECKS } from "../model/necks.ts";
 import type { Design, Lang } from "../model/types.ts";
 import { requestShot } from "../scene/capture.ts";
@@ -35,7 +35,7 @@ export function buildSpecHtml(design: Design, lang: Lang, render: string): strin
     : "—";
   const glassFinish = FINISHES.find((item) => item.id === design.bottle.finish);
   const glassName = glassFinish ? glassFinish.name[lang] : design.bottle.finish;
-  const glassOpacity = effectiveGlassOpacity(design.bottle.finish, design.bottle.opacity);
+  const glassOpacity = renderedGlassOpacity(design.bottle.finish, design.bottle.opacity);
   const glass = glassOpacity === null
     ? `${glassName} · ${design.bottle.color}`
     : `${glassName} · ${design.bottle.color} · ${Math.round(glassOpacity * 100)}%`;

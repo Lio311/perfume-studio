@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { hydrateBox } from "../model/boxFields.ts";
 import { setImportedCatalog } from "../model/catalog.ts";
 import { createDefaultDesign } from "../model/design.ts";
 import type { Design, LogoSpec } from "../model/types.ts";
@@ -97,7 +98,7 @@ describe("saved design hydration", () => {
     expect(merged.design.label.scale).toBe(1.6);
     expect(merged.design.liquid.color).toBe(defaults.liquid.color);
     expect(merged.design.liquid.fill).toBe(0);
-    expect(merged.design.liquid.visible).toBe(true);
+    expect(merged.design.liquid.visible).toBe(defaults.liquid.visible);
     expect(merged.theme).toBe("dark");
     expect(merged.lang).toBe("he");
     expect(merged.chat).toEqual([
@@ -433,6 +434,118 @@ describe("saved design hydration", () => {
     expect("undo" in partial).toBe(false);
     expect("past" in partial).toBe(false);
     expect(Object.keys(partial).sort()).toEqual(["brief", "chat", "compareIds", "design", "lang", "pending", "saved", "theme"]);
+  });
+
+  it("reloads a fully configured box and leaves cutaway, quality, and the tier lock behind", async () => {
+    const design = createDefaultDesign();
+    design.box = hydrateBox({
+      variantId: "box-rigid",
+      finish: "leather",
+      color: "#243044",
+      heightMm: 140,
+      widthMm: 90,
+      depthMm: 70,
+      linked: false,
+      visible: true,
+      structure: "drawer",
+      latch: "ribbon",
+      liftOff: { variant: "telescope-full", neckMm: 22, lidDepthMm: 48 },
+      drawerPull: "notch",
+      shape: { type: "polygon", sides: 8 },
+      layers: [
+        {
+          role: "structure",
+          structure: "sleeve",
+          latch: "none",
+          hingeAxis: "",
+          doors: 1,
+          drawerCount: 1,
+          direction: "out",
+          neckHeight: 0,
+          splitPlaneAngle: 0,
+          window: { shape: "rect", transparent: true },
+          motion: null,
+        },
+        {
+          role: "structure",
+          structure: "drawer",
+          latch: "ribbon",
+          hingeAxis: "",
+          doors: 1,
+          drawerCount: 1,
+          direction: "out",
+          neckHeight: 0,
+          splitPlaneAngle: 0,
+          window: null,
+          motion: null,
+        },
+      ],
+      insertMotion: {
+        trayLift: { height: 30, trigger: "lidAngle" },
+        pullTab: true,
+        extractDirection: "out",
+        pose: { tiltAngle: 12, invert: false },
+      },
+      boardMm: 3.1,
+      material: "carton",
+      wrap: { color: "#243044", finish: "velvet" },
+      ribbon: true,
+      pullTab: true,
+      outerWrap: "cellophane",
+      insert: { material: "velvet-foam", orientation: "lying", clearanceMm: 4 },
+    });
+
+    const partial = partializeLabState({
+      ...slice(design),
+      brief: { title: "קופסה" },
+      cutaway: true,
+      quality: "high",
+      tierLock: true,
+      shareUrl: "https://example.test/#d=1",
+    });
+    expect(partial.brief).toEqual({ title: "קופסה" });
+    expect("cutaway" in partial).toBe(false);
+    expect("quality" in partial).toBe(false);
+    expect("tierLock" in partial).toBe(false);
+    expect("shareUrl" in partial).toBe(false);
+
+    const mem: Record<string, string> = {};
+    vi.stubGlobal("localStorage", {
+      setItem: (key: string, value: string) => {
+        mem[key] = value;
+      },
+      getItem: (key: string) => mem[key] ?? null,
+      removeItem: (key: string) => {
+        delete mem[key];
+      },
+    });
+    const storage = createLabStorage<Record<string, unknown>>();
+    storage.setItem("perfume-lab-v1", { state: partial, version: 6 });
+    const raw = mem["perfume-lab-v1"] ?? "";
+    expect(raw).toContain("telescope-full");
+    expect(raw).toContain("notch");
+    expect(raw).not.toContain("tierLock");
+    expect(raw).not.toContain("cutaway");
+
+    const loaded = await storage.getItem("perfume-lab-v1");
+    const live = { ...slice(), cutaway: false, quality: "fallback" as const, tierLock: false };
+    const merged = mergePersistedLab(loaded?.state, live) as HydratedSlice & {
+      brief: { title: string };
+      cutaway: boolean;
+      quality: string;
+      tierLock: boolean;
+    };
+    expect(merged.design.box).toEqual(design.box);
+    expect(merged.design.box.structure).toBe("drawer");
+    expect(merged.design.box.latch).toBe("ribbon");
+    expect(merged.design.box.liftOff).toEqual({ variant: "telescope-full", neckMm: 22, lidDepthMm: 48 });
+    expect(merged.design.box.drawerPull).toBe("notch");
+    expect(merged.design.box.shape).toEqual({ type: "polygon", sides: 8 });
+    expect(merged.design.box.layers.map((layer) => layer.structure)).toEqual(["sleeve", "drawer"]);
+    expect(merged.brief).toEqual({ title: "קופסה" });
+    expect(merged.cutaway).toBe(false);
+    expect(merged.quality).toBe("fallback");
+    expect(merged.tierLock).toBe(false);
   });
 
   it("keeps the current language on reset and does not pause writes or keep a share url", () => {
