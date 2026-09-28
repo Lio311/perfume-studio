@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createDefaultDesign } from "../model/design.ts";
 import type { Design } from "../model/types.ts";
-import { createLabStorage, mergePersistedLab, migratePersisted, partializeLabState, readStorageValue, sanitizeDesign, type HydratedSlice } from "./hydrate.ts";
+import { createLabStorage, LAB_PERSIST_VERSION, mergePersistedLab, migratePersisted, partializeLabState, readStorageValue, sanitizeDesign, type HydratedSlice } from "./hydrate.ts";
 import { useLab } from "./labStore.ts";
 
 function slice(design: Design = createDefaultDesign()): HydratedSlice {
@@ -253,6 +253,42 @@ describe("saved design hydration", () => {
     );
     expect(dropped.design.bottle).toEqual(createDefaultDesign().bottle);
     expect(dropped.design.bottle.opacity).toBeUndefined();
+  });
+
+  it("round-trips glass opacity through partialize and hydrate", () => {
+    const memory = new Map<string, string>();
+    vi.stubGlobal("localStorage", {
+      getItem: (key: string) => memory.get(key) ?? null,
+      setItem: (key: string, value: string) => {
+        memory.set(key, value);
+      },
+      removeItem: (key: string) => {
+        memory.delete(key);
+      },
+    });
+    const storage = createLabStorage();
+    const reload = (opacity: number | null) => {
+      const design = createDefaultDesign();
+      design.bottle = { ...design.bottle, finish: "frosted", opacity };
+      const state = partializeLabState({ ...slice(design), selected: "bottle", past: [design] });
+      expect("selected" in state).toBe(false);
+      expect("past" in state).toBe(false);
+      storage.setItem("perfume-lab-v1", { state, version: LAB_PERSIST_VERSION });
+      const loaded = readStorageValue(memory.get("perfume-lab-v1") ?? null);
+      return mergePersistedLab(loaded?.state, slice()).design.bottle.opacity;
+    };
+    expect(reload(0.7)).toBe(0.7);
+    expect(reload(0)).toBe(0);
+    expect(reload(1)).toBe(1);
+    expect(reload(1.8)).toBe(1);
+    expect(reload(-0.4)).toBe(0);
+    expect(reload(null)).toBeNull();
+
+    const bare = createDefaultDesign();
+    const state = partializeLabState(slice(bare));
+    storage.setItem("perfume-lab-v1", { state, version: LAB_PERSIST_VERSION });
+    const loaded = readStorageValue(memory.get("perfume-lab-v1") ?? null);
+    expect(mergePersistedLab(loaded?.state, slice()).design.bottle.opacity).toBeUndefined();
   });
 
   it("finishes hydration for a share link, including a partial or unreadable blob", async () => {

@@ -140,7 +140,7 @@ export function FinishMaterial({
 }: {
   finish: FinishId;
   color: string;
-  opacity?: number;
+  opacity?: number | null;
   flat?: boolean;
   glass?: boolean;
 }) {
@@ -179,7 +179,7 @@ export function FinishMaterial({
   if (blueprint) {
     return <shaderMaterial transparent depthWrite toneMapped={false} uniforms={fade} vertexShader={BLUE_VERT} fragmentShader={BLUE_FRAG} />;
   }
-  if (clear && glass) return <ClearGlass opacity={opacity !== undefined ? opacity : DEFAULT_GLASS_OPACITY.clear} />;
+  if (clear && glass) return <ClearGlass opacity={typeof opacity === "number" ? opacity : DEFAULT_GLASS_OPACITY.clear} />;
 
   return (
     <meshPhysicalMaterial
