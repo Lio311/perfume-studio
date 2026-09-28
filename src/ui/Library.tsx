@@ -81,7 +81,6 @@ export function Library() {
     if (useLab.getState().selected !== next) {
       useLab.setState({ selected: next });
     }
-
     if (!next || tabRef.current === next) return;
     setQuery("");
     setCat("all");
@@ -99,6 +98,7 @@ export function Library() {
     }
     setTab(next);
   }, [selected, focusToken, isWizard]);
+
 
   const activeId =
     visibleTab === "bottle" ? design.bottle.variantId :
@@ -227,19 +227,6 @@ export function Library() {
               ? "בחרו מאפייני צבע ואטימות בחלונית המאפיינים מימין."
               : "Select color and opacity in the properties panel on the right."}
           </p>
-          {!design.liquid.visible && (
-            <button 
-              type="button" 
-              className="text-btn" 
-              style={{ background: "var(--accent)", color: "var(--on-accent)" }}
-              onClick={() => {
-                patch("liquid", { visible: true });
-                useLab.getState().select("liquid");
-              }}
-            >
-              {lang === "he" ? "הוסף נוזל" : "Add Liquid"}
-            </button>
-          )}
         </div>
       ) : visibleTab === "pending" ? (
         <div className="pending-list">

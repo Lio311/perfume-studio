@@ -3,9 +3,12 @@ import { useFrame } from "@react-three/fiber";
 import { RoundedBox } from "@react-three/drei";
 import * as THREE from "three";
 import { bottleById, boxById, capById, collarById, logoById, pumpById } from "../model/catalog.ts";
-import { computeFit } from "../model/fit.ts";
+import { closureForForm } from "../model/boxFields.ts";
+import { trayLiftNow } from "./trayLift.ts";
+import { computeFit, type Fit } from "../model/fit.ts";
 import { isGlass } from "../model/materials.ts";
 import type { BoxForm, PartKey, PumpStyle } from "../model/types.ts";
+import { ClosureBox } from "./boxClosure.tsx";
 import { buildBottleGeometry, buildCapGeometry, buildLabelPatch } from "../geometry/sweep.ts";
 import { cartonMarkSize, FOIL_ENV_FLOOR, labelEmissive, labelFinish, labelInk } from "../geometry/logos.ts";
 import type { LogoApplication } from "../model/types.ts";
@@ -99,7 +102,8 @@ function PartShell({
       ty = park[1];
       tz = park[2];
     } else if (state.stage === "box" && part !== "box") {
-      ty += 8;
+      const lying = state.design.box.insert?.orientation === "lying" && !state.solo && !state.aimed;
+      if (!lying) ty += (state.design.box.boardMm ?? 2.2) + 5;
     }
     const yaw = isolated ? 0 : local * 0.14 * (index % 2 === 0 ? 1 : -1);
     group.rotation.y = THREE.MathUtils.damp(group.rotation.y, yaw, 5, dt);
@@ -132,6 +136,15 @@ function PartShell({
       const mesh = obj as THREE.Mesh;
       if (solid || !mesh.isMesh || !mesh.material) return;
       const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+      if (mesh.userData.liquidDepth) {
+        for (const mat of mats) {
+          const write = !ghost;
+          if (mat.depthWrite !== write) mat.depthWrite = write;
+          if (mat.colorWrite) mat.colorWrite = false;
+          if (mat.transparent) mat.transparent = false;
+        }
+        return;
+      }
       for (const mat of mats) {
         const shader = mat as THREE.ShaderMaterial;
         if (shader.uniforms?.uFade) {
@@ -267,12 +280,14 @@ export function Assembly() {
     <LabelPaintProvider>
     <Clock.Provider value={clock}>
       <BoxPart />
-      <BottlePart />
-      <LiquidPart />
-      <LabelPart />
-      <CollarPart />
-      <PumpPart />
-      <CapPart />
+      <BottleSeat>
+        <BottlePart />
+        <LiquidPart />
+        <LabelPart />
+        <CollarPart />
+        <PumpPart />
+        <CapPart />
+      </BottleSeat>
       <PartGuides />
       <Callouts />
       <HoloShell />
@@ -282,6 +297,26 @@ export function Assembly() {
     </Clock.Provider>
     </LabelPaintProvider>
   );
+}
+
+function BottleSeat({ children }: { children: ReactNode }) {
+  const ref = useRef<THREE.Group>(null);
+  useFrame(() => {
+    const group = ref.current;
+    if (!group) return;
+    const state = useLab.getState();
+    const lying = state.stage === "box" && state.design.box.insert?.orientation === "lying" && !state.solo && !state.aimed;
+    const rise = state.stage === "box" ? trayLiftNow.mm : 0;
+    if (!lying) {
+      group.rotation.x = 0;
+      group.position.set(0, rise, 0);
+      return;
+    }
+    const seated = computeFit(state.design, false);
+    group.rotation.x = Math.PI / 2;
+    group.position.set(0, seated.lyingLift + rise, seated.lyingShiftZ);
+  });
+  return <group ref={ref}>{children}</group>;
 }
 
 function Turntable() {
@@ -307,6 +342,7 @@ function Turntable() {
 }
 
 function Shadow({ fitWidth }: { fitWidth: number }) {
+  const quality = useLab((s) => s.quality);
   const map = useMemo(() => {
     const canvas = document.createElement("canvas");
     canvas.width = 128;
@@ -325,7 +361,7 @@ function Shadow({ fitWidth }: { fitWidth: number }) {
   useEffect(() => {
     if (map) return () => map.dispose();
   }, [map]);
-  if (!map) return null;
+  if (quality !== "fallback" || !map) return null;
   return (
     <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.05, 0]}>
       <planeGeometry args={[fitWidth * 1.8, fitWidth * 1.35]} />
@@ -399,6 +435,16 @@ function LiquidPart() {
   );
   return (
     <PartShell part="liquid" index={5} home={[0, 0, 0]} explode={[0, 0, 0]} visible={design.liquid.visible && design.bottle.visible && onStage} variantKey={spec.id + design.liquid.color + surface.toFixed(1)}>
+      {/* Writes the liquid's depth before the floor grid so grid lines fail the depth test inside the liquid. Color is drawn later by JuiceMaterial; this mesh never writes color. */}
+      <mesh geometry={geo} renderOrder={-1.5} userData={{ liquidDepth: true }} raycast={() => null}>
+        <meshBasicMaterial
+          colorWrite={false}
+          depthWrite
+          polygonOffset
+          polygonOffsetFactor={1}
+          polygonOffsetUnits={1}
+        />
+      </mesh>
       <mesh geometry={geo} renderOrder={1}>
         <JuiceMaterial color={design.liquid.color} top={surface} />
       </mesh>
@@ -712,7 +758,7 @@ function BoxPart() {
   const shown = stage === "box" || (stage === "together" && design.box.visible);
   return (
     <PartShell part="box" index={0} home={home} explode={burst} visible={shown} variantKey={spec.id}>
-      <BoxFormMesh form={spec.form} w={fit.boxW} h={fit.boxH} d={fit.boxD} finish={design.box.finish} color={design.box.color} />
+      <BoxFormMesh form={spec.form} w={fit.boxW} h={fit.boxH} d={fit.boxD} fit={fit} finish={design.box.finish} color={design.box.color} />
     </PartShell>
   );
 }
@@ -874,6 +920,7 @@ function BoxFormMesh({
   w,
   h,
   d,
+  fit,
   finish,
   color,
 }: {
@@ -881,6 +928,7 @@ function BoxFormMesh({
   w: number;
   h: number;
   d: number;
+  fit: Fit;
   finish: Parameters<typeof FinishMaterial>[0]["finish"];
   color: string;
 }) {
@@ -913,6 +961,9 @@ function BoxFormMesh({
     const state = useLab.getState();
     state.setBoxOpen(!state.boxOpen);
   };
+  const structure = useLab((s) => s.design.box.structure ?? "lift-off");
+  const legacyForm = (form === "tube" || form === "plinth") && structure === closureForForm(form).structure;
+  if (!legacyForm) return <ClosureBox form={form} fit={fit} />;
   if (form === "tube") {
     return (
       <group>

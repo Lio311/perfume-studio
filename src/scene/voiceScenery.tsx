@@ -277,8 +277,9 @@ function GradePasses() {
 
 export function VoiceGrade() {
   const gl = useThree((s) => s.gl);
+  const quality = useLab((s) => s.quality);
   const [off, setOff] = useState(false);
-  if (off || !gl.capabilities.isWebGL2) return null;
+  if (off || !gl.capabilities.isWebGL2 || quality !== "high") return null;
   const fail = () => setOff(true);
   return (
     <GradeBoundary onFail={fail}>

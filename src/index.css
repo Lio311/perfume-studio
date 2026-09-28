@@ -127,17 +127,23 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   font-size: 15px;
   letter-spacing: 0.04em;
 }
-.spec {
-  margin: 2px 0 0;
-  display: flex;
-  gap: 8px;
-  align-items: baseline;
+.project-name-input {
+  background: transparent;
+  border: none;
+  border-bottom: 1px dashed transparent;
   color: var(--muted);
-  font-family: var(--num);
-  font-size: 12px;
-  font-variant-numeric: tabular-nums;
+  font-size: 11px;
+  padding: 0 0 2px 0;
+  margin: 2px 0 0;
+  outline: none;
+  font-family: inherit;
+  transition: border-color 0.2s;
+  width: 100%;
 }
-.spec bdi { color: var(--text); }
+.project-name-input:hover, .project-name-input:focus {
+  border-bottom-color: var(--line-strong);
+  color: var(--text);
+}
 .spec-name { color: var(--accent); margin-inline-start: 6px; }
 .top-actions { display: flex; gap: 6px; margin-inline-start: auto; }
 
@@ -353,9 +359,8 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 .modal-actions .is-primary { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
 .budget-meter {
   position: absolute;
-  top: 56px;
-  left: 50%;
-  transform: translateX(-50%);
+  top: 80px;
+  inset-inline-start: 12px;
   z-index: 6;
   width: min(340px, calc(100% - 210px));
   pointer-events: auto;
@@ -376,11 +381,17 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 .budget-rate input { max-width: 96px; }
 .budget-brief, .budget-savings { width: min(560px, 100%); display: grid; gap: 10px; }
 .brief-field { position: relative; }
-.brief-field input { padding-inline-end: 48px; }
+[dir="ltr"] .brief-field input[type="text"] { padding-right: 10px; }
+[dir="rtl"] .brief-field input[type="text"] { padding-left: 10px; }
+[dir="ltr"] .brief-field input { padding-right: 48px; }
+[dir="rtl"] .brief-field input { padding-left: 48px; }
 .brief-unit { position: absolute; inset-inline-end: 10px; bottom: 8px; color: var(--muted); font-family: var(--num); }
 .brief-presets { display: flex; flex-wrap: wrap; gap: 6px; }
 .brief-presets button { border: 1px solid var(--line); background: transparent; color: var(--muted); border-radius: 999px; padding: 6px 10px; }
 .brief-presets button.is-on { color: var(--on-accent); background: var(--accent); border-color: var(--accent); }
+.brief-group { border: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.brief-required { color: var(--warn, #d9534f); text-decoration: none; font-weight: 600; }
+.brief-field input[aria-invalid="true"] { border-color: var(--warn, #d9534f); box-shadow: 0 0 0 1px var(--warn, #d9534f); }
 .budget-savings { width: min(680px, 100%); }
 .thumb:hover { transform: translateY(-2px); border-color: var(--line); }
 .thumb.is-on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent), 0 10px 24px rgba(214, 178, 106, 0.12); color: var(--text); }
@@ -399,6 +410,17 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 .props h3 { margin: 14px 0 8px; font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted); font-weight: 500; }
 [dir="rtl"] h3, [dir="rtl"] .dock-label, [dir="rtl"] .kicker, [dir="rtl"] .props h3 { letter-spacing: 0; }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.box-pack { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+.box-pack h3 { margin: 8px 0 0; }
+.unbox-soon label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  opacity: 0.55;
+  font-size: 13px;
+}
+.unbox-soon em { font-style: normal; color: var(--muted); }
+.unbox-soon input:disabled { cursor: not-allowed; }
 .chip {
   display: inline-flex;
   align-items: center;

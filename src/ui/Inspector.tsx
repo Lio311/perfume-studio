@@ -4,7 +4,10 @@ import { bottleById, boxById, capById, collarById, logoById, pumpById } from "..
 import { computeFit } from "../model/fit.ts";
 import { FINISHES, PALETTE, LIQUID_PALETTE, effectiveGlassOpacity } from "../model/materials.ts";
 import { NECK_IDS } from "../model/necks.ts";
-import type { FinishId, NeckId, PartKey, VariantPart } from "../model/types.ts";
+import { setUnboxingMuted, useUnboxingTrack } from "../audio/unboxingTrack.ts";
+import { DEFAULT_INSERT_MOTION, INSERT_MATERIALS, OUTER_WRAPS, sleeveOverActive, withInnerStructure, withNeckHeight, withSleeveOver, withSleeveWindow } from "../model/boxFields.ts";
+import { listClosures } from "../model/closures/registry.ts";
+import type { BoxLatch, FinishId, InsertMaterial, InsertOrientation, NeckId, OuterWrap, PartKey, VariantPart } from "../model/types.ts";
 import { partLabel, tx } from "../i18n/copy.ts";
 import { useLab } from "../store/labStore.ts";
 import { Alternatives } from "./BudgetSuggestions.tsx";
@@ -44,10 +47,15 @@ export function Inspector() {
       </section>
     );
   }
+  const wizardPicked = useLab((s) => s.wizardPicked);
+  
   const neckLabel = design.bottle.neck.replace("FEA", "FEA ");
   const badge = !part || part === "liquid" || part === "label" || part === "box"
     ? ""
     : `✓ ${t.fitOk} ${neckLabel}`;
+
+  const isWizard = (design.step ?? 7) < 7;
+  const isPendingWizardPick = isWizard && part && part !== "liquid" && !wizardPicked.has(part);
 
   return (
     <section className={`panel props ${open ? "is-open" : ""}`} dir={lang === "he" ? "rtl" : "ltr"}>
@@ -56,10 +64,11 @@ export function Inspector() {
         <span className="hint">{t.arrows}</span>
       </div>
       {!part && <p className="empty">{t.emptySelect}</p>}
-      {part && hidden && (
+      {isPendingWizardPick && <p className="empty">{lang === "he" ? "אנא בחרו קודם רכיב מהספרייה" : "Please select a part from the library first"}</p>}
+      {part && !isPendingWizardPick && hidden && (
         <p className="hint" data-hidden-design>{lang === "he" ? hidden.he : hidden.en}</p>
       )}
-      {part && (
+      {part && !isPendingWizardPick && (
         <>
           {badge && !hidden && <div className="badge is-fit" dir="ltr">{badge}</div>}
           {!hidden && (
@@ -277,6 +286,7 @@ export function Inspector() {
               <Slider label={t.depth} value={fit.boxD} min={30} max={140} onGesture={beginGesture} onGestureEnd={endGesture} onChange={(depthMm) => patch("box", { depthMm })} />
               <Slider label={t.height} value={fit.boxH} min={70} max={240} onGesture={beginGesture} onGestureEnd={endGesture} onChange={(heightMm) => patch("box", { heightMm })} />
               <button type="button" className="text-btn fit" onClick={() => patch("box", { linked: true })}>{t.fit}</button>
+              <BoxPack />
             </>
           )}
           {part === "liquid" && (
@@ -292,6 +302,247 @@ export function Inspector() {
         </>
       )}
     </section>
+  );
+}
+
+function BoxPack() {
+  const lang = useLab((s) => s.lang);
+  const t = tx(lang);
+  const box = useLab((s) => s.design.box);
+  const patch = useLab((s) => s.patch);
+  const cutaway = useLab((s) => s.cutaway);
+  const setCutaway = useLab((s) => s.setCutaway);
+  const quality = useLab((s) => s.quality);
+  const setQuality = useLab((s) => s.setQuality);
+  const track = useUnboxingTrack();
+  const insertLabel: Record<InsertMaterial, string> = {
+    eva: t.insertEva,
+    pulp: t.insertPulp,
+    card: t.insertCard,
+    "velvet-foam": t.insertVelvet,
+  };
+  const wrapLabel: Record<OuterWrap, string> = {
+    none: t.wrapNone,
+    cellophane: t.wrapCellophane,
+    sleeve: t.wrapSleeve,
+    tissue: t.wrapTissue,
+  };
+  const orient = box.insert?.orientation ?? "standing";
+  const specs = listClosures();
+  const current = specs.find((spec) => spec.id === box.structure);
+  const latchLabel: Record<BoxLatch, string> = { magnet: t.latchMagnet, ribbon: t.latchRibbon, none: t.latchNone };
+  const layers = box.layers ?? [];
+  const sleeveOn = sleeveOverActive(layers);
+  const sleeveWindow = layers.find((layer) => layer.structure === "sleeve")?.window ?? null;
+  const motion = box.insertMotion ?? DEFAULT_INSERT_MOTION;
+  const trayOn = motion.trayLift.height > 0;
+  return (
+    <div className="box-pack" data-box-pack>
+      <h3>{t.closure}</h3>
+      <div className="chips">
+        {specs.map((spec) => (
+          <button
+            key={spec.preset.id}
+            type="button"
+            className={box.structure === spec.id ? "chip is-on" : "chip"}
+            onClick={() => patch("box", { structure: spec.id, latch: spec.preset.latch, layers: withInnerStructure(layers, spec.id, spec.preset.latch) })}
+          >
+            {lang === "he" ? spec.preset.label.he : spec.preset.label.en}
+          </button>
+        ))}
+      </div>
+      {current && current.latches.length > 1 && (
+        <>
+          <h3>{t.latch}</h3>
+          <div className="chips">
+            {current.latches.map((id) => (
+              <button
+                key={id}
+                type="button"
+                className={box.latch === id ? "chip is-on" : "chip"}
+                onClick={() => patch("box", { latch: id, layers: withInnerStructure(layers, box.structure, id) })}
+              >
+                {latchLabel[id]}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+      {current?.liftOff && box.liftOff && (
+        <>
+          <h3>{t.lidFit}</h3>
+          <div className="chips">
+            {current.liftOff.variants.map((variant) => (
+              <button
+                key={variant.id}
+                type="button"
+                className={box.liftOff.variant === variant.id ? "chip is-on" : "chip"}
+                onClick={() => patch("box", { liftOff: { ...box.liftOff, variant: variant.id } })}
+              >
+                {lang === "he" ? variant.label.he : variant.label.en}
+              </button>
+            ))}
+          </div>
+          {box.liftOff.variant === "shoulder-neck" && (
+            <DimFields
+              fields={[
+                {
+                  label: t.neckHeight,
+                  value: box.liftOff.neckMm,
+                  min: current.liftOff.neckMm[0],
+                  max: current.liftOff.neckMm[1],
+                  onChange: (neckMm) => patch("box", { liftOff: { ...box.liftOff, neckMm }, layers: withNeckHeight(layers, neckMm) }),
+                },
+              ]}
+            />
+          )}
+          {box.liftOff.variant !== "telescope-full" && (
+            <DimFields
+              fields={[
+                {
+                  label: t.lidDepth,
+                  value: box.liftOff.lidDepthMm,
+                  min: current.liftOff.lidDepthMm[0],
+                  max: current.liftOff.lidDepthMm[1],
+                  onChange: (lidDepthMm) => patch("box", { liftOff: { ...box.liftOff, lidDepthMm } }),
+                },
+              ]}
+            />
+          )}
+        </>
+      )}
+      {box.structure === "lift-off" && (
+        <>
+          <h3>{t.shape}</h3>
+          <div className="chips">
+            <button type="button" className={box.shape?.type !== "cylinder" ? "chip is-on" : "chip"} onClick={() => patch("box", { shape: { type: "rect" } })}>
+              {t.shapeRect}
+            </button>
+            <button type="button" className={box.shape?.type === "cylinder" ? "chip is-on" : "chip"} onClick={() => patch("box", { shape: { type: "cylinder" } })}>
+              {t.shapeCylinder}
+            </button>
+          </div>
+        </>
+      )}
+      <div className="chips">
+        <button type="button" className={sleeveOn ? "chip is-on" : "chip"} onClick={() => patch("box", { layers: withSleeveOver(box, !sleeveOn) })}>
+          {t.sleeveOver}
+        </button>
+        {sleeveOn && (
+          <button
+            type="button"
+            className={sleeveWindow ? "chip is-on" : "chip"}
+            onClick={() => patch("box", { layers: withSleeveWindow(layers, sleeveWindow ? null : { shape: "rect", transparent: true }) })}
+          >
+            {t.sleeveWindow}
+          </button>
+        )}
+        {(box.structure === "lift-off" || box.structure === "book") && (
+          <button
+            type="button"
+            className={trayOn ? "chip is-on" : "chip"}
+            onClick={() =>
+              patch("box", {
+                insertMotion: { ...motion, trayLift: { height: trayOn ? 0 : 22, trigger: "lidAngle" } },
+              })
+            }
+          >
+            {t.trayRise}
+          </button>
+        )}
+      </div>
+      {current?.pulls && (
+        <>
+          <h3>{t.drawerPull}</h3>
+          <div className="chips">
+            {current.pulls.map((id) => (
+              <button
+                key={id}
+                type="button"
+                className={box.drawerPull === id ? "chip is-on" : "chip"}
+                onClick={() => patch("box", { drawerPull: id === "ribbon" || id === "notch" ? id : "none" })}
+              >
+                {id === "ribbon" ? t.pullRibbon : id === "notch" ? t.thumbNotch : t.latchNone}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+      <h3>{t.insert}</h3>
+      <div className="chips">
+        {INSERT_MATERIALS.map((id) => (
+          <button
+            key={id}
+            type="button"
+            className={box.insert?.material === id ? "chip is-on" : "chip"}
+            onClick={() => patch("box", { insert: { ...box.insert, material: id } })}
+          >
+            {insertLabel[id]}
+          </button>
+        ))}
+      </div>
+      <div className="chips">
+        {(["standing", "lying"] as InsertOrientation[]).map((id) => (
+          <button
+            key={id}
+            type="button"
+            className={orient === id ? "chip is-on" : "chip"}
+            onClick={() => patch("box", { insert: { ...box.insert, orientation: id } })}
+          >
+            {id === "standing" ? t.orientStanding : t.orientLying}
+          </button>
+        ))}
+      </div>
+      <h3>{t.outerWrap}</h3>
+      <div className="chips">
+        {OUTER_WRAPS.map((id) => (
+          <button
+            key={id}
+            type="button"
+            className={box.outerWrap === id ? "chip is-on" : "chip"}
+            onClick={() => patch("box", { outerWrap: id })}
+          >
+            {wrapLabel[id]}
+          </button>
+        ))}
+      </div>
+      <div className="chips">
+        <button type="button" className={box.ribbon ? "chip is-on" : "chip"} onClick={() => patch("box", { ribbon: !box.ribbon })}>
+          {t.ribbon}
+        </button>
+        <button type="button" className={box.pullTab ? "chip is-on" : "chip"} onClick={() => patch("box", { pullTab: !box.pullTab })}>
+          {t.pullTab}
+        </button>
+        <button type="button" className={cutaway ? "chip is-on" : "chip"} onClick={() => setCutaway(!cutaway)}>
+          {t.cutaway}
+        </button>
+      </div>
+      <div className="unbox-soon">
+        <h3>{t.unboxing}</h3>
+        <label>
+          <input type="checkbox" disabled checked={false} readOnly />
+          <span>{t.hands}</span>
+          <em>{t.comingSoon}</em>
+        </label>
+        <button
+          type="button"
+          className={track.muted ? "chip" : "chip is-on"}
+          aria-pressed={!track.muted}
+          title={t.soundtrackHint}
+          onClick={() => setUnboxingMuted(!track.muted)}
+        >
+          {track.muted ? t.soundUnmute : t.soundMute}
+        </button>
+        <div className="chips">
+          <button type="button" className={quality === "high" ? "chip is-on" : "chip"} onClick={() => setQuality("high", true)}>
+            {t.qualityHigh}
+          </button>
+          <button type="button" className={quality === "fallback" ? "chip is-on" : "chip"} onClick={() => setQuality("fallback", true)}>
+            {t.qualityFallback}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 

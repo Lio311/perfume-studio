@@ -7,6 +7,8 @@ export interface BudgetBrief {
   confirmed: boolean;
   /** Planned order quantity. When set, totals use the tier price at this quantity. */
   quantity?: number;
+  /** Human-readable project name. Required before the brief can be confirmed. */
+  projectName?: string;
 }
 
 /**

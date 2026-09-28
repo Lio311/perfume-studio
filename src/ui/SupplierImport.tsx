@@ -189,7 +189,7 @@ export function SupplierImport() {
   const ready = rows.length > 0 && rows.every((row) => draftProblems(row, clashes.get(row.id)).length === 0);
 
   return (
-    <div className="modal-back" onClick={() => setModal(null)}>
+    <div className="modal-back" onPointerDown={(e) => { if (e.target === e.currentTarget) setModal(null); }}>
       <div className="modal wide supplier-modal" dir={lang === "he" ? "rtl" : "ltr"} onClick={(event) => event.stopPropagation()}>
         <header>
           <h2>{t.importCatalog}</h2>
