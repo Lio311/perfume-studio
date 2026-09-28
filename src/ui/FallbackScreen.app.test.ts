@@ -225,6 +225,42 @@ describe("app error boundary", () => {
     view.root.unmount();
   });
 
+  it("restores the previous saved state if the second write also fails", () => {
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    useLab.setState({ lang: "en" });
+    const store = new Map<string, string>();
+    const oldBlob = JSON.stringify({ state: { design: { bottle: { variantId: "diamond-50" } } }, version: 5 });
+    store.set(DESIGN_STORAGE_KEY, oldBlob);
+    const storage = {
+      get length() {
+        return store.size;
+      },
+      key: (index: number) => [...store.keys()][index] ?? null,
+      getItem: (key: string) => store.get(key) ?? null,
+      setItem: (key: string, value: string) => {
+        if (key === DESIGN_STORAGE_KEY) {
+          if (value !== oldBlob) {
+            const error = new Error("quota");
+            error.name = "QuotaExceededError";
+            throw error;
+          }
+        }
+        store.set(key, value);
+      },
+      removeItem: (key: string) => {
+        store.delete(key);
+      },
+    };
+    vi.stubGlobal("localStorage", storage);
+    
+    const view = mount(createElement(AppErrorBoundary, null, createElement(Boom)));
+    clickLabel(view.el, "Reset design");
+    clickLabel(view.el, "Yes, reset");
+    
+    expect(store.get(DESIGN_STORAGE_KEY)).toBe(oldBlob);
+    view.root.unmount();
+  });
+
   it("clears design keys and skips the supplier database name", () => {
     const removed: string[] = [];
     const keys = [DESIGN_STORAGE_KEY, "perfume-lab-draft", SUPPLIER_DB_NAME, `${SUPPLIER_DB_NAME}-cache`, "token", "other"];

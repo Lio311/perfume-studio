@@ -415,6 +415,7 @@ describe("saved design hydration", () => {
       brief: { title: "עבודה" },
       selected: "bottle",
       shareUrl: "https://example.test/#d=1",
+      packNotices: ["something"],
       undo,
     });
     expect(partial.design).toEqual(slice().design);
@@ -423,6 +424,7 @@ describe("saved design hydration", () => {
     expect(partial.brief).toEqual({ title: "עבודה" });
     expect("selected" in partial).toBe(false);
     expect("shareUrl" in partial).toBe(false);
+    expect("packNotices" in partial).toBe(false);
     expect("undo" in partial).toBe(false);
     expect("past" in partial).toBe(false);
     expect(Object.keys(partial).sort()).toEqual(["brief", "chat", "compareIds", "design", "lang", "pending", "saved", "theme"]);
