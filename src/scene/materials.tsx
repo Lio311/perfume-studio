@@ -1,7 +1,7 @@
 import { useMemo, useEffect } from "react";
 import * as THREE from "three";
 import type { FinishId } from "../model/types.ts";
-import { effectiveGlassOpacity, glassTransmission, isGlass } from "../model/materials.ts";
+import { DEFAULT_GLASS_OPACITY, glassTransmission, isGlass, renderedGlassOpacity } from "../model/materials.ts";
 import { leatherBump, woodMap } from "../geometry/textures.ts";
 import { useLab } from "../store/labStore.ts";
 
@@ -110,8 +110,9 @@ const CLEAR_FRAG = `
   }
 `;
 
-function ClearGlass({ opacity = 0.14 }: { opacity?: number }) {
-  const uniforms = useMemo(() => ({ uFade: { value: opacity / 0.14 } }), []);
+function ClearGlass({ opacity = DEFAULT_GLASS_OPACITY.clear }: { opacity?: number }) {
+  const userFade = opacity / DEFAULT_GLASS_OPACITY.clear;
+  const uniforms = useMemo(() => ({ uFade: { value: userFade } }), []);
   return (
     <shaderMaterial
       transparent
@@ -122,7 +123,8 @@ function ClearGlass({ opacity = 0.14 }: { opacity?: number }) {
       polygonOffsetFactor={-1}
       polygonOffsetUnits={-1}
       uniforms={uniforms}
-      uniforms-uFade-value={opacity / 0.14}
+      uniforms-uFade-value={userFade}
+      userData-opacitySetting={userFade}
       vertexShader={CLEAR_VERT}
       fragmentShader={CLEAR_FRAG}
     />
@@ -168,13 +170,11 @@ export function FinishMaterial({
   let materialOpacity = 1.0;
   let materialTransmission = 0;
   if (glassLike) {
+    materialOpacity = renderedGlassOpacity(finish, opacity) ?? 1.0;
     if (opacity !== undefined) {
-      // Use pure alpha blending for the opacity slider to ensure the liquid is visible
-      // and the diffuse color becomes fully solid at 100%.
-      materialOpacity = 0.15 + opacity * 0.85;
+      // Pure alpha blending so the liquid stays visible and 100% reads as a solid colour.
       materialTransmission = 0;
     } else {
-      materialOpacity = effectiveGlassOpacity(finish) ?? 1.0;
       materialTransmission = Math.max(0.01, glassTransmission(finish));
     }
   }
@@ -182,7 +182,7 @@ export function FinishMaterial({
   if (blueprint) {
     return <shaderMaterial transparent depthWrite toneMapped={false} uniforms={fade} vertexShader={BLUE_VERT} fragmentShader={BLUE_FRAG} />;
   }
-  if (clear && glass) return <ClearGlass opacity={opacity !== undefined ? opacity : 0.14} />;
+  if (clear && glass) return <ClearGlass opacity={opacity !== undefined ? opacity : DEFAULT_GLASS_OPACITY.clear} />;
 
   return (
     <meshPhysicalMaterial
@@ -214,6 +214,7 @@ export function FinishMaterial({
       specularIntensity={glassLike || metal ? 1 : 0.3}
       transparent={glassLike}
       opacity={materialOpacity}
+      userData-opacitySetting={glassLike ? materialOpacity : undefined}
       depthWrite={!glassLike}
       side={THREE.FrontSide}
     />

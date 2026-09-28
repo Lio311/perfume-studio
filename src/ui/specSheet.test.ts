@@ -6,6 +6,7 @@ import { createDefaultDesign } from "../model/design.ts";
 import { BOXES, COLLARS, PUMPS } from "../model/hardware.ts";
 import { LOGOS } from "../model/logos.ts";
 import type { FinishId, NeckId } from "../model/types.ts";
+import { renderedGlassOpacity } from "../model/materials.ts";
 import { buildSpecHtml } from "./specSheet.ts";
 
 const empty: ImportedCatalog = { bottles: [], caps: [], labels: [], pumps: [], collars: [], boxes: [] };
@@ -111,7 +112,9 @@ describe("spec sheet HTML escaping", () => {
     const html = buildSpecHtml(design, "en", "data:image/png;base64,AAAA");
     const glass = html.match(/<th>Glass<\/th><td>(.*?)<\/td>/);
     const liquid = html.match(/<th>Liquid<\/th><td>(.*?)<\/td>/);
-    expect(glass?.[1]).toBe("Tinted · #112233 · 40%");
+    const rendered = renderedGlassOpacity("tinted", 0.4);
+    expect(rendered).toBeCloseTo(0.15 + 0.85 * 0.4);
+    expect(glass?.[1]).toBe(`Tinted · #112233 · ${Math.round((rendered ?? 0) * 100)}%`);
     expect(liquid?.[1]).toBe("50% · #abcdef");
   });
 

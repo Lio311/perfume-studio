@@ -28,6 +28,7 @@ function SaveModal() {
   const setModal = useLab((s) => s.setModal);
   const [name, setName] = useState(lang === "he" ? "סקיצה" : "Sketch");
   const [armed, setArmed] = useState<string | null>(null);
+  const [saveStatus, setSaveStatus] = useState<"ok" | "err" | null>(null);
   return (
     <div className="modal-back" onClick={() => setModal(null)}>
       <div className="modal" dir={lang === "he" ? "rtl" : "ltr"} onClick={(event) => event.stopPropagation()}>
@@ -37,13 +38,34 @@ function SaveModal() {
           onSubmit={(event) => {
             event.preventDefault();
             requestShot((url) => {
-              void shrink(url).then((thumb) => saveDesign(name, thumb));
+              void shrink(url).then((thumb) => {
+                try {
+                  const result = saveDesign(name, thumb);
+                  setSaveStatus(result.ok ? "ok" : "err");
+                } catch {
+                  setSaveStatus("err");
+                }
+              });
             });
           }}
         >
-          <input value={name} onChange={(event) => setName(event.target.value)} aria-label={t.saveName} />
+          <input
+            value={name}
+            onChange={(event) => {
+              setName(event.target.value);
+              setSaveStatus(null);
+            }}
+            aria-label={t.saveName}
+          />
           <button type="submit">{t.save}</button>
         </form>
+        <div role="status" aria-live="polite">
+          {saveStatus && (
+            <p className={saveStatus === "ok" ? "save-status is-ok" : "save-status is-err"}>
+              {saveStatus === "ok" ? t.saveOk : t.saveError}
+            </p>
+          )}
+        </div>
         <div className="saved-list">
           {saved.length === 0 && <p className="hint">{t.noSaved}</p>}
           {saved.map((item) => (

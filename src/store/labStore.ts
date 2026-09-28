@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { commitSavedDesigns } from "./saveResult.ts";
 import { produce } from "immer";
 import { applyLook, applyVariant, createDefaultDesign, estimateMl, LOOKS } from "../model/design.ts";
 import { BOTTLES } from "../model/bottles.ts";
@@ -114,7 +115,7 @@ interface LabState {
   setSideOpen: (open: boolean) => void;
   setModal: (modal: LabState["modal"]) => void;
   pushChat: (message: ChatMessage) => void;
-  saveDesign: (name: string, thumb: string) => void;
+  saveDesign: (name: string, thumb: string) => { ok: boolean };
   loadDesign: (id: string) => void;
   newDesign: () => void;
   deleteDesign: (id: string) => void;
@@ -492,17 +493,19 @@ export const useLab = create<LabState>()(
       setSideOpen: (sideOpen) => set({ sideOpen }),
       setModal: (modal) => set({ modal }),
       pushChat: (message) => set((state) => ({ chat: [...state.chat, message].slice(-40) })),
-      saveDesign: async (name, thumb) => {
+      saveDesign: (name, thumb) => {
+        const previous = get().saved;
         const id = uid("cfg");
         const newDesign = { id, name: name.trim() || "סקיצה", design: get().design, thumb, createdAt: Date.now() };
-        set((state) => ({
-          saved: [newDesign, ...state.saved].slice(0, 24),
-        }));
-        try {
-          await apiClient.post("/designs", newDesign);
-        } catch (e) {
-          console.error("Failed to save design to backend", e);
-        }
+        const next = [newDesign, ...previous].slice(0, 24);
+        const result = commitSavedDesigns(previous, next, (saved) => {
+          set({ saved });
+        });
+        if (!result.ok) return { ok: false };
+        void apiClient.post("/designs", newDesign).catch((error) => {
+          console.error("Failed to save design to backend", error);
+        });
+        return { ok: true };
       },
       newDesign: () => {
         set({ design: createDefaultDesign(), past: [], future: [], modal: null });

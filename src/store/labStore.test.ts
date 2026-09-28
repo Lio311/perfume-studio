@@ -40,6 +40,14 @@ describe("labStore", () => {
     expect(stateAfterRedo.past[0]).toBe(initialDesign);
   });
 
+  it("saves a design and reports success", () => {
+    const before = useLab.getState().saved.length;
+    const result = useLab.getState().saveDesign("בדיקה", "");
+    expect(result.ok).toBe(true);
+    expect(useLab.getState().saved[0]?.name).toBe("בדיקה");
+    expect(useLab.getState().saved).toHaveLength(before + 1);
+  });
+
   it("should record history on applyCommands", () => {
     const store = useLab.getState();
     const initialDesign = store.design;

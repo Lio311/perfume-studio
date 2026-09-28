@@ -91,6 +91,23 @@ export function effectiveGlassOpacity(finish: FinishId, opacity?: number): numbe
   return opacity ?? DEFAULT_GLASS_OPACITY[glass];
 }
 
+/**
+ * Alpha the physical glass material draws for an explicit slider value.
+ * Tinted and frosted glass use this curve (with attenuationDistance 36).
+ * Clear glass does not: it is a fresnel shader driven by the slider itself.
+ */
+export function mappedGlassOpacity(opacity: number): number {
+  return 0.15 + 0.85 * opacity;
+}
+
+/** Opacity actually rendered, shared by the material and the spec sheet. */
+export function renderedGlassOpacity(finish: FinishId, opacity?: number): number | null {
+  const slider = effectiveGlassOpacity(finish, opacity);
+  if (slider === null) return null;
+  if (opacity !== undefined && finish !== "clear") return mappedGlassOpacity(opacity);
+  return slider;
+}
+
 /** Explicit opacity uses `1 - opacity`. Otherwise the transmission stored with that finish's default opacity. */
 export function glassTransmission(finish: FinishId, opacity?: number): number {
   const glass = glassFinish(finish);
