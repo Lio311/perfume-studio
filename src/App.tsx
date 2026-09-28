@@ -184,15 +184,39 @@ export default function App() {
         <TopBar />
         <Library />
         <div className="stage-slot">
-          <p className={hintOn ? "hint-strip" : "hint-strip is-faded"} dir={lang === "he" ? "rtl" : "ltr"}>
-            <b>{voice === 1 ? t.look1 : voice === 2 ? t.look2 : t.look3}</b>
-            <span>·</span>
-            {t.hintDrag}
-            <span>·</span>
-            {t.hintWheel}
-            <span>·</span>
-            {t.hintClick}
-          </p>
+          {design.step !== undefined && design.step < 7 ? (
+            <p className="hint-strip" style={{ opacity: 1 }} dir={lang === "he" ? "rtl" : "ltr"}>
+              <b>
+                {lang === "he" ? [
+                  "שלב 1: בחירת בקבוק",
+                  "שלב 2: בחירת נוזל",
+                  "שלב 3: בחירת מרסס",
+                  "שלב 4: בחירת צווארון",
+                  "שלב 5: בחירת פקק",
+                  "שלב 6: בחירת לוגו ומיתוג",
+                  "שלב 7: בחירת אריזה"
+                ][design.step] : [
+                  "Step 1: Choose a Bottle",
+                  "Step 2: Choose Liquid Color",
+                  "Step 3: Choose a Pump",
+                  "Step 4: Choose a Collar",
+                  "Step 5: Choose a Cap",
+                  "Step 6: Choose Logo & Branding",
+                  "Step 7: Choose a Box"
+                ][design.step]}
+              </b>
+            </p>
+          ) : (
+            <p className={hintOn ? "hint-strip" : "hint-strip is-faded"} dir={lang === "he" ? "rtl" : "ltr"}>
+              <b>{voice === 1 ? t.look1 : voice === 2 ? t.look2 : t.look3}</b>
+              <span>·</span>
+              {t.hintDrag}
+              <span>·</span>
+              {t.hintWheel}
+              <span>·</span>
+              {t.hintClick}
+            </p>
+          )}
           <Crumb />
           {(solo || (aimed && selected)) && (
             <button type="button" className="back-btn" data-back onClick={() => showFull()}>

@@ -19,7 +19,8 @@ export type LabCommand =
   | { type: "reset" }
   | { type: "random" }
   | { type: "select"; part: PartKey }
-  | { type: "help" };
+  | { type: "help" }
+  | { type: "wizard_step"; step: number };
 
 export interface InterpretContext {
   lang: "he" | "en";

@@ -273,4 +273,5 @@ export interface Design {
   collar: CollarState;
   box: BoxState;
   liquid: LiquidState;
+  step?: number;
 }

@@ -282,6 +282,7 @@ export function Assembly() {
 
 function Turntable() {
   const solo = useLab((s) => s.solo);
+  const theme = useLab((s) => s.theme);
   const disc = useRef<THREE.Group>(null);
   useFrame((_, dt) => {
     if (disc.current) disc.current.rotation.y += dt * 0.35;
@@ -291,11 +292,11 @@ function Turntable() {
     <group ref={disc} position={[0, 0.6, 0]}>
       <mesh rotation={[-Math.PI / 2, 0, 0]}>
         <circleGeometry args={[52, 72]} />
-        <meshStandardMaterial color="#12161c" metalness={0.72} roughness={0.28} />
+        <meshStandardMaterial color={theme === "light" ? "#ffffff" : "#12161c"} metalness={theme === "light" ? 0.1 : 0.72} roughness={theme === "light" ? 0.9 : 0.28} />
       </mesh>
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.2, 0]}>
         <ringGeometry args={[34, 48, 80]} />
-        <meshBasicMaterial color="#e7d3ae" transparent opacity={0.45} />
+        <meshBasicMaterial color={theme === "light" ? "#c4a15a" : "#e7d3ae"} transparent opacity={theme === "light" ? 0.65 : 0.45} />
       </mesh>
     </group>
   );

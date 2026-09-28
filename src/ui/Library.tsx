@@ -9,6 +9,7 @@ import { useLab } from "../store/labStore.ts";
 import { thumbFor } from "../thumbnails/thumbs.ts";
 
 const TABS: Array<VariantPart | "liquid" | "pending"> = ["bottle", "cap", "label", "pump", "collar", "box", "liquid", "pending"];
+const WIZARD_ORDER: Array<VariantPart | "liquid"> = ["bottle", "liquid", "pump", "collar", "cap", "label", "box"];
 
 const CAP_CATS: Array<{ id: string; label: "catAll" | "catZamac" | "catSurlyn" | "catWood" | "catAcrylic" | "catMagnetic" | "catSculptural" | "catMinimal"; tags: string[] }> = [
   { id: "all", label: "catAll", tags: [] },
@@ -36,12 +37,22 @@ export function Library() {
   const removeSupplier = useLab((s) => s.removeSupplier);
   const selected = useLab((s) => s.selected);
   const focusToken = useLab((s) => s.focusToken);
-  const [tab, setTab] = useState<(typeof TABS)[number]>("cap");
+  const [tab, setTab] = useState<(typeof TABS)[number]>("bottle");
   const [query, setQuery] = useState("");
   const [cat, setCat] = useState("all");
   const [supplier, setSupplier] = useState("all");
   const gridRef = useRef<HTMLDivElement>(null);
   const tabRef = useRef(tab);
+  
+  const wizardStep = design.step ?? 7;
+  const isWizard = wizardStep < 7;
+  const activeTabs = isWizard ? [...WIZARD_ORDER.slice(0, wizardStep + 1), "pending" as const] : TABS;
+
+  useEffect(() => {
+    if (isWizard && !activeTabs.includes(tab as any)) {
+      setTab(WIZARD_ORDER[wizardStep] as any);
+    }
+  }, [isWizard, wizardStep, tab, activeTabs]);
   tabRef.current = tab;
 
   useEffect(() => {
@@ -99,7 +110,7 @@ export function Library() {
         <p className="hint">{lang === "he" ? `${items.length} תואמים ל-${query.trim()}` : `${items.length} match ${query.trim()}`}</p>
       )}
       <div className="tabs" role="tablist">
-        {TABS.map((key) => (
+        {activeTabs.map((key) => (
           <button key={key} type="button" role="tab" data-part={key} aria-selected={tab === key} className={tab === key ? "is-on" : ""} onClick={() => setTab(key)}>
             {key === "pending" ? t.pending : key === "liquid" ? partLabel[lang].liquid : partLabel[lang][key]}
           </button>
@@ -201,6 +212,22 @@ export function Library() {
             </button>
           ))}
         </div>
+      )}
+      {isWizard && (
+        <button
+          type="button"
+          className="upload-btn"
+          style={{ background: "var(--accent-color, #23252a)", color: "var(--text-color, #e4e6eb)", border: "1px solid var(--border-color, #333)", marginTop: "8px", fontWeight: "bold" }}
+          onClick={() => {
+            const nextStep = wizardStep + 1;
+            applyCommands([{ type: "wizard_step", step: nextStep }]);
+            if (nextStep < WIZARD_ORDER.length) {
+              setTab(WIZARD_ORDER[nextStep]);
+            }
+          }}
+        >
+          {lang === "he" ? "לשלב הבא" : "Next Step"}
+        </button>
       )}
       <button type="button" className="upload-btn" data-photo3d onClick={() => setModal("photo")}>
         {t.photo3d}

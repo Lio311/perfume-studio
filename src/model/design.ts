@@ -15,7 +15,7 @@ export function createDefaultDesign(): Design {
       heightMm: bottle.heightMm,
       widthMm: bottle.widthMm,
       depthMm: bottle.depthMm,
-      visible: true,
+      visible: false,
     },
     cap: {
       variantId: cap.id,
@@ -23,7 +23,7 @@ export function createDefaultDesign(): Design {
       color: "#D6B26A",
       heightMm: 34.5,
       widthMm: 30,
-      visible: true,
+      visible: false,
     },
     label: {
       variantId: "lg-foil-diamond",
@@ -31,19 +31,19 @@ export function createDefaultDesign(): Design {
       color: "#D6B26A",
       text: "",
       scale: 1,
-      visible: true,
+      visible: false,
     },
     pump: {
       variantId: "pump-crimp",
       finish: "gold",
       color: "#D6B26A",
-      visible: true,
+      visible: false,
     },
     collar: {
       variantId: "col-crimp",
       finish: "gold",
       color: "#D6B26A",
-      visible: true,
+      visible: false,
     },
     box: {
       variantId: box.id,
@@ -53,13 +53,14 @@ export function createDefaultDesign(): Design {
       widthMm: 78,
       depthMm: 68,
       linked: true,
-      visible: true,
+      visible: false,
     },
     liquid: {
       color: "#c98a2b",
       fill: 0.78,
-      visible: true,
+      visible: false,
     },
+    step: 0,
   };
 }
 

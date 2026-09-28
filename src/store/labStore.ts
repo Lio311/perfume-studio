@@ -146,13 +146,25 @@ function clamp(n: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, n));
 }
 
+function makeSeed(design: Design) {
+  design.step = 7;
+  design.bottle.visible = true;
+  design.cap.visible = true;
+  design.label.visible = true;
+  design.pump.visible = true;
+  design.collar.visible = true;
+  design.box.visible = true;
+  design.liquid.visible = true;
+  return design;
+}
+
 function seeds(): SavedDesign[] {
-  const atelier = createDefaultDesign();
-  const blush = createDefaultDesign();
+  const atelier = makeSeed(createDefaultDesign());
+  const blush = makeSeed(createDefaultDesign());
   applyVariant(blush, "bottle", "flacon-50");
   applyVariant(blush, "cap", "cap-dome-28");
   applyLook(blush, LOOKS[1]);
-  const noir = createDefaultDesign();
+  const noir = makeSeed(createDefaultDesign());
   applyVariant(noir, "bottle", "diamond-50");
   applyVariant(noir, "cap", "cap-crystal");
   applyVariant(noir, "box", "box-magnetic");
@@ -183,6 +195,9 @@ function applyOne(design: Design, command: LabCommand, ui: { explode: number; mo
       break;
     case "variant":
       applyVariant(design, command.part, command.id);
+      if (command.part !== 'box' || design.box) {
+         (design[command.part] as any).visible = true;
+      }
       break;
     case "cycle": {
       const current =
@@ -265,6 +280,9 @@ function applyOne(design: Design, command: LabCommand, ui: { explode: number; mo
       ui.focusToken += 1;
       break;
     case "help":
+      break;
+    case "wizard_step":
+      design.step = command.step;
       break;
     default:
       break;
