@@ -182,6 +182,37 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 [data-theme="light"] .search, [data-theme="light"] .composer input, [data-theme="light"] .modal input {
   background: rgba(255, 255, 255, 0.7);
 }
+.brand-field {
+  display: grid;
+  margin-top: 10px;
+  min-width: 0;
+  max-width: 100%;
+}
+.brand-field > .search {
+  grid-area: 1 / 1;
+  margin-top: 0;
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  height: auto;
+  align-self: stretch;
+}
+.brand-hint {
+  grid-area: 1 / 1;
+  z-index: 1;
+  align-self: stretch;
+  margin: 0;
+  padding: 10px 12px;
+  min-width: 0;
+  max-width: 100%;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+  text-align: start;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  pointer-events: none;
+}
 
 .tabs { display: flex; flex-wrap: wrap; gap: 6px; overflow: visible; padding: 10px 0 8px; }
 .tabs button { scroll-snap-align: start; }

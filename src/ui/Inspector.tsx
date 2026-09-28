@@ -5,6 +5,7 @@ import { NECK_IDS } from "../model/necks.ts";
 import type { FinishId, NeckId, PartKey } from "../model/types.ts";
 import { partLabel, tx } from "../i18n/copy.ts";
 import { useLab } from "../store/labStore.ts";
+import { BrandTextField } from "./brandField.tsx";
 
 export function Inspector() {
   const lang = useLab((s) => s.lang);
@@ -190,8 +191,7 @@ export function Inspector() {
           {part === "label" && (
             <>
               <h3>{t.brand}</h3>
-              <input className="search" value={design.label.text} placeholder="Nº 01" onChange={(event) => patch("label", { text: event.target.value.slice(0, 32) })} />
-              <p className="hint">{t.brandHint}</p>
+              <BrandTextField value={design.label.text} hint={t.brandHint} label={t.brand} onChange={(text) => patch("label", { text })} />
               <Slider label={t.scale} value={design.label.scale * 100} min={55} max={160} suffix="%" onGesture={beginGesture} onGestureEnd={endGesture} onChange={(value) => patch("label", { scale: value / 100 })} />
               <Readout label={t.width} value={fit.labelW} />
               <Readout label={t.height} value={fit.labelH} />
