@@ -323,7 +323,10 @@ describe("parsePackFile", () => {
     const dated = sanitizeSupplierPrice({ value: 1, currency: "USD", quotedAt: "2026-02-31" });
     expect(dated.price).toEqual({ value: 1, currency: "USD" });
     expect(dated.issues.map((item) => item.code)).toEqual(["price_quoted_at"]);
-    expect(sanitizeSupplierPrice({ value: 1, currency: "USD", extra: true }).price).toEqual({ value: 1, currency: "USD" });
+    const extra = sanitizeSupplierPrice({ value: 1, currency: "USD", extra: true });
+    expect(extra.price).toEqual({ value: 1, currency: "USD" });
+    expect(extra.unpriced).toBeUndefined();
+    expect(extra.issues.map((item) => item.code)).toEqual(["price_unknown_field"]);
   });
 });
 
@@ -470,7 +473,8 @@ describe("reviveStoredPack", () => {
     expect(revived.pack?.version).toBeUndefined();
     expect(revived.pack?.source).toBe("scan");
     expect(revived.pack?.parts).toHaveLength(1);
-    expect((revived.pack?.parts[0] as { price?: { value: number; currency?: string } }).price).toEqual({ value: 1 });
+    expect((revived.pack?.parts[0] as { price?: { value: number; currency?: string; unpriced?: boolean } }).price).toEqual({ value: 1 });
+    expect((revived.pack?.parts[0] as { price?: { unpriced?: boolean } }).price).not.toHaveProperty("unpriced");
     expect(revived.warnings).toEqual([
       { type: "droppedMeta", field: "version" },
       expect.objectContaining({

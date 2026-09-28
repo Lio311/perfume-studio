@@ -5,10 +5,10 @@ import { tx } from "../i18n/copy.ts";
  * instead of keeping a second checker.
  *
  * A bad base value or moq comes back without `price`. An unrecognized currency is left
- * unset and the price stays. Each tier is judged in the order it was written and is not
- * sorted. A failing tier is removed and the base price stays. A tier that costs more
- * than the previous price is kept.
- * Issues are returned on the result. They are not stored in module state.
+ * unset, `unpriced` is true, and the price stays for display. An unknown key is ignored
+ * with a warning. Each tier is judged in the order it was written and is not sorted.
+ * A failing tier is removed and the base price stays. A tier that costs more than the
+ * previous price is kept. Issues are returned on the result. They are not stored in module state.
  */
 export interface SupplierPriceTier {
   minQty: number;
@@ -28,6 +28,7 @@ export type PriceIssueCode =
   | "price_invalid"
   | "price_value"
   | "price_currency"
+  | "price_unknown_field"
   | "price_moq"
   | "price_quoted_at"
   | "price_tiers"
@@ -50,9 +51,22 @@ export interface PriceIssue {
 }
 
 export interface SupplierPriceResult {
+  /**
+   * Present when the quote can be shown. `currency` is omitted when it was not recognized.
+   * That object is what the pack stores. `unpriced` is not written onto it.
+   */
   price?: SupplierPrice;
+  /**
+   * True when `price` is present but `currency` is unset.
+   * Budget code should treat the quote as unpriced and leave it out of a total.
+   * The library still shows the amount with the unknown-currency label.
+   */
+  unpriced?: true;
   issues: PriceIssue[];
 }
+
+/** Keys written back onto a supplier price. Anything else is ignored with a warning. */
+const PRICE_KEYS = new Set(["value", "currency", "moq", "tiers", "quotedAt"]);
 
 const ISO_8601 = /^\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:\d{2})?)?$/;
 
@@ -111,9 +125,10 @@ function issue(path: string, code: PriceIssueCode, he: string, en: string): Pric
 /**
  * Rebuild a supplier price into the canonical shape.
  * Currency is stored as an uppercase ISO code, or left unset when it cannot be recognized.
- * A bad currency never drops the price. A tier may use legacy `qty` when `minQty` is absent;
- * the result always stores `minQty`. Tiers stay in the written order. A bad tier is removed
- * and the base price stays.
+ * An unset currency sets `unpriced` so budget code can skip the quote. A bad currency never
+ * drops the price. An unknown key is not copied. A tier may use legacy `qty` when `minQty`
+ * is absent; the result always stores `minQty`. Tiers stay in the written order. A bad tier
+ * is removed and the base price stays.
  */
 export function sanitizeSupplierPrice(raw: unknown): SupplierPriceResult {
   if (!isDataObject(raw)) {
@@ -130,11 +145,23 @@ export function sanitizeSupplierPrice(raw: unknown): SupplierPriceResult {
   }
   if (issues.length) return { issues };
 
+  for (const key of Object.keys(raw)) {
+    if (PRICE_KEYS.has(key)) continue;
+    issues.push(issue(
+      key,
+      "price_unknown_field",
+      `השדה ${key} אינו חלק מהמחיר, ולכן הוא לא נשמר. המחיר עצמו נשאר.`,
+      `Field ${key} is not part of the price, so it was ignored. The price itself was kept.`,
+    ));
+  }
+
   const currency = typeof raw.currency === "string" ? normalizeCurrency(raw.currency) : null;
   const moq = hasMoq ? raw.moq as number : undefined;
   const price: SupplierPrice = { value: raw.value as number };
+  let unpriced: true | undefined;
   if (currency) price.currency = currency;
   else {
+    unpriced = true;
     issues.push(issue(
       "currency",
       "price_currency",
@@ -233,7 +260,7 @@ export function sanitizeSupplierPrice(raw: unknown): SupplierPriceResult {
     }
   }
 
-  return { price, issues };
+  return unpriced ? { price, unpriced, issues } : { price, issues };
 }
 
 /** Same amount shape as the budget PriceTag: ₪ for ILS, otherwise a grouped number and the ISO code. */

@@ -272,13 +272,23 @@ describe("sanitizeSupplierPrice", () => {
     const badCurrency = sanitizeSupplierPrice({ value: 1.5, currency: "US", moq: 2, tiers: [{ minQty: 10, value: 1 }] });
     expect(badCurrency.price).toEqual({ value: 1.5, moq: 2, tiers: [{ minQty: 10, value: 1 }] });
     expect(badCurrency.price).not.toHaveProperty("currency");
+    expect(badCurrency.unpriced).toBe(true);
     expect(badCurrency.issues[0]).toMatchObject({ path: "currency", code: "price_currency", severity: "warning" });
     expect(badCurrency.issues[0].he).toContain("מטבע לא ידוע");
     expect(badCurrency.issues[0].en).toContain("Unknown currency");
-    expect(sanitizeSupplierPrice({ value: 1, currency: "USD", note: "cash" })).toEqual({
-      price: { value: 1, currency: "USD" },
-      issues: [],
-    });
+    expect(sanitizeSupplierPrice({ value: 4, currency: "USD" }).unpriced).toBeUndefined();
+  });
+
+  it("ignores an unknown price key and keeps the price", () => {
+    const result = sanitizeSupplierPrice({ value: 1, currency: "USD", note: "cash", moq: 2 });
+    expect(result.price).toEqual({ value: 1, currency: "USD", moq: 2 });
+    expect(result.price).not.toHaveProperty("note");
+    expect(result.unpriced).toBeUndefined();
+    expect(result.issues).toEqual([
+      expect.objectContaining({ path: "note", code: "price_unknown_field", severity: "warning" }),
+    ]);
+    expect(result.issues[0].he).toContain("note");
+    expect(result.issues[0].en).toContain("ignored");
   });
 
   it("returns structured warnings and no price when the base quote is invalid", () => {
