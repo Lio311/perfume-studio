@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { partLabel, tx } from "../i18n/copy.ts";
 import { downloadPack } from "../import/supplierDb.ts";
+import { isVariantPart } from "../import/registry.ts";
 import { entryMatches, listFor } from "../model/catalog.ts";
 import { markSwap } from "../scene/focusClick.ts";
 import { effectiveGlassOpacity, LIQUID_PALETTE } from "../model/materials.ts";
@@ -197,6 +198,7 @@ export function Library() {
           <p className="hint">{t.pendingNote}</p>
           {pending.length === 0 && suppliers.every((pack) => pack.parts.length === 0) && <p className="hint">{t.pendingEmpty}</p>}
           {suppliers.flatMap((pack) => pack.parts.filter((part) => {
+            if (!isVariantPart(part.kind)) return false;
             const q = query.trim().toLowerCase();
             if (!q) return true;
             const hay = `${part.name} ${part.code} ${pack.name} ${part.neck ?? ""} ${part.widthMm} ${part.heightMm}`.toLowerCase();

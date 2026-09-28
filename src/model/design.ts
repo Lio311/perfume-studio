@@ -1,5 +1,6 @@
-import { finishFromColor, importedMeta } from "../import/registry.ts";
+import { finishFromColor, importedMeta, isVariantPart } from "../import/registry.ts";
 import { bottleById, boxById, capById, collarById, logoById, pumpById } from "./catalog.ts";
+import { isNeckId } from "./necks.ts";
 import type { Design, VariantPart } from "./types.ts";
 
 export function createDefaultDesign(): Design {
@@ -104,14 +105,15 @@ function paintImported(design: Design, kind: VariantPart, id: string): void {
     design.box.color = extra.color;
     design.box.finish = finish;
   }
-  if (extra.neck && kind !== "box" && kind !== "label") design.bottle.neck = extra.neck;
+  if (isNeckId(extra.neck) && kind !== "box" && kind !== "label") design.bottle.neck = extra.neck;
 }
 
-export function applyVariant(design: Design, kind: VariantPart, id: string): void {
+export function applyVariant(design: Design, kind: string, id: string): void {
+  if (!isVariantPart(kind)) return;
   if (kind === "bottle") {
     const spec = bottleById(id);
     design.bottle.variantId = spec.id;
-    design.bottle.neck = spec.neck;
+    if (isNeckId(spec.neck)) design.bottle.neck = spec.neck;
     design.bottle.heightMm = spec.heightMm;
     design.bottle.widthMm = spec.widthMm;
     design.bottle.depthMm = spec.depthMm;

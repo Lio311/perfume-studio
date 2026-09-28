@@ -183,9 +183,9 @@ export function SupplierImport() {
               const file = event.target.files?.[0];
               if (!file) return;
               void file.text().then((text) => {
-                const pack = parsePackFile(text);
-                if (pack) upsertSupplier(pack);
-                else setError(lang === "he" ? "הקובץ אינו חבילת ספק." : "That file is not a supplier pack.");
+                const result = parsePackFile(text);
+                if (result.ok) upsertSupplier(result.pack);
+                else setError(lang === "he" ? result.error.he : result.error.en);
               });
             }} />
           </label>

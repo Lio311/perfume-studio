@@ -1,5 +1,6 @@
 import DOMPurify from "dompurify";
-import type { SupplierPack } from "./registry.ts";
+import { validatePackText, type PackFileError } from "./packValidate.ts";
+import type { SupplierPack, SupplierPart } from "./registry.ts";
 
 const DB_NAME = "perfume-lab-suppliers";
 const STORE = "packs";
@@ -43,8 +44,12 @@ export async function deletePack(id: string): Promise<void> {
   });
 }
 
+export function serializePack(pack: SupplierPack): string {
+  return JSON.stringify(pack, null, 2);
+}
+
 export function downloadPack(pack: SupplierPack): void {
-  const blob = new Blob([JSON.stringify(pack, null, 2)], { type: "application/json" });
+  const blob = new Blob([serializePack(pack)], { type: "application/json" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
@@ -53,21 +58,34 @@ export function downloadPack(pack: SupplierPack): void {
   URL.revokeObjectURL(url);
 }
 
-export function parsePackFile(text: string): SupplierPack | null {
-  try {
-    const value = JSON.parse(text) as SupplierPack;
-    if (!value || typeof value.name !== "string" || !Array.isArray(value.parts)) return null;
-    return {
-      id: value.id || `pack-${Date.now().toString(36)}`,
-      name: DOMPurify.sanitize(value.name),
-      createdAt: value.createdAt || Date.now(),
-      parts: value.parts.filter((part) => part && typeof part.id === "string" && typeof part.kind === "string").map(part => ({
-        ...part,
-        name: DOMPurify.sanitize(part.name || ""),
-        code: DOMPurify.sanitize(part.code || ""),
-      })),
-    };
-  } catch {
-    return null;
+export type PackFileResult =
+  | { ok: true; pack: SupplierPack }
+  | { ok: false; error: PackFileError };
+
+export type { PackFileError };
+
+function sanitizePart(part: Record<string, unknown>): SupplierPart {
+  return {
+    ...part,
+    name: DOMPurify.sanitize(typeof part.name === "string" ? part.name : ""),
+    code: DOMPurify.sanitize(typeof part.code === "string" ? part.code : ""),
+  } as SupplierPart;
+}
+
+export function parsePackFile(text: string): PackFileResult {
+  const checked = validatePackText(text);
+  if (!checked.ok) return checked;
+  const name = DOMPurify.sanitize(checked.value.name);
+  if (!name.trim()) {
+    return { ok: false, error: { he: "הקובץ נדחה. חסר שם ספק.", en: "The pack was rejected. The supplier name is missing." } };
   }
+  const { id, createdAt, parts, rest } = checked.value;
+  const pack = {
+    ...rest,
+    id: typeof id === "string" && id.trim() ? id : `pack-${Date.now().toString(36)}`,
+    name,
+    createdAt: createdAt ?? Date.now(),
+    parts: parts.map(sanitizePart),
+  } as SupplierPack;
+  return { ok: true, pack };
 }

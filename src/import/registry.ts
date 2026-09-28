@@ -1,7 +1,14 @@
 import { clearLatheProfiles, setLatheProfile } from "./lathe.ts";
 import { setImportedCatalog } from "../model/catalog.ts";
+import { isNeckId } from "../model/necks.ts";
 import type { BottleSpec, BoxSpec, CapProfileName, CapSpec, CollarSpec, FinishId, LogoSpec, NeckId, PumpSpec, SectionKind, VariantPart } from "../model/types.ts";
 import type { DraftItem, ImportProfile } from "./parseCatalog.ts";
+
+const PART_KINDS = ["bottle", "cap", "label", "pump", "collar", "box"] as const;
+
+export function isVariantPart(value: unknown): value is VariantPart {
+  return typeof value === "string" && (PART_KINDS as readonly string[]).includes(value);
+}
 
 export interface SupplierPart {
   id: string;
@@ -26,6 +33,12 @@ export interface SupplierPack {
   name: string;
   createdAt: number;
   parts: SupplierPart[];
+  /** Absent on v1 packs. Kept on import and written back on export. */
+  version?: number;
+  /** How the pack was produced, such as "pdf", "photo", "scan", or "manual". */
+  source?: string;
+  /** Supplier contact block. Stored and exported; the lab does not read it yet. */
+  supplier?: Record<string, unknown>;
 }
 
 export interface ImportedMeta {
@@ -84,9 +97,17 @@ function capSection(profile: ImportProfile): SectionKind {
   return profile === "cube" ? "rect" : "circle";
 }
 
-export function syncRegistry(packs: SupplierPack[]): void {
+function readNeck(neck: unknown, ref: string, messages: string[]): NeckId | null {
+  if (neck == null) return null;
+  if (isNeckId(neck)) return neck;
+  messages.push(`החלק ${ref}: הצוואר «${String(neck)}» אינו נתמך ולכן לא הוחל. הצווארים הנתמכים הם FEA13, FEA15, FEA17, FEA18 ו־FEA20.`);
+  return null;
+}
+
+export function syncRegistry(packs: SupplierPack[]): string[] {
   meta.clear();
   clearLatheProfiles();
+  const messages: string[] = [];
   const bottles: BottleSpec[] = [];
   const caps: CapSpec[] = [];
   const labels: LogoSpec[] = [];
@@ -95,10 +116,17 @@ export function syncRegistry(packs: SupplierPack[]): void {
   const boxes: BoxSpec[] = [];
   for (const pack of packs) {
     for (const part of pack.parts) {
+      const kind: unknown = part.kind;
+      if (!isVariantPart(kind)) {
+        messages.push(`החלק ${part.code || part.id}: הסוג «${String(part.kind)}» אינו מוכר, ולכן החלק דולג ולא הפך לקופסה.`);
+        continue;
+      }
+      const neck = readNeck(part.neck, part.code || part.id, messages);
+      const listed = neck === part.neck ? part : { ...part, neck };
       meta.set(part.id, {
         color: part.color,
         thumb: part.thumb,
-        neck: part.neck,
+        neck,
         widthMm: part.widthMm,
         heightMm: part.heightMm,
         depthMm: part.depthMm,
@@ -107,8 +135,8 @@ export function syncRegistry(packs: SupplierPack[]): void {
       });
       if (part.lathe) setLatheProfile(part.id, { radii: part.lathe });
       const name = { he: part.name, en: part.name };
-      const shared = tags(part, pack);
-      if (part.kind === "bottle") {
+      const shared = tags(listed, pack);
+      if (kind === "bottle") {
         bottles.push({
           id: part.id,
           name,
@@ -118,7 +146,7 @@ export function syncRegistry(packs: SupplierPack[]): void {
           heightMm: part.heightMm,
           widthMm: part.widthMm,
           depthMm: part.depthMm,
-          neck: part.neck ?? "FEA15",
+          neck: neck ?? "FEA15",
           softness: part.profile === "rect-bottle" ? 0.35 : 0.8,
           faceted: false,
           tags: shared,
@@ -126,7 +154,7 @@ export function syncRegistry(packs: SupplierPack[]): void {
           model: { type: "procedural" },
           capacityMl: part.capacityMl ?? Math.max(5, Math.round(part.widthMm * part.depthMm * part.heightMm / 1000)),
         });
-      } else if (part.kind === "cap") {
+      } else if (kind === "cap") {
         caps.push({
           id: part.id,
           name,
@@ -141,7 +169,7 @@ export function syncRegistry(packs: SupplierPack[]): void {
           tags: shared,
           model: { type: "procedural" },
         });
-      } else if (part.kind === "label") {
+      } else if (kind === "label") {
         labels.push({
           id: part.id,
           name,
@@ -155,7 +183,7 @@ export function syncRegistry(packs: SupplierPack[]): void {
           widthMm: part.widthMm,
           heightMm: part.heightMm,
         });
-      } else if (part.kind === "pump") {
+      } else if (kind === "pump") {
         pumps.push({
           id: part.id,
           name,
@@ -166,7 +194,7 @@ export function syncRegistry(packs: SupplierPack[]): void {
           tags: shared,
           model: { type: "procedural" },
         });
-      } else if (part.kind === "collar") {
+      } else if (kind === "collar") {
         collars.push({
           id: part.id,
           name,
@@ -178,7 +206,7 @@ export function syncRegistry(packs: SupplierPack[]): void {
           tags: shared,
           model: { type: "procedural" },
         });
-      } else {
+      } else if (kind === "box") {
         boxes.push({
           id: part.id,
           name,
@@ -192,6 +220,7 @@ export function syncRegistry(packs: SupplierPack[]): void {
     }
   }
   setImportedCatalog({ bottles, caps, labels, pumps, collars, boxes });
+  return messages;
 }
 
 export function finishFromColor(hex: string, kind: VariantPart): FinishId {

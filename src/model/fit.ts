@@ -1,5 +1,5 @@
 import { bottleById, boxById, capById, collarById, logoById, pumpById } from "./catalog.ts";
-import { NECKS, neckRadius } from "./necks.ts";
+import { neckStandard } from "./necks.ts";
 import { bottleRadii } from "./sample.ts";
 import type { Design, PartKey } from "./types.ts";
 
@@ -43,8 +43,8 @@ export function computeFit(design: Design, exploded = false): Fit {
   const pump = pumpById(design.pump.variantId);
   const logo = logoById(design.label.variantId);
   const box = boxById(design.box.variantId);
-  const neck = NECKS[design.bottle.neck];
-  const neckR = neckRadius(design.bottle.neck);
+  const neck = neckStandard(design.bottle.neck);
+  const neckR = neck.diameterMm / 2;
   const bottleH = design.bottle.heightMm;
   const bottleW = design.bottle.widthMm;
   const bottleD = design.bottle.depthMm;

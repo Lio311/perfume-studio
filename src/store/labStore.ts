@@ -14,7 +14,7 @@ import type { Lang } from "../model/types.ts";
 import type { LabCommand } from "../parser/interpret.ts";
 import { parseVoiceParam, readVoiceParam, type VoiceVariant } from "../audio/wake.ts";
 import { deletePack, savePack } from "../import/supplierDb.ts";
-import { syncRegistry, type SupplierPack } from "../import/registry.ts";
+import { isVariantPart, syncRegistry, type SupplierPack } from "../import/registry.ts";
 import { apiClient } from "../api/client.ts";
 
 export type LabMode = "assemble" | "explode" | "dimensions" | "compare";
@@ -201,10 +201,9 @@ function applyOne(design: Design, command: LabCommand, ui: { explode: number; mo
       }
       break;
     case "variant":
+      if (!isVariantPart(command.part)) break;
       applyVariant(design, command.part, command.id);
-      if (command.part !== 'box' || design.box) {
-         (design[command.part] as any).visible = true;
-      }
+      design[command.part].visible = true;
       break;
     case "cycle": {
       const current =

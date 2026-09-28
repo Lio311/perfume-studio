@@ -1,7 +1,7 @@
 import { bottleById, boxById, capById, collarById, logoById, pumpById } from "../model/catalog.ts";
 import { computeFit, type Fit } from "../model/fit.ts";
 import { effectiveGlassOpacity, FINISHES } from "../model/materials.ts";
-import { NECKS } from "../model/necks.ts";
+import { isNeckId, NECKS } from "../model/necks.ts";
 import type { Design, Lang } from "../model/types.ts";
 import { requestShot } from "../scene/capture.ts";
 
@@ -25,7 +25,7 @@ export function buildSpecHtml(design: Design, lang: Lang, render: string): strin
   const logo = logoById(design.label.variantId);
   const box = boxById(design.box.variantId);
   const neckId = design.bottle.neck;
-  const neck = Object.hasOwn(NECKS, neckId) ? NECKS[neckId] : null;
+  const neck = isNeckId(neckId) ? NECKS[neckId] : null;
   const fit = neck ? computeFit(design, false) : null;
   const supplier = bottle.supplier;
   const title = lang === "he" ? "מפרט לספק" : "Supplier specification";
