@@ -167,14 +167,41 @@ export function glassDrawTransmission(finish: FinishId, opacity?: number): numbe
   return Math.min(1, Math.max(0, (base * (1 - s)) / (1 - s0)));
 }
 
-/** Drawn opacity at which frosted and tinted glass becomes a solid occluder. */
-export const OPAQUE_GLASS_OPACITY = 0.99;
+/**
+ * 0 at and below the per-finish default slider, 1 at slider 1.
+ * Used so tint darkening never moves the untouched default.
+ */
+function opaqueMix(glass: GlassFinish, opacity?: number): number {
+  const s0 = DEFAULT_GLASS_OPACITY[glass];
+  const s = opacity ?? s0;
+  if (s <= s0 || s0 >= 1) return 0;
+  return Math.min(1, (s - s0) / (1 - s0));
+}
+
+/** At slider 1 the tint albedo is this fraction of the design colour. Hue stays put. */
+const TINTED_OPAQUE_SCALE = 0.4;
+
+/**
+ * Tinted glass colour for a slider position. At and below the default this is the
+ * design colour. Toward opaque it gets darker by the same ratio on every channel,
+ * so the grey-green hue does not shift to a lighter mint. Attenuation stays the
+ * design colour. Frosted is not passed through here.
+ */
+export function tintedGlassColor(color: string, opacity?: number): string {
+  const factor = 1 - (1 - TINTED_OPAQUE_SCALE) * opaqueMix("tinted", opacity);
+  const hex = color.trim().replace("#", "");
+  const value = Number.parseInt(hex, 16);
+  const channels = [(value >> 16) & 255, (value >> 8) & 255, value & 255].map((channel) =>
+    Math.round(channel * factor).toString(16).padStart(2, "0"),
+  );
+  return `#${channels.join("")}`;
+}
 
 /**
  * Params the frosted or tinted physical material draws.
- * Below {@link OPAQUE_GLASS_OPACITY} depth write stays off so the front wall
- * does not hide the liquid. At slider 1 the glass is non-transparent and writes
- * depth, so the liquid and the floor behind it are hidden.
+ * The glass stays transparent and does not write depth at every slider position,
+ * including 1, so opacity can reach 1 without a mode switch and without hiding
+ * the liquid in the depth buffer. The floor grid is kept behind the bottle instead.
  */
 export function effectiveGlassDraw(finish: FinishId, opacity?: number): {
   opacity: number;
@@ -183,6 +210,7 @@ export function effectiveGlassDraw(finish: FinishId, opacity?: number): {
   thickness: number;
   clearcoat: number;
   attenuationDistance: number;
+  envMapIntensity: number;
   transparent: boolean;
   depthWrite: boolean;
 } | null {
@@ -191,7 +219,7 @@ export function effectiveGlassDraw(finish: FinishId, opacity?: number): {
   const alpha = renderedGlassOpacity(finish, opacity);
   if (alpha === null) return null;
   const surface = GLASS_SURFACE[glass];
-  const solid = alpha >= OPAQUE_GLASS_OPACITY;
+  const mix = opaqueMix(glass, opacity);
   return {
     opacity: alpha,
     transmission: glassDrawTransmission(finish, opacity),
@@ -199,7 +227,8 @@ export function effectiveGlassDraw(finish: FinishId, opacity?: number): {
     thickness: surface.thickness,
     clearcoat: surface.clearcoat,
     attenuationDistance: 36,
-    transparent: !solid,
-    depthWrite: solid,
+    envMapIntensity: glass === "tinted" ? 1.7 * (1 - 0.7 * mix) : 1.7,
+    transparent: true,
+    depthWrite: false,
   };
 }

@@ -1,5 +1,3 @@
-import { OPAQUE_GLASS_OPACITY } from "../model/materials.ts";
-
 /** Ghosted parts settle at this opacity, or higher when the part itself is stronger. */
 export const GHOST_FADE = 0.1;
 
@@ -48,9 +46,10 @@ export interface BottleGlassMaterial {
 
 /**
  * One frame of the bottle-glass fade used by PartShell.
- * The first write snaps to the design value. A see-through wall leaves depth
- * write off so it does not hide the liquid. Once the glass is opaque it writes
- * depth, so the liquid and the floor grid behind it stay hidden.
+ * The first write snaps to the design value. Depth write stays off and the
+ * material stays transparent for the whole slider, including opacity 1, so the
+ * front wall never drops the liquid from the depth test. Opacity itself fades
+ * the picture out.
  * Returns false when this material is not the bottle-glass body.
  */
 export function writeBottleGlassFrame(
@@ -74,8 +73,7 @@ export function writeBottleGlassFrame(
   }
   const next = firstWrite ? resolved.target : dampOpacity(mat.opacity, resolved.target, 7, dt);
   if (Math.abs(mat.opacity - next) > 0.001) mat.opacity = next;
-  const solid = !ghost && next >= OPAQUE_GLASS_OPACITY;
-  mat.transparent = !solid;
-  mat.depthWrite = solid;
+  mat.transparent = true;
+  mat.depthWrite = false;
   return true;
 }

@@ -581,6 +581,8 @@ function Stage() {
       {showGrid && (
         <Grid
           args={[400, 400]}
+          renderOrder={-1}
+          material-depthWrite={false}
           position={[0, 0.15, 0]}
           cellSize={16}
           cellThickness={blueprint ? 1.15 : 0.9}
@@ -596,6 +598,8 @@ function Stage() {
       {blueprint && stage !== "together" && voice !== 2 && (
         <Grid
           args={[340, 220]}
+          renderOrder={-1}
+          material-depthWrite={false}
           position={[0, 100, stage === "box" ? -150 : -190]}
           rotation={[Math.PI / 2, 0, 0]}
           cellSize={16}

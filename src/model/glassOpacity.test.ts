@@ -6,6 +6,7 @@ import {
   glassDrawTransmission,
   mappedGlassOpacity,
   renderedGlassOpacity,
+  tintedGlassColor,
   usesFlatGlassAlpha,
 } from "./materials.ts";
 
@@ -59,6 +60,7 @@ describe("renderedGlassOpacity", () => {
       thickness: 2.8,
       clearcoat: 0.04,
       attenuationDistance: 36,
+      envMapIntensity: 1.7,
       transparent: true,
       depthWrite: false,
     });
@@ -69,6 +71,7 @@ describe("renderedGlassOpacity", () => {
       thickness: 4.2,
       clearcoat: 1,
       attenuationDistance: 36,
+      envMapIntensity: 1.7,
       transparent: true,
       depthWrite: false,
     });
@@ -78,26 +81,20 @@ describe("renderedGlassOpacity", () => {
     expect(effectiveGlassDraw("tinted", 0)!.transmission).toBeGreaterThan(0.55);
     expect(effectiveGlassDraw("frosted", 0)!.transmission).toBeLessThanOrEqual(1);
     expect(effectiveGlassDraw("tinted", 0)!.transmission).toBeLessThanOrEqual(1);
-    expect(effectiveGlassDraw("frosted", 1)).toEqual({
+    expect(effectiveGlassDraw("frosted", 1)).toMatchObject({
       opacity: 1,
       transmission: 0,
-      roughness: 0.34,
-      thickness: 2.8,
-      clearcoat: 0.04,
-      attenuationDistance: 36,
-      transparent: false,
-      depthWrite: true,
+      transparent: true,
+      depthWrite: false,
+      envMapIntensity: 1.7,
     });
-    expect(effectiveGlassDraw("tinted", 1)).toEqual({
+    expect(effectiveGlassDraw("tinted", 1)).toMatchObject({
       opacity: 1,
       transmission: 0,
-      roughness: 0.05,
-      thickness: 4.2,
-      clearcoat: 1,
-      attenuationDistance: 36,
-      transparent: false,
-      depthWrite: true,
+      transparent: true,
+      depthWrite: false,
     });
+    expect(effectiveGlassDraw("tinted", 1)!.envMapIntensity).toBeLessThan(1.7);
     expect(effectiveGlassDraw("clear")).toBeNull();
   });
 
@@ -113,5 +110,54 @@ describe("renderedGlassOpacity", () => {
       expect(untouched!.depthWrite).toBe(false);
       expect(parked!.transmission).toBeCloseTo(glassDrawTransmission(finish), 5);
     }
+  });
+
+  it("approaches opaque along the slider without a mode switch", () => {
+    for (const finish of ["frosted", "tinted"] as const) {
+      const samples = [0, 0.35, 0.7, 0.8, 0.95, 0.99, 1] as const;
+      let previous = -1;
+      for (const slider of samples) {
+        const draw = effectiveGlassDraw(finish, slider);
+        expect(draw).not.toBeNull();
+        expect(draw!.transparent).toBe(true);
+        expect(draw!.depthWrite).toBe(false);
+        expect(draw!.opacity).toBeGreaterThan(previous);
+        previous = draw!.opacity;
+      }
+      const near = effectiveGlassDraw(finish, 0.99)!;
+      const full = effectiveGlassDraw(finish, 1)!;
+      expect(full.opacity - near.opacity).toBeCloseTo(0.85 * 0.01, 5);
+      expect(full.transparent).toBe(near.transparent);
+      expect(full.depthWrite).toBe(near.depthWrite);
+    }
+    expect(effectiveGlassDraw("tinted", 0.8)!.opacity).toBeLessThan(0.9);
+  });
+
+  it("darkens tinted glass toward opaque without shifting its hue", () => {
+    const source = "#6e857c";
+    expect(tintedGlassColor(source)).toBe(source);
+    expect(tintedGlassColor(source, 0.2)).toBe(source);
+    expect(tintedGlassColor(source, 0)).toBe(source);
+    const mid = tintedGlassColor(source, 0.7);
+    const end = tintedGlassColor(source, 1);
+    const parse = (hex: string) => {
+      const value = Number.parseInt(hex.slice(1), 16);
+      return [(value >> 16) & 255, (value >> 8) & 255, value & 255];
+    };
+    const [sr, sg, sb] = parse(source);
+    const [mr, mg, mb] = parse(mid);
+    const [er, eg, eb] = parse(end);
+    expect(eg).toBeGreaterThan(eb);
+    expect(eb).toBeGreaterThan(er);
+    expect(mg).toBeGreaterThan(mb);
+    expect(mb).toBeGreaterThan(mr);
+    expect(er).toBeLessThan(mr);
+    expect(mr).toBeLessThan(sr);
+    expect(eg).toBeLessThan(mg);
+    expect(mg).toBeLessThan(sg);
+    expect(eb).toBeLessThan(mb);
+    expect(mb).toBeLessThan(sb);
+    expect(er / sr).toBeCloseTo(eg / sg, 1);
+    expect(eg / sg).toBeCloseTo(eb / sb, 1);
   });
 });

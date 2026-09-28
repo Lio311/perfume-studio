@@ -1,7 +1,7 @@
 import { useMemo, useEffect } from "react";
 import * as THREE from "three";
 import type { FinishId } from "../model/types.ts";
-import { assignClearGlassFade, DEFAULT_GLASS_OPACITY, effectiveGlassDraw, isGlass, renderedGlassOpacity } from "../model/materials.ts";
+import { assignClearGlassFade, DEFAULT_GLASS_OPACITY, effectiveGlassDraw, isGlass, renderedGlassOpacity, tintedGlassColor } from "../model/materials.ts";
 import { leatherBump, woodMap } from "../geometry/textures.ts";
 import { useLab } from "../store/labStore.ts";
 
@@ -183,7 +183,7 @@ export function FinishMaterial({
 
   return (
     <meshPhysicalMaterial
-      color={color}
+      color={finish === "tinted" ? tintedGlassColor(color, opacity) : color}
       flatShading={flat}
       map={wood ?? paper?.map ?? undefined}
       bumpMap={leather ?? paper?.bump ?? undefined}
@@ -209,7 +209,7 @@ export function FinishMaterial({
       clearcoatRoughness={metal ? 0.12 : 0.04}
       attenuationColor={clear ? "#fff8ee" : color}
       attenuationDistance={draw ? draw.attenuationDistance : clear ? 160 : 36}
-      envMapIntensity={metal ? 1.65 : glassLike ? 1.7 : matte ? 0.35 : 0.7}
+      envMapIntensity={metal ? 1.65 : draw ? draw.envMapIntensity : matte ? 0.35 : 0.7}
       specularIntensity={glassLike || metal ? 1 : matte ? 0.4 : 0.3}
       transparent={draw ? draw.transparent : glassLike}
       opacity={materialOpacity}

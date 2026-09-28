@@ -57,15 +57,15 @@ describe("first-mount bottle glass", () => {
     expect(tinted.opacity).toBeGreaterThan(0.5);
   });
 
-  it("makes slider 1 a solid occluder", () => {
+  it("keeps slider 1 transparent and depth-write off so the liquid is not dropped", () => {
     for (const finish of ["frosted", "tinted"] as const) {
       const alpha = renderedGlassOpacity(finish, 1);
       expect(alpha).toBe(1);
-      const mat = glassMat({ transparent: true, depthWrite: false, opacity: 0.4 });
+      const mat = glassMat({ transparent: false, depthWrite: true, opacity: 0.4 });
       expect(writeBottleGlassFrame(mat, { fade: null, alpha }, false, 0.016)).toBe(true);
       expect(mat.opacity).toBe(1);
-      expect(mat.transparent).toBe(false);
-      expect(mat.depthWrite).toBe(true);
+      expect(mat.transparent).toBe(true);
+      expect(mat.depthWrite).toBe(false);
     }
   });
 });
