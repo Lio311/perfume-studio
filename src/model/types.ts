@@ -262,15 +262,48 @@ export interface CollarState {
   visible: boolean;
 }
 
+export type BoxClosure = "magnetic" | "lift-off" | "sleeve" | "drawer" | "book";
+
+export type BoxBoard = "rigid" | "carton";
+
+export type WrapFinish = "matte" | "gloss" | "soft-touch" | "velvet" | "paper-texture";
+
+export type OuterWrap = "none" | "cellophane" | "sleeve" | "tissue";
+
+export type InsertMaterial = "eva" | "pulp" | "card" | "velvet-foam";
+
+export type InsertOrientation = "standing" | "lying";
+
+export interface BoxWrap {
+  color: string;
+  finish: WrapFinish;
+}
+
+export interface BoxInsert {
+  material: InsertMaterial;
+  orientation: InsertOrientation;
+  clearanceMm: number;
+}
+
 export interface BoxState {
   variantId: string;
   finish: FinishId;
   color: string;
+  /** Outer size in millimetres. Ignored while `linked` derives the carton from the insert. */
   heightMm: number;
   widthMm: number;
   depthMm: number;
   linked: boolean;
   visible: boolean;
+  closure: BoxClosure;
+  /** Greyboard / carton caliper. */
+  boardMm: number;
+  material: BoxBoard;
+  wrap: BoxWrap;
+  ribbon: boolean;
+  pullTab: boolean;
+  outerWrap: OuterWrap;
+  insert: BoxInsert;
 }
 
 export interface LiquidState {

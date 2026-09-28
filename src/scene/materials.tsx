@@ -1,9 +1,11 @@
 import { useMemo, useEffect } from "react";
 import * as THREE from "three";
-import type { FinishId } from "../model/types.ts";
+import type { BoxBoard, FinishId, WrapFinish } from "../model/types.ts";
 import { effectiveGlassOpacity, glassTransmission, isGlass } from "../model/materials.ts";
 import { leatherBump, woodMap } from "../geometry/textures.ts";
+import { paperMaps, velvetMaps } from "../geometry/wrapTextures.ts";
 import { useLab } from "../store/labStore.ts";
+import { sectionPlanes } from "./sectionPlane.ts";
 
 const BLUE_VERT = `
   varying vec3 vNormal;
@@ -93,6 +95,8 @@ const CLEAR_FRAG = `
   varying vec3 vNormal;
   varying vec3 vWorld;
   uniform float uFade;
+  uniform float uOpacity;
+  uniform vec3 uTint;
   void main() {
     vec3 N = normalize(vNormal);
     vec3 V = normalize(cameraPosition - vWorld);
@@ -103,15 +107,25 @@ const CLEAR_FRAG = `
     vec3 env = mix(vec3(0.74, 0.77, 0.81), vec3(0.98, 0.985, 0.99), envH);
     vec3 L = normalize(vec3(0.22, 0.92, 0.34));
     float spec = pow(max(dot(reflect(-L, N), V), 0.0), 70.0);
-    vec3 color = mix(env * 0.42, vec3(0.97, 0.98, 0.99), fres);
+    float tintAmt = clamp(uOpacity * 1.15, 0.0, 1.0);
+    vec3 tint = mix(vec3(0.97, 0.98, 0.99), uTint, tintAmt);
+    vec3 color = mix(env * 0.55, tint, fres);
     color += vec3(1.0) * spec * 0.9;
-    float alpha = 0.02 + fres * 0.78 + spec * 0.42;
-    gl_FragColor = vec4(color, clamp(alpha, 0.0, 0.86) * uFade);
+    float cover = 0.15 + clamp(uOpacity, 0.0, 1.0) * 0.85;
+    float alpha = mix(0.02 + fres * 0.78 + spec * 0.42, cover, cover);
+    gl_FragColor = vec4(color, clamp(alpha, 0.0, 1.0) * uFade);
   }
 `;
 
-function ClearGlass({ opacity = 0.14 }: { opacity?: number }) {
-  const uniforms = useMemo(() => ({ uFade: { value: opacity / 0.14 } }), []);
+function ClearGlass({ opacity = 0.14, color = "#f4f0e8" }: { opacity?: number; color?: string }) {
+  const uniforms = useMemo(
+    () => ({ uFade: { value: 1 }, uOpacity: { value: opacity }, uTint: { value: new THREE.Color(color) } }),
+    [],
+  );
+  useEffect(() => {
+    uniforms.uOpacity.value = opacity;
+    uniforms.uTint.value.set(color);
+  }, [opacity, color, uniforms]);
   return (
     <shaderMaterial
       transparent
@@ -122,7 +136,6 @@ function ClearGlass({ opacity = 0.14 }: { opacity?: number }) {
       polygonOffsetFactor={-1}
       polygonOffsetUnits={-1}
       uniforms={uniforms}
-      uniforms-uFade-value={opacity / 0.14}
       vertexShader={CLEAR_VERT}
       fragmentShader={CLEAR_FRAG}
     />
@@ -135,12 +148,14 @@ export function FinishMaterial({
   opacity,
   flat = false,
   glass = false,
+  section = false,
 }: {
   finish: FinishId;
   color: string;
   opacity?: number;
   flat?: boolean;
   glass?: boolean;
+  section?: boolean;
 }) {
   const wood = useMemo(() => (finish === "wood" ? woodMap() : null), [finish]);
   const leather = useMemo(() => (finish === "leather" ? leatherBump() : null), [finish]);
@@ -158,20 +173,26 @@ export function FinishMaterial({
   }, [wood, leather, paper]);
   const blueprint = useLab((s) => s.blueprint);
   const theme = useLab((s) => s.theme);
+  const quality = useLab((s) => s.quality);
+  const cutaway = useLab((s) => s.cutaway);
   const glassLike = glass && isGlass(finish);
   const metal = finish === "gold" || finish === "silver" || finish === "rose";
   const matte = finish === "matteBlack";
   const clear = finish === "clear";
+  const clearHigh = clear && glass && quality === "high";
+  const planes = section && cutaway ? sectionPlanes : undefined;
   const fade = useMemo(() => ({ uFade: { value: 1 }, uColor: { value: new THREE.Color() } }), []);
   useEffect(() => {
     fade.uColor.value.set(theme === "dark" ? 0xf6e5c7 : 0x2c3e50);
   }, [theme, fade]);
   let materialOpacity = 1.0;
   let materialTransmission = 0;
+  let attenuate = clear ? "#fff8ee" : color;
+  let attenuateDistance = clear ? 160 : finish === "tinted" ? 36 : 36;
   if (glassLike) {
     if (opacity !== undefined) {
-      // Use pure alpha blending for the opacity slider to ensure the liquid is visible
-      // and the diffuse color becomes fully solid at 100%.
+      // Slider path from main: transmission stays 0 so alpha blending shows the liquid
+      // and 100% opacity is a solid colour. Physical roughness, clearcoat, and thickness sit on top.
       materialOpacity = 0.15 + opacity * 0.85;
       materialTransmission = 0;
     } else {
@@ -181,9 +202,9 @@ export function FinishMaterial({
   }
 
   if (blueprint) {
-    return <shaderMaterial transparent depthWrite toneMapped={false} uniforms={fade} vertexShader={BLUE_VERT} fragmentShader={BLUE_FRAG} />;
+    return <shaderMaterial transparent depthWrite toneMapped={false} uniforms={fade} vertexShader={BLUE_VERT} fragmentShader={BLUE_FRAG} clippingPlanes={planes} />;
   }
-  if (clear && glass) return <ClearGlass opacity={opacity !== undefined ? opacity : 0.14} />;
+  if (clear && glass && !clearHigh) return <ClearGlass opacity={opacity !== undefined ? opacity : 0.14} color={color} />;
 
   return (
     <meshPhysicalMaterial
@@ -208,18 +229,54 @@ export function FinishMaterial({
       sheenRoughness={0.62}
       sheenColor="#4a4f56"
       transmission={materialTransmission}
-      thickness={glassLike ? (finish === "tinted" ? 4.2 : 2.8) : 0}
+      thickness={glassLike ? (finish === "tinted" ? 4.2 : clearHigh ? 2.6 : 2.8) : 0}
       ior={clear ? 1.52 : 1.5}
       clearcoat={clear || finish === "tinted" ? 1 : metal ? 0.65 : 0.04}
       clearcoatRoughness={metal ? 0.12 : 0.04}
-      attenuationColor={clear ? "#fff8ee" : color}
-      attenuationDistance={clear ? 160 : finish === "tinted" ? 36 : 36}
+      attenuationColor={attenuate}
+      attenuationDistance={attenuateDistance}
       envMapIntensity={metal ? 1.65 : glassLike ? 1.7 : matte ? 0.35 : 0.7}
+      clippingPlanes={planes}
       specularIntensity={glassLike || metal ? 1 : matte ? 0.4 : 0.3}
       transparent={glassLike}
       opacity={materialOpacity}
       depthWrite={!glassLike}
       side={THREE.FrontSide}
+    />
+  );
+}
+
+export function WrapMaterial({
+  color,
+  finish,
+  board,
+  section = false,
+}: {
+  color: string;
+  finish: WrapFinish;
+  board: BoxBoard;
+  section?: boolean;
+}) {
+  const cutaway = useLab((s) => s.cutaway);
+  const paper = useMemo(() => (finish === "paper-texture" || finish === "matte" ? paperMaps() : null), [finish]);
+  const velvet = useMemo(() => (finish === "velvet" ? velvetMaps() : null), [finish]);
+  const planes = section && cutaway ? sectionPlanes : undefined;
+  const pile = finish === "velvet";
+  const gloss = finish === "gloss";
+  return (
+    <meshPhysicalMaterial
+      color={color}
+      map={pile ? velvet?.map : paper?.map}
+      roughnessMap={pile ? velvet?.rough : paper?.rough}
+      metalness={0}
+      roughness={gloss ? 0.16 : pile ? 0.82 : finish === "soft-touch" ? 0.68 : board === "carton" ? 0.9 : 0.84}
+      clearcoat={gloss ? 0.75 : finish === "soft-touch" ? 0.18 : 0}
+      clearcoatRoughness={gloss ? 0.18 : 0.45}
+      sheen={pile ? 1 : finish === "soft-touch" ? 0.22 : 0}
+      sheenColor={color}
+      sheenRoughness={pile ? 0.38 : 0.6}
+      envMapIntensity={gloss ? 0.85 : pile ? 0.45 : 0.28}
+      clippingPlanes={planes}
     />
   );
 }

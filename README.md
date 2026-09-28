@@ -33,10 +33,13 @@ This project is built using modern web and 3D technologies:
 
 - **Single Engine, Multiple Themes**: A single configurator engine drives everything. URL parameters (`?voice=1`) dynamically change the lighting, environment, and post-processing without duplicating the underlying catalog or fit rules.
 - **Rendering Quality**: 
-  - Clear glass utilizes a custom shader with a fresnel shell and cool reflection to perform well on software renderers.
+  - Clear glass on the high tier is a physical material (transmission, thickness, IOR). The opacity slider and the tint color drive transmission and attenuation. The fallback tier keeps the fresnel shader, and that shader uses the same opacity and tint, with environment-style reflections, so software renderers stay readable.
+  - High tier adds highlight-only bloom, soft contact shadows, and a higher pixel ratio. Fallback skips bloom, uses a baked contact shadow, and caps the pixel ratio. Phones start on fallback. Studio light is a procedural softbox environment plus a rim light, with no remote HDRI.
+  - Polished metal is high metalness and low roughness. Paper and velvet wraps use resized ambientCG maps (Paper001 and Fabric027, CC0 — see `src/assets/textures/LICENSE.txt`). Velvet adds a sheen on top of the cloth map.
   - Decals (logos) are rendered as opaque meshes conforming to the bottle's curved surface to prevent z-fighting or mirrored text.
 - **Part Isolation**: Double-clicking a part isolates it on a turntable with dimension leader lines. The camera easing uses a cubic in-out curve but instantly yields to user gestures (scroll/pinch).
 - **Packaging Workflow**: The bottle and the carton are handled as separate entities. You can view the box alone, hinge the lid open, or render them side-by-side in a combined shot.
+- **Unboxing model**: Closure, board, wrap, ribbon, pull tab, outer wrap, and insert live on the existing box part (`src/model/boxFields.ts`). That file is the validator for those fields, kept apart from the supplier-pack price check so the two can rebase independently. Closures are `magnetic` (lid plus front flap), `lift-off` (lid over an inner shoulder), `sleeve`, `drawer` (tray plus sleeve), and `book` (side spine). Each hinge is its own group so the animation pass can drive it. The insert cavity follows the selected bottle, cap, and pump. Outer millimetres follow the insert plus the walls unless a supplier part fixes them. Older saves and share links that omit the fields become `lift-off` with a standing insert. The hands control in the unboxing panel stays disabled (“בקרוב” / “Coming soon”).
 
 ## 🚀 Roadmap
 

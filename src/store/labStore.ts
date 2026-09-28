@@ -2,7 +2,7 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { createLabStorage, LAB_PERSIST_VERSION, mergePersistedLab, migratePersisted, partializeLabState } from "./hydrate.ts";
 import { produce } from "immer";
-import { applyLook, applyVariant, createDefaultDesign, estimateMl, LOOKS } from "../model/design.ts";
+import { applyLook, applyVariant, createDefaultDesign, estimateMl, hydrateDesign, LOOKS } from "../model/design.ts";
 import { BOTTLES } from "../model/bottles.ts";
 import { CAPS } from "../model/caps.ts";
 import { LOGOS } from "../model/logos.ts";
@@ -23,6 +23,14 @@ import { apiClient } from "../api/client.ts";
 export type LabMode = "assemble" | "explode" | "dimensions" | "compare";
 export type ViewPreset = "home" | "front" | "three" | "top" | "side";
 export type StageMode = "bottle" | "box" | "together";
+export type RenderTier = "high" | "fallback";
+
+function initialQuality(): RenderTier {
+  if (typeof window === "undefined" || typeof window.matchMedia !== "function") return "high";
+  const coarse = window.matchMedia("(pointer: coarse)").matches;
+  const narrow = window.innerWidth < 840;
+  return coarse || narrow ? "fallback" : "high";
+}
 
 export interface ChatMessage {
   id: string;
@@ -94,6 +102,9 @@ interface LabState {
   palette: boolean;
   help: boolean;
   boxOpen: boolean;
+  cutaway: boolean;
+  quality: RenderTier;
+  tierLock: boolean;
   select: (part: PartKey | null) => void;
   hover: (part: PartKey | null, x?: number, y?: number) => void;
   patch: (part: PartKey, partial: Record<string, unknown>) => void;
@@ -144,6 +155,8 @@ interface LabState {
   setPalette: (on: boolean) => void;
   setHelp: (on: boolean) => void;
   setBoxOpen: (open: boolean) => void;
+  setCutaway: (on: boolean) => void;
+  setQuality: (quality: RenderTier, lock?: boolean) => void;
   setUnits: (unit: "mm" | "cm" | "in") => void;
   applyVoiceParam: (value: string | null) => void;
 }
@@ -395,6 +408,9 @@ export const useLab = create<LabState>()(
       palette: false,
       help: false,
       boxOpen: false,
+      cutaway: false,
+      quality: initialQuality(),
+      tierLock: false,
       theme: "dark",
       lang: "he",
       libraryOpen: false,
@@ -418,6 +434,9 @@ export const useLab = create<LabState>()(
             Object.assign(target, partial);
             if (part === "box" && ("heightMm" in partial || "widthMm" in partial || "depthMm" in partial) && !("linked" in partial)) {
               draft.box.linked = false;
+            }
+            if (part === "box" && typeof partial.color === "string" && !("wrap" in partial) && draft.box.wrap) {
+              draft.box.wrap.color = partial.color;
             }
           });
           return state.gesturing ? { design: next } : { design: next, past: [...state.past, state.design].slice(-30), future: [] };
@@ -549,7 +568,7 @@ export const useLab = create<LabState>()(
         try {
           const loaded = await apiClient.get<SavedDesign>(`/designs/${id}`);
           if (loaded && loaded.design) {
-            set((state) => ({ design: loaded.design, modal: null, focusToken: state.focusToken + 1 }));
+            set((state) => ({ design: hydrateDesign(loaded.design), modal: null, focusToken: state.focusToken + 1 }));
             return;
           }
         } catch (e) {
@@ -557,7 +576,7 @@ export const useLab = create<LabState>()(
         }
         const found = get().saved.find((item) => item.id === id);
         if (!found) return;
-        set((state) => ({ design: found.design, modal: null, focusToken: state.focusToken + 1 }));
+        set((state) => ({ design: hydrateDesign(found.design), modal: null, focusToken: state.focusToken + 1 }));
       },
       deleteDesign: async (id) => {
         set((state) => ({ saved: state.saved.filter((item) => item.id !== id), compareIds: state.compareIds.filter((item) => item !== id) }));
@@ -624,6 +643,8 @@ export const useLab = create<LabState>()(
       setPalette: (palette) => set({ palette, help: false }),
       setHelp: (help) => set({ help, palette: false }),
       setBoxOpen: (boxOpen) => set({ boxOpen }),
+      setCutaway: (cutaway) => set({ cutaway }),
+      setQuality: (quality, lock = false) => set((state) => ({ quality, tierLock: lock || state.tierLock })),
       applyVoiceParam: (value: string | null) => set({ voice: parseVoiceParam(value) }),
     }),
     {

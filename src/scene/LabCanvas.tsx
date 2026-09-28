@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { Grid, OrbitControls } from "@react-three/drei";
+import { AdaptiveDpr, Grid, OrbitControls, PerformanceMonitor } from "@react-three/drei";
 import * as THREE from "three";
 import { themes } from "../theme/themes.ts";
 import { useLab } from "../store/labStore.ts";
@@ -87,6 +87,8 @@ function frameSignature(width: number, height: number): string {
     design.box.heightMm,
     design.box.depthMm,
     design.box.variantId,
+    design.box.closure ?? "-",
+    design.box.insert?.orientation ?? "-",
     design.liquid.visible ? 1 : 0,
     state.boxOpen ? 1 : 0,
   ].join("|");
@@ -197,7 +199,7 @@ function CameraRig() {
     const dir = camera.position.clone().sub(look.current);
     if (dir.length() < 10) dir.copy(direction.current);
     if (dir.y < 0.08) dir.y = 0.16;
-    if (part === "box" && state.boxOpen) dir.y = Math.max(dir.y, 0.72);
+    if (part === "box" && state.boxOpen) dir.y = Math.max(dir.y, 0.92);
     dir.normalize();
     direction.current.copy(dir);
     const pose = poseFor(dir, bounds, FOCUS_FILL);
@@ -211,7 +213,7 @@ function CameraRig() {
     const state = useLab.getState();
     const framed = dir.clone();
     if (state.stage !== "bottle" && state.boxOpen && !state.solo) {
-      framed.y = Math.max(framed.y, 0.72);
+      framed.set(0.62, 0.92, 1);
       framed.normalize();
     }
     const present = state.present;
@@ -618,8 +620,39 @@ function Stage() {
       <Assembly />
       <CameraRig />
       <VoiceGrade />
+      <Tier />
+      <FpsProbe />
     </>
   );
+}
+
+function Tier() {
+  const setQuality = useLab((s) => s.setQuality);
+  const quality = useLab((s) => s.quality);
+  return (
+    <PerformanceMonitor
+      bounds={() => [28, 58]}
+      flipflops={2}
+      onDecline={() => {
+        if (!useLab.getState().tierLock) setQuality("fallback");
+      }}
+    >
+      {quality === "high" ? <AdaptiveDpr pixelated /> : null}
+    </PerformanceMonitor>
+  );
+}
+
+function FpsProbe() {
+  const samples = useRef<number[]>([]);
+  useFrame(() => {
+    const now = performance.now();
+    const bucket = samples.current;
+    bucket.push(now);
+    const cut = now - 1000;
+    while (bucket.length > 0 && bucket[0]! < cut) bucket.shift();
+    (window as Window & { __labFps?: number }).__labFps = bucket.length;
+  });
+  return null;
 }
 
 export function LabCanvas() {

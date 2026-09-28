@@ -18,6 +18,8 @@ import { CompareBoard } from "./ui/CompareBoard.tsx";
 import { Modals } from "./ui/Modals.tsx";
 import { stopSpeaking } from "./audio/speech.ts";
 import { acknowledgePackLoads, adoptLoadedSuppliers, loadPacks } from "./import/supplierDb.ts";
+import { isClosure } from "./model/boxFields.ts";
+import { hydrateDesign } from "./model/design.ts";
 
 function applyBackAction(action: Exclude<BackAction, "leave">, trap: Trap) {
   const lab = useLab.getState();
@@ -71,10 +73,12 @@ export default function App() {
   const helpOpen = useLab((s) => s.help);
   const setHelp = useLab((s) => s.setHelp);
   const design = useLab((s) => s.design);
+  const stage = useLab((s) => s.stage);
+  const boxOpen = useLab((s) => s.boxOpen);
+  const quality = useLab((s) => s.quality);
   const modal = useLab((s) => s.modal);
   const setModal = useLab((s) => s.setModal);
   const toast = useLab((s) => s.toast);
-  const stage = useLab((s) => s.stage);
   const explode = useLab((s) => s.explode);
   const wizardStep = useLab((s) => s.design.step);
   const shareUrl = useLab((s) => s.shareUrl);
@@ -99,7 +103,11 @@ export default function App() {
 
   useEffect(() => {
     applyTheme(theme);
-  }, []);
+  }, [theme]);
+
+  useEffect(() => {
+    document.documentElement.dataset.pose = `${stage}:${boxOpen ? "open" : "closed"}:${design.box.closure}:${quality}`;
+  }, [stage, boxOpen, design.box.closure, quality]);
 
   useEffect(() => {
     let cancelled = false;
@@ -181,6 +189,43 @@ export default function App() {
   useEffect(() => {
     syncHistoryTrap(history, backSurface(useLab.getState()), trapRef.current);
   }, [aimed, explode, helpOpen, modal, mode, palette, present, shareUrl, solo, stage, wizardStep]);
+
+  useEffect(() => {
+    const applyShot = () => {
+      const params = new URLSearchParams(location.search);
+      const closure = params.get("closure");
+      if (!isClosure(closure)) return;
+      const design = hydrateDesign(useLab.getState().design);
+      design.box.closure = closure;
+      design.box.visible = true;
+      design.bottle.visible = true;
+      design.cap.visible = true;
+      design.pump.visible = true;
+      design.collar.visible = true;
+      design.liquid.visible = true;
+      design.label.visible = true;
+      if (params.get("orient") === "lying") design.box.insert.orientation = "lying";
+      const tier = params.get("tier") === "fallback" ? "fallback" as const : "high" as const;
+      useLab.setState({
+        design,
+        stage: "box",
+        boxOpen: params.get("pose") === "open",
+        cutaway: params.get("cut") === "1",
+        quality: tier,
+        tierLock: true,
+        theme: "light",
+        libraryOpen: false,
+        sideOpen: false,
+        explode: 0,
+        blueprint: false,
+        selected: "box",
+      });
+    };
+    if (useLab.persist.hasHydrated()) applyShot();
+    return useLab.persist.onFinishHydration(() => {
+      applyShot();
+    });
+  }, []);
 
   useEffect(() => {
     const fade = () => setHintOn(false);
