@@ -203,9 +203,9 @@ function settleWithin(work: Promise<void>, ms: number): Promise<void> {
 }
 
 /**
- * Wait for hydration, then for supplier packs (at most `timeoutMs`).
- * If the design object changed during the pack wait, the link is not applied.
- * A timed-out wait still applies, and reports part ids the catalog could not keep.
+ * Wait up to `timeoutMs` for hydration, then up to `timeoutMs` again for supplier packs.
+ * The worst case is about four seconds. If the design object changed during the pack wait,
+ * the link is not applied. A timed-out wait still applies, and reports part ids the catalog could not keep.
  */
 export function applyIncomingShareHash(options: {
   read: () => { hash: string; pathname: string; search: string; state: unknown };
