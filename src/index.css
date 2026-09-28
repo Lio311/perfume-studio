@@ -375,7 +375,8 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 .budget-rate input { max-width: 96px; }
 .budget-brief, .budget-savings { width: min(560px, 100%); display: grid; gap: 10px; }
 .brief-field { position: relative; }
-.brief-field input { padding-inline-end: 48px; }
+[dir="ltr"] .brief-field input { padding-right: 48px; }
+[dir="rtl"] .brief-field input { padding-left: 48px; }
 .brief-unit { position: absolute; inset-inline-end: 10px; bottom: 8px; color: var(--muted); font-family: var(--num); }
 .brief-presets { display: flex; flex-wrap: wrap; gap: 6px; }
 .brief-presets button { border: 1px solid var(--line); background: transparent; color: var(--muted); border-radius: 999px; padding: 6px 10px; }
