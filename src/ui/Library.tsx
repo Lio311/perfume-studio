@@ -156,18 +156,14 @@ export function Library() {
               <button
                 key={color}
                 type="button"
-                className={design.bottle.color.toLowerCase() === color ? "swatch is-on" : "swatch"}
+                className={design.liquid.color.toLowerCase() === color ? "swatch is-on" : "swatch"}
                 style={{ background: color }}
-                onClick={() => {
-                  const currentFinish = useLab.getState().design.bottle.finish;
-                  patch("bottle", { color, finish: currentFinish === "clear" ? "tinted" : currentFinish });
-                }}
+                onClick={() => patch("liquid", { color })}
               />
             ))}
             <label className="picker">
-              <input type="color" value={typeof design.bottle.color === "string" ? design.bottle.color : "#000000"} onChange={(event) => {
-                const currentFinish = useLab.getState().design.bottle.finish;
-                patch("bottle", { color: event.target.value, finish: currentFinish === "clear" ? "tinted" : currentFinish });
+              <input type="color" value={typeof design.liquid.color === "string" ? design.liquid.color : "#000000"} onChange={(event) => {
+                patch("liquid", { color: event.target.value });
               }} />
             </label>
           </div>
@@ -232,22 +228,38 @@ export function Library() {
         </div>
       )}
       {isWizard && (
-        <button
-          type="button"
-          className="upload-btn"
-          style={{ background: "var(--accent-color, #23252a)", color: "var(--text-color, #e4e6eb)", border: "1px solid var(--border-color, #333)", marginTop: "8px", fontWeight: "bold" }}
-          onClick={() => {
-            const nextStep = wizardStep + 1;
-            applyCommands([{ type: "wizard_step", step: nextStep }]);
-            if (nextStep < WIZARD_ORDER.length) {
-              setTab(WIZARD_ORDER[nextStep]);
-            } else {
-              useLab.getState().setLibraryOpen(false);
-            }
-          }}
-        >
-          {wizardStep === WIZARD_ORDER.length - 1 ? (lang === "he" ? "סיום" : "Finish") : (lang === "he" ? "לשלב הבא" : "Next Step")}
-        </button>
+        <div style={{ display: "flex", gap: "8px", marginTop: "8px" }}>
+          {wizardStep > 0 && (
+            <button
+              type="button"
+              className="upload-btn"
+              style={{ flex: 1, border: "1px solid var(--border-color, #333)", fontWeight: "bold" }}
+              onClick={() => {
+                const prevStep = wizardStep - 1;
+                applyCommands([{ type: "wizard_step", step: prevStep }]);
+                setTab(WIZARD_ORDER[prevStep]);
+              }}
+            >
+              {lang === "he" ? "הקודם" : "Back"}
+            </button>
+          )}
+          <button
+            type="button"
+            className="upload-btn"
+            style={{ flex: 1, background: "var(--accent-color, #23252a)", color: "var(--text-color, #e4e6eb)", border: "1px solid var(--border-color, #333)", fontWeight: "bold", margin: 0 }}
+            onClick={() => {
+              const nextStep = wizardStep + 1;
+              applyCommands([{ type: "wizard_step", step: nextStep }]);
+              if (nextStep < WIZARD_ORDER.length) {
+                setTab(WIZARD_ORDER[nextStep]);
+              } else {
+                useLab.getState().setLibraryOpen(false);
+              }
+            }}
+          >
+            {wizardStep === WIZARD_ORDER.length - 1 ? (lang === "he" ? "סיום" : "Finish") : (lang === "he" ? "לשלב הבא" : "Next")}
+          </button>
+        </div>
       )}
       <div className="upload-group" style={{ marginTop: "auto", display: "flex", flexDirection: "column", gap: "12px" }}>
         <button type="button" className="upload-btn" data-photo3d onClick={() => setModal("photo")}>
