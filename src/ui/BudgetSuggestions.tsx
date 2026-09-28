@@ -5,9 +5,33 @@ import { markSwap } from "../scene/focusClick.ts";
 import { useLab } from "../store/labStore.ts";
 import { useBudgetModel } from "./useBudget.ts";
 
-function deltaLine(delta: { width: number; height: number; depth: number; rss: number }, lang: Lang, width: string, height: string, depth: string): string {
+function DeltaLine({
+  delta,
+  lang,
+  width,
+  height,
+  depth,
+  label,
+}: {
+  delta: { width: number; height: number; depth: number; rss: number };
+  lang: Lang;
+  width: string;
+  height: string;
+  depth: string;
+  label: string;
+}) {
   const unit = lang === "he" ? "מ״מ" : "mm";
-  return `${delta.rss} ${unit} · ${width} ${formatSigned(delta.width)} · ${height} ${formatSigned(delta.height)} · ${depth} ${formatSigned(delta.depth)}`;
+  return (
+    <span className="delta-line">
+      {label} <bdi dir="ltr">{delta.rss} {unit}</bdi>
+      {" · "}
+      {width} <bdi dir="ltr">{formatSigned(delta.width)}</bdi>
+      {" · "}
+      {height} <bdi dir="ltr">{formatSigned(delta.height)}</bdi>
+      {" · "}
+      {depth} <bdi dir="ltr">{formatSigned(delta.depth)}</bdi>
+    </span>
+  );
 }
 
 export function Alternatives() {
@@ -28,8 +52,8 @@ export function Alternatives() {
             <div>
               <strong>{lang === "he" ? row.part.nameHe : row.part.nameEn}</strong>
               <span>{row.part.supplierName || (lang === "he" ? "קטלוג המעבדה" : "Lab catalog")}</span>
-              <bdi dir="ltr">{formatMoney(row.priceIls, "ILS", lang)} · {t.similarity} {Math.round(row.score * 100)}%</bdi>
-              <bdi dir="ltr">{t.dimDelta} {deltaLine(row.delta, lang, t.width, t.height, t.depth)}</bdi>
+              <span><bdi dir="ltr">{formatMoney(row.priceIls, "ILS", lang)}</bdi> · {t.similarity} <bdi dir="ltr">{Math.round(row.score * 100)}%</bdi></span>
+              <DeltaLine delta={row.delta} lang={lang} width={t.width} height={t.height} depth={t.depth} label={t.dimDelta} />
             </div>
             <button
               type="button"
@@ -69,9 +93,9 @@ export function SavingsPanel({ open, onClose }: { open: boolean; onClose: () => 
                 <span className="eyebrow">{partLabel[lang][row.from.kind]}</span>
                 <strong>{lang === "he" ? row.from.nameHe : row.from.nameEn} → {lang === "he" ? row.to.nameHe : row.to.nameEn}</strong>
                 <span>{row.to.supplierName || (lang === "he" ? "קטלוג המעבדה" : "Lab catalog")}</span>
-                <bdi dir="ltr">{t.dimDelta} {deltaLine(row.delta, lang, t.width, t.height, t.depth)}</bdi>
-                <bdi dir="ltr">{t.priceDelta} {formatMoney(row.currentPriceIls, "ILS", lang)} → {formatMoney(row.priceIls, "ILS", lang)}</bdi>
-                <bdi className="saving" dir="ltr">{t.savingAmount} {formatMoney(row.savingIls, "ILS", lang)}</bdi>
+                <DeltaLine delta={row.delta} lang={lang} width={t.width} height={t.height} depth={t.depth} label={t.dimDelta} />
+                <span>{t.priceDelta} <bdi dir="ltr">{formatMoney(row.currentPriceIls, "ILS", lang)} → {formatMoney(row.priceIls, "ILS", lang)}</bdi></span>
+                <span className="saving">{t.savingAmount} <bdi dir="ltr">{formatMoney(row.savingIls, "ILS", lang)}</bdi></span>
               </div>
               <button
                 type="button"

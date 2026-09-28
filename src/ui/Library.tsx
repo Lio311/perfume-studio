@@ -162,7 +162,7 @@ export function Library() {
       )}
       {tab === "bottle" && brief.confirmed && (
         <div className="volume-row">
-          <p className="hint">{bottleMatch?.relaxed ? t.volumeRelaxed : t.volumeFilter} · <bdi dir="ltr">{brief.volumeMl} {t.capacityShort}</bdi></p>
+          <p className="hint">{bottleMatch?.relaxed ? t.volumeRelaxed : t.volumeFilter} · <bdi dir="ltr">{brief.volumeMl}</bdi> {t.capacityShort}</p>
           <button type="button" className={allBottles ? "is-on" : ""} onClick={() => setAllBottles((value) => !value)}>
             {allBottles ? t.volumeOnly : t.showAllBottles}
           </button>

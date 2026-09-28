@@ -76,16 +76,20 @@ export function useBudgetModel(): BudgetModel {
         });
       }
     }
+    const priceIls = (id: string): number | null => {
+      const fromLine = lines.find((line) => line.id === id);
+      if (fromLine) return fromLine.price.ils;
+      for (const kind of BUDGET_KINDS) {
+        if (catalog(kind).some((row) => row.id === id)) return priceFor(kind, id)?.ils ?? null;
+      }
+      return null;
+    };
     const savings = rankAssemblySavings({
       currents: lines.map((line) => line.facts),
       catalog,
       finishOf: (part) => design[part.kind].finish,
       referenceNeck: design.bottle.neck,
-      priceIls: (id) => {
-        const kind = lines.find((line) => line.id === id)?.kind ?? catalogKind(id, cache);
-        if (!kind) return null;
-        return priceFor(kind, id)?.ils ?? null;
-      },
+      priceIls,
       volumeMl: brief.volumeMl,
     });
     return {
@@ -100,11 +104,4 @@ export function useBudgetModel(): BudgetModel {
     };
     // suppliers refreshes imported prices and facts after a pack sync.
   }, [brief.ceilingIls, brief.volumeMl, design, overrides, rates, selected, suppliers]);
-}
-
-function catalogKind(id: string, cache: Map<VariantPart, PartFacts[]>): VariantPart | null {
-  for (const [kind, rows] of cache) {
-    if (rows.some((row) => row.id === id)) return kind;
-  }
-  return null;
 }

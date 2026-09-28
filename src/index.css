@@ -265,7 +265,8 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 .suggest-list { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
 .suggest-card { display: flex; justify-content: space-between; gap: 8px; align-items: center; padding: 8px; border-radius: 10px; background: var(--thumb); }
 .suggest-card div { display: flex; flex-direction: column; gap: 2px; min-width: 0; font-size: 12px; }
-.suggest-card span, .suggest-card bdi { color: var(--muted); }
+.suggest-card span, .suggest-card bdi, .delta-line { color: var(--muted); }
+.delta-line bdi, .suggest-card .saving bdi { color: inherit; }
 .suggest-card strong { color: var(--text); }
 .suggest-card .saving { color: var(--good); }
 .suggest-card button, .budget-meter-actions button, .modal-actions .is-primary {

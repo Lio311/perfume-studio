@@ -156,7 +156,9 @@ export function formatMoney(value: number, currency: string, lang: "he" | "en"):
 
 export function formatSigned(value: number, digits = 1): string {
   const rounded = Math.round(value * 10 ** digits) / 10 ** digits;
-  const body = Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(digits);
+  const abs = Math.abs(rounded);
+  const body = Number.isInteger(abs) ? String(abs) : abs.toFixed(digits);
   if (rounded > 0) return `+${body}`;
-  return body;
+  if (rounded < 0) return `\u2212${body}`;
+  return "0";
 }
