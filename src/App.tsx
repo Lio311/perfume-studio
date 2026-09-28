@@ -17,7 +17,7 @@ import { requestShot } from "./scene/capture.ts";
 import { CompareBoard } from "./ui/CompareBoard.tsx";
 import { Modals } from "./ui/Modals.tsx";
 import { stopSpeaking } from "./audio/speech.ts";
-import { loadPacks } from "./import/supplierDb.ts";
+import { acknowledgePackLoads, adoptLoadedSuppliers, loadPacks } from "./import/supplierDb.ts";
 
 function applyBackAction(action: Exclude<BackAction, "leave">, trap: Trap) {
   const lab = useLab.getState();
@@ -103,9 +103,12 @@ export default function App() {
 
   useEffect(() => {
     let cancelled = false;
-    const ready = loadPacks().then((packs) => {
+    const ready = loadPacks().then((loaded) => {
       if (cancelled) return;
-      if (packs.length && useLab.getState().suppliers.length === 0) useLab.getState().setSuppliers(packs);
+      if (adoptLoadedSuppliers(loaded, useLab.getState().suppliers.length)) {
+        useLab.getState().setSuppliers(loaded.packs, loaded.warnings);
+        acknowledgePackLoads(loaded.unseenKeys);
+      }
     }).catch(() => undefined);
     const hydrated = new Promise<void>((resolve) => {
       if (useLab.persist.hasHydrated()) {
@@ -191,7 +194,7 @@ export default function App() {
 
   useEffect(() => {
     if (!toast) return undefined;
-    const timer = window.setTimeout(() => useLab.setState({ toast: "" }), 1600);
+    const timer = window.setTimeout(() => useLab.setState({ toast: "" }), toast.length > 80 ? 6000 : 1600);
     return () => window.clearTimeout(timer);
   }, [toast]);
 

@@ -1,7 +1,9 @@
-import { useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import DOMPurify from "dompurify";
 import { partLabel, tx } from "../i18n/copy.ts";
 import { cropPage } from "../import/crop.ts";
+import { capPackNotices } from "../import/notices.ts";
+import { duplicateClashIssue, duplicateClashes, issuesForDraft, KIND_DEFAULT_MM, MAX_PACK_BYTES, type FieldIssue, type SlugClash } from "../import/packValidate.ts";
 import { parsePackFile } from "../import/supplierDb.ts";
 import { readPdfCatalog, type CatalogPageImage } from "../import/pdfCatalog.ts";
 import { regexCatalogSource, type DraftItem, type ImportProfile, type NormRect } from "../import/parseCatalog.ts";
@@ -24,15 +26,16 @@ function profileFor(kind: VariantPart): ImportProfile {
 }
 
 function blankRow(page = 1): Row {
+  const size = KIND_DEFAULT_MM.cap;
   return {
     id: `manual-${Date.now().toString(36)}`,
     page,
     kind: "cap",
     code: "",
     neck: "FEA15",
-    widthMm: 30,
-    heightMm: 32,
-    depthMm: 30,
+    widthMm: size.widthMm,
+    heightMm: size.heightMm,
+    depthMm: size.depthMm,
     capacityMl: null,
     profile: "cylinder",
     crop: { x: 0.12, y: 0.12, w: 0.7, h: 0.7 },
@@ -41,6 +44,24 @@ function blankRow(page = 1): Row {
     thumb: "",
     color: "#c4a15a",
   };
+}
+
+function draftProblems(row: Row, clash?: SlugClash): FieldIssue[] {
+  return [
+    ...issuesForDraft({
+      id: row.id,
+      kind: row.kind,
+      code: row.code,
+      neck: row.neck,
+      widthMm: Number(row.widthMm),
+      heightMm: Number(row.heightMm),
+      depthMm: Number(row.depthMm),
+      capacityMl: row.capacityMl,
+      profile: row.profile,
+      page: row.page,
+    }),
+    ...(clash ? [duplicateClashIssue(clash)] : []),
+  ];
 }
 
 export function SupplierImport() {
@@ -54,11 +75,13 @@ export function SupplierImport() {
   const [active, setActive] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [warnings, setWarnings] = useState<string[]>([]);
   const drag = useRef<NormRect | null>(null);
 
   async function ingest(file: File) {
     setBusy(true);
     setError("");
+    setWarnings([]);
     try {
       const nextPages = await readPdfCatalog(await file.arrayBuffer());
       const drafts = regexCatalogSource.extract(nextPages.map((page) => ({ page: page.page, text: page.text })));
@@ -81,7 +104,17 @@ export function SupplierImport() {
     setRows((current) => current.map((row) => {
       if (row.id !== id) return row;
       const next = { ...row, ...partial };
-      if (partial.kind) next.profile = profileFor(partial.kind);
+      if (partial.kind && partial.kind !== row.kind) {
+        next.profile = profileFor(partial.kind);
+        const previous = KIND_DEFAULT_MM[row.kind];
+        const untouched = row.widthMm === previous.widthMm && row.heightMm === previous.heightMm && row.depthMm === previous.depthMm;
+        if (untouched) {
+          const size = KIND_DEFAULT_MM[partial.kind];
+          next.widthMm = size.widthMm;
+          next.heightMm = size.heightMm;
+          next.depthMm = size.depthMm;
+        }
+      }
       return next;
     }));
   }
@@ -128,35 +161,32 @@ export function SupplierImport() {
     reader.readAsDataURL(file);
   }
 
+  const clashes = useMemo(() => duplicateClashes(rows), [rows]);
+
   function commit() {
+    if (rows.some((row) => draftProblems(row, clashes.get(row.id)).length > 0)) return;
     const rawName = name.trim() || (lang === "he" ? "ספק" : "Supplier");
     const supplier = DOMPurify.sanitize(rawName);
     const id = `sup-${Date.now().toString(36)}`;
-    const parts = rows.map((row, index) => {
-      const safeCode = DOMPurify.sanitize(row.code || `${row.kind}-${index + 1}`);
-      const safeName = `${safeCode} · ${supplier}`;
-      return {
-        ...partFromDraft({ ...row, code: safeCode }, { id, name: supplier }, index),
-        color: row.color || "#c4a15a",
-        thumb: row.thumb,
-        neck: row.neck,
-        widthMm: Number(row.widthMm) || 30,
-        heightMm: Number(row.heightMm) || 30,
-        depthMm: Number(row.depthMm) || Number(row.widthMm) || 30,
-        capacityMl: row.capacityMl,
-        profile: row.profile,
-        kind: row.kind,
-        code: safeCode,
-        name: safeName,
-      };
-    });
+    const parts = rows.map((row, index) => ({
+      ...partFromDraft(row, { id, name: supplier }, index),
+      color: row.color || "#c4a15a",
+      thumb: row.thumb,
+      neck: row.neck,
+      widthMm: Number(row.widthMm) || 30,
+      heightMm: Number(row.heightMm) || 30,
+      depthMm: Number(row.depthMm) || Number(row.widthMm) || 30,
+      capacityMl: row.capacityMl,
+      profile: row.profile,
+      kind: row.kind,
+    }));
     upsertSupplier({ id, name: supplier, createdAt: Date.now(), parts });
   }
 
   const current = rows.find((row) => row.id === active) ?? null;
   const page = pages.find((item) => item.page === current?.page) ?? null;
   const blankPages = pages.filter((item) => item.text.trim().length < 4);
-  const ready = rows.some((row) => row.code.trim().length > 0);
+  const ready = rows.length > 0 && rows.every((row) => draftProblems(row, clashes.get(row.id)).length === 0);
 
   return (
     <div className="modal-back" onClick={() => setModal(null)}>
@@ -181,11 +211,23 @@ export function SupplierImport() {
             {t.importPack}
             <input type="file" accept="application/json,.json" hidden onChange={(event) => {
               const file = event.target.files?.[0];
+              event.currentTarget.value = "";
               if (!file) return;
+              if (file.size > MAX_PACK_BYTES) {
+                setWarnings([]);
+                setError(t.packTooBig);
+                return;
+              }
               void file.text().then((text) => {
-                const pack = parsePackFile(text);
-                if (pack) upsertSupplier(pack);
-                else setError(lang === "he" ? "הקובץ אינו חבילת ספק." : "That file is not a supplier pack.");
+                const result = parsePackFile(text);
+                if (result.ok) {
+                  upsertSupplier(result.pack, result.warnings);
+                  setError("");
+                  setWarnings(capPackNotices(result.warnings, lang));
+                } else {
+                  setWarnings([]);
+                  setError(lang === "he" ? result.error.he : result.error.en);
+                }
               });
             }} />
           </label>
@@ -197,6 +239,11 @@ export function SupplierImport() {
         </div>
         {busy && <p className="hint">{lang === "he" ? "קורא עמודים…" : "Reading pages…"}</p>}
         {error && <p className="hint">{error}</p>}
+        {warnings.length > 0 && (
+          <ul className="pack-warnings" role="status">
+            {warnings.map((line, index) => <li key={index}>{line}</li>)}
+          </ul>
+        )}
         {blankPages.map((item) => <p key={item.page} className="hint">{t.noText} · {t.pages} {item.page}</p>)}
         <div className="supplier-body">
           <div className="supplier-table">
@@ -217,27 +264,51 @@ export function SupplierImport() {
                 </tr>
               </thead>
               <tbody>
-                {rows.map((row) => (
+                {rows.map((row) => {
+                  const problems = draftProblems(row, clashes.get(row.id));
+                  const message = (field: string) => {
+                    const hit = problems.find((item) => item.field === field);
+                    return hit ? (lang === "he" ? hit.he : hit.en) : "";
+                  };
+                  return (
                   <tr key={row.id} className={row.id === active ? "is-on" : ""} onClick={() => setActive(row.id)}>
                     <td><img src={row.thumb} alt="" /> <bdi>{row.page}</bdi></td>
-                    <td><input value={row.code} onChange={(event) => patch(row.id, { code: event.target.value })} /></td>
                     <td>
-                      <select value={row.kind} onChange={(event) => patch(row.id, { kind: event.target.value as VariantPart })}>
+                      <input dir="ltr" aria-invalid={message("code") ? true : undefined} value={row.code} onChange={(event) => patch(row.id, { code: event.target.value })} />
+                      {message("code") && <span className="field-error" data-field-error="code">{message("code")}</span>}
+                    </td>
+                    <td>
+                      <select aria-invalid={message("kind") ? true : undefined} value={row.kind} onChange={(event) => patch(row.id, { kind: event.target.value as VariantPart })}>
                         {KINDS.map((kind) => <option key={kind} value={kind}>{partLabel[lang][kind]}</option>)}
                       </select>
+                      {message("kind") && <span className="field-error" data-field-error="kind">{message("kind")}</span>}
                     </td>
-                    <td><input type="number" value={row.widthMm} onChange={(event) => patch(row.id, { widthMm: Number(event.target.value) })} /></td>
-                    <td><input type="number" value={row.heightMm} onChange={(event) => patch(row.id, { heightMm: Number(event.target.value) })} /></td>
-                    <td><input type="number" value={row.depthMm} onChange={(event) => patch(row.id, { depthMm: Number(event.target.value) })} /></td>
                     <td>
-                      <select value={row.neck ?? ""} onChange={(event) => patch(row.id, { neck: (event.target.value || null) as NeckId | null })}>
+                      <input dir="ltr" aria-invalid={message("widthMm") ? true : undefined} type="number" value={row.widthMm} onChange={(event) => patch(row.id, { widthMm: Number(event.target.value) })} />
+                      {message("widthMm") && <span className="field-error" data-field-error="widthMm">{message("widthMm")}</span>}
+                    </td>
+                    <td>
+                      <input dir="ltr" aria-invalid={message("heightMm") ? true : undefined} type="number" value={row.heightMm} onChange={(event) => patch(row.id, { heightMm: Number(event.target.value) })} />
+                      {message("heightMm") && <span className="field-error" data-field-error="heightMm">{message("heightMm")}</span>}
+                    </td>
+                    <td>
+                      <input dir="ltr" aria-invalid={message("depthMm") ? true : undefined} type="number" value={row.depthMm} onChange={(event) => patch(row.id, { depthMm: Number(event.target.value) })} />
+                      {message("depthMm") && <span className="field-error" data-field-error="depthMm">{message("depthMm")}</span>}
+                    </td>
+                    <td>
+                      <select aria-invalid={message("neck") ? true : undefined} value={row.neck ?? ""} onChange={(event) => patch(row.id, { neck: (event.target.value || null) as NeckId | null })}>
                         {NECKS.map((neck) => <option key={neck || "none"} value={neck}>{neck || "—"}</option>)}
                       </select>
+                      {message("neck") && <span className="field-error" data-field-error="neck">{message("neck")}</span>}
                     </td>
-                    <td><input type="number" value={row.capacityMl ?? ""} onChange={(event) => patch(row.id, { capacityMl: event.target.value ? Number(event.target.value) : null })} /></td>
+                    <td>
+                      <input dir="ltr" aria-invalid={message("capacityMl") ? true : undefined} type="number" value={row.capacityMl ?? ""} onChange={(event) => patch(row.id, { capacityMl: event.target.value ? Number(event.target.value) : null })} />
+                      {message("capacityMl") && <span className="field-error" data-field-error="capacityMl">{message("capacityMl")}</span>}
+                    </td>
                     <td><button type="button" onClick={(event) => { event.stopPropagation(); setRows((currentRows) => currentRows.filter((item) => item.id !== row.id)); }}>{t.delete}</button></td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
