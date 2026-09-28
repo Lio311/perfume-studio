@@ -70,14 +70,21 @@ function hermite(y0: number, y1: number, m0: number, m1: number, h: number, u: n
   return (2 * u3 - 3 * u2 + 1) * y0 + (u3 - 2 * u2 + u) * h * m0 + (-2 * u3 + 3 * u2) * y1 + (u3 - u2) * h * m1;
 }
 
-export function sampleProfile(profile: Profile, t: number): number {
+/** Circle of `radius` centred at y = radius, so the sphere sits on the base. */
+function circleOnAxis(y: number, radius: number): number {
+  if (radius <= 0) return 0;
+  const inside = radius * radius - (y - radius) * (y - radius);
+  return Math.sqrt(Math.max(0, inside));
+}
+
+export function sampleProfile(profile: Profile, t: number, axis?: { y: number; radius: number }): number {
   const x = clamp(t, 0, 1);
   const first = profile[0];
   const last = profile[profile.length - 1];
   if (!first || !last) return 1;
-  // The sphere knots are a coarse stand-in. The Orb body is the circle of
-  // diameter equal to the width, resting on the base.
-  if (profile === bodyProfiles.sphere) return orbCircleFactor(x);
+  // Sphere knots are only a coarse guide. The body is the circle of radius
+  // width/2 or depth/2, at the y bottleRadii already clamped to its shoulder.
+  if (profile === bodyProfiles.sphere && axis) return circleOnAxis(axis.y, axis.radius) / (axis.radius || 1);
   if (x <= first[0]) return first[1];
   if (x >= last[0]) return last[1];
   const tangents = monotoneTangents(profile);
@@ -152,9 +159,21 @@ export function bottleRadii(
   const shoulderStart = Math.max(height * 0.35, straightStart - height * shoulder);
   if (y >= straightStart) return { rx: neckR, rz: neckR, morph: 1 };
   const bodyT = shoulderStart <= 0.001 ? 0 : clamp(y / shoulderStart, 0, 1);
-  const factor = sampleProfile(bodyProfiles[profile], Math.min(bodyT, y <= shoulderStart ? bodyT : 1));
-  const rxBody = halfW * factor;
-  const rzBody = halfD * factor;
+  const along = Math.min(bodyT, y <= shoulderStart ? bodyT : 1);
+  let rxBody: number;
+  let rzBody: number;
+  if (profile === "sphere") {
+    // Millimetres on the circle. shoulderStart already includes finishMm, so a
+    // longer neck (Orb 7.35 mm, shoulder 46.41) is not the classic 48.26 mm shoulder.
+    const circleY = Math.min(Math.max(y, 0), shoulderStart);
+    const shape = bodyProfiles.sphere;
+    rxBody = halfW * sampleProfile(shape, along, { y: circleY, radius: halfW });
+    rzBody = halfD * sampleProfile(shape, along, { y: circleY, radius: halfD });
+  } else {
+    const factor = sampleProfile(bodyProfiles[profile], along);
+    rxBody = halfW * factor;
+    rzBody = halfD * factor;
+  }
   if (y <= shoulderStart) {
     const heel = y < 2.2 ? 0.9 + 0.1 * (y / 2.2) : 1;
     return { rx: rxBody * heel, rz: rzBody * heel, morph: 0 };
@@ -189,22 +208,4 @@ export function bottleOutline(
     pts.push({ x: rx, y });
   }
   return pts;
-}
-
-/**
- * Radius factor of a sphere that sits on the base, diameter = width.
- * `t` is y / shoulderStart for Orb 50 (64 × 60 mm, shoulder 0.16, FEA15),
- * which is the span `bottleRadii` uses for that bottle.
- */
-function orbCircleFactor(t: number): number {
-  const height = 64;
-  const shoulder = 0.16;
-  const neckR = 7.5;
-  const radius = 30;
-  const straight = Math.min(5.5, neckR * 0.85);
-  const straightStart = height - straight;
-  const shoulderStart = Math.max(height * 0.35, straightStart - height * shoulder);
-  const y = t * shoulderStart;
-  const inside = radius * radius - (y - radius) * (y - radius);
-  return Math.sqrt(Math.max(0, inside)) / radius;
 }
