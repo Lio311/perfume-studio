@@ -432,7 +432,7 @@ export const useLab = create<LabState>()(
       setBlueprint: (blueprint) => set({ blueprint }),
       showFull: () => set((state) => ({ selected: null, aimed: false, solo: null, fullToken: state.fullToken + 1 })),
       isolate: (part) => set((state) => ({ solo: part, selected: part, aimed: true, sideOpen: true, focusToken: state.focusToken + 1 })),
-      exitSolo: () => set((state) => ({ solo: null, aimed: false, fullToken: state.fullToken + 1 })),
+      exitSolo: () => set((state) => ({ solo: null, selected: null, aimed: false, fullToken: state.fullToken + 1 })),
       setPresent: (present) => set((state) => ({ present, autoRotate: present ? true : state.autoRotate })),
       setPalette: (palette) => set({ palette, help: false }),
       setHelp: (help) => set({ help, palette: false }),

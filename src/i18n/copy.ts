@@ -20,7 +20,7 @@ const he = {
   exportSpec: "ייצוא מפרט לספק",
   hintDrag: "גרור לסיבוב 360°",
   hintWheel: "גלגלת לזום",
-  hintClick: "לחיצה ממקדת חלק · לחיצה כפולה חוזרת",
+  hintClick: "לחיצה ממקדת חלק · לחיצה נוספת חוזרת",
   fitOk: "תואם",
   preset360: "360°",
   addPart: "＋ הוסף רכיב מספק",
@@ -121,6 +121,7 @@ const he = {
   stageBox: "קופסה",
   stageTogether: "הצג יחד",
   fullView: "חזרה לתצוגה מלאה",
+  back: "← חזרה",
   blueprint: "רשת",
   boxForm: "מבנה",
   logoOnBox: "לוגו על הקופסה",
@@ -146,7 +147,7 @@ const he = {
   shortcuts: "קיצורים",
   kPalette: "⌘K חיפוש",
   kIsolate: "לחיצה כפולה מבודדת",
-  kFull: "Esc חוזר להרכבה",
+  kFull: "Esc או ← חזרה חוזרים",
   kPresent: "P מצב מצגת",
 };
 
@@ -170,7 +171,7 @@ const en: typeof he = {
   exportSpec: "Export supplier spec",
   hintDrag: "Drag to orbit 360°",
   hintWheel: "Scroll to zoom",
-  hintClick: "Click frames a part · double-click returns",
+  hintClick: "Click frames a part · click again returns",
   fitOk: "fits",
   preset360: "360°",
   addPart: "＋ Add a supplier part",
@@ -271,6 +272,7 @@ const en: typeof he = {
   stageBox: "Box",
   stageTogether: "Together",
   fullView: "Back to full view",
+  back: "← Back",
   blueprint: "Grid",
   boxForm: "Construction",
   logoOnBox: "Logo on the box",
@@ -296,7 +298,7 @@ const en: typeof he = {
   shortcuts: "Shortcuts",
   kPalette: "⌘K search",
   kIsolate: "Double-click isolates",
-  kFull: "Esc returns to the assembly",
+  kFull: "Esc or ← Back returns",
   kPresent: "P presentation",
 };
 

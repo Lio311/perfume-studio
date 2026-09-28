@@ -5,6 +5,7 @@ import { partLabel } from "../i18n/copy.ts";
 import { computeFit } from "../model/fit.ts";
 import type { Design, PartKey } from "../model/types.ts";
 import { useLab } from "../store/labStore.ts";
+import { clickPart } from "./focusClick.ts";
 import { Clock } from "./clock.ts";
 import { explodeLocal } from "./explodeCurve.ts";
 import { posedFrame, turntableHome } from "./Guides.tsx";
@@ -202,12 +203,10 @@ export function Callouts() {
       if (!tag) return;
       tag.className = `callout-tag ${entry.item.dim ? "dim-tag" : "explode-tag is-hit"}${entry.item.selected ? " is-sel" : ""}${entry.item.side > 0 ? " is-right" : ""}`;
       tag.dataset.part = entry.item.dim ? "" : entry.item.key;
-      if (!tag.onclick) {
-        tag.onclick = () => {
-          const key = tag.dataset.part;
-          if (key) useLab.getState().select(key as PartKey);
-        };
-      }
+      tag.onclick = () => {
+        const key = tag.dataset.part;
+        if (key) clickPart(key as PartKey, true);
+      };
       tag.style.left = `${entry.x}px`;
       tag.style.top = `${entry.y}px`;
       const name = entry.item.dim ? "" : `<b>${entry.item.title}</b>`;

@@ -53,9 +53,9 @@ export function Dock() {
           {t.isolate}
         </button>
       )}
-      {aimed && !solo && (
-        <button type="button" onClick={() => showFull()}>
-          {t.fullView}
+      {(aimed || solo) && (
+        <button type="button" data-back onClick={() => showFull()}>
+          {t.back}
         </button>
       )}
       <button type="button" className={present ? "is-on" : ""} onClick={() => setPresent(!present)} title={t.kPresent}>
@@ -82,11 +82,13 @@ export function Crumb() {
   const lang = useLab((s) => s.lang);
   const t = tx(lang);
   const solo = useLab((s) => s.solo);
-  const exitSolo = useLab((s) => s.exitSolo);
+  const showFull = useLab((s) => s.showFull);
   if (!solo) return null;
   return (
     <nav className="crumb" dir={lang === "he" ? "rtl" : "ltr"}>
-      <button type="button" onClick={() => exitSolo()}>{t.assemblyCrumb}</button>
+      <button type="button" onClick={() => showFull()}>{t.back}</button>
+      <span aria-hidden>›</span>
+      <button type="button" onClick={() => showFull()}>{t.assemblyCrumb}</button>
       <span aria-hidden>›</span>
       <b>{partLabel[lang][solo]}</b>
     </nav>

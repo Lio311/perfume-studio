@@ -9,6 +9,7 @@ import type { BoxForm, PartKey, PumpStyle } from "../model/types.ts";
 import { buildBottleGeometry, buildCapGeometry, curvedPlate } from "../geometry/sweep.ts";
 import { logoTexture } from "../geometry/logos.ts";
 import { useLab } from "../store/labStore.ts";
+import { clickPart, doubleClickPart, markPartPointer } from "./focusClick.ts";
 import { FinishMaterial } from "./materials.tsx";
 import { Callouts } from "./Callouts.tsx";
 import { explodeLocal } from "./explodeCurve.ts";
@@ -102,13 +103,13 @@ function PartShell({
     (line.material as THREE.LineBasicMaterial).opacity = Math.min(0.55, local);
   });
 
-  const select = useLab((s) => s.select);
   const hover = useLab((s) => s.hover);
   const down = useRef({ x: 0, y: 0 });
 
   return (
     <group
       ref={ref}
+      userData={{ part }}
       onPointerOver={(event) => {
         event.stopPropagation();
         hover(part, event.clientX, event.clientY);
@@ -123,18 +124,17 @@ function PartShell({
       }}
       onPointerDown={(event) => {
         event.stopPropagation();
+        markPartPointer();
         down.current = { x: event.clientX, y: event.clientY };
       }}
       onClick={(event) => {
         event.stopPropagation();
         if (Math.hypot(event.clientX - down.current.x, event.clientY - down.current.y) > 6) return;
-        select(part);
+        clickPart(part);
       }}
       onDoubleClick={(event) => {
         event.stopPropagation();
-        const lab = useLab.getState();
-        if (lab.solo === part) lab.exitSolo();
-        else lab.isolate(part);
+        doubleClickPart(part);
       }}
     >
       <primitive object={line} />

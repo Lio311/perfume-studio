@@ -88,6 +88,11 @@ export function Library() {
               className={design.liquid.color.toLowerCase() === color ? "swatch is-on" : "swatch"}
               style={{ background: color }}
               onClick={() => {
+                const lab = useLab.getState();
+                if (lab.aimed && lab.selected === "liquid" && design.liquid.color.toLowerCase() === color) {
+                  lab.showFull();
+                  return;
+                }
                 patch("liquid", { color, visible: true });
                 select("liquid");
               }}
@@ -116,7 +121,14 @@ export function Library() {
               key={item.id}
               type="button"
               className={item.id === activeId ? "thumb is-on" : "thumb"}
-              onClick={() => applyCommands([{ type: "variant", part: tab, id: item.id }, { type: "select", part: tab }])}
+              onClick={() => {
+                const lab = useLab.getState();
+                if (lab.aimed && !lab.solo && lab.selected === tab && item.id === activeId) {
+                  lab.showFull();
+                  return;
+                }
+                applyCommands([{ type: "variant", part: tab, id: item.id }, { type: "select", part: tab }]);
+              }}
             >
               <img src={thumbFor(tab, item.id, design.label.text)} alt="" />
               <span>{lang === "he" ? item.he : item.en}</span>

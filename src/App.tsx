@@ -29,7 +29,8 @@ export default function App() {
   const resetView = useLab((s) => s.resetView);
   const showFull = useLab((s) => s.showFull);
   const solo = useLab((s) => s.solo);
-  const exitSolo = useLab((s) => s.exitSolo);
+  const aimed = useLab((s) => s.aimed);
+  const selected = useLab((s) => s.selected);
   const present = useLab((s) => s.present);
   const setPresent = useLab((s) => s.setPresent);
   const palette = useLab((s) => s.palette);
@@ -76,10 +77,6 @@ export default function App() {
           setModal(null);
           return;
         }
-        if (!typing && solo) {
-          exitSolo();
-          return;
-        }
         if (!typing) showFull();
         return;
       }
@@ -110,7 +107,7 @@ export default function App() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [cycle, exitSolo, helpOpen, lang, modal, mode, palette, present, redo, resetView, setHelp, setModal, setMode, setPalette, setPresent, showFull, solo, undo]);
+  }, [cycle, helpOpen, lang, modal, mode, palette, present, redo, resetView, setHelp, setModal, setMode, setPalette, setPresent, showFull, undo]);
 
   return (
     <div className={present ? "app is-present" : "app"} data-voice={voice}>
@@ -132,6 +129,11 @@ export default function App() {
             {t.hintClick}
           </p>
           <Crumb />
+          {(solo || (aimed && selected)) && (
+            <button type="button" className="back-btn" data-back onClick={() => showFull()}>
+              {t.back}
+            </button>
+          )}
           {present && (
             <div className="present-bar" dir={lang === "he" ? "rtl" : "ltr"}>
               <strong>{design.label.text}</strong>

@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Grid, TrackballControls } from "@react-three/drei";
 import * as THREE from "three";
@@ -8,6 +8,7 @@ import { takeShot } from "./capture.ts";
 import type { PartKey } from "../model/types.ts";
 import type { ViewPreset } from "../store/labStore.ts";
 import { Assembly } from "./Assembly.tsx";
+import { clearPartPointer, consumePartPointer, releaseFocus } from "./focusClick.ts";
 import { assemblyBounds, fitPose, partBounds, readStageFrame } from "./framing.ts";
 import { Exposure, PixelRatio, StageFloor, StudioEnv, StudioLights } from "./studio.tsx";
 import { CinematicFloor, EnergyRings, MinimalRing, ParticleField, VoiceGrade } from "./voiceScenery.tsx";
@@ -275,6 +276,37 @@ function CameraRig() {
   );
 }
 
+function StageBlank() {
+  const gl = useThree((s) => s.gl);
+  useEffect(() => {
+    const el = gl.domElement;
+    let x = 0;
+    let y = 0;
+    let armed = false;
+    const down = (event: PointerEvent) => {
+      if (event.button !== 0) return;
+      clearPartPointer();
+      armed = true;
+      x = event.clientX;
+      y = event.clientY;
+    };
+    const up = (event: PointerEvent) => {
+      if (!armed || event.button !== 0) return;
+      armed = false;
+      const moved = Math.hypot(event.clientX - x, event.clientY - y) > 6;
+      if (consumePartPointer() || moved) return;
+      releaseFocus();
+    };
+    el.addEventListener("pointerdown", down, true);
+    el.addEventListener("pointerup", up);
+    return () => {
+      el.removeEventListener("pointerdown", down, true);
+      el.removeEventListener("pointerup", up);
+    };
+  }, [gl]);
+  return null;
+}
+
 function Stage() {
   const theme = useLab((s) => themes[s.theme]);
   const voice = useLab((s) => s.voice);
@@ -345,6 +377,7 @@ function Stage() {
           </mesh>
         ))}
       <Assembly />
+      <StageBlank />
       <CameraRig />
       <VoiceGrade />
     </>
