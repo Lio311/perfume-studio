@@ -158,7 +158,7 @@ function seeds(): SavedDesign[] {
   applyVariant(noir, "box", "box-magnetic");
   applyLook(noir, LOOKS[2]);
   return [
-    { id: "seed-atelier", name: "OUD NOIR", design: atelier, thumb: "", createdAt: 1 },
+    { id: "seed-atelier", name: "ATELIER NOIR", design: atelier, thumb: "", createdAt: 1 },
     { id: "seed-blush", name: "פלקון · סומק", design: blush, thumb: "", createdAt: 2 },
     { id: "seed-noir", name: "יהלום · נואר", design: noir, thumb: "", createdAt: 3 },
   ];

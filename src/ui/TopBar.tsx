@@ -44,7 +44,7 @@ export function TopBar() {
 
   function fileName() {
     const day = new Date().toISOString().slice(0, 10);
-    const brand = (design.label.text || "OUD").replace(/[^\w\u0590-\u05FF-]+/g, "");
+    const brand = (design.label.text || "BRAND").replace(/[^\w\u0590-\u05FF-]+/g, "");
     const bottle = spec.name.en.replace(/\s+/g, "");
     return `${brand}_${bottle}_${day}.png`;
   }

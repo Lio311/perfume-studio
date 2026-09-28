@@ -210,7 +210,7 @@ export default function App() {
                   const link = document.createElement("a");
                   link.href = url;
                   const day = new Date().toISOString().slice(0, 10);
-                  link.download = `${design.label.text || "OUD"}_${day}.png`;
+                  link.download = `${design.label.text || "BRAND"}_${day}.png`;
                   link.click();
                 });
               }}>{t.export}</button>
