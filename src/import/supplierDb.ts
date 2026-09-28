@@ -29,6 +29,14 @@ export function reviveStoredPack(raw: unknown): { pack: SupplierPack | null; war
   return { pack: materialize(checked.value), warnings: checked.warnings };
 }
 
+/** True when an empty lab should take the result of `loadPacks()`. */
+export function adoptLoadedSuppliers(
+  loaded: { packs: readonly unknown[]; warnings: readonly unknown[] },
+  suppliersAlreadyLoaded: number,
+): boolean {
+  return suppliersAlreadyLoaded === 0 && (loaded.packs.length > 0 || loaded.warnings.length > 0);
+}
+
 export async function loadPacks(): Promise<{ packs: SupplierPack[]; warnings: PackNotice[] }> {
   const db = await openDb();
   const rows = await new Promise<unknown[]>((resolve, reject) => {

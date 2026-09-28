@@ -16,7 +16,7 @@ import { requestShot } from "./scene/capture.ts";
 import { CompareBoard } from "./ui/CompareBoard.tsx";
 import { Modals } from "./ui/Modals.tsx";
 import { stopSpeaking } from "./audio/speech.ts";
-import { loadPacks } from "./import/supplierDb.ts";
+import { adoptLoadedSuppliers, loadPacks } from "./import/supplierDb.ts";
 
 function applyBackAction(action: Exclude<BackAction, "leave">) {
   const lab = useLab.getState();
@@ -91,10 +91,11 @@ export default function App() {
 
   useEffect(() => {
     let cancelled = false;
-    const ready = loadPacks().then(({ packs, warnings }) => {
+    const ready = loadPacks().then((loaded) => {
       if (cancelled) return;
-      const state = useLab.getState();
-      if (state.suppliers.length === 0 && (packs.length > 0 || warnings.length > 0)) state.setSuppliers(packs, warnings);
+      if (adoptLoadedSuppliers(loaded, useLab.getState().suppliers.length)) {
+        useLab.getState().setSuppliers(loaded.packs, loaded.warnings);
+      }
     }).catch(() => undefined);
     const hydrated = new Promise<void>((resolve) => {
       if (useLab.persist.hasHydrated()) {

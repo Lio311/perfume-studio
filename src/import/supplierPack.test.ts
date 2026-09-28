@@ -10,7 +10,7 @@ import invalidText from "./fixtures/c-invalid-pack.json?raw";
 import { capPackNotices, formatPackNotice, type PackNotice } from "./notices.ts";
 import { MAX_PACK_BYTES } from "./packValidate.ts";
 import { importedMeta, isVariantPart, syncRegistry, type SupplierPart } from "./registry.ts";
-import { parsePackFile, reviveStoredPack, serializePack } from "./supplierDb.ts";
+import { adoptLoadedSuppliers, parsePackFile, reviveStoredPack, serializePack } from "./supplierDb.ts";
 import { sanitizeSupplierPrice } from "../model/price.ts";
 import { applyVariant, createDefaultDesign } from "../model/design.ts";
 import { mergeShareDesign } from "../model/share.ts";
@@ -315,8 +315,25 @@ describe("parsePackFile", () => {
     const duplicate = sanitizeSupplierPrice({ value: 1, currency: "USD", tiers: [{ minQty: 5, value: 1 }, { minQty: 5, value: 0.9 }] });
     expect(duplicate.price?.tiers).toEqual([{ minQty: 5, value: 1 }]);
     expect(duplicate.issues.map((item) => item.code)).toEqual(["tier_not_ascending"]);
-    expect(sanitizeSupplierPrice({ value: 1, currency: "USD", quotedAt: "2026-02-31" }).price).toBeUndefined();
+    const dated = sanitizeSupplierPrice({ value: 1, currency: "USD", quotedAt: "2026-02-31" });
+    expect(dated.price).toEqual({ value: 1, currency: "USD" });
+    expect(dated.issues.map((item) => item.code)).toEqual(["price_quoted_at"]);
     expect(sanitizeSupplierPrice({ value: 1, currency: "USD", extra: true }).price).toEqual({ value: 1, currency: "USD" });
+  });
+});
+
+describe("loaded supplier packs", () => {
+  it("adopts { packs, warnings } only when the lab has no suppliers yet", () => {
+    const warning = { type: "droppedPack" as const };
+    expect(adoptLoadedSuppliers({ packs: [], warnings: [warning] }, 0)).toBe(true);
+    expect(adoptLoadedSuppliers({ packs: [{ id: "sup" }], warnings: [] }, 0)).toBe(true);
+    expect(adoptLoadedSuppliers({ packs: [], warnings: [] }, 0)).toBe(false);
+    expect(adoptLoadedSuppliers({ packs: [{ id: "sup" }], warnings: [warning] }, 1)).toBe(false);
+
+    const parsed = parsePackFile(minimalText);
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    expect(adoptLoadedSuppliers({ packs: [parsed.pack], warnings: parsed.warnings }, 0)).toBe(true);
   });
 });
 

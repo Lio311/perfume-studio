@@ -4,6 +4,7 @@ import { capPackNotices, formatPackNotice } from "../import/notices.ts";
 import { downloadPack } from "../import/supplierDb.ts";
 import { isVariantPart } from "../import/registry.ts";
 import { entryMatches, listFor } from "../model/catalog.ts";
+import { formatSupplierAmount } from "../model/price.ts";
 import { markSwap } from "../scene/focusClick.ts";
 import { effectiveGlassOpacity, LIQUID_PALETTE } from "../model/materials.ts";
 import type { VariantPart } from "../model/types.ts";
@@ -231,7 +232,7 @@ export function Library() {
                 {part.thumb && <img src={part.thumb} alt="" />}
                 <div>
                   <strong>{part.name}</strong>
-                  <span>{pack.name}{part.lathe ? "" : ` · ${t.tempShape}`} · {part.price ? `${part.price.value} ${part.price.currency}` : t.noPrice}</span>
+                  <span>{pack.name}{part.lathe ? "" : ` · ${t.tempShape}`} · {part.price ? <bdi dir="ltr">{formatSupplierAmount(part.price.value, part.price.currency, lang)}</bdi> : t.noPrice}</span>
                 </div>
                 <button type="button" onClick={() => {
                   applyCommands([{ type: "variant", part: kind, id: part.id }]);

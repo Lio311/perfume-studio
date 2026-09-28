@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { tx } from "../i18n/copy.ts";
-import { sanitizeSupplierPrice, type PriceIssue } from "./price.ts";
+import { formatSupplierAmount, sanitizeSupplierPrice, type PriceIssue } from "./price.ts";
 
 const clean = {
   value: 0.48,
@@ -214,7 +214,7 @@ describe("sanitizeSupplierPrice", () => {
     expect(result.issues[0]).toMatchObject({ path: "tiers[0].minQty", code: "tier_min_qty", severity: "warning" });
   });
 
-  it("keeps a tier that costs more than the previous price and warns", () => {
+  it("flags a first tier priced above the base, and keeps it", () => {
     const result = sanitizeSupplierPrice({
       value: 1,
       currency: "USD",
@@ -226,6 +226,14 @@ describe("sanitizeSupplierPrice", () => {
       code: "tier_value_rose",
       severity: "warning",
     });
+
+    const cheaper = sanitizeSupplierPrice({
+      value: 2,
+      currency: "USD",
+      tiers: [{ minQty: 5, value: 1.2 }],
+    });
+    expect(cheaper.issues).toEqual([]);
+    expect(cheaper.price?.tiers).toEqual([{ minQty: 5, value: 1.2 }]);
   });
 
   it("stores an ISO currency, including shekel spellings and lowercase codes", () => {
@@ -234,8 +242,12 @@ describe("sanitizeSupplierPrice", () => {
       issues: [],
     });
     expect(sanitizeSupplierPrice({ value: 2, currency: "₪" }).price?.currency).toBe("ILS");
-    expect(sanitizeSupplierPrice({ value: 2, currency: "nis" }).price?.currency).toBe("ILS");
-    expect(sanitizeSupplierPrice({ value: 1, currency: "US" }).price).toBeUndefined();
+    expect(sanitizeSupplierPrice({ value: 2, currency: " NIS " }).price?.currency).toBe("ILS");
+    expect(sanitizeSupplierPrice({ value: 2, currency: "ש\"ח" }).price?.currency).toBe("ILS");
+    expect(sanitizeSupplierPrice({ value: 2, currency: "ש״ח" }).price?.currency).toBe("ILS");
+    const badCurrency = sanitizeSupplierPrice({ value: 1, currency: "US" });
+    expect(badCurrency.price).toBeUndefined();
+    expect(badCurrency.issues[0]).toMatchObject({ path: "currency", code: "price_currency", severity: "warning" });
     expect(sanitizeSupplierPrice({ value: 1, currency: "USD", note: "cash" })).toEqual({
       price: { value: 1, currency: "USD" },
       issues: [],
@@ -258,16 +270,53 @@ describe("sanitizeSupplierPrice", () => {
     expect(sanitizeSupplierPrice({ value: Number.POSITIVE_INFINITY, currency: "USD" }).price).toBeUndefined();
     expect(codes(sanitizeSupplierPrice({ value: 1, currency: "USD", moq: 0 }).issues)).toEqual(["price_moq"]);
     expect(codes(sanitizeSupplierPrice({ value: 1, currency: "USD", moq: 1.5 }).issues)).toEqual(["price_moq"]);
-    expect(codes(sanitizeSupplierPrice({ value: 1, currency: "USD", quotedAt: "06-10-2026" }).issues)).toEqual(["price_quoted_at"]);
-    expect(codes(sanitizeSupplierPrice({ value: 1, currency: "USD", quotedAt: "2026-02-31" }).issues)).toEqual(["price_quoted_at"]);
+    expect(sanitizeSupplierPrice([]).issues[0]).toMatchObject({ path: "", code: "price_invalid", severity: "warning" });
+    expect(sanitizeSupplierPrice(null).price).toBeUndefined();
+    expect(sanitizeSupplierPrice(undefined).price).toBeUndefined();
+  });
+
+  it("drops only an invalid quotedAt and keeps the base price", () => {
+    const result = sanitizeSupplierPrice({
+      value: 1.25,
+      currency: "USD",
+      moq: 1,
+      tiers: [{ minQty: 10, value: 1 }],
+      quotedAt: "2026-02-31",
+    });
+    expect(result.price).toEqual({
+      value: 1.25,
+      currency: "USD",
+      moq: 1,
+      tiers: [{ minQty: 10, value: 1 }],
+    });
+    expect(result.price).not.toHaveProperty("quotedAt");
+    expect(result.issues[0]).toMatchObject({ path: "quotedAt", code: "price_quoted_at", severity: "warning" });
+
+    expect(sanitizeSupplierPrice({ value: 1, currency: "USD", quotedAt: "06-10-2026" }).price).toEqual({
+      value: 1,
+      currency: "USD",
+    });
+    expect(sanitizeSupplierPrice({ value: 1, currency: "USD", quotedAt: "2026-10-06" }).price?.quotedAt).toBe("2026-10-06");
     expect(sanitizeSupplierPrice({
       value: 1,
       currency: "USD",
       quotedAt: "2026-10-06T11:42:00+04:00",
     }).price?.quotedAt).toBe("2026-10-06T11:42:00+04:00");
-    expect(sanitizeSupplierPrice([]).issues[0]).toMatchObject({ path: "", code: "price_invalid", severity: "warning" });
-    expect(sanitizeSupplierPrice(null).price).toBeUndefined();
-    expect(sanitizeSupplierPrice(undefined).price).toBeUndefined();
+  });
+
+  it("drops a malformed tiers value and keeps the base price", () => {
+    for (const tiers of [{}, "nope", null]) {
+      const result = sanitizeSupplierPrice({ value: 1.5, currency: "EUR", tiers });
+      expect(result.price).toEqual({ value: 1.5, currency: "EUR" });
+      expect(codes(result.issues)).toEqual(["price_tiers"]);
+    }
+  });
+
+  it("formats a supplier amount the way a price tag does", () => {
+    expect(formatSupplierAmount(0.48, "USD", "en")).toBe("0.48 USD");
+    expect(formatSupplierAmount(12, "ILS", "en")).toContain("12");
+    expect(formatSupplierAmount(12, "ils", "he")).toMatch(/12/);
+    expect(formatSupplierAmount(0.48, "USD", "he")).toContain("USD");
   });
 
   it("treats a missing price as absent copy, not zero", () => {

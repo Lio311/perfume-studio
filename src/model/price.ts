@@ -152,23 +152,23 @@ export function sanitizeSupplierPrice(raw: unknown): SupplierPriceResult {
           ));
           return;
         }
-        if (moq !== undefined) {
-          if (minQty <= moq) {
+        // minQty must be strictly above moq, or above 1 when moq is absent (so at least 2).
+        if (!(minQty > (moq ?? 1))) {
+          if (moq !== undefined) {
             issues.push(issue(
               `${path}.minQty`,
               "tier_not_above_moq",
               `מדרגה ${index}: minQty חייב להיות גדול מ־moq, ולכן המדרגה הוסרה.`,
               `Tier ${index}: minQty must be greater than moq, so the tier was removed.`,
             ));
-            return;
+          } else {
+            issues.push(issue(
+              `${path}.minQty`,
+              "tier_below_min",
+              `מדרגה ${index}: minQty חייב להיות גדול מ־1 כשאין moq, ולכן המדרגה הוסרה.`,
+              `Tier ${index}: minQty must be greater than 1 when moq is not set, so the tier was removed.`,
+            ));
           }
-        } else if (minQty < 2) {
-          issues.push(issue(
-            `${path}.minQty`,
-            "tier_below_min",
-            `מדרגה ${index}: minQty חייב להיות 2 לפחות כשאין moq, ולכן המדרגה הוסרה.`,
-            `Tier ${index}: minQty must be at least 2 when moq is not set, so the tier was removed.`,
-          ));
           return;
         }
         const previous = kept.at(-1);
@@ -208,12 +208,34 @@ export function sanitizeSupplierPrice(raw: unknown): SupplierPriceResult {
   if (Object.hasOwn(raw, "quotedAt") && raw.quotedAt !== undefined) {
     const quotedAt = typeof raw.quotedAt === "string" ? raw.quotedAt.trim() : "";
     if (!quotedAt || !isIso8601Date(quotedAt)) {
-      return {
-        issues: [issue("quotedAt", "price_quoted_at", "quotedAt חייב להיות תאריך ISO 8601.", "quotedAt must be an ISO 8601 date.")],
-      };
+      issues.push(issue(
+        "quotedAt",
+        "price_quoted_at",
+        "quotedAt חייב להיות תאריך או תאריך-שעה ISO 8601, ולכן הוסר.",
+        "quotedAt must be an ISO 8601 date or date-time, so it was removed.",
+      ));
+    } else {
+      price.quotedAt = quotedAt;
     }
-    price.quotedAt = quotedAt;
   }
 
   return { price, issues };
+}
+
+/** Same amount shape as the budget PriceTag: ₪ for ILS, otherwise a grouped number and the ISO code. */
+export function formatSupplierAmount(value: number, currency: string, lang: "he" | "en"): string {
+  const locale = lang === "he" ? "he-IL" : "en";
+  const digits = Number.isInteger(value) ? 0 : 2;
+  const code = normalizeCurrency(currency) ?? currency;
+  if (code === "ILS") {
+    return new Intl.NumberFormat(locale, {
+      style: "currency",
+      currency: "ILS",
+      currencyDisplay: "narrowSymbol",
+      minimumFractionDigits: digits,
+      maximumFractionDigits: 2,
+    }).format(value);
+  }
+  const amount = new Intl.NumberFormat(locale, { minimumFractionDigits: digits, maximumFractionDigits: 2 }).format(value);
+  return `${amount} ${code}`;
 }
