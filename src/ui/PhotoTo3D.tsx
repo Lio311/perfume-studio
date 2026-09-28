@@ -136,7 +136,7 @@ export function PhotoTo3D() {
   }
 
   return (
-    <div className="modal-back" onClick={() => setModal(null)} data-source={lathePhotoSource.id}>
+    <div className="modal-back" onPointerDown={(e) => { if (e.target === e.currentTarget) setModal(null); }} data-source={lathePhotoSource.id}>
       <div className="modal wide photo-modal" dir={lang === "he" ? "rtl" : "ltr"} onClick={(event) => event.stopPropagation()}>
         <header>
           <h2>{t.photo3d}</h2>
