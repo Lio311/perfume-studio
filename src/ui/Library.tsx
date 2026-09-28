@@ -227,19 +227,6 @@ export function Library() {
               ? "בחרו מאפייני צבע ואטימות בחלונית המאפיינים מימין."
               : "Select color and opacity in the properties panel on the right."}
           </p>
-          {!design.liquid.visible && (
-            <button 
-              type="button" 
-              className="text-btn" 
-              style={{ background: "var(--accent)", color: "var(--on-accent)" }}
-              onClick={() => {
-                patch("liquid", { visible: true });
-                useLab.getState().select("liquid");
-              }}
-            >
-              {lang === "he" ? "הוסף נוזל" : "Add Liquid"}
-            </button>
-          )}
         </div>
       ) : visibleTab === "pending" ? (
         <div className="pending-list">
