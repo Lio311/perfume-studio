@@ -1,10 +1,11 @@
 import { tx } from "../i18n/copy.ts";
+import type { PriceIssueCode } from "../model/price.ts";
 import type { Lang } from "../model/types.ts";
 
 export type PackNotice =
   | { type: "unknownKind"; ref: string; kind: string }
   | { type: "badNeck"; ref: string; neck: string }
-  | { type: "droppedPrice"; ref: string }
+  | { type: "priceIssue"; ref: string; path: string; code: PriceIssueCode; he: string; en: string }
   | { type: "droppedField"; ref: string; field: "mesh" | "scan" | "measurements" }
   | { type: "droppedPart"; ref: string }
   | { type: "droppedPack" }
@@ -21,8 +22,8 @@ export function formatPackNotice(lang: Lang, notice: PackNotice): string {
       return fill(t.noticeUnknownKind, { ref: notice.ref, kind: notice.kind });
     case "badNeck":
       return fill(t.noticeBadNeck, { ref: notice.ref, neck: notice.neck });
-    case "droppedPrice":
-      return fill(t.noticeDroppedPrice, { ref: notice.ref });
+    case "priceIssue":
+      return lang === "he" ? `החלק ${notice.ref}: ${notice.he}` : `Part ${notice.ref}: ${notice.en}`;
     case "droppedField":
       return fill(t.noticeDroppedField, { ref: notice.ref, field: notice.field });
     case "droppedPart":

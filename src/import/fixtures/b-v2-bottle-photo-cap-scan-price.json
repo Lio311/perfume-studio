@@ -124,8 +124,11 @@
           "confidence": 0.97,
           "measuredMm": 15.1,
           "basis": "neckOuterDiameterMm",
-          "confirmedByUser": true
-        }
+          "confirmedByUser": true,
+          "verifiedBySupplier": false
+        },
+        "dimsVerifiedBySupplier": false,
+        "toleranceMm": 5
       },
       "price": {
         "value": 0.62,
@@ -137,7 +140,21 @@
         "section": "circle",
         "profile": "column",
         "shoulder": 0.18
-      }
+      },
+      "appearance": {
+        "finish": "clear",
+        "gloss": "transparent",
+        "finishSource": "user",
+        "colorSource": "photo-median"
+      },
+      "images": [
+        {
+          "url": "https://example.public.blob.vercel-storage.com/parts/sup-mg9dxb2-gp-b50-side-9xQ2.jpg",
+          "role": "side",
+          "width": 3024,
+          "height": 4032
+        }
+      ]
     },
     {
       "id": "sup-mg9dxb2-gp-zc15",
@@ -220,17 +237,15 @@
         "appVersion": "0.2.0",
         "material": "reflective",
         "scale": "lidar",
-        "confidence": 0.7
+        "confidence": 0.7,
+        "dimsVerifiedBySupplier": false,
+        "toleranceMm": 5
       },
       "price": {
         "value": 0.48,
         "currency": "USD",
         "moq": 5000,
         "tiers": [
-          {
-            "minQty": 5000,
-            "value": 0.48
-          },
           {
             "minQty": 20000,
             "value": 0.41
@@ -246,6 +261,25 @@
         "section": "circle",
         "profile": "cylinder",
         "overhangMm": 1.0
+      },
+      "mesh": {
+        "format": "usdz",
+        "url": "https://example.public.blob.vercel-storage.com/parts/sup-mg9dxb2-gp-zc15-Ab12Cd.usdz",
+        "units": "m",
+        "upAxis": "y",
+        "origin": "capture",
+        "bytes": 6812345,
+        "bboxMm": {
+          "x": 28.4,
+          "y": 36.3,
+          "z": 28.1
+        }
+      },
+      "appearance": {
+        "finish": "gold",
+        "gloss": "metallic",
+        "finishSource": "user",
+        "colorSource": "texture-median"
       }
     }
   ]

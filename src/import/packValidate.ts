@@ -271,12 +271,12 @@ function takePart(raw: Record<string, unknown>, warnings: PackNotice[]): Record<
   const ref = partRef(raw) || "part";
   const copy = safeRecord(raw);
   if (Object.hasOwn(raw, "price")) {
-    const price = sanitizeSupplierPrice(raw.price);
-    if (price) copy.price = price;
-    else {
-      delete copy.price;
-      warnings.push({ type: "droppedPrice", ref });
+    const checked = sanitizeSupplierPrice(raw.price);
+    for (const item of checked.issues) {
+      warnings.push({ type: "priceIssue", ref, path: item.path, code: item.code, he: item.he, en: item.en });
     }
+    if (checked.price) copy.price = checked.price;
+    else delete copy.price;
   }
   for (const field of ["mesh", "scan"] as const) {
     if (!Object.hasOwn(raw, field)) continue;

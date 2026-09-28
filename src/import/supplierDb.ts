@@ -6,6 +6,7 @@ import { isDataObject, plainData } from "./safeJson.ts";
 import { sanitizeSupplierPrice } from "../model/price.ts";
 
 export { sanitizeSupplierPrice };
+export type { PriceIssue, SupplierPriceResult } from "../model/price.ts";
 
 const DB_NAME = "perfume-lab-suppliers";
 const STORE = "packs";

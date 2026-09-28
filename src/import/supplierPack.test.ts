@@ -91,9 +91,47 @@ describe("parsePackFile", () => {
     if (!result.ok) return;
     expect(result.pack.parts[0]).toMatchObject({ id: "part-1", mesh });
     expect(result.pack.parts[0]).not.toHaveProperty("price");
-    expect(result.warnings).toEqual([{ type: "droppedPrice", ref: "CAP-1" }]);
+    expect(result.warnings.map((notice) => notice.type === "priceIssue" ? notice.code : notice.type)).toEqual([
+      "price_value",
+      "price_currency",
+    ]);
     expect(formatPackNotice("he", result.warnings[0])).toContain("המחיר");
     expect(formatPackNotice("en", result.warnings[0])).toContain("price");
+    expect(formatPackNotice("he", result.warnings[0])).toContain("CAP-1");
+  });
+
+  it("drops a tier that is not above moq and keeps the repaired price", () => {
+    const result = parsePackFile(packWith({
+      price: {
+        value: 0.48,
+        currency: "USD",
+        moq: 5000,
+        tiers: [
+          { minQty: 5000, value: 0.48 },
+          { minQty: 20000, value: 0.41 },
+          { minQty: 50000, value: 0.36 },
+        ],
+      },
+    }));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect((result.pack.parts[0] as { price?: unknown }).price).toEqual({
+      value: 0.48,
+      currency: "USD",
+      moq: 5000,
+      tiers: [
+        { minQty: 20000, value: 0.41 },
+        { minQty: 50000, value: 0.36 },
+      ],
+    });
+    expect(result.warnings).toEqual([
+      expect.objectContaining({
+        type: "priceIssue",
+        ref: "CAP-1",
+        path: "tiers[0].minQty",
+        code: "tier_not_above_moq",
+      }),
+    ]);
   });
 
   it("rejects the invalid sample pack with a Hebrew error", () => {
@@ -263,19 +301,21 @@ describe("parsePackFile", () => {
   });
 
   it("drops a non-object mesh and keeps a valid price exactly", () => {
-    const price = { value: 1.25, currency: "EUR", moq: 1, tiers: [{ minQty: 1, value: 1.25 }, { minQty: 10, value: 1.1 }], quotedAt: "2026-10-06" };
+    const price = { value: 1.25, currency: "EUR", moq: 1, tiers: [{ minQty: 2, value: 1.25 }, { minQty: 10, value: 1.1 }], quotedAt: "2026-10-06" };
     const result = parsePackFile(packWith({ price, mesh: "glb", measurements: [{ key: "heightMm", value: 32 }] }));
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect((result.pack.parts[0] as { price?: unknown }).price).toEqual(price);
     expect(result.pack.parts[0]).not.toHaveProperty("mesh");
     expect(result.warnings.some((notice) => notice.type === "droppedField" && notice.field === "mesh")).toBe(true);
-    expect(sanitizeSupplierPrice(price)).toEqual(price);
-    expect(sanitizeSupplierPrice({ value: 0, currency: "USD" })).toBeUndefined();
-    expect(sanitizeSupplierPrice({ value: 1, currency: "usd" })).toBeUndefined();
-    expect(sanitizeSupplierPrice({ value: 1, currency: "USD", tiers: [{ minQty: 5, value: 1 }, { minQty: 5, value: 0.9 }] })).toBeUndefined();
-    expect(sanitizeSupplierPrice({ value: 1, currency: "USD", quotedAt: "2026-02-31" })).toBeUndefined();
-    expect(sanitizeSupplierPrice({ value: 1, currency: "USD", extra: true })).toBeUndefined();
+    expect(sanitizeSupplierPrice(price)).toEqual({ price, issues: [] });
+    expect(sanitizeSupplierPrice({ value: 0, currency: "USD" }).price).toBeUndefined();
+    expect(sanitizeSupplierPrice({ value: 1, currency: "usd" }).price).toBeUndefined();
+    const duplicate = sanitizeSupplierPrice({ value: 1, currency: "USD", tiers: [{ minQty: 5, value: 1 }, { minQty: 5, value: 0.9 }] });
+    expect(duplicate.price?.tiers).toEqual([{ minQty: 5, value: 1 }]);
+    expect(duplicate.issues.map((item) => item.code)).toEqual(["tier_not_ascending"]);
+    expect(sanitizeSupplierPrice({ value: 1, currency: "USD", quotedAt: "2026-02-31" }).price).toBeUndefined();
+    expect(sanitizeSupplierPrice({ value: 1, currency: "USD", extra: true }).price).toBeUndefined();
   });
 });
 
@@ -371,7 +411,12 @@ describe("reviveStoredPack", () => {
     expect(revived.pack?.parts[0]).not.toHaveProperty("price");
     expect(revived.warnings).toEqual([
       { type: "droppedMeta", field: "version" },
-      { type: "droppedPrice", ref: "CAP-1" },
+      expect.objectContaining({
+        type: "priceIssue",
+        ref: "CAP-1",
+        path: "currency",
+        code: "price_currency",
+      }),
     ]);
   });
 
