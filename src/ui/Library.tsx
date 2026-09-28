@@ -3,7 +3,7 @@ import { partLabel, tx } from "../i18n/copy.ts";
 import { downloadPack } from "../import/supplierDb.ts";
 import { entryMatches, listFor } from "../model/catalog.ts";
 import { markSwap } from "../scene/focusClick.ts";
-import { LIQUID_PALETTE } from "../model/materials.ts";
+import { effectiveGlassOpacity, LIQUID_PALETTE } from "../model/materials.ts";
 import type { VariantPart } from "../model/types.ts";
 import { useLab } from "../store/labStore.ts";
 import { thumbFor } from "../thumbnails/thumbs.ts";
@@ -92,6 +92,8 @@ export function Library() {
     on?.scrollIntoView({ block: "nearest", inline: "nearest" });
     document.querySelector(`.library [data-part="${tab}"]`)?.scrollIntoView({ block: "nearest", inline: "nearest" });
   }, [tab, activeId, items, focusToken]);
+
+  const glassOpacity = effectiveGlassOpacity(design.bottle.finish, design.bottle.opacity);
 
   return (
     <aside className={`panel library ${open ? "is-open" : ""}`} dir={lang === "he" ? "rtl" : "ltr"}>
@@ -186,11 +188,11 @@ export function Library() {
             <span>{Math.round(design.liquid.fill * 100)}%</span>
             <input type="range" min="0" max="1" step="0.01" value={design.liquid.fill} onChange={(event) => patch("liquid", { fill: parseFloat(event.target.value), visible: true })} />
           </label>
-          {["clear", "frosted", "tinted"].includes(design.bottle.finish) && (
+          {glassOpacity !== null && (
             <label className="slider" style={{ marginTop: "16px" }}>
               <span>{lang === "he" ? "אטימות זכוכית" : "Glass Opacity"}</span>
-              <span>{Math.round((design.bottle.opacity ?? (design.bottle.finish === "clear" ? 0.14 : design.bottle.finish === "frosted" ? 0.45 : 0.32)) * 100)}%</span>
-              <input type="range" min="0" max="1" step="0.01" value={design.bottle.opacity ?? (design.bottle.finish === "clear" ? 0.14 : design.bottle.finish === "frosted" ? 0.45 : 0.32)} onChange={(event) => patch("bottle", { opacity: parseFloat(event.target.value) })} />
+              <span>{Math.round(glassOpacity * 100)}%</span>
+              <input type="range" min="0" max="1" step="0.01" value={glassOpacity} onChange={(event) => patch("bottle", { opacity: parseFloat(event.target.value) })} />
             </label>
           )}
         </div>
@@ -254,7 +256,7 @@ export function Library() {
             <button
               type="button"
               className="upload-btn"
-              style={{ flex: 1, border: "1px solid var(--border-color, #333)", fontWeight: "bold" }}
+              style={{ flex: 1, background: "transparent", color: "var(--text)", border: "1px solid var(--line)", fontWeight: "bold" }}
               onClick={() => {
                 const prevStep = wizardStep - 1;
                 const prevTab = WIZARD_ORDER[prevStep];
@@ -273,7 +275,7 @@ export function Library() {
                 type="button"
                 className="upload-btn"
                 disabled={!canProceed}
-                style={{ flex: 1, background: "var(--accent-color, #23252a)", color: "var(--text-color, #e4e6eb)", border: "1px solid var(--border-color, #333)", fontWeight: "bold", margin: 0, opacity: canProceed ? 1 : 0.5, cursor: canProceed ? "pointer" : "not-allowed" }}
+                style={{ flex: 1, background: "var(--accent)", color: "var(--on-accent)", border: "1px solid var(--line)", fontWeight: "bold", margin: 0, opacity: canProceed ? 1 : 0.5, cursor: canProceed ? "pointer" : "not-allowed" }}
                 onClick={() => {
                   const nextStep = wizardStep + 1;
                   applyCommands([{ type: "wizard_step", step: nextStep }]);

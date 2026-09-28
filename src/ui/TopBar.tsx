@@ -5,6 +5,7 @@ import { bottleById } from "../model/catalog.ts";
 import { estimateMl } from "../model/design.ts";
 import { requestShot } from "../scene/capture.ts";
 import { useLab, type LabMode } from "../store/labStore.ts";
+import { pngDownloadName } from "./pngName.ts";
 import { downloadSpec } from "./specSheet.ts";
 import { VoiceSwitch } from "./VoiceSwitch.tsx";
 
@@ -42,9 +43,7 @@ export function TopBar() {
 
   function fileName() {
     const day = new Date().toISOString().slice(0, 10);
-    const brand = (design.label.text || "BRAND").replace(/[^\w\u0590-\u05FF-]+/g, "");
-    const bottle = spec.name.en.replace(/\s+/g, "");
-    return `${brand}_${bottle}_${day}.png`;
+    return pngDownloadName(design.label.text, spec.name.en, day);
   }
 
   function share() {

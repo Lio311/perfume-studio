@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { LabCanvas } from "./scene/LabCanvas.tsx";
 import { applyTheme } from "./theme/themes.ts";
-import { partLabel, tx } from "./i18n/copy.ts";
+import { partLabel, tx, wizardTitle } from "./i18n/copy.ts";
+import { pngDownloadName } from "./ui/pngName.ts";
 import { useLab } from "./store/labStore.ts";
 import { TopBar } from "./ui/TopBar.tsx";
 import { Library } from "./ui/Library.tsx";
@@ -192,25 +193,7 @@ export default function App() {
           </div>
           {design.step !== undefined && design.step < 7 ? (
             <p className="hint-strip" style={{ opacity: 1 }} dir={lang === "he" ? "rtl" : "ltr"}>
-              <b>
-                {lang === "he" ? [
-                  "שלב 1: בחירת בקבוק",
-                  "שלב 2: צבע הבקבוק ומילוי",
-                  "שלב 3: בחירת מרסס",
-                  "שלב 4: בחירת צווארון",
-                  "שלב 5: בחירת פקק",
-                  "שלב 6: בחירת לוגו ומיתוג",
-                  "שלב 7: בחירת אריזה"
-                ][design.step] : [
-                  "Step 1: Choose a Bottle",
-                  "Step 2: Choose Bottle Color",
-                  "Step 3: Choose a Pump",
-                  "Step 4: Choose a Collar",
-                  "Step 5: Choose a Cap",
-                  "Step 6: Choose Logo & Branding",
-                  "Step 7: Choose a Box"
-                ][design.step]}
-              </b>
+              <b>{wizardTitle(lang, design.step)}</b>
             </p>
           ) : (
             <p className={hintOn ? "hint-strip" : "hint-strip is-faded"} dir={lang === "he" ? "rtl" : "ltr"}>
@@ -240,7 +223,7 @@ export default function App() {
                   const link = document.createElement("a");
                   link.href = url;
                   const day = new Date().toISOString().slice(0, 10);
-                  link.download = `${design.label.text || "BRAND"}_${day}.png`;
+                  link.download = pngDownloadName(design.label.text, "", day);
                   link.click();
                 });
               }}>{t.export}</button>
