@@ -1,9 +1,11 @@
 import { afterEach, describe, expect, it } from "vitest";
+import { syncRegistry, type SupplierPart } from "../import/registry.ts";
 import { collarById, pumpById } from "./catalog.ts";
 import { applyVariant, createDefaultDesign } from "./design.ts";
 import { computeFit, crimpHeadRadius } from "./fit.ts";
 import { PUMPS } from "./hardware.ts";
 import { NECKS } from "./necks.ts";
+import { MATTE_BLACK_COLOR, PALETTE, finishById } from "./materials.ts";
 import type { Design } from "./types.ts";
 
 function crimpDesign(): Design {
@@ -82,5 +84,59 @@ describe("crimp button width", () => {
     expect(fit.headR).toBeCloseTo(Math.max(fit.actuatorR, fit.neckR * 0.9));
     expect(fit.headR).toBeCloseTo(fit.neckR * 0.9);
     expect(crimpHeadRadius(fit.neckR, fit.neckR * 1.1, {}, {})).toBeCloseTo(fit.neckR * 1.1);
+  });
+});
+
+function importedPump(id: string, widthMm: number): SupplierPart {
+  return {
+    id,
+    kind: "pump",
+    code: id,
+    name: id,
+    neck: "FEA15",
+    widthMm,
+    heightMm: 16,
+    depthMm: 15,
+    capacityMl: null,
+    profile: "pump",
+    color: "#c4a15a",
+    thumb: "",
+    page: 1,
+  };
+}
+
+describe("imported crimp pumps", () => {
+  afterEach(() => syncRegistry([]));
+
+  it("falls back to 0.9 of the neck when the supplier gives no width", () => {
+    syncRegistry([{ id: "supplier", name: "Supplier", createdAt: 1, parts: [importedPump("imp-plain", 0)] }]);
+    const spec = pumpById("imp-plain");
+    expect(spec.widthMm).toBeUndefined();
+    expect(spec.radiusFactor).toBeUndefined();
+    const design = crimpDesign();
+    design.pump.variantId = "imp-plain";
+    const fit = computeFit(design, true);
+    expect(fit.headR).toBeCloseTo(fit.neckR * 0.9);
+    expect(fit.headR).toBeGreaterThanOrEqual(fit.neckR * 0.85);
+    expect(fit.headR).toBeLessThanOrEqual(fit.neckR * 0.95);
+  });
+
+  it("uses a supplier width ahead of the neck fallback", () => {
+    syncRegistry([{ id: "supplier", name: "Supplier", createdAt: 1, parts: [importedPump("imp-wide", 12.4)] }]);
+    const spec = pumpById("imp-wide");
+    expect(spec.widthMm).toBe(12.4);
+    expect(spec.radiusFactor).toBeUndefined();
+    const design = crimpDesign();
+    design.pump.variantId = "imp-wide";
+    const fit = computeFit(design, true);
+    expect(fit.headR).toBeCloseTo(6.2);
+    expect(fit.headR).not.toBeCloseTo(fit.neckR * 0.9);
+  });
+});
+
+describe("matte palette", () => {
+  it("uses the matte-black default for the palette swatch", () => {
+    expect(finishById("matteBlack").color).toBe(MATTE_BLACK_COLOR);
+    expect(PALETTE[1]).toBe(MATTE_BLACK_COLOR);
   });
 });

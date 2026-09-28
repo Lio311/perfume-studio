@@ -161,7 +161,6 @@ export function syncRegistry(packs: SupplierPack[]): void {
           name,
           style: "crimp",
           actuatorHeightMm: part.heightMm,
-          radiusFactor: 0.55,
           widthMm: part.widthMm > 0 ? part.widthMm : undefined,
           nozzleMm: 8,
           tags: shared,
