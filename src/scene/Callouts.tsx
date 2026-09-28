@@ -37,7 +37,7 @@ function partSize(part: PartKey, design: Design, fit: ReturnType<typeof computeF
   if (part === "bottle") return `${design.bottle.widthMm.toFixed(1)}×${design.bottle.depthMm.toFixed(1)}×${design.bottle.heightMm.toFixed(1)}`;
   if (part === "cap") return `${fit.capW.toFixed(1)}×${fit.capH.toFixed(1)}`;
   if (part === "collar") return `Ø${(fit.collarOuter * 2).toFixed(1)}`;
-  if (part === "pump") return `Ø${(fit.actuatorR * 2).toFixed(1)}`;
+  if (part === "pump") return `Ø${(fit.headR * 2).toFixed(1)}`;
   if (part === "label") return design.label.text;
   if (part === "box") return `${fit.boxW.toFixed(0)}×${fit.boxH.toFixed(0)}`;
   return "";

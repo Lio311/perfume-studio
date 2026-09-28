@@ -513,7 +513,7 @@ function PumpPart() {
           <FinishMaterial finish={design.pump.finish} color={design.pump.color} />
           <GoldRim part="pump" stamp={`${spec.id}:lathe`} />
         </mesh>
-        <HitProxy radius={Math.max(8, fit.actuatorR * 2)} height={fit.actuatorH + 10} />
+        <HitProxy radius={Math.max(8, Math.max(fit.actuatorR, fit.headR) * 2)} height={fit.actuatorH + 10} />
       </PartShell>
     );
   }
@@ -522,8 +522,8 @@ function PumpPart() {
       <mesh geometry={tube} position={[0, -1, 0]}>
         <FinishMaterial finish={design.pump.finish} color={design.pump.color} />
       </mesh>
-      <HitProxy radius={Math.max(8, fit.actuatorR * 2.2)} height={fit.actuatorH + 12} />
-      <Actuator style={spec.style} height={fit.actuatorH} radius={fit.actuatorR} nozzle={fit.nozzle} finish={design.pump.finish} color={design.pump.color} seat={spec.style === "crimp" ? fit.neckR : 0} />
+      <HitProxy radius={Math.max(8, Math.max(fit.actuatorR, fit.headR) * 2.2)} height={fit.actuatorH + 12} />
+      <Actuator style={spec.style} height={fit.actuatorH} radius={fit.actuatorR} head={fit.headR} nozzle={fit.nozzle} finish={design.pump.finish} color={design.pump.color} seat={spec.style === "crimp" ? fit.neckR : 0} />
     </PartShell>
   );
 }
@@ -532,6 +532,7 @@ function Actuator({
   style,
   height,
   radius,
+  head,
   nozzle,
   finish,
   color,
@@ -540,18 +541,17 @@ function Actuator({
   style: PumpStyle;
   height: number;
   radius: number;
+  /** Button radius. Crimp heads come from the catalog, else 0.9 of the neck. */
+  head: number;
   nozzle: number;
   finish: Parameters<typeof FinishMaterial>[0]["finish"];
   color: string;
-  /** Neck radius. A crimp button fills the lip; it has no screw skirt. */
+  /** Neck radius. The stem is the only part that enters the bore. */
   seat?: number;
 }) {
   const r = radius;
   const h = height;
   const crimp = style === "crimp" && seat > 0;
-  // Catalog radiusFactor leaves a crimp button as a peg on the neck. The
-  // button fills the lip; the stem is the only part that enters the bore.
-  const head = crimp ? Math.max(r, seat * 0.9) : r;
   const stem = Math.min(seat * 0.42, 3.1);
   return (
     <group>

@@ -18,6 +18,8 @@ export interface Fit {
   pumpBase: number;
   actuatorH: number;
   actuatorR: number;
+  /** Crimp button radius. Other pumps use the actuator radius. */
+  headR: number;
   nozzle: number;
   capBottom: number;
   capH: number;
@@ -34,6 +36,28 @@ export interface Fit {
   boxZ: number;
   anchors: Record<PartKey, [number, number, number]>;
   explode: Record<PartKey, [number, number, number]>;
+}
+
+function definedSize(value: number | undefined): value is number {
+  return value != null && value > 0;
+}
+
+/**
+ * Crimp button radius. A catalog width wins over a radius factor, and the
+ * pump wins over the collar. With neither, the button is 0.9 of the neck,
+ * or the actuator when that is already wider.
+ */
+export function crimpHeadRadius(
+  neckR: number,
+  actuatorR: number,
+  pump: { widthMm?: number; radiusFactor?: number },
+  collar: { widthMm?: number; radiusFactor?: number },
+): number {
+  if (definedSize(pump.widthMm)) return pump.widthMm / 2;
+  if (definedSize(pump.radiusFactor)) return neckR * pump.radiusFactor;
+  if (definedSize(collar.widthMm)) return collar.widthMm / 2;
+  if (definedSize(collar.radiusFactor)) return neckR * collar.radiusFactor;
+  return Math.max(actuatorR, neckR * 0.9);
 }
 
 export function computeFit(design: Design, exploded = false): Fit {
@@ -79,7 +103,10 @@ export function computeFit(design: Design, exploded = false): Fit {
   const fullActuator = pump.actuatorHeightMm;
   const actuatorH =
     exploded || !design.cap.visible ? fullActuator : Math.min(fullActuator, Math.max(7, capH - 3.2));
-  const actuatorR = Math.max(neckR * pump.radiusFactor, neckR * 0.42);
+  const actuatorR = definedSize(pump.radiusFactor)
+    ? Math.max(neckR * pump.radiusFactor, neckR * 0.42)
+    : neckR * 0.42;
+  const headR = pump.style === "crimp" ? crimpHeadRadius(neckR, actuatorR, pump, collar) : actuatorR;
   const nozzle =
     exploded || !design.cap.visible ? pump.nozzleMm : Math.min(pump.nozzleMm, Math.max(2.2, capW / 2 - actuatorR - 0.4));
   // A crimp pump has no screw skirt, so its base is the glass lip. A screw
@@ -164,6 +191,7 @@ export function computeFit(design: Design, exploded = false): Fit {
     pumpBase,
     actuatorH,
     actuatorR,
+    headR,
     nozzle,
     capBottom,
     capH,

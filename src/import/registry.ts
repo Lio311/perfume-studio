@@ -162,6 +162,7 @@ export function syncRegistry(packs: SupplierPack[]): void {
           style: "crimp",
           actuatorHeightMm: part.heightMm,
           radiusFactor: 0.55,
+          widthMm: part.widthMm > 0 ? part.widthMm : undefined,
           nozzleMm: 8,
           tags: shared,
           model: { type: "procedural" },
@@ -175,6 +176,7 @@ export function syncRegistry(packs: SupplierPack[]): void {
           rings: 2,
           knurl: false,
           flareMm: 0.35,
+          widthMm: part.widthMm > 0 ? part.widthMm : undefined,
           tags: shared,
           model: { type: "procedural" },
         });

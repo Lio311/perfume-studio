@@ -172,7 +172,13 @@ export interface PumpSpec {
   name: Localized;
   style: PumpStyle;
   actuatorHeightMm: number;
-  radiusFactor: number;
+  /**
+   * Button radius as a fraction of the neck radius.
+   * Omitted when the catalog does not size the head.
+   */
+  radiusFactor?: number;
+  /** Button diameter in millimetres. Wins over radiusFactor. */
+  widthMm?: number;
   nozzleMm: number;
   tags: string[];
   model: ModelSource;
@@ -186,6 +192,13 @@ export interface CollarSpec {
   rings: number;
   knurl: boolean;
   flareMm: number;
+  /**
+   * Crimp button diameter in millimetres.
+   * Used when the pump does not give a width or radius factor.
+   */
+  widthMm?: number;
+  /** Crimp button radius as a fraction of the neck radius. */
+  radiusFactor?: number;
   tags: string[];
   model: ModelSource;
 }
