@@ -1,6 +1,8 @@
 import type { PersistStorage } from "zustand/middleware";
+import type { BudgetBrief, PriceOverride } from "../budget/types.ts";
 import { clampLabelText, legacyLabelInk } from "../geometry/logos.ts";
 import { BOTTLES } from "../model/bottles.ts";
+import { normalizeCurrency, sanitizeSupplierPrice } from "../model/price.ts";
 import { CAPS } from "../model/caps.ts";
 import { createDefaultDesign } from "../model/design.ts";
 import { BOXES } from "../model/hardware.ts";
@@ -68,6 +70,83 @@ export interface HydratedSlice {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+/** Same defaults as a fresh lab. A stored brief that is not an object falls back to this. */
+export const DEFAULT_BUDGET_BRIEF: BudgetBrief = { ceilingIls: 30, volumeMl: 50, confirmed: false };
+
+function clampFinite(value: unknown, min: number, max: number): number | undefined {
+  if (typeof value !== "number" || !Number.isFinite(value)) return undefined;
+  return Math.min(max, Math.max(min, value));
+}
+
+/**
+ * A stored brief. Non-finite numbers are dropped. A usable number is clamped the
+ * same way as `setBrief`. Unknown fields, including a stray title, are not kept.
+ */
+export function sanitizePersistedBrief(value: unknown, fallback: BudgetBrief = DEFAULT_BUDGET_BRIEF): BudgetBrief {
+  const ceilingFallback = clampFinite(fallback.ceilingIls, 1, 100000) ?? DEFAULT_BUDGET_BRIEF.ceilingIls;
+  const volumeFallback = clampFinite(fallback.volumeMl, 1, 1000) ?? DEFAULT_BUDGET_BRIEF.volumeMl;
+  const confirmedFallback = fallback.confirmed === true;
+  if (!isRecord(value)) {
+    const brief: BudgetBrief = { ceilingIls: ceilingFallback, volumeMl: volumeFallback, confirmed: confirmedFallback };
+    if (typeof fallback.quantity === "number" && Number.isInteger(fallback.quantity) && fallback.quantity >= 1) brief.quantity = fallback.quantity;
+    return brief;
+  }
+  const brief: BudgetBrief = {
+    ceilingIls: clampFinite(own(value, "ceilingIls"), 1, 100000) ?? ceilingFallback,
+    volumeMl: clampFinite(own(value, "volumeMl"), 1, 1000) ?? volumeFallback,
+    confirmed: typeof own(value, "confirmed") === "boolean" ? own(value, "confirmed") === true : confirmedFallback,
+  };
+  const quantity = own(value, "quantity");
+  if (typeof quantity === "number" && Number.isInteger(quantity) && quantity >= 1) brief.quantity = quantity;
+  return brief;
+}
+
+/** One user price. `absent` clears it. Anything else must be a positive finite value in a known currency. */
+function sanitizeOnePriceOverride(value: unknown): PriceOverride | undefined {
+  if (!isRecord(value)) return undefined;
+  if (own(value, "absent") === true) return { absent: true };
+  const currency = own(value, "currency");
+  const checked = sanitizeSupplierPrice({
+    value: own(value, "value"),
+    ...(typeof currency === "string" ? { currency } : {}),
+  });
+  if (!checked.price || checked.unpriced || !checked.price.currency) return undefined;
+  return { value: checked.price.value, currency: checked.price.currency };
+}
+
+/** Drop a bad id, a non-finite value, and a currency `sanitizeSupplierPrice` will not convert. */
+export function sanitizePersistedPriceOverrides(value: unknown): Record<string, PriceOverride> {
+  if (!isRecord(value)) return {};
+  const out: Record<string, PriceOverride> = {};
+  for (const id of Object.keys(value)) {
+    if (!id || id.length > 200) continue;
+    const price = sanitizeOnePriceOverride(own(value, id));
+    if (price) out[id] = price;
+  }
+  return out;
+}
+
+/**
+ * Shekels per one unit of a known currency. The key goes through `normalizeCurrency`,
+ * so `$` and `usd` land on USD. An unknown code or a non-finite rate is dropped.
+ */
+export function sanitizePersistedExchangeRates(value: unknown): Record<string, number> {
+  if (!isRecord(value)) return {};
+  const out: Record<string, number> = {};
+  for (const key of Object.keys(value)) {
+    const code = normalizeCurrency(key);
+    const rate = own(value, key);
+    if (!code || typeof rate !== "number" || !Number.isFinite(rate) || rate <= 0) continue;
+    out[code] = rate;
+  }
+  return out;
+}
+
+function budgetFallback(current: object): BudgetBrief {
+  const brief = (current as { brief?: unknown }).brief;
+  return sanitizePersistedBrief(brief, DEFAULT_BUDGET_BRIEF);
 }
 
 function own(source: Record<string, unknown>, key: string): unknown {
@@ -468,6 +547,9 @@ export function mergePersistedLab<T extends HydratedSlice>(persisted: unknown, c
     if (Object.hasOwn(persisted, "compareIds")) next.compareIds = sanitizeIds(own(persisted, "compareIds"), current.compareIds);
     if (Object.hasOwn(persisted, "past")) next.past = sanitizeHistory(own(persisted, "past"));
     if (Object.hasOwn(persisted, "future")) next.future = sanitizeHistory(own(persisted, "future"));
+    if (Object.hasOwn(persisted, "brief")) next.brief = sanitizePersistedBrief(own(persisted, "brief"), budgetFallback(current));
+    if (Object.hasOwn(persisted, "priceOverrides")) next.priceOverrides = sanitizePersistedPriceOverrides(own(persisted, "priceOverrides"));
+    if (Object.hasOwn(persisted, "exchangeRates")) next.exchangeRates = sanitizePersistedExchangeRates(own(persisted, "exchangeRates"));
     return next as T;
   } catch {
     return current;
@@ -632,6 +714,9 @@ export function resetPersistedPayload(current: unknown, lang?: Lang): { state: R
     const value = own(record, key);
     if (value !== undefined) state[key] = value;
   }
+  if (Object.hasOwn(record, "brief")) state.brief = sanitizePersistedBrief(record.brief, DEFAULT_BUDGET_BRIEF);
+  if (Object.hasOwn(record, "priceOverrides")) state.priceOverrides = sanitizePersistedPriceOverrides(record.priceOverrides);
+  if (Object.hasOwn(record, "exchangeRates")) state.exchangeRates = sanitizePersistedExchangeRates(record.exchangeRates);
   return { state, version: LAB_PERSIST_VERSION };
 }
 
