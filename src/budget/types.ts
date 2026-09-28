@@ -7,11 +7,11 @@ export interface BudgetBrief {
   confirmed: boolean;
 }
 
-/** A price the user typed for one catalog id. Stored with the rest of the lab. */
-export interface PriceOverride {
-  value: number;
-  currency: string;
-}
+/**
+ * A price the user typed for one catalog id, stored with the rest of the lab.
+ * `absent` means they cleared it: the part has no price, and the example figure does not return.
+ */
+export type PriceOverride = { value: number; currency: string } | { absent: true };
 
 /**
  * Comparable view of a built-in or imported part.

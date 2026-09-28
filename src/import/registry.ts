@@ -1,3 +1,4 @@
+import { sanitizeSupplierPrice } from "./packPrice.ts";
 import type { SupplierPrice } from "../budget/money.ts";
 import { clearLatheProfiles, setLatheProfile } from "./lathe.ts";
 import { setImportedCatalog } from "../model/catalog.ts";
@@ -127,7 +128,10 @@ export function syncRegistry(packs: SupplierPack[]): void {
         supplierName: pack.name,
       });
       if (part.lathe) setLatheProfile(part.id, { radii: part.lathe });
-      if (part.price) prices.set(part.id, part.price);
+      if (part.price) {
+        const stored = sanitizeSupplierPrice(part.price);
+        if ("price" in stored) prices.set(part.id, stored.price);
+      }
       const name = { he: part.name, en: part.name };
       const shared = tags(part, pack);
       if (part.kind === "bottle") {

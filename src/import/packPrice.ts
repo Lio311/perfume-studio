@@ -45,7 +45,7 @@ export function sanitizeSupplierPrice(raw: unknown): { price: SupplierPrice } | 
     for (const tier of price.tiers) {
       if (!tier || typeof tier !== "object" || Array.isArray(tier)) return { reason: "tiers" };
       const row = tier as Record<string, unknown>;
-      const minQty = row.minQty;
+      const minQty = typeof row.minQty === "number" ? row.minQty : row.qty;
       const tierValue = row.value;
       if (typeof minQty !== "number" || !Number.isInteger(minQty) || minQty < 1) return { reason: "tiers" };
       if (typeof tierValue !== "number" || !Number.isFinite(tierValue) || tierValue <= 0) return { reason: "tiers" };

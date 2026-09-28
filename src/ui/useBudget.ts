@@ -49,15 +49,20 @@ export function useBudgetModel(): BudgetModel {
       return resolvePartPrice(facts, importedPrice(id), overrides[id], rates);
     };
     const lines: BudgetLine[] = [];
+    const amounts: Array<number | null | "unpriced"> = [];
     for (const kind of BUDGET_KINDS) {
       if (!design[kind].visible) continue;
       const id = design[kind].variantId;
       const facts = factsFor(kind, id);
       const price = facts ? priceFor(kind, id) : null;
-      if (!facts || !price) continue;
+      if (!facts || !price) {
+        amounts.push("unpriced");
+        continue;
+      }
       lines.push({ kind, id, facts, price });
+      amounts.push(price.ils);
     }
-    const summary = summarizeBudget(lines.map((line) => line.price.ils), brief.ceilingIls);
+    const summary = summarizeBudget(amounts, brief.ceilingIls);
     const foreign = [...new Set(lines.filter((line) => line.price.currency !== "ILS").map((line) => line.price.currency))];
     let alternatives: Alternative[] = [];
     if (summary.over && selected && selected !== "liquid") {

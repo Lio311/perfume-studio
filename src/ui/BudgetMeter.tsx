@@ -28,6 +28,7 @@ export function BudgetMeter({ onSavings }: { onSavings: () => void }) {
       <p className="hint">
         {t.budgetUsed} · {brief.volumeMl} {t.capacityShort}
         {includesExample ? ` · ${t.exampleTotal}` : ""}
+        {summary.unpricedCount > 0 && <> · <bdi dir="ltr">{summary.unpricedCount}</bdi> {t.unpricedParts}</>}
         {summary.incomplete ? ` · ${t.budgetPartial}` : ""}
       </p>
       {foreign.map((code) => (

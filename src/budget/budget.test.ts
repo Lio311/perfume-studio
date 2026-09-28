@@ -55,6 +55,15 @@ describe("budget totals", () => {
     expect(rated.totalIls).toBe(24);
     expect(rated.incomplete).toBe(false);
     expect(rated.remainingIls).toBe(6);
+    expect(rated.unpricedCount).toBe(0);
+  });
+
+  it("leaves an unpriced part out of the total and counts it", () => {
+    const summary = summarizeBudget([20, "unpriced", null], 30);
+    expect(summary.totalIls).toBe(20);
+    expect(summary.unpricedCount).toBe(1);
+    expect(summary.excludedCount).toBe(1);
+    expect(summary.remainingIls).toBe(10);
   });
 
   it("keeps the base unit price until a quantity reaches an extra break", () => {
@@ -292,19 +301,24 @@ describe("resolved prices", () => {
   it("labels a built-in price as an example and prefers a user override, then an import", () => {
     const row = facts({ id: "square-50", kind: "bottle" });
     const example = resolvePartPrice(row, undefined, undefined, {});
-    expect(example.source).toBe("example");
-    expect(example.currency).toBe("ILS");
-    expect(example.value % 5).toBe(0);
+    expect(example).not.toBeNull();
+    expect(example!.source).toBe("example");
+    expect(example!.currency).toBe("ILS");
+    expect(example!.value % 5).toBe(0);
 
     const imported = resolvePartPrice(row, { value: 4, currency: "usd", quotedAt: "2026-09-01T08:30:00Z" }, undefined, {});
     expect(imported).toMatchObject({ source: "import", currency: "USD", value: 4, ils: null, converted: false, quotedAt: "2026-09-01T08:30:00Z" });
 
     const rated = resolvePartPrice(row, { value: 4, currency: "USD" }, undefined, { USD: 4 });
-    expect(rated.ils).toBe(16);
-    expect(rated.converted).toBe(true);
+    expect(rated).not.toBeNull();
+    expect(rated!.ils).toBe(16);
+    expect(rated!.converted).toBe(true);
 
     const user = resolvePartPrice(row, { value: 4, currency: "USD" }, { value: 22, currency: "ILS" }, { USD: 4 });
     expect(user).toMatchObject({ source: "user", currency: "ILS", value: 22, ils: 22, converted: false });
+
+    expect(resolvePartPrice(row, { value: 4, currency: "ILS" }, { absent: true }, {})).toBeNull();
+    expect(resolvePartPrice(row, { value: 4, currency: "ILS" }, { value: 0, currency: "ILS" }, {})?.source).toBe("import");
   });
 
   it("charges a named house bottle more than a similar studio bottle", () => {

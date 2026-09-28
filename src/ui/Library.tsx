@@ -264,7 +264,7 @@ export function Library() {
               <span>{lang === "he" ? item.he : item.en}</span>
               {item.tags.includes("placeholder") && <em className="temp-badge">{t.tempShape}</em>}
               {item.mm && <bdi className="mm" dir="ltr">{item.mm}</bdi>}
-              {priceFor(tab, item.id) && <PriceTag price={priceFor(tab, item.id)!} compact />}
+              <PriceTag price={priceFor(tab, item.id)} compact />
             </button>
           ))}
         </div>

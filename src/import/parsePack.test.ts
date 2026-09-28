@@ -75,6 +75,21 @@ describe("parsePackFile prices", () => {
     expect(importedPrice("aurora-cap")).toMatchObject({ value: 4.5, currency: "USD", moq: 5000, quotedAt: "2026-09-01" });
   });
 
+  it("reads a legacy qty break as minQty when minQty is absent", () => {
+    const pack = parsePackFile(JSON.stringify({
+      name: "Legacy tiers",
+      parts: [
+        { ...basePart, id: "from-qty", price: { value: 4, currency: "ILS", tiers: [{ qty: 10, value: 3 }, { qty: 2, value: 3.5 }] } },
+        { ...basePart, id: "min-wins", price: { value: 4, currency: "ILS", tiers: [{ minQty: 5, qty: 9, value: 2 }] } },
+      ],
+    }));
+    expect(consumePriceWarnings()).toEqual([]);
+    expect(pack!.parts[0].price?.tiers).toEqual([{ minQty: 2, value: 3.5 }, { minQty: 10, value: 3 }]);
+    expect(pack!.parts[1].price?.tiers).toEqual([{ minQty: 5, value: 2 }]);
+    syncRegistry([pack!]);
+    expect(importedPrice("from-qty")?.tiers).toEqual([{ minQty: 2, value: 3.5 }, { minQty: 10, value: 3 }]);
+  });
+
   it("drops an invalid price, names the reason, and still imports the part", () => {
     const pack = parsePackFile(JSON.stringify({
       name: "Mixed",
@@ -83,16 +98,15 @@ describe("parsePackFile prices", () => {
         { ...basePart, id: "zero", price: { value: 0, currency: "ILS" } },
         { ...basePart, id: "words", price: { value: 4, currency: "dollar" } },
         { ...basePart, id: "fraction-moq", price: { value: 4, currency: "AED", moq: 1.5 } },
-        { ...basePart, id: "old-tier", price: { value: 4, currency: "ILS", tiers: [{ qty: 10, value: 3 }] } },
         { ...basePart, id: "zero-tier", price: { value: 4, currency: "ILS", tiers: [{ minQty: 2, value: 0 }] } },
         { ...basePart, id: "low-qty", price: { value: 4, currency: "ILS", tiers: [{ minQty: 0, value: 3 }] } },
         { ...basePart, id: "stale", price: { value: 4, currency: "ILS", quotedAt: "yesterday" } },
         { ...basePart, id: "good", price: { value: 12, currency: "ILS", moq: 100, tiers: [{ minQty: 1, value: 11 }, { minQty: 100, value: 9 }] } },
       ],
     }));
-    expect(pack!.parts.map((part) => part.id)).toEqual(["text", "zero", "words", "fraction-moq", "old-tier", "zero-tier", "low-qty", "stale", "good"]);
-    expect(pack!.parts.slice(0, 8).every((part) => part.price === undefined)).toBe(true);
-    expect(pack!.parts[8].price).toEqual({
+    expect(pack!.parts.map((part) => part.id)).toEqual(["text", "zero", "words", "fraction-moq", "zero-tier", "low-qty", "stale", "good"]);
+    expect(pack!.parts.slice(0, 7).every((part) => part.price === undefined)).toBe(true);
+    expect(pack!.parts[7].price).toEqual({
       value: 12,
       currency: "ILS",
       moq: 100,
@@ -103,7 +117,6 @@ describe("parsePackFile prices", () => {
       { partId: "zero", reason: "value" },
       { partId: "words", reason: "currency" },
       { partId: "fraction-moq", reason: "moq" },
-      { partId: "old-tier", reason: "tiers" },
       { partId: "zero-tier", reason: "tiers" },
       { partId: "low-qty", reason: "tiers" },
       { partId: "stale", reason: "quotedAt" },

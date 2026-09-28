@@ -6,9 +6,10 @@ import { useBudgetModel } from "./useBudget.ts";
 
 const CURRENCIES = ["ILS", "USD", "EUR", "CNY", "GBP"];
 
-export function PriceTag({ price, compact = false }: { price: ResolvedPrice; compact?: boolean }) {
+export function PriceTag({ price, compact = false }: { price: ResolvedPrice | null; compact?: boolean }) {
   const lang = useLab((s) => s.lang);
   const t = tx(lang);
+  if (!price) return <span className={compact ? "price-tag is-compact" : "price-tag"}><em>{t.noPrice}</em></span>;
   return (
     <span className={compact ? "price-tag is-compact" : "price-tag"}>
       <bdi dir="ltr">{formatMoney(price.value, price.currency, lang)}</bdi>
@@ -33,8 +34,7 @@ export function PartPriceEditor({ kind, partId }: { kind: VariantPart; partId: s
   const setExchangeRate = useLab((s) => s.setExchangeRate);
   const { priceFor } = useBudgetModel();
   const price = priceFor(kind, partId);
-  if (!price) return null;
-  const currency = price.currency;
+  const currency = price?.currency ?? "ILS";
   const options = CURRENCIES.includes(currency) ? CURRENCIES : [currency, ...CURRENCIES];
   return (
     <div className="price-editor" data-part-price>
@@ -50,8 +50,12 @@ export function PartPriceEditor({ kind, partId }: { kind: VariantPart; partId: s
             dir="ltr"
             min={0.01}
             step={0.5}
-            value={Number.isInteger(price.value) ? String(price.value) : price.value.toFixed(2)}
+            value={price ? (Number.isInteger(price.value) ? String(price.value) : price.value.toFixed(2)) : ""}
             onChange={(event) => {
+              if (event.target.value === "") {
+                setPriceOverride(partId, { absent: true });
+                return;
+              }
               const next = Number(event.target.value);
               if (!Number.isFinite(next) || next <= 0) return;
               setPriceOverride(partId, { value: next, currency });
@@ -60,7 +64,10 @@ export function PartPriceEditor({ kind, partId }: { kind: VariantPart; partId: s
         </label>
         <label>
           <span>{t.currency}</span>
-          <select value={currency} onChange={(event) => setPriceOverride(partId, { value: price.value, currency: event.target.value })}>
+          <select value={currency} onChange={(event) => {
+            if (!price) return;
+            setPriceOverride(partId, { value: price.value, currency: event.target.value });
+          }}>
             {options.map((code) => (
               <option key={code} value={code}>{code === "ILS" ? "₪ ILS" : code}</option>
             ))}

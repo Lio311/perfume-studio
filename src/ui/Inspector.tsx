@@ -56,6 +56,7 @@ export function Inspector() {
             <span>{t.totalPrice}</span>
             <bdi dir="ltr">{formatMoney(budget.summary.totalIls, "ILS", lang)}</bdi>
             {budget.includesExample && <em>{t.examplePrice}</em>}
+            {budget.summary.unpricedCount > 0 && <em><bdi dir="ltr">{budget.summary.unpricedCount}</bdi> {t.unpricedParts}</em>}
             {budget.summary.over && <em className="is-over">{t.budgetOver}</em>}
           </p>
           <div className="part-title">

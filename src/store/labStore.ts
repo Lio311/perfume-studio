@@ -590,8 +590,16 @@ export const useLab = create<LabState>()(
       setPriceOverride: (id, price) =>
         set((state) => {
           const priceOverrides = { ...state.priceOverrides };
-          if (!price || !Number.isFinite(price.value) || price.value < 0) delete priceOverrides[id];
-          else priceOverrides[id] = { value: price.value, currency: price.currency };
+          if (!price) {
+            delete priceOverrides[id];
+            return { priceOverrides };
+          }
+          if ("absent" in price) {
+            priceOverrides[id] = { absent: true };
+            return { priceOverrides };
+          }
+          if (!Number.isFinite(price.value) || price.value <= 0) return {};
+          priceOverrides[id] = { value: price.value, currency: price.currency };
           return { priceOverrides };
         }),
       setExchangeRate: (currency, ilsPerUnit) =>
@@ -636,7 +644,7 @@ export const useLab = create<LabState>()(
     }),
     {
       name: "perfume-lab-v1",
-      version: 5,
+      version: 6,
       migrate: (persisted, version) => {
         const state = persisted as {
           design?: Design;
@@ -654,6 +662,12 @@ export const useLab = create<LabState>()(
           if (!state.brief) state.brief = { ceilingIls: 30, volumeMl: 50, confirmed: false };
           if (!state.priceOverrides) state.priceOverrides = {};
           if (!state.exchangeRates) state.exchangeRates = {};
+        }
+        if (version < 6 && state.priceOverrides) {
+          for (const [id, stored] of Object.entries(state.priceOverrides)) {
+            if (!stored || ("absent" in stored && stored.absent)) continue;
+            if (!("value" in stored) || typeof stored.value !== "number" || stored.value <= 0) state.priceOverrides[id] = { absent: true };
+          }
         }
         return state;
       },

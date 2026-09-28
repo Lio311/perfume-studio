@@ -43,6 +43,8 @@ export interface BudgetSummary {
   /** At least one row has a currency that is not in the shekel total. */
   incomplete: boolean;
   excludedCount: number;
+  /** Visible parts with no price. They are not added to the total as zero. */
+  unpricedCount: number;
 }
 
 const KIND_BASE: Record<PartFacts["kind"], number> = {
@@ -115,15 +117,16 @@ export function toIls(value: number, currency: string, rates: Record<string, num
 export function resolvePartPrice(
   facts: PartFacts,
   imported: SupplierPrice | undefined,
-  override: { value: number; currency: string } | undefined,
+  override: { value: number; currency: string } | { absent: true } | undefined,
   rates: Record<string, number>,
-): ResolvedPrice {
-  if (override && Number.isFinite(override.value) && override.value > 0 && normalizeCurrency(override.currency)) {
+): ResolvedPrice | null {
+  if (override && "absent" in override) return null;
+  if (override && "value" in override && Number.isFinite(override.value) && override.value > 0 && normalizeCurrency(override.currency)) {
     const currency = normalizeCurrency(override.currency)!;
     const { ils, converted } = toIls(override.value, currency, rates);
     return { value: override.value, currency, source: "user", ils, converted };
   }
-  if (imported && normalizeCurrency(imported.currency)) {
+  if (imported && imported.value > 0 && normalizeCurrency(imported.currency)) {
     const currency = normalizeCurrency(imported.currency)!;
     const value = imported.value;
     const { ils, converted } = toIls(value, currency, rates);
@@ -142,9 +145,10 @@ export function resolvePartPrice(
   return { value, currency: "ILS", source: "example", ils: value, converted: false };
 }
 
-export function summarizeBudget(ilsAmounts: Array<number | null>, ceilingIls: number): BudgetSummary {
+export function summarizeBudget(ilsAmounts: Array<number | null | "unpriced">, ceilingIls: number): BudgetSummary {
+  const unpricedCount = ilsAmounts.filter((amount) => amount === "unpriced").length;
   const excludedCount = ilsAmounts.filter((amount) => amount === null).length;
-  const totalIls = ilsAmounts.reduce<number>((sum, amount) => sum + (amount ?? 0), 0);
+  const totalIls = ilsAmounts.reduce<number>((sum, amount) => sum + (typeof amount === "number" ? amount : 0), 0);
   const remainingIls = ceilingIls - totalIls;
   const overByIls = Math.max(0, totalIls - ceilingIls);
   return {
@@ -154,6 +158,7 @@ export function summarizeBudget(ilsAmounts: Array<number | null>, ceilingIls: nu
     over: overByIls > 1e-9,
     incomplete: excludedCount > 0,
     excludedCount,
+    unpricedCount,
   };
 }
 
