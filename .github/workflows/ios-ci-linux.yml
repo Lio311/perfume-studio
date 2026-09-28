@@ -1,0 +1,24 @@
+name: ios-ci-linux
+on:
+  pull_request:
+    paths: ['ios/**', 'schema/**', '.github/workflows/ios-*.yml']
+  push:
+    branches: [main]
+    paths: ['ios/**', 'schema/**', '.github/workflows/ios-*.yml']
+jobs:
+  swift:
+    runs-on: ubuntu-latest
+    container: swift:6.0-jammy     # match the Swift minor of the owner's Xcode
+    strategy:
+      matrix:
+        pkg: [PackKit, APIClient]
+    defaults:
+      run:
+        working-directory: ios
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fixture + schema sync check
+        run: sh scripts/check-fixtures.sh
+      - name: swift test
+        working-directory: ios/Packages/${{ matrix.pkg }}
+        run: swift build && swift test --parallel
