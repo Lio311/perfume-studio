@@ -105,7 +105,9 @@ export function Library() {
         <button type="button" className="library-close" onClick={() => useLab.getState().setLibraryOpen(false)} aria-label={t.close}>×</button>
         <button type="button" className="text-btn" onClick={() => randomize()}>{t.random}</button>
       </div>
-      <input className="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t.search} />
+      {tab !== "liquid" && tab !== "pending" && (
+        <input className="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t.search} />
+      )}
       {query.trim() && tab !== "liquid" && tab !== "pending" && (
         <p className="hint">{lang === "he" ? `${items.length} תואמים ל-${query.trim()}` : `${items.length} match ${query.trim()}`}</p>
       )}
@@ -148,16 +150,26 @@ export function Library() {
         <input className="search" style={{ marginTop: "-8px", marginBottom: "12px" }} value={design.label.text} placeholder={t.brand} onChange={(event) => patch("label", { text: event.target.value.slice(0, 32) })} />
       )}
       {tab === "liquid" ? (
-        <div className="swatches liquid-swatches" ref={gridRef}>
-          {LIQUID_PALETTE.map((color) => (
-            <button
-              key={color}
-              type="button"
-              className={design.liquid.color.toLowerCase() === color ? "swatch is-on" : "swatch"}
-              style={{ background: color }}
-              onClick={() => patch("liquid", { color, visible: true })}
-            />
-          ))}
+        <div className="liquid-panel" style={{ padding: "8px 0" }}>
+          <div className="swatches liquid-swatches" ref={gridRef}>
+            {LIQUID_PALETTE.map((color) => (
+              <button
+                key={color}
+                type="button"
+                className={design.liquid.color.toLowerCase() === color ? "swatch is-on" : "swatch"}
+                style={{ background: color }}
+                onClick={() => patch("liquid", { color, visible: true })}
+              />
+            ))}
+            <label className="picker">
+              <input type="color" value={typeof design.liquid.color === "string" ? design.liquid.color : "#000000"} onChange={(event) => patch("liquid", { color: event.target.value, visible: true })} />
+            </label>
+          </div>
+          <label className="slider" style={{ marginTop: "16px" }}>
+            <span>{lang === "he" ? "מילוי" : "Fill Level"}</span>
+            <span>{Math.round(design.liquid.fill * 100)}%</span>
+            <input type="range" min="0" max="1" step="0.01" value={design.liquid.fill} onChange={(event) => patch("liquid", { fill: parseFloat(event.target.value) })} />
+          </label>
         </div>
       ) : tab === "pending" ? (
         <div className="pending-list">

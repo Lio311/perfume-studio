@@ -165,8 +165,6 @@ export function TopBar() {
         <button type="button" className="text-btn" onClick={() => newDesign()}>{lang === "he" ? "חדש" : "New"}</button>
         <button type="button" className="text-btn" onClick={() => setModal("save")}>{t.saved}</button>
         <button type="button" className="text-btn lang" onClick={() => setLang(lang === "he" ? "en" : "he")}>{lang === "he" ? "EN" : "עב"}</button>
-        <button type="button" className="icon-btn" onClick={() => undo()} disabled={past === 0}>{t.undo}</button>
-        <button type="button" className="icon-btn" onClick={() => redo()} disabled={future === 0}>{t.redo}</button>
         <button type="button" className="text-btn panel-toggle" onClick={() => setLibraryOpen(!libraryOpen)}>{t.library}</button>
         <button type="button" className="text-btn panel-toggle" onClick={() => setSideOpen(!sideOpen)}>{t.properties}</button>
       </div>
