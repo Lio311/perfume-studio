@@ -96,7 +96,7 @@ export function factsById(kind: VariantPart, id: string): PartFacts | null {
       neck: meta?.neck ?? null,
       widthMm: spec.nozzleMm,
       heightMm: spec.actuatorHeightMm,
-      depthMm: Math.round(spec.radiusFactor * 15 * 10) / 10,
+      depthMm: Math.round((spec.widthMm ?? (spec.radiusFactor ?? 0.42) * 15) * 10) / 10,
       section: "circle",
       profile: spec.style,
       material: materialFromTags(spec.tags, "pump"),

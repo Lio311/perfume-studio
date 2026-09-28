@@ -21,7 +21,7 @@ export function frameFor(part: PartKey, fit: ReturnType<typeof computeFit>): Fra
     return { home: [0, fit.capBottom, 0], explode: fit.explode.cap, index: 1, center: [0, fit.capH / 2, 0], size: [fit.capW, fit.capH, fit.capD] };
   }
   if (part === "pump") {
-    const w = Math.max(8, fit.actuatorR * 2.4);
+    const w = Math.max(8, Math.max(fit.actuatorR, fit.headR) * 2.4);
     return { home: [0, fit.pumpBase, 0], explode: fit.explode.pump, index: 2, center: [0, fit.actuatorH / 2, 0], size: [w, fit.actuatorH + 4, w] };
   }
   if (part === "collar") {

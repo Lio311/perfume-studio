@@ -1,3 +1,4 @@
+import { useId } from "react";
 import { formatMoney } from "../budget/money.ts";
 import { bottleById, boxById, capById, collarById, logoById, pumpById } from "../model/catalog.ts";
 import { computeFit } from "../model/fit.ts";
@@ -7,6 +8,7 @@ import type { FinishId, NeckId, PartKey, VariantPart } from "../model/types.ts";
 import { partLabel, tx } from "../i18n/copy.ts";
 import { useLab } from "../store/labStore.ts";
 import { Alternatives } from "./BudgetSuggestions.tsx";
+import { BrandTextField, labelVisibleAfterTextChange } from "./brandField.tsx";
 import { ExamplePriceMark, PartialMark, PartPriceEditor } from "./PriceTag.tsx";
 import { useBudgetModel } from "./useBudget.ts";
 
@@ -23,10 +25,13 @@ export function Inspector() {
   const endGesture = useLab((s) => s.endGesture);
   const duplicateDesign = useLab((s) => s.duplicateDesign);
   const applyCommands = useLab((s) => s.applyCommands);
+  const suppliers = useLab((s) => s.suppliers);
+  const brandHeadingId = useId();
   const part = selected;
   const quantity = useLab((s) => s.brief.quantity);
   const budget = useBudgetModel();
-  const name = variantName(part, design, lang);
+  const hidden = hiddenDesignPart(part, design, suppliers);
+  const name = hidden ? (hidden.name || hidden.code || hidden.id) : variantName(part, design, lang);
   let fit: ReturnType<typeof computeFit>;
   try {
     fit = computeFit(design, explode > 0.45);
@@ -50,22 +55,28 @@ export function Inspector() {
         <span className="hint">{t.arrows}</span>
       </div>
       {!part && <p className="empty">{t.emptySelect}</p>}
+      {part && hidden && (
+        <p className="hint" data-hidden-design>{lang === "he" ? hidden.he : hidden.en}</p>
+      )}
       {part && (
         <>
-          {badge && <div className="badge is-fit" dir="ltr">{badge}</div>}
-          <p className="combo-total" data-combo-total>
-            <span>{t.totalPrice}</span>
-            <bdi dir="ltr">{formatMoney(budget.summary.totalIls, "ILS", lang)}</bdi>
-            <PartialMark count={budget.summary.unpricedCount} />
-            {!quantity && <em>{t.basePriceNote}</em>}
-            {budget.belowMoq && <em className="is-warn">{t.belowMoq}</em>}
-            <ExamplePriceMark count={budget.exampleCount} />
-            {budget.summary.over && <em className="is-over">{t.budgetOver}</em>}
-          </p>
+          {badge && !hidden && <div className="badge is-fit" dir="ltr">{badge}</div>}
+          {!hidden && (
+            <p className="combo-total" data-combo-total>
+              <span>{t.totalPrice}</span>
+              <bdi dir="ltr">{formatMoney(budget.summary.totalIls, "ILS", lang)}</bdi>
+              <PartialMark count={budget.summary.unpricedCount} />
+              {!quantity && <em>{t.basePriceNote}</em>}
+              {budget.belowMoq && <em className="is-warn">{t.belowMoq}</em>}
+              <ExamplePriceMark count={budget.exampleCount} />
+              {budget.summary.over && <em className="is-over">{t.budgetOver}</em>}
+            </p>
+          )}
+          {!hidden && <SpecCard part={part} />}
           <div className="part-title">
             <div>
               <span className="eyebrow">{partLabel[lang][part]}</span>
-              <strong>{name}</strong>
+              <strong>{hidden ? <bdi>{name}</bdi> : name}</strong>
             </div>
             {part !== "liquid" && (
               <div className="cycle-btns">
@@ -74,9 +85,8 @@ export function Inspector() {
               </div>
             )}
           </div>
-          {part !== "liquid" && <PartPriceEditor kind={part as VariantPart} partId={design[part].variantId} />}
-          <Alternatives />
-          <SpecCard part={part} />
+          {!hidden && part !== "liquid" && <PartPriceEditor kind={part as VariantPart} partId={design[part].variantId} />}
+          {!hidden && <Alternatives />}
           <h3>{t.color}</h3>
           <div className="swatches">
             {(part === "liquid" ? LIQUID_PALETTE : PALETTE).map((color) => {
@@ -200,15 +210,19 @@ export function Inspector() {
           {part === "pump" && (
             <>
               <p className="hint">{t.snap}</p>
-              <Readout label={t.width} value={fit.actuatorR * 2} />
+              <Readout label={t.width} value={fit.headR * 2} />
               <Readout label={t.height} value={fit.actuatorH} />
             </>
           )}
           {part === "label" && (
             <>
-              <h3>{t.brand}</h3>
-              <input className="search" value={design.label.text} placeholder="Nº 01" onChange={(event) => patch("label", { text: event.target.value.slice(0, 32) })} />
-              <p className="hint">{t.brandHint}</p>
+              <h3 id={brandHeadingId}>{t.brand}</h3>
+              <BrandTextField
+                value={design.label.text}
+                hint={t.brandHint}
+                labelId={brandHeadingId}
+                onChange={(text) => patch("label", { text, visible: labelVisibleAfterTextChange(text, design.label.visible) })}
+              />
               <Slider label={t.scale} value={design.label.scale * 100} min={55} max={160} suffix="%" onGesture={beginGesture} onGestureEnd={endGesture} onChange={(value) => patch("label", { scale: value / 100 })} />
               <Readout label={t.width} value={fit.labelW} />
               <Readout label={t.height} value={fit.labelH} />
@@ -355,7 +369,7 @@ function SpecCard({ part }: { part: PartKey }) {
         : part === "collar"
           ? `Ø${(fit.collarOuter * 2).toFixed(1)} × ${fit.collarHeight.toFixed(1)}`
           : part === "pump"
-            ? `Ø${(fit.actuatorR * 2).toFixed(1)} × ${fit.actuatorH.toFixed(1)}`
+            ? `Ø${(fit.headR * 2).toFixed(1)} × ${fit.actuatorH.toFixed(1)}`
             : part === "label"
               ? `${fit.labelW.toFixed(1)} × ${fit.labelH.toFixed(1)}`
               : `${lang === "he" ? "מילוי" : "Fill"} ${Math.round(design.liquid.fill * 100)}%`;
@@ -396,6 +410,20 @@ function ratio(current: number, base: number): number {
 function toHex(color: string): string {
   if (/^#[0-9a-fA-F]{6}$/.test(color)) return color;
   return "#d4b48a";
+}
+
+function hiddenDesignPart(
+  part: PartKey | null,
+  design: ReturnType<typeof useLab.getState>["design"],
+  suppliers: ReturnType<typeof useLab.getState>["suppliers"],
+) {
+  if (!part || part === "liquid") return undefined;
+  const id = design[part].variantId;
+  for (const pack of suppliers) {
+    const hit = pack.hiddenParts?.find((item) => item.id === id);
+    if (hit) return hit;
+  }
+  return undefined;
 }
 
 function variantName(part: PartKey | null, design: ReturnType<typeof useLab.getState>["design"], lang: "he" | "en"): string {

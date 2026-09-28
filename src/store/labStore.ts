@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { createLabStorage, LAB_PERSIST_VERSION, mergePersistedLab, migratePersisted, partializeLabState } from "./hydrate.ts";
 import { produce } from "immer";
 import { applyLook, applyVariant, createDefaultDesign, estimateMl, LOOKS } from "../model/design.ts";
 import { BOTTLES } from "../model/bottles.ts";
@@ -13,9 +14,10 @@ import { type ThemeId, applyTheme } from "../theme/themes.ts";
 import type { Lang } from "../model/types.ts";
 import type { LabCommand } from "../parser/interpret.ts";
 import { parseVoiceParam, readVoiceParam, type VoiceVariant } from "../audio/wake.ts";
-import { normalizeStoredPack } from "../import/packPrice.ts";
-import { deletePack, savePack } from "../import/supplierDb.ts";
-import { syncRegistry, type SupplierPack } from "../import/registry.ts";
+import { deletePack, markPackWarningsSeen, savePack } from "../import/supplierDb.ts";
+import { formatPackNotice, type PackNotice } from "../import/notices.ts";
+import { tx } from "../i18n/copy.ts";
+import { isVariantPart, syncRegistry, type SupplierPack } from "../import/registry.ts";
 import { apiClient } from "../api/client.ts";
 import type { BudgetBrief, PriceOverride } from "../budget/types.ts";
 
@@ -76,6 +78,7 @@ interface LabState {
   modal: "save" | "compare" | "upload" | "supplier" | "photo" | null;
   units: "mm" | "cm" | "in";
   suppliers: SupplierPack[];
+  packNotices: PackNotice[];
   brief: BudgetBrief;
   /** Not persisted. True while the brief dialog is open over an existing brief. */
   briefEditing: boolean;
@@ -103,6 +106,8 @@ interface LabState {
   patch: (part: PartKey, partial: Record<string, unknown>) => void;
   applyCommands: (commands: LabCommand[], options?: { quiet?: boolean }) => void;
   toast: string;
+  /** Full share URL shown when the clipboard rejects the copy. Not persisted. */
+  shareUrl: string;
   cycle: (dir: number, part?: VariantPart) => void;
   randomize: () => void;
   setMode: (mode: LabMode) => void;
@@ -121,6 +126,7 @@ interface LabState {
   setLibraryOpen: (open: boolean) => void;
   setSideOpen: (open: boolean) => void;
   setModal: (modal: LabState["modal"]) => void;
+  setShareUrl: (url: string) => void;
   pushChat: (message: ChatMessage) => void;
   saveDesign: (name: string, thumb: string) => void;
   loadDesign: (id: string) => void;
@@ -129,8 +135,10 @@ interface LabState {
   toggleCompare: (id: string) => void;
   addPending: (part: PendingPart) => void;
   removePending: (id: string) => void;
-  setSuppliers: (packs: SupplierPack[]) => void;
-  upsertSupplier: (pack: SupplierPack, close?: boolean) => void;
+  setSuppliers: (packs: SupplierPack[], notices?: PackNotice[]) => void;
+  dismissPackNotices: () => void;
+  showPackNotices: (notices: PackNotice[]) => void;
+  upsertSupplier: (pack: SupplierPack, notices?: PackNotice[]) => void;
   removeSupplier: (id: string) => void;
   setBrief: (patch: Partial<Pick<BudgetBrief, "ceilingIls" | "volumeMl">> & { quantity?: number | null }) => void;
   confirmBrief: () => void;
@@ -215,10 +223,9 @@ function applyOne(design: Design, command: LabCommand, ui: { explode: number; mo
       }
       break;
     case "variant":
+      if (!isVariantPart(command.part)) break;
       applyVariant(design, command.part, command.id);
-      if (command.part !== 'box' || design.box) {
-         (design[command.part] as any).visible = true;
-      }
+      design[command.part].visible = true;
       break;
     case "cycle": {
       const current =
@@ -347,6 +354,33 @@ function tweenExplode(to: number, ms: number) {
   explodeRaf = requestAnimationFrame(step);
 }
 
+function noticeToast(notices: PackNotice[], lang: Lang): string {
+  if (!notices.length) return "";
+  const count = notices.length === 1
+    ? tx(lang).packWarningOne
+    : tx(lang).packWarningCount.replace("{n}", String(notices.length));
+  if (notices.length > 1) return count;
+  const line = formatPackNotice(lang, notices[0]);
+  return line.length > 120 ? count : line;
+}
+
+function commitSuppliers(
+  set: (partial: Partial<LabState>) => void,
+  get: () => LabState,
+  packs: SupplierPack[],
+  extra: PackNotice[],
+  closeModal: boolean,
+) {
+  const notices = [...extra, ...syncRegistry(packs)];
+  const toast = noticeToast(notices, get().lang);
+  set({
+    suppliers: packs,
+    packNotices: notices,
+    ...(closeModal ? { modal: null } : {}),
+    ...(toast ? { toast } : {}),
+  });
+}
+
 export const useLab = create<LabState>()(
   persist(
     (set, get) => ({
@@ -356,6 +390,7 @@ export const useLab = create<LabState>()(
       mode: "assemble",
       explode: 0,
       toast: "",
+      shareUrl: "",
       exporting: false,
       viewPreset: "home",
       past: [],
@@ -383,6 +418,7 @@ export const useLab = create<LabState>()(
       saved: seeds(),
       pending: [],
       suppliers: [],
+      packNotices: [],
       brief: { ceilingIls: 30, volumeMl: 50, confirmed: false },
       briefEditing: false,
       priceOverrides: {},
@@ -509,6 +545,7 @@ export const useLab = create<LabState>()(
       setLibraryOpen: (libraryOpen) => set({ libraryOpen }),
       setSideOpen: (sideOpen) => set({ sideOpen }),
       setModal: (modal) => set({ modal }),
+      setShareUrl: (shareUrl) => set({ shareUrl }),
       pushChat: (message) => set((state) => ({ chat: [...state.chat, message].slice(-40) })),
       saveDesign: async (name, thumb) => {
         const id = uid("cfg");
@@ -555,22 +592,23 @@ export const useLab = create<LabState>()(
         }),
       addPending: (part) => set((state) => ({ pending: [part, ...state.pending].slice(0, 30), modal: null })),
       removePending: (id) => set((state) => ({ pending: state.pending.filter((item) => item.id !== id) })),
-      setSuppliers: (packs) => {
-        const next = packs.map((pack) => normalizeStoredPack(pack).pack);
-        syncRegistry(next);
-        set({ suppliers: next });
+      setSuppliers: (packs, notices = []) => {
+        commitSuppliers(set, get, packs, notices, false);
       },
-      upsertSupplier: (pack, close = true) => {
-        const nextPack = normalizeStoredPack(pack).pack;
-        const suppliers = [nextPack, ...get().suppliers.filter((item) => item.id !== nextPack.id)];
-        syncRegistry(suppliers);
-        set(close ? { suppliers, modal: null } : { suppliers });
-        void savePack(nextPack);
+      dismissPackNotices: () => set({ packNotices: [] }),
+      showPackNotices: (notices) => {
+        const toast = noticeToast(notices, get().lang);
+        set({ packNotices: notices, ...(toast ? { toast } : {}) });
+      },
+      upsertSupplier: (pack, notices = []) => {
+        const suppliers = [pack, ...get().suppliers.filter((item) => item.id !== pack.id)];
+        commitSuppliers(set, get, suppliers, notices, notices.length === 0);
+        markPackWarningsSeen(pack);
+        void savePack(pack);
       },
       removeSupplier: (id) => {
         const suppliers = get().suppliers.filter((item) => item.id !== id);
-        syncRegistry(suppliers);
-        set({ suppliers });
+        commitSuppliers(set, get, suppliers, [], false);
         void deletePack(id);
       },
       setBrief: (patch) =>
@@ -652,45 +690,19 @@ export const useLab = create<LabState>()(
     }),
     {
       name: "perfume-lab-v1",
-      version: 6,
-      migrate: (persisted, version) => {
-        const state = persisted as {
-          design?: Design;
-          theme?: ThemeId;
-          brief?: BudgetBrief;
-          priceOverrides?: Record<string, PriceOverride>;
-          exchangeRates?: Record<string, number>;
-        };
-        if (version < 2 && state.design?.cap.variantId === "cap-cyl-32" && state.design.label.text === "Nº 01") {
-          state.design = createDefaultDesign();
-        }
-        if (version < 3) state.theme = "light";
-        if (version < 4) state.theme = "dark";
-        if (version < 5) {
-          if (!state.brief) state.brief = { ceilingIls: 30, volumeMl: 50, confirmed: false };
-          if (!state.priceOverrides) state.priceOverrides = {};
-          if (!state.exchangeRates) state.exchangeRates = {};
-        }
-        if (version < 6 && state.priceOverrides) {
-          for (const [id, stored] of Object.entries(state.priceOverrides)) {
-            if (!stored || ("absent" in stored && stored.absent)) continue;
-            if (!("value" in stored) || typeof stored.value !== "number" || stored.value <= 0) state.priceOverrides[id] = { absent: true };
-          }
-        }
-        return state;
+      version: LAB_PERSIST_VERSION,
+      storage: createLabStorage(),
+      merge: (persisted, current) => mergePersistedLab(persisted, current),
+      migrate: (persisted, version) => migratePersisted(persisted, version) as {
+        design: Design;
+        theme: ThemeId;
+        lang: Lang;
+        chat: ChatMessage[];
+        saved: SavedDesign[];
+        pending: PendingPart[];
+        compareIds: string[];
       },
-      partialize: (state) => ({
-        design: state.design,
-        theme: state.theme,
-        lang: state.lang,
-        chat: state.chat,
-        saved: state.saved,
-        pending: state.pending,
-        compareIds: state.compareIds,
-        brief: state.brief,
-        priceOverrides: state.priceOverrides,
-        exchangeRates: state.exchangeRates,
-      }),
+      partialize: (state) => partializeLabState(state),
     },
   ),
 );

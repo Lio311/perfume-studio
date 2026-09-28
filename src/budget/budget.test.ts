@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import type { FinishId, VariantPart } from "../model/types.ts";
 import { examplePriceNote } from "../i18n/copy.ts";
 import { allFacts, factsById } from "./descriptors.ts";
-import { budgetAmount, exampleIls, formatCount, formatMoney, formatQuoteDate, normalizeCurrency, priceAtQuantity, quantityBelowMoq, resolvePartPrice, summarizeBudget, toIls, unitValue } from "./money.ts";
+import { normalizeCurrency } from "../model/price.ts";
+import { budgetAmount, exampleIls, formatCount, formatMoney, formatQuoteDate, priceAtQuantity, quantityBelowMoq, resolvePartPrice, summarizeBudget, toIls, unitValue } from "./money.ts";
 import { rankAssemblySavings, rankCostReductions, suggestAlternatives } from "./similar.ts";
 import type { PartFacts } from "./types.ts";
 import { capacityFitsVolume, matchingBottleIds, nominalFillMl } from "./volume.ts";
@@ -73,17 +74,19 @@ describe("budget totals", () => {
     const priced = resolvePartPrice(facts({ id: "priced", kind: "cap" }), { value: 10, currency: "₪" }, undefined, {});
     const unpriced = resolvePartPrice(facts({ id: "none", kind: "cap", fromPack: true }), undefined, undefined, {});
     const unknown = resolvePartPrice(facts({ id: "mystery", kind: "cap", fromPack: true }), { value: 7.5, currency: "dollar" }, undefined, {});
+    const missingCurrency = resolvePartPrice(facts({ id: "blank", kind: "cap", fromPack: true }), { value: 9 }, undefined, {});
     const awaitingRate = resolvePartPrice(facts({ id: "usd", kind: "cap" }), { value: 4, currency: "$" }, undefined, {});
     expect(priced).toMatchObject({ currency: "ILS", ils: 10, source: "import" });
     expect(priced?.unknownCurrency).toBeUndefined();
     expect(unpriced).toBeNull();
     expect(unknown).toMatchObject({ value: 7.5, currency: "dollar", unknownCurrency: true, ils: null });
+    expect(missingCurrency).toMatchObject({ value: 9, unknownCurrency: true, ils: null, currency: "" });
     expect(awaitingRate).toMatchObject({ currency: "USD", ils: null, converted: false });
     expect(awaitingRate?.unknownCurrency).toBeUndefined();
 
-    const summary = summarizeBudget([priced, unpriced, unknown].map((price) => budgetAmount(price)), 100);
+    const summary = summarizeBudget([priced, unpriced, unknown, missingCurrency].map((price) => budgetAmount(price)), 100);
     expect(summary.totalIls).toBe(10);
-    expect(summary.unpricedCount).toBe(2);
+    expect(summary.unpricedCount).toBe(3);
     expect(summary.excludedCount).toBe(0);
     expect(summary.incomplete).toBe(false);
     expect(budgetAmount(awaitingRate)).toBeNull();
@@ -371,7 +374,7 @@ describe("resolved prices", () => {
     expect(example!.value % 5).toBe(0);
 
     const imported = resolvePartPrice(row, { value: 4, currency: "usd", quotedAt: "2026-09-01T08:30:00Z" }, undefined, {});
-    expect(imported).toMatchObject({ source: "import", currency: "USD", value: 4, ils: null, converted: false, quotedAt: "2026-09-01T08:30:00Z" });
+    expect(imported).toMatchObject({ source: "import", currency: "USD", value: 4, ils: null, converted: false, quotedAt: "2026-09-01" });
 
     const rated = resolvePartPrice(row, { value: 4, currency: "USD" }, undefined, { USD: 4 });
     expect(rated).not.toBeNull();

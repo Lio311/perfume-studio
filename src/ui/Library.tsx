@@ -2,11 +2,15 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { factsById } from "../budget/descriptors.ts";
 import { matchingBottleIds } from "../budget/volume.ts";
 import { partLabel, tx } from "../i18n/copy.ts";
+import { capPackNotices } from "../import/notices.ts";
 import { downloadPack } from "../import/supplierDb.ts";
+import { isVariantPart } from "../import/registry.ts";
 import { entryMatches, listFor } from "../model/catalog.ts";
+import { formatSupplierAmount, sanitizeSupplierPrice } from "../model/price.ts";
 import { markSwap } from "../scene/focusClick.ts";
 import { effectiveGlassOpacity, LIQUID_PALETTE } from "../model/materials.ts";
 import type { VariantPart } from "../model/types.ts";
+import { historyWizardStep } from "../nav/backHistory.ts";
 import { useLab } from "../store/labStore.ts";
 import { thumbFor } from "../thumbnails/thumbs.ts";
 import { PriceTag } from "./PriceTag.tsx";
@@ -26,6 +30,17 @@ const CAP_CATS: Array<{ id: string; label: "catAll" | "catZamac" | "catSurlyn" |
   { id: "minimal", label: "catMinimal", tags: ["minimal", "מינימל"] },
 ];
 
+function tabForWizardStep(step: number): (typeof TABS)[number] {
+  if (step >= 0 && step < WIZARD_ORDER.length) return WIZARD_ORDER[step];
+  return "bottle";
+}
+
+function moveWizardStep(step: number) {
+  const design = useLab.getState().design;
+  useLab.setState({ design: { ...design, step } });
+  if (step < 7) useLab.getState().setStage(step === 6 ? "box" : "bottle");
+}
+
 export function Library() {
   const lang = useLab((s) => s.lang);
   const t = tx(lang);
@@ -38,10 +53,11 @@ export function Library() {
   const randomize = useLab((s) => s.randomize);
   const removePending = useLab((s) => s.removePending);
   const suppliers = useLab((s) => s.suppliers);
+  const packNotices = useLab((s) => s.packNotices);
   const removeSupplier = useLab((s) => s.removeSupplier);
   const selected = useLab((s) => s.selected);
   const focusToken = useLab((s) => s.focusToken);
-  const [tab, setTab] = useState<(typeof TABS)[number]>("bottle");
+  const [tab, setTab] = useState<(typeof TABS)[number]>(() => tabForWizardStep(useLab.getState().design.step ?? 7));
   const [query, setQuery] = useState("");
   const [cat, setCat] = useState("all");
   const [supplier, setSupplier] = useState("all");
@@ -54,16 +70,22 @@ export function Library() {
   const wizardStep = design.step ?? 7;
   const isWizard = wizardStep < 7;
   const activeTabs = isWizard ? [...WIZARD_ORDER.slice(0, wizardStep + 1), "pending" as const] : TABS;
+  const visibleTab = isWizard ? tabForWizardStep(wizardStep) : tab;
 
-  useEffect(() => {
-    if (isWizard && !activeTabs.includes(tab as any)) {
-      setTab(WIZARD_ORDER[wizardStep] as any);
-    }
-  }, [isWizard, wizardStep, tab, activeTabs]);
   tabRef.current = tab;
 
   useEffect(() => {
-    if (!selected) return;
+    if (!isWizard) return;
+    const next = WIZARD_ORDER[wizardStep];
+    if (!next || tabRef.current === next) return;
+    setQuery("");
+    setCat("all");
+    setSupplier("all");
+    setTab(next);
+  }, [isWizard, wizardStep]);
+
+  useEffect(() => {
+    if (!selected || isWizard) return;
     const next = selected === "liquid" ? "liquid" : selected;
     if (tabRef.current !== next) {
       setQuery("");
@@ -71,41 +93,41 @@ export function Library() {
       setSupplier("all");
     }
     setTab(next);
-  }, [selected, focusToken]);
+  }, [selected, focusToken, isWizard]);
 
   const activeId =
-    tab === "bottle" ? design.bottle.variantId :
-    tab === "cap" ? design.cap.variantId :
-    tab === "label" ? design.label.variantId :
-    tab === "pump" ? design.pump.variantId :
-    tab === "collar" ? design.collar.variantId :
-    tab === "box" ? design.box.variantId :
+    visibleTab === "bottle" ? design.bottle.variantId :
+    visibleTab === "cap" ? design.cap.variantId :
+    visibleTab === "label" ? design.label.variantId :
+    visibleTab === "pump" ? design.pump.variantId :
+    visibleTab === "collar" ? design.collar.variantId :
+    visibleTab === "box" ? design.box.variantId :
     "";
 
   const bottleMatch = useMemo(() => {
-    if (tab !== "bottle") return null;
+    if (visibleTab !== "bottle") return null;
     const bottles = listFor("bottle").map((item) => ({ id: item.id, fillMl: factsById("bottle", item.id)?.fillMl ?? null }));
     return matchingBottleIds(bottles, brief.volumeMl, activeId ? [activeId] : []);
-  }, [tab, brief.volumeMl, activeId, suppliers]);
+  }, [visibleTab, brief.volumeMl, activeId, suppliers]);
 
   const items = useMemo(() => {
-    if (tab === "liquid" || tab === "pending") return [];
+    if (visibleTab === "liquid" || visibleTab === "pending") return [];
     const q = query.trim().toLowerCase();
     const family = CAP_CATS.find((entry) => entry.id === cat);
-    return listFor(tab).filter((item) => {
+    return listFor(visibleTab).filter((item) => {
       if (supplier !== "all" && !item.tags.includes(`supplier:${supplier}`)) return false;
       if (q && !entryMatches(item, q)) return false;
-      if (tab === "bottle" && brief.confirmed && !allBottles && bottleMatch && !bottleMatch.ids.has(item.id)) return false;
-      if (q || tab !== "cap" || !family || family.tags.length === 0) return true;
+      if (visibleTab === "bottle" && brief.confirmed && !allBottles && bottleMatch && !bottleMatch.ids.has(item.id)) return false;
+      if (q || visibleTab !== "cap" || !family || family.tags.length === 0) return true;
       return family.tags.some((tag) => item.tags.includes(tag));
     });
-  }, [tab, query, cat, supplier, suppliers, brief.confirmed, brief.volumeMl, allBottles, bottleMatch]);
+  }, [visibleTab, query, cat, supplier, suppliers, brief.confirmed, brief.volumeMl, allBottles, bottleMatch]);
 
   useEffect(() => {
     const on = gridRef.current?.querySelector(".thumb.is-on, .swatch.is-on");
     on?.scrollIntoView({ block: "nearest", inline: "nearest" });
-    document.querySelector(`.library [data-part="${tab}"]`)?.scrollIntoView({ block: "nearest", inline: "nearest" });
-  }, [tab, activeId, items, focusToken]);
+    document.querySelector(`.library [data-part="${visibleTab}"]`)?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }, [visibleTab, activeId, items, focusToken]);
 
   const glassOpacity = effectiveGlassOpacity(design.bottle.finish, design.bottle.opacity);
 
@@ -115,16 +137,26 @@ export function Library() {
         <h2>
           {t.library}
           <span className="count" style={{ marginInlineStart: "8px", fontWeight: "normal" }}>
-            ({tab === "pending" ? pending.length + suppliers.reduce((sum, pack) => sum + pack.parts.length, 0) : tab === "liquid" ? LIQUID_PALETTE.length : items.length})
+            ({visibleTab === "pending" ? pending.length + suppliers.reduce((sum, pack) => sum + pack.parts.length + (pack.hiddenParts?.length ?? 0), 0) : visibleTab === "liquid" ? LIQUID_PALETTE.length : items.length})
           </span>
         </h2>
         <button type="button" className="library-close" onClick={() => useLab.getState().setLibraryOpen(false)} aria-label={t.close}>×</button>
         <button type="button" className="text-btn" onClick={() => randomize()}>{t.random}</button>
       </div>
-      {tab !== "liquid" && tab !== "pending" && (
+      {packNotices.length > 0 && (
+        <div className="pack-warnings-wrap">
+          <ul className="pack-warnings" role="status">
+            {capPackNotices(packNotices, lang).map((line, index) => (
+              <li key={index}>{line}</li>
+            ))}
+          </ul>
+          <button type="button" className="text-btn" onClick={() => useLab.getState().dismissPackNotices()}>{t.close}</button>
+        </div>
+      )}
+      {visibleTab !== "liquid" && visibleTab !== "pending" && (
         <input className="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t.search} />
       )}
-      {query.trim() && tab !== "liquid" && tab !== "pending" && (
+      {query.trim() && visibleTab !== "liquid" && visibleTab !== "pending" && (
         <p className="hint">{lang === "he" ? `${items.length} תואמים ל-${query.trim()}` : `${items.length} match ${query.trim()}`}</p>
       )}
       {!isWizard && (
@@ -141,7 +173,7 @@ export function Library() {
           ))}
         </div>
       )}
-      {suppliers.length > 0 && tab !== "liquid" && tab !== "pending" && (
+      {suppliers.length > 0 && visibleTab !== "liquid" && visibleTab !== "pending" && (
         <div className="supplier-row">
           <button type="button" className={supplier === "all" ? "is-on" : ""} onClick={() => setSupplier("all")}>{t.supplierAll}</button>
           {suppliers.map((pack) => (
@@ -153,14 +185,17 @@ export function Library() {
             <>
               <button type="button" onClick={() => {
                 const pack = suppliers.find((item) => item.id === supplier);
-                if (pack) downloadPack(pack);
+                if (pack) {
+                  const warnings = downloadPack(pack);
+                  if (warnings.length) useLab.getState().showPackNotices(warnings);
+                }
               }}>{t.exportPack}</button>
               <button type="button" onClick={() => { removeSupplier(supplier); setSupplier("all"); }}>{t.removeSupplier}</button>
             </>
           )}
         </div>
       )}
-      {tab === "bottle" && brief.confirmed && (
+      {visibleTab === "bottle" && brief.confirmed && (
         <div className="volume-row">
           <p className="hint">{bottleMatch?.relaxed ? t.volumeRelaxed : t.volumeFilter} · <bdi dir="ltr">{brief.volumeMl}</bdi> {t.capacityShort}</p>
           <button type="button" className={allBottles ? "is-on" : ""} onClick={() => setAllBottles((value) => !value)}>
@@ -168,7 +203,7 @@ export function Library() {
           </button>
         </div>
       )}
-      {tab === "cap" && (
+      {visibleTab === "cap" && (
         <div className="cat-row" role="tablist">
           {CAP_CATS.map((entry) => (
             <button key={entry.id} type="button" className={cat === entry.id ? "is-on" : ""} onClick={() => setCat(entry.id)}>
@@ -177,10 +212,10 @@ export function Library() {
           ))}
         </div>
       )}
-      {tab === "label" && (
+      {visibleTab === "label" && (
         <input className="search" style={{ marginTop: "-8px", marginBottom: "12px" }} value={design.label.text} placeholder={t.brand} onChange={(event) => patch("label", { text: event.target.value.slice(0, 32), visible: true })} />
       )}
-      {tab === "liquid" ? (
+      {visibleTab === "liquid" ? (
         <div className="liquid-panel" style={{ padding: "8px 0" }}>
           <div className="swatches liquid-swatches" ref={gridRef}>
             {LIQUID_PALETTE.map((color) => (
@@ -214,28 +249,47 @@ export function Library() {
             </label>
           )}
         </div>
-      ) : tab === "pending" ? (
+      ) : visibleTab === "pending" ? (
         <div className="pending-list">
           <p className="hint">{t.pendingNote}</p>
-          {pending.length === 0 && suppliers.every((pack) => pack.parts.length === 0) && <p className="hint">{t.pendingEmpty}</p>}
-          {suppliers.flatMap((pack) => pack.parts.filter((part) => {
+          {pending.length === 0 && suppliers.every((pack) => pack.parts.length === 0 && !(pack.hiddenParts?.length)) && <p className="hint">{t.pendingEmpty}</p>}
+          {suppliers.flatMap((pack) => (pack.hiddenParts ?? []).map((part) => {
+            const reason = lang === "he" ? part.he : part.en;
             const q = query.trim().toLowerCase();
-            if (!q) return true;
-            const hay = `${part.name} ${part.code} ${pack.name} ${part.neck ?? ""} ${part.widthMm} ${part.heightMm}`.toLowerCase();
-            return hay.includes(q) || hay.replace(/\s+/g, "").includes(q.replace(/\s+/g, ""));
-          }).map((part) => (
-            <article key={part.id} className="pending-card">
-              {part.thumb && <img src={part.thumb} alt="" />}
-              <div>
-                <strong>{part.name}</strong>
-                <span>{pack.name}{part.lathe ? "" : ` · ${t.tempShape}`}</span>
-              </div>
-              <button type="button" onClick={() => {
-                applyCommands([{ type: "variant", part: part.kind, id: part.id }]);
-                markSwap(part.kind);
-              }}>{t.replace}</button>
-            </article>
-          )))}
+            const hay = `${part.name} ${part.code} ${pack.name} ${reason}`.toLowerCase();
+            if (q && !hay.includes(q) && !hay.replace(/\s+/g, "").includes(q.replace(/\s+/g, ""))) return [];
+            return (
+              <article key={`${pack.id}-${part.id}`} className="pending-card" data-hidden-part>
+                <div>
+                  <strong><bdi>{part.name || part.code || part.id}</bdi></strong>
+                  <span className="hidden-reason">{reason}</span>
+                </div>
+              </article>
+            );
+          }))}
+          {suppliers.flatMap((pack) => pack.parts.flatMap((part) => {
+            const kind: unknown = part.kind;
+            const q = query.trim().toLowerCase();
+            if (!isVariantPart(kind)) return [];
+            const checked = part.price ? sanitizeSupplierPrice(part.price) : null;
+            if (q) {
+              const hay = `${part.name} ${part.code} ${pack.name} ${part.neck ?? ""} ${part.widthMm} ${part.heightMm}`.toLowerCase();
+              if (!hay.includes(q) && !hay.replace(/\s+/g, "").includes(q.replace(/\s+/g, ""))) return [];
+            }
+            return [(
+              <article key={part.id} className="pending-card">
+                {part.thumb && <img src={part.thumb} alt="" />}
+                <div>
+                  <strong>{part.name}</strong>
+                  <span>{pack.name}{part.lathe ? "" : ` · ${t.tempShape}`} · {checked?.price ? <bdi dir="ltr">{formatSupplierAmount(checked.price.value, checked.unpriced ? undefined : checked.price.currency, lang)}</bdi> : t.noPrice}</span>
+                </div>
+                <button type="button" onClick={() => {
+                  applyCommands([{ type: "variant", part: kind, id: part.id }]);
+                  markSwap(kind);
+                }}>{t.replace}</button>
+              </article>
+            )];
+          }))}
           {pending.map((item) => (
             <article key={item.id} className="pending-card">
               {item.files[0]?.thumb && <img src={item.files[0].thumb} alt="" />}
@@ -256,15 +310,15 @@ export function Library() {
               type="button"
               className={item.id === activeId ? "thumb is-on" : "thumb"}
               onClick={() => {
-                applyCommands([{ type: "variant", part: tab, id: item.id }, { type: "select", part: tab }], { quiet: true });
-                markSwap(tab);
+                applyCommands([{ type: "variant", part: visibleTab, id: item.id }]);
+                markSwap(visibleTab);
               }}
             >
-              <img src={thumbFor(tab, item.id, design.label.text)} alt="" />
+              <img src={thumbFor(visibleTab, item.id, design.label.text)} alt="" />
               <span>{lang === "he" ? item.he : item.en}</span>
               {item.tags.includes("placeholder") && <em className="temp-badge">{t.tempShape}</em>}
               {item.mm && <bdi className="mm" dir="ltr">{item.mm}</bdi>}
-              <PriceTag price={priceFor(tab, item.id)} compact />
+              <PriceTag price={priceFor(visibleTab, item.id)} compact />
             </button>
           ))}
         </div>
@@ -277,18 +331,18 @@ export function Library() {
               className="upload-btn"
               style={{ flex: 1, background: "transparent", color: "var(--text)", border: "1px solid var(--line)", fontWeight: "bold" }}
               onClick={() => {
-                const prevStep = wizardStep - 1;
-                const prevTab = WIZARD_ORDER[prevStep];
-                applyCommands([{ type: "wizard_step", step: prevStep }]);
-                setTab(prevTab);
-                useLab.getState().setStage(prevTab === "box" ? "box" : "bottle");
+                if (historyWizardStep(history.state) === wizardStep) {
+                  history.back();
+                  return;
+                }
+                moveWizardStep(wizardStep - 1);
               }}
             >
               {lang === "he" ? "הקודם" : "Back"}
             </button>
           )}
           {(() => {
-            const canProceed = tab === "pending" || (design as any)[tab]?.visible === true;
+            const canProceed = visibleTab === "pending" || (design as any)[visibleTab]?.visible === true;
             return (
               <button
                 type="button"
@@ -297,16 +351,14 @@ export function Library() {
                 style={{ flex: 1, background: "var(--accent)", color: "var(--on-accent)", border: "1px solid var(--line)", fontWeight: "bold", margin: 0, opacity: canProceed ? 1 : 0.5, cursor: canProceed ? "pointer" : "not-allowed" }}
                 onClick={() => {
                   const nextStep = wizardStep + 1;
-                  applyCommands([{ type: "wizard_step", step: nextStep }]);
                   if (nextStep < WIZARD_ORDER.length) {
-                    const nextTab = WIZARD_ORDER[nextStep];
-                    setTab(nextTab);
-                    useLab.getState().setStage(nextTab === "box" ? "box" : "bottle");
-                  } else {
-                    useLab.getState().setStage("together");
-                    useLab.getState().setLibraryOpen(false);
-                    useLab.getState().setModal("save");
+                    moveWizardStep(nextStep);
+                    return;
                   }
+                  moveWizardStep(nextStep);
+                  useLab.getState().setStage("together");
+                  useLab.getState().setLibraryOpen(false);
+                  useLab.getState().setModal("save");
                 }}
               >
                 {wizardStep === WIZARD_ORDER.length - 1 ? (lang === "he" ? "סיום" : "Finish") : (lang === "he" ? "לשלב הבא" : "Next")}

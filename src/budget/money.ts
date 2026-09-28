@@ -1,22 +1,9 @@
+import { normalizeCurrency, sanitizeSupplierPrice, type SupplierPrice, type SupplierPriceTier } from "../model/price.ts";
 import type { PartFacts } from "./types.ts";
 
-/** A quantity break kept in the order it was written. `minQty` is an integer above `moq`, or at least 2 when there is no MOQ. */
-export interface PriceTier {
-  minQty: number;
-  value: number;
-}
-
-/**
- * Optional supplier quote. `value` is the unit price and must be greater than 0.
- * `tiers` stay in the order they were accepted: each `minQty` is above `moq` when set, otherwise at least 2, and above the previous break.
- */
-export interface SupplierPrice {
-  value: number;
-  currency: string;
-  moq?: number;
-  tiers?: PriceTier[];
-  quotedAt?: string;
-}
+export type { SupplierPrice };
+/** A quantity break kept in the order it was written. */
+export type PriceTier = SupplierPriceTier;
 
 export type PriceSource = "example" | "user" | "import";
 
@@ -75,38 +62,7 @@ const MATERIAL_ADD: Record<string, number> = {
 
 const HOUSE_ADD = 30;
 
-/**
- * A currency code the lab can convert.
- * ₪, NIS, ש״ח, ש"ח, שח, and ils become ILS. $ and usd become USD.
- * Any other three-letter code is kept in uppercase. Anything else is unknown.
- * Call this before a shared sanitizer that only accepts a normalized code.
- */
-export function normalizeCurrency(raw: string): string | null {
-  const trimmed = raw.trim();
-  if (!trimmed) return null;
-  if (trimmed === "$") return "USD";
-  if (trimmed === "₪" || trimmed === "ש״ח" || trimmed === 'ש"ח' || trimmed === "שח") return "ILS";
-  const upper = trimmed.toUpperCase();
-  if (upper === "NIS" || upper === "ILS") return "ILS";
-  if (upper === "USD") return "USD";
-  if (/^[A-Z]{3}$/.test(upper)) return upper;
-  return null;
-}
-
-/**
- * Supplier currency after alias normalization.
- * A blank or non-text currency is unusable. An unknown text currency is kept for display.
- */
-export function canonicalSupplierCurrency(raw: unknown): { currency: string; known: boolean } | null {
-  if (typeof raw !== "string") return null;
-  const trimmed = raw.trim();
-  if (!trimmed) return null;
-  const code = normalizeCurrency(trimmed);
-  if (code) return { currency: code, known: true };
-  return { currency: trimmed, known: false };
-}
-
-/** Shekel contribution of one part. An unknown currency counts as unpriced, not as a missing rate. */
+/** Shekel contribution of one part. An unknown or missing currency counts as unpriced, not as a missing rate. */
 export function budgetAmount(price: ResolvedPrice | null): number | null | "unpriced" {
   if (!price || price.unknownCurrency) return "unpriced";
   return price.ils;
@@ -148,7 +104,7 @@ export function toIls(value: number, currency: string, rates: Record<string, num
 
 export function resolvePartPrice(
   facts: PartFacts,
-  imported: SupplierPrice | undefined,
+  imported: unknown,
   override: { value: number; currency: string } | { absent: true } | undefined,
   rates: Record<string, number>,
 ): ResolvedPrice | null {
@@ -158,31 +114,32 @@ export function resolvePartPrice(
     const { ils, converted } = toIls(override.value, currency, rates);
     return { value: override.value, currency, source: "user", ils, converted };
   }
-  if (imported && imported.value > 0) {
-    const canon = canonicalSupplierCurrency(imported.currency);
-    if (canon && !canon.known) {
+  if (imported != null) {
+    const checked = sanitizeSupplierPrice(imported);
+    if (checked.price && (checked.unpriced || !checked.price.currency)) {
       return {
-        value: imported.value,
-        currency: canon.currency,
+        value: checked.price.value,
+        currency: checked.price.currencyText ?? "",
         source: "import",
-        moq: imported.moq,
-        tiers: imported.tiers,
-        quotedAt: imported.quotedAt,
+        moq: checked.price.moq,
+        tiers: checked.price.tiers,
+        quotedAt: checked.price.quotedAt,
         ils: null,
         converted: false,
         unknownCurrency: true,
       };
     }
-    if (canon) {
-      const value = imported.value;
-      const { ils, converted } = toIls(value, canon.currency, rates);
+    if (checked.price?.currency) {
+      const value = checked.price.value;
+      const currency = checked.price.currency;
+      const { ils, converted } = toIls(value, currency, rates);
       return {
         value,
-        currency: canon.currency,
+        currency,
         source: "import",
-        moq: imported.moq,
-        tiers: imported.tiers,
-        quotedAt: imported.quotedAt,
+        moq: checked.price.moq,
+        tiers: checked.price.tiers,
+        quotedAt: checked.price.quotedAt,
         ils,
         converted,
       };

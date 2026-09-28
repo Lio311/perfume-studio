@@ -15,6 +15,19 @@ export interface ImportedCatalog {
 
 const imported: ImportedCatalog = { bottles: [], caps: [], labels: [], pumps: [], collars: [], boxes: [] };
 
+const builtinIds = new Set<string>([
+  ...BOTTLES.map((item) => item.id),
+  ...CAPS.map((item) => item.id),
+  ...LOGOS.map((item) => item.id),
+  ...PUMPS.map((item) => item.id),
+  ...COLLARS.map((item) => item.id),
+  ...BOXES.map((item) => item.id),
+]);
+
+export function isBuiltinCatalogId(id: string): boolean {
+  return builtinIds.has(id);
+}
+
 export function setImportedCatalog(next: ImportedCatalog): void {
   imported.bottles = next.bottles;
   imported.caps = next.caps;
@@ -34,6 +47,15 @@ export interface CatalogEntry {
   mm: string;
   /** Lowercase index: names, codes, FEA, millimetres, supplier. */
   hay: string;
+}
+
+export function catalogHas(kind: VariantPart, id: string): boolean {
+  if (kind === "bottle") return imported.bottles.some((item) => item.id === id) || BOTTLES.some((item) => item.id === id);
+  if (kind === "cap") return imported.caps.some((item) => item.id === id) || CAPS.some((item) => item.id === id);
+  if (kind === "label") return imported.labels.some((item) => item.id === id) || LOGOS.some((item) => item.id === id);
+  if (kind === "pump") return imported.pumps.some((item) => item.id === id) || PUMPS.some((item) => item.id === id);
+  if (kind === "collar") return imported.collars.some((item) => item.id === id) || COLLARS.some((item) => item.id === id);
+  return imported.boxes.some((item) => item.id === id) || BOXES.some((item) => item.id === id);
 }
 
 export function bottleById(id: string): BottleSpec {

@@ -3,7 +3,7 @@ import { allFacts, factsById } from "../budget/descriptors.ts";
 import { budgetAmount, priceAtQuantity, quantityBelowMoq, resolvePartPrice, summarizeBudget, type ResolvedPrice } from "../budget/money.ts";
 import { rankAssemblySavings, suggestAlternatives, type Alternative, type SavingSwap } from "../budget/similar.ts";
 import { BUDGET_KINDS, type PartFacts } from "../budget/types.ts";
-import { importedPrice } from "../import/registry.ts";
+import type { SupplierPack } from "../import/registry.ts";
 import type { FinishId, VariantPart } from "../model/types.ts";
 import { useLab } from "../store/labStore.ts";
 
@@ -27,6 +27,14 @@ export interface BudgetModel {
   belowMoq: boolean;
 }
 
+function supplierPrice(id: string, packs: SupplierPack[]): unknown {
+  for (const pack of packs) {
+    const part = pack.parts.find((item) => item.id === id);
+    if (part?.price) return part.price;
+  }
+  return undefined;
+}
+
 export function useBudgetModel(): BudgetModel {
   const design = useLab((s) => s.design);
   const brief = useLab((s) => s.brief);
@@ -48,7 +56,7 @@ export function useBudgetModel(): BudgetModel {
     const priceFor = (kind: VariantPart, id: string): ResolvedPrice | null => {
       const facts = factsFor(kind, id);
       if (!facts) return null;
-      const resolved = resolvePartPrice(facts, importedPrice(id), overrides[id], rates);
+      const resolved = resolvePartPrice(facts, supplierPrice(id, suppliers), overrides[id], rates);
       return resolved ? priceAtQuantity(resolved, brief.quantity) : null;
     };
     const lines: BudgetLine[] = [];

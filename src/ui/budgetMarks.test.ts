@@ -3,12 +3,12 @@ import { createElement, type ReactNode } from "react";
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, describe, expect, it } from "vitest";
+import { formatPackNotice } from "../import/notices.ts";
 import { tx } from "../i18n/copy.ts";
 import { syncRegistry, type SupplierPack } from "../import/registry.ts";
 import { createDefaultDesign } from "../model/design.ts";
 import { useLab } from "../store/labStore.ts";
 import { BudgetMeter } from "./BudgetMeter.tsx";
-import { PackWarningList } from "./PackWarnings.tsx";
 import { PartPriceEditor, PriceTag } from "./PriceTag.tsx";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -126,15 +126,17 @@ describe("budget reading order and minimum-order hint", () => {
     expect(english).toContain(`<bdi dir="ltr">7.50 ${tx("en").unknownCurrency}</bdi>`);
   });
 
-  it("isolates the part id at the start of a warning line", () => {
-    const html = render(createElement(PackWarningList, {
-      lines: [
-        { partId: "qa-priced", text: "A tier was dropped." },
-        { text: "+1 more" },
-      ],
-    }));
-    expect(html).toContain('<bdi dir="ltr">qa-priced</bdi>: A tier was dropped.');
-    expect(html).toContain("+1 more");
-    expect(html).not.toContain("<bdi>+1 more</bdi>");
+  it("isolates a warning part id with a left-to-right mark", () => {
+    const line = formatPackNotice("he", {
+      type: "priceIssue",
+      ref: "qa-priced",
+      path: "currency",
+      code: "price_currency",
+      severity: "warning",
+      he: "מטבע לא ידוע.",
+      en: "Unknown currency.",
+    });
+    expect(line.startsWith("\u2066qa-priced\u2069")).toBe(true);
+    expect(line).toContain("מטבע לא ידוע.");
   });
 });

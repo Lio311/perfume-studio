@@ -1,4 +1,5 @@
 import { formatCount, formatMoney, formatQuoteDate, quantityBelowMoq, type ResolvedPrice } from "../budget/money.ts";
+import { formatSupplierAmount } from "../model/price.ts";
 import { tx } from "../i18n/copy.ts";
 import type { VariantPart } from "../model/types.ts";
 import { useLab } from "../store/labStore.ts";
@@ -35,26 +36,15 @@ export function PriceTag({ price, compact = false }: { price: ResolvedPrice | nu
   const quantity = useLab((s) => s.brief.quantity);
   const t = tx(lang);
   if (!price) return <span className={compact ? "price-tag is-compact" : "price-tag"}><em>{t.noPrice}</em></span>;
-  if (price.unknownCurrency) {
-    const digits = Number.isInteger(price.value) ? 0 : 2;
-    const amount = new Intl.NumberFormat(lang === "he" ? "he-IL" : "en", {
-      minimumFractionDigits: digits,
-      maximumFractionDigits: 2,
-    }).format(price.value);
-    return (
-      <span className={compact ? "price-tag is-compact" : "price-tag"}>
-        <bdi dir="ltr">{amount} {t.unknownCurrency}</bdi>
-      </span>
-    );
-  }
+  const shownCurrency = price.unknownCurrency ? undefined : price.currency;
   return (
     <span className={compact ? "price-tag is-compact" : "price-tag"}>
-      <bdi dir="ltr">{formatMoney(price.value, price.currency, lang)}</bdi>
+      <bdi dir="ltr">{formatSupplierAmount(price.value, shownCurrency, lang)}</bdi>
       {price.converted && price.ils != null && <bdi className="price-ils" dir="ltr">≈ {formatMoney(price.ils, "ILS", lang)}</bdi>}
       {price.source === "example" && <em>{t.examplePrice}</em>}
       {price.source === "import" && <em>{t.importedPrice}</em>}
       {price.source === "user" && !compact && <em>{t.userPrice}</em>}
-      {price.currency !== "ILS" && !price.converted && <em>{t.notInTotal}</em>}
+      {price.currency !== "ILS" && !price.converted && !price.unknownCurrency && <em>{t.notInTotal}</em>}
       {price.converted && <em>{t.converted}</em>}
       {!quantity && price.tiers?.length ? <em>{t.basePriceNote}</em> : null}
       {price.moq != null && <em>{t.moqShort} <bdi dir="ltr">{formatCount(price.moq, lang)}</bdi></em>}
