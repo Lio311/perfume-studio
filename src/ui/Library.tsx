@@ -116,7 +116,6 @@ export function Library() {
     document.querySelector(`.library [data-part="${visibleTab}"]`)?.scrollIntoView({ block: "nearest", inline: "nearest" });
   }, [visibleTab, activeId, items, focusToken]);
 
-  const glassOpacity = effectiveGlassOpacity(design.bottle.finish, design.bottle.opacity);
 
   return (
     <aside className={`panel library ${open ? "is-open" : ""}`} dir={lang === "he" ? "rtl" : "ltr"}>
@@ -195,37 +194,24 @@ export function Library() {
         <input className="search" style={{ marginTop: "-8px", marginBottom: "12px" }} value={design.label.text} placeholder={t.brand} onChange={(event) => patch("label", { text: event.target.value.slice(0, 32), visible: true })} />
       )}
       {visibleTab === "liquid" ? (
-        <div className="liquid-panel" style={{ padding: "8px 0" }}>
-          <div className="swatches liquid-swatches" ref={gridRef}>
-            {LIQUID_PALETTE.map((color) => (
-              <button
-                key={color}
-                type="button"
-                className={design.bottle.color.toLowerCase() === color ? "swatch is-on" : "swatch"}
-                style={{ background: color }}
-                onClick={() => {
-                  const currentFinish = useLab.getState().design.bottle.finish;
-                  patch("bottle", { color, finish: currentFinish === "clear" ? "tinted" : currentFinish });
-                  // Also make sure liquid is visible so they can proceed
-                  patch("liquid", { visible: true });
-                }}
-              />
-            ))}
-            <label className="picker">
-              <input type="color" value={typeof design.bottle.color === "string" ? design.bottle.color : "#000000"} onChange={(event) => {
-                const currentFinish = useLab.getState().design.bottle.finish;
-                patch("bottle", { color: event.target.value, finish: currentFinish === "clear" ? "tinted" : currentFinish });
+        <div className="liquid-panel" style={{ padding: "32px 16px", textAlign: "center" }}>
+          <p style={{ color: "var(--text-dim)", marginBottom: "16px" }}>
+            {lang === "he" 
+              ? "בחרו מאפייני צבע ואטימות בחלונית המאפיינים מימין."
+              : "Select color and opacity in the properties panel on the right."}
+          </p>
+          {!design.liquid.visible && (
+            <button 
+              type="button" 
+              className="text-btn" 
+              style={{ background: "var(--accent)", color: "var(--on-accent)" }}
+              onClick={() => {
                 patch("liquid", { visible: true });
-              }} />
-            </label>
-          </div>
-
-          {glassOpacity !== null && (
-            <label className="slider" style={{ marginTop: "16px" }}>
-              <span>{lang === "he" ? "אטימות זכוכית" : "Glass Opacity"}</span>
-              <span>{Math.round(glassOpacity * 100)}%</span>
-              <input type="range" min="0" max="1" step="0.01" value={glassOpacity} onChange={(event) => patch("bottle", { opacity: parseFloat(event.target.value) })} />
-            </label>
+                useLab.getState().setSelected("liquid");
+              }}
+            >
+              {lang === "he" ? "הוסף נוזל" : "Add Liquid"}
+            </button>
           )}
         </div>
       ) : visibleTab === "pending" ? (

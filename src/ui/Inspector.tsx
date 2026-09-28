@@ -1,7 +1,7 @@
 import { useId } from "react";
 import { bottleById, boxById, capById, collarById, logoById, pumpById } from "../model/catalog.ts";
 import { computeFit } from "../model/fit.ts";
-import { FINISHES, PALETTE, LIQUID_PALETTE } from "../model/materials.ts";
+import { FINISHES, PALETTE, LIQUID_PALETTE, effectiveGlassOpacity } from "../model/materials.ts";
 import { NECK_IDS } from "../model/necks.ts";
 import type { FinishId, NeckId, PartKey } from "../model/types.ts";
 import { partLabel, tx } from "../i18n/copy.ts";
@@ -109,6 +109,22 @@ export function Inspector() {
                   </button>
                 ))}
               </div>
+              {part === "bottle" && (() => {
+                const glassOpacity = effectiveGlassOpacity(design.bottle.finish, design.bottle.opacity);
+                if (glassOpacity === null) return null;
+                return (
+                  <Slider
+                    label={lang === "he" ? "אטימות זכוכית" : "Glass Opacity"}
+                    value={glassOpacity * 100}
+                    min={0}
+                    max={100}
+                    suffix="%"
+                    onGesture={beginGesture}
+                    onGestureEnd={endGesture}
+                    onChange={(value) => patch("bottle", { opacity: value / 100 })}
+                  />
+                );
+              })()}
             </>
           )}
           {part === "bottle" && (

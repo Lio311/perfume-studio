@@ -170,7 +170,6 @@ export function TopBar() {
             else toggle();
           }}>{t.themeToDark}</button>
         </div>
-        <VoiceSwitch />
       </div>
       <div className="menu-wrap">
         <div className="voice-switch">

@@ -317,7 +317,7 @@ export default function App() {
         </div>
         <div className={`side-col ${sideOpen ? "is-open" : ""}`}>
           <Inspector />
-          <ChatPanel />
+          {/* <ChatPanel /> */}
         </div>
       </div>
       {shareLock && (

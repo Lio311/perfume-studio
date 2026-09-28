@@ -145,7 +145,7 @@ export function FinishMaterial({
       emissive="#000000"
       emissiveIntensity={0}
       metalness={metal ? 1 : 0}
-      roughness={gp ? gp.roughness : metal ? 0.14 : matte ? 0.68 : finish === "wood" ? 0.7 : 0.84}
+      roughness={gp ? gp.roughness : metal ? 0.22 : matte ? 0.68 : finish === "wood" ? 0.7 : 0.84}
       sheen={matte ? 0.06 : 0}
       sheenRoughness={0.62}
       sheenColor="#4a4f56"
