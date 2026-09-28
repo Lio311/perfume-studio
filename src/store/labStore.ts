@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { createLabStorage, LAB_PERSIST_VERSION, mergePersistedLab, migratePersisted, partializeLabState } from "./hydrate.ts";
 import { produce } from "immer";
 import { applyLook, applyVariant, createDefaultDesign, estimateMl, LOOKS } from "../model/design.ts";
 import { BOTTLES } from "../model/bottles.ts";
@@ -587,25 +588,19 @@ export const useLab = create<LabState>()(
     }),
     {
       name: "perfume-lab-v1",
-      version: 4,
-      migrate: (persisted, version) => {
-        const state = persisted as { design?: Design; theme?: ThemeId };
-        if (version < 2 && state.design?.cap.variantId === "cap-cyl-32" && state.design.label.text === "Nº 01") {
-          state.design = createDefaultDesign();
-        }
-        if (version < 3) state.theme = "light";
-        if (version < 4) state.theme = "dark";
-        return state;
+      version: LAB_PERSIST_VERSION,
+      storage: createLabStorage(),
+      merge: (persisted, current) => mergePersistedLab(persisted, current),
+      migrate: (persisted, version) => migratePersisted(persisted, version) as {
+        design: Design;
+        theme: ThemeId;
+        lang: Lang;
+        chat: ChatMessage[];
+        saved: SavedDesign[];
+        pending: PendingPart[];
+        compareIds: string[];
       },
-      partialize: (state) => ({
-        design: state.design,
-        theme: state.theme,
-        lang: state.lang,
-        chat: state.chat,
-        saved: state.saved,
-        pending: state.pending,
-        compareIds: state.compareIds,
-      }),
+      partialize: (state) => partializeLabState(state),
     },
   ),
 );
