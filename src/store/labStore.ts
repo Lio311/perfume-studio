@@ -259,10 +259,12 @@ function applyOne(design: Design, command: LabCommand, ui: { explode: number; mo
     case "fill":
       design.liquid.fill = clamp(command.value, 0.05, 0.95);
       break;
-    case "text":
-      design.label.text = command.text.slice(0, 32);
-      design.label.visible = true;
+    case "text": {
+      const text = command.text.slice(0, 32);
+      design.label.text = text;
+      design.label.visible = text.length > 0 ? true : design.label.visible;
       break;
+    }
     case "explode":
       ui.explode = command.value ? 1 : 0;
       ui.mode = command.value ? "explode" : ui.mode === "explode" ? "assemble" : ui.mode;

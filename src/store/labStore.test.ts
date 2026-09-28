@@ -40,6 +40,29 @@ describe("labStore", () => {
     expect(stateAfterRedo.past[0]).toBe(initialDesign);
   });
 
+  it("shows the label when brand text is typed and keeps the previous visibility when the text is cleared", () => {
+    expect(useLab.getState().design.label.visible).toBe(false);
+
+    useLab.getState().applyCommands([{ type: "text", text: "" }]);
+    expect(useLab.getState().design.label.text).toBe("");
+    expect(useLab.getState().design.label.visible).toBe(false);
+
+    useLab.getState().applyCommands([{ type: "text", text: "בושם שלי" }]);
+    expect(useLab.getState().design.label.text).toBe("בושם שלי");
+    expect(useLab.getState().design.label.visible).toBe(true);
+
+    useLab.getState().applyCommands([{ type: "text", text: "" }]);
+    expect(useLab.getState().design.label.text).toBe("");
+    expect(useLab.getState().design.label.visible).toBe(true);
+
+    useLab.getState().applyCommands([
+      { type: "visible", part: "label", visible: false },
+      { type: "text", text: "" },
+    ]);
+    expect(useLab.getState().design.label.visible).toBe(false);
+    expect(useLab.getState().design.label.text).toBe("");
+  });
+
   it("should record history on applyCommands", () => {
     const store = useLab.getState();
     const initialDesign = store.design;

@@ -190,7 +190,10 @@ export function Inspector() {
           {part === "label" && (
             <>
               <h3>{t.brand}</h3>
-              <input className="search" value={design.label.text} placeholder="Nº 01" onChange={(event) => patch("label", { text: event.target.value.slice(0, 32), visible: true })} />
+              <input className="search" value={design.label.text} placeholder="Nº 01" onChange={(event) => {
+                const text = event.target.value.slice(0, 32);
+                patch("label", { text, visible: text.length > 0 ? true : design.label.visible });
+              }} />
               <p className="hint">{t.brandHint}</p>
               <Slider label={t.scale} value={design.label.scale * 100} min={55} max={160} suffix="%" onGesture={beginGesture} onGestureEnd={endGesture} onChange={(value) => patch("label", { scale: value / 100 })} />
               <Readout label={t.width} value={fit.labelW} />
@@ -222,7 +225,10 @@ export function Inspector() {
                 ))}
               </div>
               <h3>{t.logoOnBox}</h3>
-              <input className="search" value={design.label.text} onChange={(event) => patch("label", { text: event.target.value.slice(0, 32), visible: true })} />
+              <input className="search" value={design.label.text} onChange={(event) => {
+                const text = event.target.value.slice(0, 32);
+                patch("label", { text, visible: text.length > 0 ? true : design.label.visible });
+              }} />
               <Slider label={t.width} value={fit.boxW} min={40} max={160} onGesture={beginGesture} onGestureEnd={endGesture} onChange={(widthMm) => patch("box", { widthMm })} />
               <Slider label={t.depth} value={fit.boxD} min={30} max={140} onGesture={beginGesture} onGestureEnd={endGesture} onChange={(depthMm) => patch("box", { depthMm })} />
               <Slider label={t.height} value={fit.boxH} min={70} max={240} onGesture={beginGesture} onGestureEnd={endGesture} onChange={(heightMm) => patch("box", { heightMm })} />
