@@ -124,15 +124,32 @@ export function serializePack(pack: SupplierPack): string {
   return JSON.stringify(pack, null, 2);
 }
 
-const PACK_EXPORT_KEYS = ["id", "name", "createdAt", "version", "source", "supplier", "parts"] as const;
-const PART_EXPORT_KEYS = ["id", "kind", "code", "name", "neck", "widthMm", "heightMm", "depthMm", "capacityMl", "profile", "color", "thumb", "page", "lathe", "price", "mesh", "scan", "measurements"] as const;
+const PACK_EXPORT_KEYS = ["id", "name", "createdAt", "version", "source", "generator", "supplier", "parts"] as const;
+const PART_EXPORT_KEYS = ["id", "kind", "code", "name", "neck", "widthMm", "heightMm", "depthMm", "capacityMl", "profile", "color", "thumb", "page", "lathe", "source", "names", "neckFinish", "notes", "price", "measurements", "scan", "mesh", "params"] as const;
+const GENERATOR_KEYS = ["name", "version", "exportedAt"] as const;
+const SUPPLIER_KEYS = ["company", "booth", "event", "country", "contactName", "role", "email", "phone", "whatsapp", "wechat", "website", "notes", "businessCard"] as const;
+const CARD_KEYS = ["dataUri", "bundlePath", "ocrText"] as const;
+const NAME_KEYS = ["he", "en"] as const;
+const MEASUREMENT_KEYS = ["key", "value", "source", "toleranceMm"] as const;
+const SCAN_KEYS = ["method", "capturedAt", "device", "appVersion", "material", "scale", "referenceObject", "confidence", "neckSuggestion"] as const;
+const NECK_SUGGESTION_KEYS = ["suggested", "confidence", "measuredMm", "basis", "confirmedByUser"] as const;
+const MESH_KEYS = ["format", "url", "dataUri", "bundlePath", "units", "upAxis", "origin", "triangles", "bytes", "sha256"] as const;
+const PARAM_KEYS = ["section", "profile", "shoulder", "softness", "faceted", "overhangMm", "style", "radiusFactor", "nozzleMm", "wallMm", "rings", "knurl", "flareMm", "form", "padMm", "liftMm"] as const;
 
-function pickKeys(source: Record<string, unknown>, keys: readonly string[]): Record<string, unknown> {
+function pickKeys(source: unknown, keys: readonly string[]): Record<string, unknown> | undefined {
+  if (!isDataObject(source)) return undefined;
   const out: Record<string, unknown> = {};
   for (const key of keys) {
     if (Object.hasOwn(source, key) && source[key] !== undefined) out[key] = source[key];
   }
-  return out;
+  return Object.keys(out).length ? out : undefined;
+}
+
+function assignNested(row: Record<string, unknown>, key: string, keys: readonly string[]) {
+  if (!Object.hasOwn(row, key)) return;
+  const nested = pickKeys(row[key], keys);
+  if (nested) row[key] = nested;
+  else delete row[key];
 }
 
 function exportPrice(raw: unknown, ref: string, warnings: PackNotice[]): SupplierPrice | undefined {
@@ -157,27 +174,71 @@ function exportPrice(raw: unknown, ref: string, warnings: PackNotice[]): Supplie
   return price;
 }
 
+function exportSupplier(raw: unknown): Record<string, unknown> | undefined {
+  const supplier = pickKeys(raw, SUPPLIER_KEYS);
+  if (!supplier) return undefined;
+  assignNested(supplier, "businessCard", CARD_KEYS);
+  return supplier;
+}
+
+function exportMeasurements(raw: unknown): unknown[] | undefined {
+  if (!Array.isArray(raw)) return undefined;
+  return raw.flatMap((item) => {
+    const row = pickKeys(item, MEASUREMENT_KEYS);
+    return row ? [row] : [];
+  });
+}
+
+function exportScan(raw: unknown): Record<string, unknown> | undefined {
+  const scan = pickKeys(raw, SCAN_KEYS);
+  if (!scan) return undefined;
+  assignNested(scan, "neckSuggestion", NECK_SUGGESTION_KEYS);
+  return scan;
+}
+
+function exportPart(part: SupplierPack["parts"][number], warnings: PackNotice[]): Record<string, unknown> {
+  const raw = part as unknown as Record<string, unknown>;
+  const row = pickKeys(raw, PART_EXPORT_KEYS) ?? {};
+  assignNested(row, "names", NAME_KEYS);
+  if (Object.hasOwn(row, "scan")) {
+    const scan = exportScan(row.scan);
+    if (scan) row.scan = scan;
+    else delete row.scan;
+  }
+  assignNested(row, "mesh", MESH_KEYS);
+  assignNested(row, "params", PARAM_KEYS);
+  if (Object.hasOwn(row, "measurements")) {
+    const measurements = exportMeasurements(row.measurements);
+    if (measurements) row.measurements = measurements;
+    else delete row.measurements;
+  }
+  const ref = part.code || part.id || "part";
+  if (Object.hasOwn(row, "price")) {
+    const price = exportPrice(row.price, ref, warnings);
+    if (price) row.price = price;
+    else delete row.price;
+  }
+  return row;
+}
+
 /**
- * JSON for a strict iOS-style pack: only known pack and part keys.
- * No schema file is in this repo or the budget branch. The allowlist is the
- * fields this importer already understands. A price without an allowed currency
- * is omitted, with a warning. `currencyText` and `hiddenParts` are not written.
+ * JSON for `schema/supplier-pack.schema.json` (`additionalProperties: false`).
+ * Only keys declared there are written. A price without an allowed currency is
+ * omitted, with a warning, because `$defs/Price` requires `value` and `currency`.
+ * `currencyText` and `hiddenParts` are not in the schema.
  */
 export function exportPackDocument(pack: SupplierPack): { text: string; warnings: PackNotice[] } {
   const warnings: PackNotice[] = [];
   const source = pack as unknown as Record<string, unknown>;
-  const body = pickKeys(source, PACK_EXPORT_KEYS);
+  const body = pickKeys(source, PACK_EXPORT_KEYS) ?? {};
+  assignNested(body, "generator", GENERATOR_KEYS);
+  if (Object.hasOwn(body, "supplier")) {
+    const supplier = exportSupplier(body.supplier);
+    if (supplier) body.supplier = supplier;
+    else delete body.supplier;
+  }
   const parts = Array.isArray(pack.parts) ? pack.parts : [];
-  body.parts = parts.map((part) => {
-    const row = pickKeys(part as unknown as Record<string, unknown>, PART_EXPORT_KEYS);
-    const ref = part.code || part.id || "part";
-    if (Object.hasOwn(row, "price")) {
-      const price = exportPrice(row.price, ref, warnings);
-      if (price) row.price = price;
-      else delete row.price;
-    }
-    return row;
-  });
+  body.parts = parts.map((part) => exportPart(part, warnings));
   return { text: JSON.stringify(body, null, 2), warnings };
 }
 

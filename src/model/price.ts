@@ -75,8 +75,8 @@ const PRICE_KEYS = new Set(["value", "currency", "currencyText", "moq", "tiers",
 
 /**
  * ISO 4217 codes the lab accepts. Three letters outside this set, such as FOO,
- * follow the unknown-currency path. There is no published supplier schema in this
- * repo; this is the importer's allowlist, not a claim that iOS lists the same codes.
+ * follow the unknown-currency path. The shared schema only requires `^[A-Z]{3}$`
+ * (`schema/supplier-pack.schema.json`). This allowlist is stricter than that pattern.
  */
 const ISO_4217 = new Set([
   "ILS", "USD", "EUR", "GBP", "AED", "CNY", "JPY", "CHF",

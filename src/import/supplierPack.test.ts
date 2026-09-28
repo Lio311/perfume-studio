@@ -1,4 +1,7 @@
+import Ajv2020 from "ajv/dist/2020";
+import addFormats from "ajv-formats";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import schemaText from "../../schema/supplier-pack.schema.json?raw";
 
 vi.mock("dompurify", () => ({
   default: { sanitize: (value: string) => value },
@@ -9,7 +12,7 @@ import v2Text from "./fixtures/b-v2-bottle-photo-cap-scan-price.json?raw";
 import invalidText from "./fixtures/c-invalid-pack.json?raw";
 import { capPackNotices, formatPackNotice, type PackNotice } from "./notices.ts";
 import { MAX_PACK_BYTES } from "./packValidate.ts";
-import { importedMeta, isVariantPart, syncRegistry, type SupplierPart } from "./registry.ts";
+import { importedMeta, isVariantPart, syncRegistry, type SupplierPack, type SupplierPart } from "./registry.ts";
 import { adoptLoadedSuppliers, exportPackDocument, parsePackFile, reviveStoredPack, serializePack } from "./supplierDb.ts";
 import { issuesForDraft, KIND_DEFAULT_MM } from "./packValidate.ts";
 import { sanitizeSupplierPrice } from "../model/price.ts";
@@ -19,6 +22,21 @@ import { boxById, capById, listFor } from "../model/catalog.ts";
 import { computeFit } from "../model/fit.ts";
 import { neckRadius } from "../model/necks.ts";
 import type { NeckId } from "../model/types.ts";
+
+const validateSupplierPack = (() => {
+  const ajv = new Ajv2020({ allErrors: true });
+  addFormats(ajv);
+  return ajv.compile(JSON.parse(schemaText) as object);
+})();
+
+function schemaErrors(text: string): string {
+  const data: unknown = JSON.parse(text);
+  return validateSupplierPack(data) ? "" : JSON.stringify(validateSupplierPack.errors);
+}
+
+function exportLoose(pack: object) {
+  return exportPackDocument(pack as SupplierPack);
+}
 
 const base: SupplierPart = {
   id: "part-1",
@@ -496,7 +514,7 @@ describe("reviveStoredPack", () => {
       id: "sup-lab",
       name: "Lab Supplier",
       createdAt: 20,
-      generator: { name: "not-in-schema" },
+      generator: { name: "Perfume Studio", extra: true },
       hiddenParts: [{ id: "hidden", code: "H", name: "Hidden", he: "מוסתר", en: "hidden" }],
       parts: [{
         ...base,
@@ -546,7 +564,7 @@ describe("reviveStoredPack", () => {
     const exported = exportPackDocument(built);
     expect(exported.warnings).toEqual([]);
     const document = JSON.parse(exported.text) as { generator?: unknown; hiddenParts?: unknown; parts: Array<{ note?: unknown; price?: unknown }> };
-    expect(document.generator).toBeUndefined();
+    expect(document.generator).toEqual({ name: "Perfume Studio" });
     expect(document.hiddenParts).toBeUndefined();
     expect(document.parts[0].note).toBeUndefined();
     expect(document.parts[0].price).toEqual({ value: 1.25, currency: "USD" });
@@ -570,6 +588,93 @@ describe("reviveStoredPack", () => {
     expect(reimported.ok).toBe(true);
     if (!reimported.ok) return;
     expect(reimported.pack.parts[0]).not.toHaveProperty("price");
+  });
+
+  it("validates lab exports against the shared supplier-pack schema", () => {
+    const roundTrip = exportLoose({
+      id: "sup-lab",
+      name: "Lab Supplier",
+      createdAt: 20,
+      version: 2,
+      source: "manual",
+      generator: { name: "Perfume Studio", version: "1.0.0" },
+      parts: [{
+        ...base,
+        id: "sup-lab-cap",
+        code: "CAP-A",
+        name: "CAP-A · Lab Supplier",
+        widthMm: KIND_DEFAULT_MM.cap.widthMm,
+        heightMm: KIND_DEFAULT_MM.cap.heightMm,
+        depthMm: KIND_DEFAULT_MM.cap.depthMm,
+        price: { value: 1.25, currency: "usd", moq: 100, quotedAt: "2026-10-06T11:42:00Z" },
+      }],
+    });
+    expect(roundTrip.warnings).toEqual([]);
+    expect(schemaErrors(roundTrip.text)).toBe("");
+    const imported = parsePackFile(roundTrip.text);
+    expect(imported.ok).toBe(true);
+    if (!imported.ok) return;
+    const again = exportPackDocument(imported.pack);
+    expect(again.warnings).toEqual([]);
+    expect(schemaErrors(again.text)).toBe("");
+    expect(JSON.parse(again.text).parts[0].price).toEqual({
+      value: 1.25,
+      currency: "USD",
+      moq: 100,
+      quotedAt: "2026-10-06",
+    });
+
+    const unknownCurrency = exportLoose({
+      id: "sup-lab",
+      name: "Lab Supplier",
+      createdAt: 20,
+      parts: [{ ...base, price: { value: 2, currency: "dollar" } }],
+    });
+    expect(JSON.parse(unknownCurrency.text).parts[0].price).toBeUndefined();
+    expect(unknownCurrency.warnings[0]).toMatchObject({
+      type: "priceIssue",
+      en: expect.stringContaining("dollar"),
+    });
+    expect(schemaErrors(unknownCurrency.text)).toBe("");
+
+    const unknownKeys = exportLoose({
+      id: "sup-lab",
+      name: "Lab Supplier",
+      createdAt: 20,
+      scratch: true,
+      generator: { name: "Perfume Studio", extra: true },
+      supplier: { company: "Lab", secret: "no" },
+      parts: [{
+        ...base,
+        note: "scratch",
+        appearance: { finish: "gold" },
+        names: { he: "פקק", en: "Cap", extra: true },
+        price: { value: 1.25, currency: "USD", extra: true, currencyText: "USD" },
+        scan: {
+          method: "manual",
+          capturedAt: "2026-10-06T10:15:00Z",
+          extra: true,
+          neckSuggestion: { confirmedByUser: true, verifiedBySupplier: false },
+        },
+      }],
+    });
+    expect(unknownKeys.warnings).toEqual([]);
+    expect(schemaErrors(unknownKeys.text)).toBe("");
+    const cleaned = JSON.parse(unknownKeys.text) as {
+      scratch?: unknown;
+      generator: { name: string; extra?: unknown };
+      supplier: { company: string; secret?: unknown };
+      parts: Array<{ note?: unknown; appearance?: unknown; names: { extra?: unknown }; price: { extra?: unknown; currencyText?: unknown }; scan: { extra?: unknown; neckSuggestion: { verifiedBySupplier?: unknown } } }>;
+    };
+    expect(cleaned.scratch).toBeUndefined();
+    expect(cleaned.generator).toEqual({ name: "Perfume Studio" });
+    expect(cleaned.supplier).toEqual({ company: "Lab" });
+    expect(cleaned.parts[0].note).toBeUndefined();
+    expect(cleaned.parts[0].appearance).toBeUndefined();
+    expect(cleaned.parts[0].names).toEqual({ he: "פקק", en: "Cap" });
+    expect(cleaned.parts[0].price).toEqual({ value: 1.25, currency: "USD" });
+    expect(cleaned.parts[0].scan.extra).toBeUndefined();
+    expect(cleaned.parts[0].scan.neckSuggestion.verifiedBySupplier).toBeUndefined();
   });
 
   it("does not mutate the record it reads", () => {
