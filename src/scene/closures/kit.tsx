@@ -2,11 +2,13 @@ import { useEffect, useMemo, useRef, type MutableRefObject } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { logoById } from "../../model/catalog.ts";
-import type { InsertMaterial } from "../../model/types.ts";
+import type { InsertMaterial, LogoApplication } from "../../model/types.ts";
 import type { Fit } from "../../model/fit.ts";
-import { logoTexture } from "../../geometry/logos.ts";
+import { cartonMarkPlate, FOIL_ENV_FLOOR, labelEmissive, labelFinish, labelInk, paintLabel } from "../../geometry/logos.ts";
 import { useLab } from "../../store/labStore.ts";
+import { useLabelMaps } from "../labelPaint.ts";
 import { FinishMaterial, WrapMaterial } from "../materials.tsx";
+import { prismShell } from "./prism.ts";
 import { sectionPlane } from "../sectionPlane.ts";
 import { trayLiftNow } from "../trayLift.ts";
 
@@ -29,24 +31,95 @@ export function Skin({ section = true }: { section?: boolean }) {
   return <WrapMaterial color={wrap?.color || color} finish={wrap?.finish || "soft-touch"} board={board || "rigid"} section={section} />;
 }
 
+function CartonInk({
+  map,
+  mask,
+  emissiveMap,
+  ink,
+  application,
+}: {
+  map: THREE.Texture;
+  mask: THREE.Texture | null;
+  emissiveMap: THREE.Texture | null;
+  ink: string;
+  application: LogoApplication;
+}) {
+  const finish = labelFinish(application);
+  const flat = finish.metalness === 0 && finish.bumpScale === 0;
+  if (flat || !mask) {
+    return <meshBasicMaterial map={map} transparent depthWrite={false} toneMapped={false} alphaTest={0.05} />;
+  }
+  const env = application === "foil" ? Math.max(finish.envMapIntensity, FOIL_ENV_FLOOR) : finish.envMapIntensity;
+  return (
+    <meshStandardMaterial
+      map={map}
+      transparent
+      depthWrite={false}
+      alphaTest={0.05}
+      metalness={finish.metalness}
+      metalnessMap={mask}
+      roughness={1}
+      roughnessMap={mask}
+      bumpMap={finish.bumpScale !== 0 ? mask : undefined}
+      bumpScale={finish.bumpScale}
+      envMapIntensity={env}
+      emissive={labelEmissive(ink, application)}
+      emissiveIntensity={finish.emissive}
+      emissiveMap={finish.emissive > 0 ? emissiveMap ?? undefined : undefined}
+      toneMapped={finish.metalness < 0.5}
+    />
+  );
+}
+
+/** Foil or print on the board. No dark plate unless print is given a plate colour. */
 export function BrandMark({ w, y, z }: { w: number; y: number; z: number }) {
   const blueprint = useLab((s) => s.blueprint);
   const text = useLab((s) => s.design.label.text);
   const variantId = useLab((s) => s.design.label.variantId);
-  const tex = useMemo(() => {
-    const planeW = Math.min(w * 0.48, 52);
-    const canvas = logoTexture(logoById(variantId), text, "#f6f1e6", 1024, Math.max(96, Math.round((1024 * 18) / planeW)));
-    const texture = new THREE.CanvasTexture(canvas);
-    texture.colorSpace = THREE.SRGBColorSpace;
-    texture.anisotropy = 4;
-    return texture;
-  }, [text, variantId, w]);
-  useEffect(() => () => tex.dispose(), [tex]);
-  if (blueprint) return null;
+  const inkColor = useLab((s) => s.design.label.color);
+  const spec = logoById(variantId);
+  const ink = labelInk(inkColor, spec.application);
+  const plate = cartonMarkPlate(spec.application);
+  const show = !blueprint && (text.trim().length > 0 || plate !== "clear");
+  const planeW = Math.min(w * 0.48, 52);
+  const canvas = useMemo(() => {
+    const width = 1024;
+    const height = Math.max(96, Math.round((width * 18) / Math.max(8, planeW)));
+    const el = document.createElement("canvas");
+    el.width = width;
+    el.height = height;
+    const ctx = el.getContext("2d");
+    if (ctx) paintLabel(ctx, spec, text, ink, width, height, plate);
+    return el;
+  }, [text, spec, ink, plate, planeW]);
+  const maps = useLabelMaps(canvas, ink, spec.application);
+  if (!show) return null;
   return (
     <mesh position={[0, y, z]}>
-      <planeGeometry args={[Math.min(w * 0.48, 52), 18]} />
-      <meshBasicMaterial map={tex} transparent toneMapped={false} depthWrite={false} />
+      <planeGeometry args={[planeW, 18]} />
+      <CartonInk map={maps.color} mask={maps.mask} emissiveMap={maps.emissive} ink={ink} application={spec.application} />
+    </mesh>
+  );
+}
+
+export function PrismMesh({
+  radius,
+  inner,
+  height,
+  sides,
+  y = 0,
+}: {
+  radius: number;
+  inner: number;
+  height: number;
+  sides: number;
+  y?: number;
+}) {
+  const geo = useMemo(() => prismShell(radius, inner, height, sides), [radius, inner, height, sides]);
+  useEffect(() => () => geo.dispose(), [geo]);
+  return (
+    <mesh geometry={geo} position={[0, y, 0]}>
+      <Skin />
     </mesh>
   );
 }
@@ -93,7 +166,8 @@ export function InsertBlock({ fit }: { fit: Fit }) {
   const maxD = Math.max(12, fit.boxD - wall * 2 - 1.2);
   const width = Math.min(fit.insertW, maxW);
   const depth = Math.min(fit.insertD, maxD);
-  const well = useWell(width, depth, Math.min(fit.cavityH, fit.boxH * 0.72), fit.cavityW, fit.cavityD);
+  const wellH = Math.min(Math.max(12, fit.cavityH * 0.4), fit.boxH * 0.36);
+  const well = useWell(width, depth, wellH, fit.cavityW, fit.cavityD);
   const planes = cutaway ? [sectionPlane] : undefined;
   const y0 = wall;
   const ref = useRef<THREE.Group>(null);
@@ -110,7 +184,7 @@ export function InsertBlock({ fit }: { fit: Fit }) {
       <group ref={ref} position={[0, y0, 0]}>
         <mesh position={[0, fit.floorMm / 2, 0]}>
           <boxGeometry args={[width, fit.floorMm, depth]} />
-          <meshPhysicalMaterial color={color} roughness={velvet ? 0.8 : 0.9} sheen={velvet ? 1 : 0} sheenColor={color} sheenRoughness={0.4} clippingPlanes={planes} />
+          <meshPhysicalMaterial color={color} roughness={velvet ? 0.8 : 0.9} sheen={velvet ? 1 : 0} sheenColor={color} sheenRoughness={0.4} envMapIntensity={0.72} clippingPlanes={planes} />
         </mesh>
         <mesh position={[-(channelW / 2 + side / 2), fit.floorMm + channelH / 2, 0]}>
           <boxGeometry args={[side, channelH, depth - end * 2]} />
@@ -138,7 +212,7 @@ export function InsertBlock({ fit }: { fit: Fit }) {
         <meshPhysicalMaterial color={color} roughness={velvet ? 0.78 : 0.92} sheen={velvet ? 1 : 0} sheenColor={color} sheenRoughness={0.42} clippingPlanes={planes} />
       </mesh>
       <mesh geometry={well} position={[0, fit.floorMm, 0]}>
-        <meshPhysicalMaterial color={color} roughness={velvet ? 0.8 : 0.9} sheen={velvet ? 1 : 0} sheenColor={color} sheenRoughness={0.4} clippingPlanes={planes} />
+        <meshPhysicalMaterial color={color} roughness={velvet ? 0.8 : 0.9} sheen={velvet ? 1 : 0} sheenColor={color} sheenRoughness={0.4} envMapIntensity={0.72} clippingPlanes={planes} />
       </mesh>
     </group>
   );

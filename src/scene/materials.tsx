@@ -266,25 +266,53 @@ export function WrapMaterial({
   section?: boolean;
 }) {
   const cutaway = useLab((s) => s.cutaway);
-  const paper = useMemo(() => (finish === "paper-texture" || finish === "matte" ? paperMaps() : null), [finish]);
+  const paper = useMemo(() => {
+    if (finish !== "paper-texture" && finish !== "matte" && finish !== "soft-touch") return null;
+    const maps = paperMaps();
+    if (finish !== "soft-touch") return maps;
+    const map = maps.map.clone();
+    const rough = maps.rough.clone();
+    map.repeat.set(2.6, 2.6);
+    rough.repeat.set(2.6, 2.6);
+    map.needsUpdate = true;
+    rough.needsUpdate = true;
+    return { map, rough };
+  }, [finish]);
   const velvet = useMemo(() => (finish === "velvet" ? velvetMaps() : null), [finish]);
+  useEffect(() => {
+    if (finish !== "soft-touch" || !paper) return undefined;
+    return () => {
+      paper.map.dispose();
+      paper.rough.dispose();
+    };
+  }, [finish, paper]);
   const planes = section && cutaway ? sectionPlanes : undefined;
   const pile = finish === "velvet";
   const gloss = finish === "gloss";
+  const soft = finish === "soft-touch";
   return (
     <meshPhysicalMaterial
       color={color}
       map={pile ? velvet?.map : paper?.map}
       roughnessMap={pile ? velvet?.rough : paper?.rough}
       metalness={0}
-      roughness={gloss ? 0.16 : pile ? 0.82 : finish === "soft-touch" ? 0.68 : board === "carton" ? 0.9 : 0.84}
-      clearcoat={gloss ? 0.75 : finish === "soft-touch" ? 0.18 : 0}
-      clearcoatRoughness={gloss ? 0.18 : 0.45}
-      sheen={pile ? 1 : finish === "soft-touch" ? 0.22 : 0}
+      roughness={gloss ? 0.16 : pile ? 0.82 : soft ? 0.62 : board === "carton" ? 0.86 : 0.8}
+      clearcoat={gloss ? 0.75 : soft ? 0.34 : 0.08}
+      clearcoatRoughness={gloss ? 0.18 : 0.42}
+      sheen={pile ? 1 : soft ? 0.38 : 0.12}
       sheenColor={color}
-      sheenRoughness={pile ? 0.38 : 0.6}
-      envMapIntensity={gloss ? 0.85 : pile ? 0.45 : 0.28}
+      sheenRoughness={pile ? 0.38 : 0.55}
+      envMapIntensity={gloss ? 0.9 : pile ? 0.55 : soft ? 0.62 : 0.48}
       clippingPlanes={planes}
+      onBeforeCompile={(shader) => {
+        shader.fragmentShader = shader.fragmentShader.replace(
+          "#include <dithering_fragment>",
+          `float wrapNd = clamp(dot(normalize(normal), normalize(vViewPosition)), 0.0, 1.0);
+           gl_FragColor.rgb += vec3(0.93, 0.86, 0.72) * pow(1.0 - wrapNd, 2.5) * 0.2;
+           #include <dithering_fragment>`,
+        );
+      }}
+      customProgramCacheKey={() => "wrap-edge"}
     />
   );
 }

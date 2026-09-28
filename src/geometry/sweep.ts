@@ -267,30 +267,6 @@ export function buildCapGeometry(
 
 type LabelPatchArgs = SweepArgs & { yCenter: number; patchH: number; patchW: number };
 
-/** Widest horizontal half-chord of the patch at this angular span. The mesh uses the same Y steps. */
-function widestAbsX(
-  args: LabelPatchArgs,
-  y0: number,
-  y1: number,
-  height: number,
-  width: number,
-  depth: number,
-  neckR: number,
-  span: number,
-): number {
-  let maxAbsX = 0;
-  const steps = 28;
-  for (let i = 0; i <= steps; i += 1) {
-    const y = y0 + ((y1 - y0) * i) / steps;
-    const sample = bottleRadii(y, height, width, depth, args.profile, args.shoulder, neckR, args.finishMm);
-    for (const ang of [Math.PI / 2 - span, Math.PI / 2 + span]) {
-      const [x] = sectionPoint(args.section, ang, sample.rx, sample.rz, args.softness, sample.morph, y);
-      maxAbsX = Math.max(maxAbsX, Math.abs(x));
-    }
-  }
-  return maxAbsX;
-}
-
 function prepareLabelPatch(args: LabelPatchArgs) {
   const height = Math.max(12, args.height);
   const width = Math.max(10, args.width);
@@ -305,8 +281,8 @@ function prepareLabelPatch(args: LabelPatchArgs) {
   let hi = Math.PI * 0.46;
   for (let i = 0; i < 16; i += 1) {
     const span = (lo + hi) / 2;
-    // Size the span from the widest row, not the midline, so a round bottle
-    // does not draw a plate wider than the width fit reported.
+    // Size the span from the widest point on the arc across all rows, so a round
+    // bottle does not draw a plate wider than the width fit reported.
     const edge = widestAbsX(args, y0, y1, height, width, depth, neckR, span);
     if (edge < half) lo = span;
     else hi = span;
