@@ -1,9 +1,0 @@
-Paper and cloth maps bundled with the lab.
-
-- Paper001 color and roughness, ambientCG, CC0 1.0.
-  https://ambientcg.com/view?id=Paper001
-- Fabric027 color and roughness, ambientCG, CC0 1.0.
-  https://ambientcg.com/view?id=Fabric027
-
-Both were resized to 512px on the long side. Fabric027 is a soft cloth.
-The velvet wrap uses that fiber map plus a sheen highlight.

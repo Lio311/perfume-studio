@@ -20,9 +20,6 @@ import { CompareBoard } from "./ui/CompareBoard.tsx";
 import { Modals } from "./ui/Modals.tsx";
 import { stopSpeaking } from "./audio/speech.ts";
 import { acknowledgePackLoads, adoptLoadedSuppliers, loadPacks } from "./import/supplierDb.ts";
-import { isKnownPack, withInnerStructure } from "./model/boxFields.ts";
-import { packById } from "./model/closures/registry.ts";
-import { hydrateDesign } from "./model/design.ts";
 
 function applyBackAction(action: Exclude<BackAction, "leave">, trap: Trap) {
   const lab = useLab.getState();
@@ -33,7 +30,6 @@ function applyBackAction(action: Exclude<BackAction, "leave">, trap: Trap) {
     lab.setHelp(false);
   } else if (action === "selection") lab.showFull();
   else if (action === "share") lab.setShareUrl("");
-  else if (action === "box") lab.setBoxOpen(false);
   else if (action === "stage") lab.setStage("bottle");
   else if (action === "wizard") {
     const step = wizardStepAfterPop(history, trap);
@@ -77,12 +73,10 @@ export default function App() {
   const helpOpen = useLab((s) => s.help);
   const setHelp = useLab((s) => s.setHelp);
   const design = useLab((s) => s.design);
-  const stage = useLab((s) => s.stage);
-  const boxOpen = useLab((s) => s.boxOpen);
-  const quality = useLab((s) => s.quality);
   const modal = useLab((s) => s.modal);
   const setModal = useLab((s) => s.setModal);
   const toast = useLab((s) => s.toast);
+  const stage = useLab((s) => s.stage);
   const explode = useLab((s) => s.explode);
   const wizardStep = useLab((s) => s.design.step);
   const shareUrl = useLab((s) => s.shareUrl);
@@ -110,11 +104,7 @@ export default function App() {
 
   useEffect(() => {
     applyTheme(theme);
-  }, [theme]);
-
-  useEffect(() => {
-    document.documentElement.dataset.pose = `${stage}:${boxOpen ? "open" : "closed"}:${design.box.structure}:${quality}`;
-  }, [stage, boxOpen, design.box.structure, quality]);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -195,54 +185,7 @@ export default function App() {
 
   useEffect(() => {
     syncHistoryTrap(history, backSurface(useLab.getState()), trapRef.current);
-  }, [aimed, boxOpen, explode, helpOpen, modal, mode, palette, present, shareUrl, solo, stage, wizardStep]);
-
-  useEffect(() => {
-    const applyShot = () => {
-      const params = new URLSearchParams(location.search);
-      const closure = params.get("closure") ?? params.get("structure");
-      if (!isKnownPack(closure)) return;
-      const choice = packById(closure);
-      if (!choice) return;
-      const design = hydrateDesign(useLab.getState().design);
-      design.box.structure = choice.structure.id;
-      design.box.latch = choice.latch;
-      design.box.layers = withInnerStructure(design.box.layers, choice.structure.id, choice.latch);
-      const variant = params.get("variant");
-      if (variant && choice.structure.liftOff?.variants.some((item) => item.id === variant)) {
-        design.box.liftOff = { ...design.box.liftOff, variant };
-      }
-      const pull = params.get("pull");
-      if (pull === "ribbon" || pull === "notch" || pull === "none") design.box.drawerPull = pull;
-      design.box.visible = true;
-      design.bottle.visible = true;
-      design.cap.visible = true;
-      design.pump.visible = true;
-      design.collar.visible = true;
-      design.liquid.visible = true;
-      design.label.visible = true;
-      if (params.get("orient") === "lying") design.box.insert.orientation = "lying";
-      const tier = params.get("tier") === "fallback" ? "fallback" as const : "high" as const;
-      useLab.setState({
-        design,
-        stage: "box",
-        boxOpen: params.get("pose") === "open",
-        cutaway: params.get("cut") === "1",
-        quality: tier,
-        tierLock: true,
-        theme: "light",
-        libraryOpen: false,
-        sideOpen: false,
-        explode: 0,
-        blueprint: false,
-        selected: "box",
-      });
-    };
-    if (useLab.persist.hasHydrated()) applyShot();
-    return useLab.persist.onFinishHydration(() => {
-      applyShot();
-    });
-  }, []);
+  }, [aimed, explode, helpOpen, modal, mode, palette, present, shareUrl, solo, stage, wizardStep]);
 
   useEffect(() => {
     const fade = () => setHintOn(false);

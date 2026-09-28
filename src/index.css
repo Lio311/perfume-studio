@@ -399,17 +399,6 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 .props h3 { margin: 14px 0 8px; font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted); font-weight: 500; }
 [dir="rtl"] h3, [dir="rtl"] .dock-label, [dir="rtl"] .kicker, [dir="rtl"] .props h3 { letter-spacing: 0; }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; }
-.box-pack { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
-.box-pack h3 { margin: 8px 0 0; }
-.unbox-soon label {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  opacity: 0.55;
-  font-size: 13px;
-}
-.unbox-soon em { font-style: normal; color: var(--muted); }
-.unbox-soon input:disabled { cursor: not-allowed; }
 .chip {
   display: inline-flex;
   align-items: center;

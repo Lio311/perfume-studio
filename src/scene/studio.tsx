@@ -17,12 +17,12 @@ export function Exposure() {
 }
 
 export function PixelRatio() {
+  
   const gl = useThree((s) => s.gl);
-  const quality = useLab((s) => s.quality);
   useLayoutEffect(() => {
-    const cap = quality === "high" ? 1.75 : 1;
+    const cap = 2;
     gl.setPixelRatio(Math.min(window.devicePixelRatio || 1, cap));
-  }, [gl, quality]);
+  }, [gl]);
   return null;
 }
 
@@ -54,7 +54,6 @@ export function StudioLights() {
         <directionalLight position={[-18, 36, -90]} color="#ffffff" intensity={0.42} />
         <directionalLight position={[-78, 14, -28]} color="#f7f8fa" intensity={0.34} />
         <directionalLight position={[70, 10, -46]} color="#d5deea" intensity={0.22} />
-        <directionalLight position={[64, 40, -70]} color="#ffffff" intensity={0.7} />
       </>
     );
   }
@@ -67,7 +66,6 @@ export function StudioLights() {
       <directionalLight position={[60, 18, 10]} color="#d5e4f4" intensity={0.42} />
       <directionalLight position={[-86, 12, -22]} color="#e7eef8" intensity={voice === 2 ? 0.72 : 0.95} />
       <directionalLight position={[74, 8, -58]} color="#c9d6e6" intensity={0.48} />
-      <directionalLight position={[70, 36, -80]} color="#f4f7fb" intensity={1.25} />
     </>
   );
 }
@@ -78,10 +76,8 @@ export function StageFloor() {
   const voice = useLab((s) => s.voice);
   const explode = useLab((s) => s.explode);
   const light = theme === "light";
-  const quality = useLab((s) => s.quality);
   const bucket = Math.round(explode * 6);
   if (!light && voice === 2) return null;
-  if (quality !== "high") return null;
   return (
     <>
       {true && (

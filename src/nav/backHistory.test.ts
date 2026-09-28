@@ -25,7 +25,6 @@ function idle(over: Partial<BackSurface> = {}): BackSurface {
     wizard: false,
     step: 0,
     shareLink: false,
-    boxOpen: false,
     ...over,
   };
 }
@@ -94,10 +93,6 @@ describe("browser back", () => {
     expect(backAction(idle({ wizard: true, step: 2, modal: true }))).toBe("modal");
     expect(backAction(idle({ wizard: true, step: 2, aimed: true }))).toBe("selection");
     expect(backAction(idle({ wizard: true, step: 2, explode: 0.4 }))).toBe("mode");
-    expect(backAction(idle({ boxOpen: true }))).toBe("box");
-    expect(backAction(idle({ boxOpen: true, stage: "box" }))).toBe("box");
-    expect(backAction(idle({ boxOpen: true, stage: "box", wizard: true, step: 6 }))).toBe("box");
-    expect(backAction(idle({ boxOpen: true, aimed: true }))).toBe("selection");
   });
 
   it("does not push a guard when nothing is open, so the first back leaves", () => {
@@ -145,51 +140,6 @@ describe("browser back", () => {
     });
     expect(finished.wizard).toBe(false);
     expect(backAction(finished)).toBe("stage");
-    const open = backSurface({
-      modal: null,
-      present: false,
-      palette: false,
-      help: false,
-      solo: null,
-      aimed: false,
-      stage: "box",
-      mode: "assemble",
-      explode: 0,
-      design: { step: 6 },
-      boxOpen: true,
-    });
-    expect(open.wizard).toBe(true);
-    expect(backAction(open)).toBe("box");
-  });
-
-  it("closes an open box in one back, then the carton stage is the next layer", () => {
-    const { history, popWith } = createHistory();
-    const trap: Trap = { armed: false };
-    let surface = idle({ stage: "box", boxOpen: true });
-    syncHistoryTrap(history, surface, trap);
-    expect(history.pushCount).toBe(1);
-    const applied: string[] = [];
-    popWith(() => {
-      handleHistoryPop(
-        history,
-        surface,
-        (action) => {
-          applied.push(action);
-          if (action === "box") surface = { ...surface, boxOpen: false };
-          if (action === "stage") surface = { ...surface, stage: "bottle" };
-        },
-        () => surface,
-        trap,
-      );
-    });
-    history.back();
-    expect(applied).toEqual(["box"]);
-    expect(history.left).toBe(false);
-    expect(surface.boxOpen).toBe(false);
-    history.back();
-    expect(applied).toEqual(["box", "stage"]);
-    expect(history.left).toBe(false);
-    expect(surface.stage).toBe("bottle");
   });
 
   it("does not push a wizard layer for the step already on screen, so back leaves", () => {
