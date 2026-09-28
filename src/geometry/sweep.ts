@@ -286,6 +286,37 @@ export function buildLabelPatch(args: SweepArgs & { yCenter: number; patchH: num
   const anchor = bottleRadii(args.yCenter, height, width, depth, args.profile, args.shoulder, neckR);
   const ySteps = 28;
   const aSteps = 64;
+  
+  const arcLengths = [0];
+  let totalArc = 0;
+  let [prevX, prevZ] = sectionPoint(args.section, Math.PI / 2 - span, midSample.rx, midSample.rz, args.softness, midSample.morph, mid);
+  for (let ai = 1; ai <= aSteps; ai += 1) {
+    const ang = Math.PI / 2 - span + ((ai / aSteps) * span * 2);
+    const [x, z] = sectionPoint(args.section, ang, midSample.rx, midSample.rz, args.softness, midSample.morph, mid);
+    const dist = Math.sqrt((x - prevX) ** 2 + (z - prevZ) ** 2);
+    totalArc += dist;
+    arcLengths.push(totalArc);
+    prevX = x;
+    prevZ = z;
+  }
+  
+  const yArcLengths = [0];
+  let totalYArc = 0;
+  let prevMidSample = bottleRadii(y0, height, width, depth, args.profile, args.shoulder, neckR);
+  let [prevMidX, prevMidZ] = sectionPoint(args.section, Math.PI / 2, prevMidSample.rx, prevMidSample.rz, args.softness, prevMidSample.morph, y0);
+  let prevY = y0;
+  for (let yi = 1; yi <= ySteps; yi += 1) {
+    const y = y0 + ((y1 - y0) * yi) / ySteps;
+    const sample = bottleRadii(y, height, width, depth, args.profile, args.shoulder, neckR);
+    const [mx, mz] = sectionPoint(args.section, Math.PI / 2, sample.rx, sample.rz, args.softness, sample.morph, y);
+    const dist = Math.sqrt((mx - prevMidX) ** 2 + (mz - prevMidZ) ** 2 + (y - prevY) ** 2);
+    totalYArc += dist;
+    yArcLengths.push(totalYArc);
+    prevMidX = mx;
+    prevMidZ = mz;
+    prevY = y;
+  }
+
   const positions: number[] = [];
   const uvs: number[] = [];
   const indices: number[] = [];
@@ -297,7 +328,7 @@ export function buildLabelPatch(args: SweepArgs & { yCenter: number; patchH: num
       const [x, z] = sectionPoint(args.section, ang, sample.rx, sample.rz, args.softness, sample.morph, y);
       positions.push(x, y - args.yCenter, z - anchor.rz);
       // u = 0 is the left of the canvas. On the +Z face that is negative X, so the word is not mirrored.
-      uvs.push(1 - ai / aSteps, yi / ySteps);
+      uvs.push(1 - arcLengths[ai] / totalArc, yArcLengths[yi] / Math.max(totalYArc, 0.001));
     }
   }
   const stride = aSteps + 1;
