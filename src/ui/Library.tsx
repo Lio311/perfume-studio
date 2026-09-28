@@ -286,6 +286,7 @@ export function Library() {
                   } else {
                     useLab.getState().setStage("together");
                     useLab.getState().setLibraryOpen(false);
+                    useLab.getState().setModal("save");
                   }
                 }}
               >

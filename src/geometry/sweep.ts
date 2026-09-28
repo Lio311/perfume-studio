@@ -144,7 +144,7 @@ export function buildBottleGeometry(args: SweepArgs): THREE.BufferGeometry {
   positions.push(0, floor + 0.35, 0);
   uvs.push(0.5, 0);
   const first = 0;
-  for (let a = 0; a < aSteps; a++) indices.push(bottomCenter, first + a + 1, first + a);
+  for (let a = 0; a < aSteps; a++) indices.push(bottomCenter, first + a, first + a + 1);
 
   if (args.closedTop) {
     const cap = bottleRadii(clamp(topY, 0, height), height, width, depth, args.profile, args.shoulder, neckR);
@@ -162,7 +162,7 @@ export function buildBottleGeometry(args: SweepArgs): THREE.BufferGeometry {
     const topCenter = positions.length / 3;
     positions.push(0, topY + dome, 0);
     uvs.push(0.5, 1);
-    for (let a = 0; a < aSteps; a++) indices.push(topCenter, ring + a, ring + a + 1);
+    for (let a = 0; a < aSteps; a++) indices.push(topCenter, ring + a + 1, ring + a);
   } else {
     const lip = Math.max(1, Math.min(1.6, neckR * 0.22));
     const innerR = Math.max(2.4, neckR - lip);
@@ -250,11 +250,11 @@ export function buildCapGeometry(
   const bottom = positions.length / 3;
   positions.push(0, 0, 0);
   uvs.push(0.5, 0);
-  for (let a = 0; a < aSteps; a++) indices.push(bottom, a + 1, a);
+  for (let a = 0; a < aSteps; a++) indices.push(bottom, a, a + 1);
   const top = positions.length / 3;
   positions.push(0, h, 0);
   uvs.push(0.5, 1);
-  for (let a = 0; a < aSteps; a++) indices.push(top, prev + a, prev + a + 1);
+  for (let a = 0; a < aSteps; a++) indices.push(top, prev + a + 1, prev + a);
 
   const geo = new THREE.BufferGeometry();
   geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));

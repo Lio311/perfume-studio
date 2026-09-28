@@ -110,8 +110,8 @@ const CLEAR_FRAG = `
   }
 `;
 
-function ClearGlass() {
-  const uniforms = useMemo(() => ({ uFade: { value: 1 } }), []);
+function ClearGlass({ opacity = 0.14 }: { opacity?: number }) {
+  const uniforms = useMemo(() => ({ uFade: { value: opacity / 0.14 } }), []);
   return (
     <shaderMaterial
       transparent
@@ -122,6 +122,7 @@ function ClearGlass() {
       polygonOffsetFactor={-1}
       polygonOffsetUnits={-1}
       uniforms={uniforms}
+      uniforms-uFade-value={opacity / 0.14}
       vertexShader={CLEAR_VERT}
       fragmentShader={CLEAR_FRAG}
     />
@@ -167,7 +168,12 @@ export function FinishMaterial({
   if (blueprint) {
     return <shaderMaterial transparent depthWrite toneMapped={false} uniforms={fade} vertexShader={BLUE_VERT} fragmentShader={BLUE_FRAG} />;
   }
-  if (clear && glass) return <ClearGlass />;
+  if (clear && glass) return <ClearGlass opacity={opacity !== undefined ? opacity : 0.14} />;
+  
+  const actualOpacity = opacity !== undefined ? opacity : clear ? 0.14 : finish === "frosted" ? 0.45 : 0.32;
+  // For tinted glass, opacity controls attenuation distance (how dark the tint is) instead of breaking transmission
+  const tintDistance = 120 - (actualOpacity * 110); // 0 -> 120 (faint), 1 -> 10 (very dark)
+
   return (
     <meshPhysicalMaterial
       color={color}
@@ -187,13 +193,13 @@ export function FinishMaterial({
         finish === "wood" ? 0.7 :
         0.84
       }
-      transmission={glassLike ? glassTransmission(finish, opacity) : 0}
+      transmission={glassLike ? Math.max(0.01, glassTransmission(finish, opacity) ?? 0) : 0}
       thickness={glassLike ? (finish === "tinted" ? 4.2 : 2.8) : 0}
       ior={clear ? 1.52 : 1.5}
       clearcoat={clear || finish === "tinted" ? 1 : metal ? 0.65 : 0.04}
       clearcoatRoughness={metal ? 0.12 : 0.04}
       attenuationColor={clear ? "#fff8ee" : color}
-      attenuationDistance={clear ? 160 : finish === "tinted" ? 22 : 36}
+      attenuationDistance={clear ? 160 : finish === "tinted" ? tintDistance : 36}
       envMapIntensity={metal ? 1.65 : glassLike ? 1.7 : finish === "matteBlack" ? 0.28 : 0.7}
       specularIntensity={glassLike || metal ? 1 : 0.3}
       transparent={glassLike}

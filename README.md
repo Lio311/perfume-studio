@@ -1,73 +1,45 @@
-# מעבדת הבושם — Perfume Lab
+# Perfume Lab
 
-One configurator for a private-label perfume bottle. Pick a shape, cap, pump, collar, label, and box, and they snap together on a real neck standard. The default bottle is the Verescence CARA 50 ml (67.6 × 51 × 43 mm, FEA 15).
+A web-based 3D configurator for private-label perfume bottles. Choose a shape, cap, pump, collar, label, and box, and watch them snap together seamlessly based on real neck standards (e.g., FEA 15). The default bottle is the Verescence CARA 50 ml.
 
-The default look is a dark graphite lab: a near-black sweep, a faint cool-grey and gold floor grid that fades out, and no warm floor. Hebrew is right to left. The bright studio remains in the תצוגה menu.
+## 🛠️ Technology Stack
 
-The top bar switches assemble, explode, dimensions, and compare, and holds undo, redo, share, and PNG export. The library cards show millimetres. The dock is an explode slider plus view presets. A selected part gets corner brackets and live millimetre lines. Chat suggestions stay visible, and each reply has its own undo.
+This project is built using modern web and 3D technologies:
 
-## Run
+- **React 19**: Drives the UI, wizard, and stateful components.
+- **Three.js & React Three Fiber (R3F)**: Powers the 3D rendering, procedural geometry generation, and scene graph.
+- **@react-three/drei**: Provides camera controls, environments, and text rendering.
+- **Zustand & Immer**: Handles complex global state, including design history (undo/redo) and part selections.
+- **Framer Motion**: Adds smooth UI transitions and layout animations.
+- **Vite**: Fast development server and production bundler.
+- **PDF.js**: Enables client-side parsing of supplier catalogs (PDFs) to automatically extract dimensions and neck sizes, generating parametric 3D parts.
+- **Web Speech API**: Powers the voice assistant for hands-free configuration and chat parsing. No cloud API key required.
 
-```bash
-npm install
-npm run dev
-```
+## ✨ Features
 
-Open http://127.0.0.1:4327
+- **Procedural Parts & Snapping**: Parts automatically fit together based on their FEA neck standard (13, 15, 17, 18, or 20).
+- **Data-Driven Catalog**: Browse 90+ caps (zamac, surlyn, wood, acrylic, magnetic), 50 logos, pumps, collars, and boxes. Instantly apply finishes (matte, gloss, clear, frosted, tinted glass) and colors.
+- **Custom Logos & Branding**: Use procedural monograms, geometric marks, or type a brand name to render directly on the glass.
+- **Interactive Camera**: Orbit, zoom, and pan. The camera automatically frames the selected part or the entire assembly. Explode the bottle to see internal parts.
+- **Voice & Chat Assistant**: Chat accepts English commands (e.g., "next cap", "matte black bottle").
+- **Voice Variants**: 
+  - *Sleek minimal*: Matte black UI with floating glass HUD.
+  - *Holographic lab*: Scanline shell effects, particle fields, and energy rings.
+  - *Cinematic sci-fi*: Animated grid, rim lighting, sound effects, and post-processing glitch scans on part swaps.
+- **Save & Compare**: Save design iterations locally in the browser, compare up to three at once, and export a high-resolution PNG.
+- **Supplier Catalog Import**: Upload a supplier PDF. The built-in regex extractor reads codes and dimensions, generating parametric 3D models instantly.
 
-Three voice variants share this lab. Switch them in the top bar, or open them directly:
+## 🧠 Architecture & Design Decisions
 
-- [Sleek minimal](http://127.0.0.1:4327/?voice=1) — matte black, hairline gold and white, a floating glass HUD. Hold the mic (or Space). Hebrew speech-to-text shows live, and the assistant speaks a short Hebrew confirmation.
-- [Holographic lab](http://127.0.0.1:4327/?voice=2) — scanline shell on the selected part, a particle field, energy rings, and bloom. Say «מעבדה» or “Lab”, then the command. Tour narrates each part as the bottle opens.
-- [Cinematic sci-fi](http://127.0.0.1:4327/?voice=3) — a slow camera drift, rim light, a reflective animated grid, mono readouts, and a short scan when a part swaps. Hover ticks, an explode whoosh, an assemble snap, and glass, metal, and wood sounds, plus a lab hum with mute.
+- **Single Engine, Multiple Themes**: A single configurator engine drives everything. URL parameters (`?voice=1`) dynamically change the lighting, environment, and post-processing without duplicating the underlying catalog or fit rules.
+- **Rendering Quality**: 
+  - Clear glass utilizes a custom shader with a fresnel shell and cool reflection to perform well on software renderers.
+  - Decals (logos) are rendered as opaque meshes conforming to the bottle's curved surface to prevent z-fighting or mirrored text.
+- **Part Isolation**: Double-clicking a part isolates it on a turntable with dimension leader lines. The camera easing uses a cubic in-out curve but instantly yields to user gestures (scroll/pinch).
+- **Packaging Workflow**: The bottle and the carton are handled as separate entities. You can view the box alone, hinge the lid open, or render them side-by-side in a combined shot.
 
-Speech uses the browser Web Speech API (`he-IL` and `en-US`) and Web Audio. No API key.
+## 🚀 Roadmap
 
-```bash
-npm test
-npm run build
-```
-
-## What you can do
-
-- Browse the library by category. The catalog is data: bottles (including Verescence Cara, Coverpla Bazille, and Stoelzle Cube, Cubique, and Linton), 94 caps grouped into zamac, surlyn, wood, acrylic, magnetic, sculptural, and minimal, 50 logos, 12 pumps, 10 collars, and 8 boxes. A new variant is another entry (lathe profile, section, proportions, neck).
-- Every finish and colour applies to the selected part immediately. Parts snap by neck: FEA 13, 15, 17, 18, or 20. Ferrule inner diameter, outer diameter, and height follow EN 14849. The collar wraps the neck, the pump sits on it, and the cap covers the collar.
-- Logos are procedural monograms, geometric marks, and type. Type a brand name on the label. Hebrew text uses Heebo.
-- Search the library, use the arrows in the properties panel, or press Left / Right to cycle the selected slot. E explodes, 0 resets the camera, Escape returns to the full view.
-- Orbit freely on every axis, zoom, and pan. Explode separates the parts and puts them back.
-- Chat accepts Hebrew and English, including `פקק הבא` and `next cap`. Voice variants 1 and 2 speak the reply. Variant 3 keeps a secondary mic in the chat.
-- Save named designs in this browser, compare up to three, and export a PNG.
-- Import a supplier catalog PDF from the library. The lab turns each detected cap, bottle, box, label, pump, and collar into a parametric part under that supplier. A separate pending upload still stores a photo or PDF without building a model.
-
-Randomize in the top bar picks a harmonious look from the catalog. The dark graphite lab is the default. The bright studio is the other theme in תצוגה.
-
-## Decisions
-
-- One configurator. `?voice=1`, `?voice=2`, and `?voice=3` change the dark look and the voice behaviour. They do not fork the catalog, the fit rules, or the chat parser. With no query, the lab opens on variant 1.
-- Voice colour skins apply only while the theme is dark. The light studio toggle still replaces the stage and the panels.
-- The camera fits the assembly to about 63% of the open stage, inside the side panels and the top and bottom bars. A focused part uses the same safe rectangle at about 64% of that height, and the fit pulls back until the whole part is on screen. Every move eases for about 1.35s with a cubic in-out. A wheel or pointer gesture cancels that ease and takes over. Two-finger scroll orbits slowly (pinch zooms, shift-drag and right-drag pan). Each event is capped, each frame applies only a small step, and the glide dies within a few frames. If the camera position or target becomes invalid, it snaps back to the home view. איפוס מבט does the same, and Escape, an empty click, or ← חזרה still return to the full view. Zoom stays inside the framing sphere. The polar angle is clamped, so the camera cannot flip to a top-down view, go under the floor, or stay stuck there: a straight-down pose snaps back to the home three-quarter. It refits when the explode amount, the open lid, the viewport, or the look changes. The lab opens slightly apart (25%). Choosing פירוק keeps that slider; only the chat command “תפרק” opens it fully. At 100% the cap, pump, and collar separate by about 0.35 of each part’s height, staggered by about 50ms, and the camera pulls back so the stack stays centred.
-- The default stage is a dark graphite sweep. A faint cool-grey grid with a thin gold section line sits on a neutral floor and fades into the background, with no brown tint and no hard horizon. The bright studio is the alternate theme and hides that grid unless רשת is on. The backdrop is the floor: there is no disc, gold pool, or fog band, so the ground has no visible edge. ACES exposure is about 1.08 in the studio (1.12 in the dark lab, 1.3 on the hologram look). MeshReflector is not used: on the software renderer it presented a black frame. High quality adds a soft cool contact shadow. Clear glass is a fresnel shell with a cool reflection and a thicker edge, not a gold caustic, because real transmission goes opaque on the software renderer. Thickness and IOR stay on the frosted and tinted finishes. The logo is one opaque decal on the curved front, with the brand word drawn in a loaded face and U running left to right, so it does not collapse into a black slab or a mirrored word. The liquid top is a low dome rather than a flat cut. Each leader line ends on its part. A selected part gets a thin gold rim, not a white shell, and the other parts fade toward ghost glass. Leader labels hide while a part is focused, while the explode amount is past halfway, and during a presentation. The floor grid is hidden unless רשת is on, on both themes, and there is no fog horizon. The hologram look drops the floor. Cinema raises the key and the bloom. Quality, look, blueprint, theme, and language live under תצוגה. Share, PNG, and the spec live under ייצוא.
-- Leader labels sit in the left and right gutters of the stage, with a line back to each part. The selected part's millimetre readout is a separate chip in that gutter, not a second label on the glass.
-- Double-click a part, or use בודד חלק, to isolate it on a turntable with its own dimension lines. A second click on that part, a click on empty stage, Escape, or ← חזרה deselects it and eases the camera back to the full view. The breadcrumb does the same. איפוס מבט in the dock returns to the home view even if a gesture left the camera odd. Ctrl or Cmd K opens a search of parts and actions. P starts a full-screen turntable for a presentation, with a PNG export. The explode slider is also a timeline: רצף plays the parts off in order, each with a small turn. A spec card on the selected part lists material, millimetres, neck, an estimated weight, and a placeholder MOQ. The liquid and the label are swept from the same bottle profile, so a flat flacon does not grow a round core or a floating plate. Depth of field is left off. Contact shadows stay on the high quality setting.
-- ייבוא קטלוג ספק reads a supplier PDF in the browser with pdf.js. A regex extractor (`src/import/parseCatalog.ts`, `regexCatalogSource`) pulls codes, millimetres, FEA necks and part types in English, Hebrew, Arabic, and the English used by Chinese catalogs. An unlabeled `W x H x D` triple is width, height, then depth. A title that only contains a kind word, such as “Closures”, is not a part. The review table lets you correct a row, drag a crop, or add a part by hand when a page has no text. Confirming builds a parametric part at those millimetres, samples a colour from the crop, and stores the supplier pack in IndexedDB. The same pack exports and imports as JSON. A vision backend can replace the extractor without changing the review table.
-- The bottle and the carton are separate products. The lab opens on the bottle: glass, cap, collar, pump, and logo only. קופסה switches to the carton alone, framed on its own, with dimensions, finish, colour, and the brand on the front. פתח קופסה, or a click on the lid, hinges the lid open (a drawer slides, a sleeve lifts) so the lining and the tray cutout are visible. It works in קופסה and in הצג יחד. הצג יחד is the optional combined shot, off by default, and the carton stays behind the glass. Clicking a part on the stage eases the camera onto that part and switches the library to that tab. A library thumbnail swaps the part without moving the camera. Search matches Hebrew and English names, codes, supplier names, millimetres, and FEA with or without a space. Clicking that same part again, clicking empty stage, pressing Escape, or ← חזרה clears the selection and returns to the full view. Double-click isolates the part. רשת draws the parts as a gold blueprint over a floor grid. The home view is a three-quarter from the front, with the label toward the camera.
-- The mic, the holographic orb, and the cinematic sound controls sit in the bottom dock so they do not cover the bottle.
-- Postprocessing is skipped when the canvas is not WebGL2. If the cinematic grade still presents a black frame, or the effect chain throws, the lab drops the composer and keeps the lit scene. Part swaps in variant 3 use the CSS scan, not a WebGL glitch pass.
-- Variant 2 keeps a light scan and a thin particle field so the bottle stays the subject. Its waveform sits in the dock beside the orb, not across the controls. Variant 3’s floor is the shared reflector plus a moving grid.
-- `vite build` writes `dist/` with relative asset paths (`base: './'`), so the folder can be hosted from any static path. A zip of that folder is the portable copy.
-- Cubique 100 ml is not in the catalog. The research table published the square size and not the height.
-- Speech recognition and spoken replies need a browser that exposes the Web Speech API, a microphone, and a click or key before audio can start. There is no cloud speech service and no API key.
-
-## What's next
-
-- A GLB loader on the existing `model` field, when a part should stop being procedural.
-- An LLM behind `src/parser/interpreter.ts`. The local parser stays the fallback.
-- A paid image-to-3D API (Tripo or Hunyuan3D) for parts that are not round. Round parts already revolve from a side photo. STEP import is not wired up.
-- A Hebrew speech voice is only as good as the voices the browser has installed.
-
-## Not in this version
-
-- Dropping in a GLB per variant. Specs already carry a `model` field (`procedural` today). A loader can branch on `glb` later.
-- A hosted language model. Chat is a local parser. `src/parser/interpreter.ts` is the place to POST an utterance and map the JSON back onto the same commands.
-- Turning a non-round photo into a mesh. Round caps, collars, and pumps revolve from a side photo under הוסף חלק מתמונה and save into the same supplier library as a PDF import.
-- Speech recognition in browsers that do not expose it. The button explains that in the chat.
+- **GLB Support**: Implement a loader for non-procedural imported 3D models.
+- **LLM Integration**: Connect a Large Language Model behind the chat interpreter for more natural command parsing (falling back to the local regex parser).
+- **Image-to-3D Integration**: Add API support to generate non-round parts from user-uploaded photos.
