@@ -231,7 +231,7 @@ export function Library() {
                 {part.thumb && <img src={part.thumb} alt="" />}
                 <div>
                   <strong>{part.name}</strong>
-                  <span>{pack.name}{part.lathe ? "" : ` · ${t.tempShape}`}</span>
+                  <span>{pack.name}{part.lathe ? "" : ` · ${t.tempShape}`} · {part.price ? `${part.price.value} ${part.price.currency}` : t.noPrice}</span>
                 </div>
                 <button type="button" onClick={() => {
                   applyCommands([{ type: "variant", part: kind, id: part.id }]);

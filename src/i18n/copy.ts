@@ -211,6 +211,7 @@ const he = {
   noticeDroppedPart: "החלק {ref}: הוסר כי אינו עומד בכללי החבילה.",
   noticeDroppedPack: "חבילה שמורה הוסרה כי אינה תקינה.",
   noticeDroppedMeta: "השדה {field} הוסר מהחבילה כי אינו בפורמט הנדרש.",
+  noPrice: "אין מחיר",
 };
 
 const en: typeof he = {
@@ -424,6 +425,7 @@ const en: typeof he = {
   noticeDroppedPart: "Part {ref} was removed because it does not match the pack rules.",
   noticeDroppedPack: "A stored pack was removed because it is not valid.",
   noticeDroppedMeta: "Field {field} was removed from the pack because it has the wrong format.",
+  noPrice: "No price",
 };
 
 export const copy = { he, en };

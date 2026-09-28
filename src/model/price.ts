@@ -18,7 +18,7 @@ export interface SupplierPrice {
 }
 
 const PRICE_KEYS = new Set(["value", "currency", "moq", "tiers", "quotedAt"]);
-const TIER_KEYS = new Set(["minQty", "value"]);
+const TIER_KEYS = new Set(["minQty", "qty", "value"]);
 const CURRENCY = /^[A-Z]{3}$/;
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -49,9 +49,16 @@ function allowedKeys(value: object, allowed: Set<string>): boolean {
   return ownKeys(value).every((key) => allowed.has(key));
 }
 
+function tierMinQty(tier: Record<string, unknown>): number | undefined {
+  if (Object.hasOwn(tier, "minQty")) return isQty(tier.minQty) ? tier.minQty : undefined;
+  if (Object.hasOwn(tier, "qty")) return isQty(tier.qty) ? tier.qty : undefined;
+  return undefined;
+}
+
 /**
  * Rebuild a supplier price into the canonical shape, or return `undefined` when it does not match.
- * Currency must already be three uppercase letters. Tiers use `minQty` and must be strictly ascending.
+ * Currency must already be three uppercase letters. A tier may use legacy `qty` when `minQty` is absent;
+ * the result always stores `minQty`. A missing or invalid price is absent, not zero.
  */
 export function sanitizeSupplierPrice(raw: unknown): SupplierPrice | undefined {
   if (!isDataObject(raw) || !allowedKeys(raw, PRICE_KEYS)) return undefined;
@@ -70,11 +77,11 @@ export function sanitizeSupplierPrice(raw: unknown): SupplierPrice | undefined {
     const tiers: SupplierPriceTier[] = [];
     let previous = 0;
     for (const tier of raw.tiers) {
-      if (!isDataObject(tier) || !allowedKeys(tier, TIER_KEYS)) return undefined;
-      if (!Object.hasOwn(tier, "minQty") || !Object.hasOwn(tier, "value")) return undefined;
-      if (!isQty(tier.minQty) || !isPositive(tier.value) || tier.minQty <= previous) return undefined;
-      previous = tier.minQty;
-      tiers.push({ minQty: tier.minQty, value: tier.value });
+      if (!isDataObject(tier) || !allowedKeys(tier, TIER_KEYS) || !Object.hasOwn(tier, "value")) return undefined;
+      const minQty = tierMinQty(tier);
+      if (minQty === undefined || !isPositive(tier.value) || minQty <= previous) return undefined;
+      previous = minQty;
+      tiers.push({ minQty, value: tier.value });
     }
     price.tiers = tiers;
   }
