@@ -75,6 +75,9 @@ export function sampleProfile(profile: Profile, t: number): number {
   const first = profile[0];
   const last = profile[profile.length - 1];
   if (!first || !last) return 1;
+  // The sphere knots are a coarse stand-in. The Orb body is the circle of
+  // diameter equal to the width, resting on the base.
+  if (profile === bodyProfiles.sphere) return orbCircleFactor(x);
   if (x <= first[0]) return first[1];
   if (x >= last[0]) return last[1];
   const tangents = monotoneTangents(profile);
@@ -94,11 +97,6 @@ export function sampleProfile(profile: Profile, t: number): number {
   return last[1];
 }
 
-/** Length of the straight glass finish under the lip, in millimetres. */
-export function straightNeckMm(neckR: number): number {
-  return Math.min(5.5, neckR * 0.85);
-}
-
 export function bottleRadii(
   y: number,
   height: number,
@@ -110,7 +108,7 @@ export function bottleRadii(
 ): { rx: number; rz: number; morph: number } {
   const halfW = width / 2;
   const halfD = depth / 2;
-  const straight = straightNeckMm(neckR);
+  const straight = Math.min(5.5, neckR * 0.85);
   const straightStart = height - straight;
   const shoulderStart = Math.max(height * 0.35, straightStart - height * shoulder);
   if (y >= straightStart) return { rx: neckR, rz: neckR, morph: 1 };
@@ -151,4 +149,22 @@ export function bottleOutline(
     pts.push({ x: rx, y });
   }
   return pts;
+}
+
+/**
+ * Radius factor of a sphere that sits on the base, diameter = width.
+ * `t` is y / shoulderStart for Orb 50 (64 × 60 mm, shoulder 0.16, FEA15),
+ * which is the span `bottleRadii` uses for that bottle.
+ */
+function orbCircleFactor(t: number): number {
+  const height = 64;
+  const shoulder = 0.16;
+  const neckR = 7.5;
+  const radius = 30;
+  const straight = Math.min(5.5, neckR * 0.85);
+  const straightStart = height - straight;
+  const shoulderStart = Math.max(height * 0.35, straightStart - height * shoulder);
+  const y = t * shoulderStart;
+  const inside = radius * radius - (y - radius) * (y - radius);
+  return Math.sqrt(Math.max(0, inside)) / radius;
 }

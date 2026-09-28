@@ -1,6 +1,6 @@
 import { bottleById, boxById, capById, collarById, logoById, pumpById } from "./catalog.ts";
 import { NECKS, neckRadius } from "./necks.ts";
-import { bottleRadii, straightNeckMm } from "./sample.ts";
+import { bottleRadii } from "./sample.ts";
 import type { Design, PartKey } from "./types.ts";
 
 export interface Fit {
@@ -56,12 +56,7 @@ export function computeFit(design: Design, exploded = false): Fit {
   const collarHeight = stockFerrule
     ? Math.min(ferrule.heightMaxMm, Math.max(ferrule.heightMinMm, collar.heightMm))
     : collar.heightMm;
-  // The ferrule seats on the straight finish. Overlap stops at the start of
-  // that cylinder, so a tall collar rises above the lip instead of cutting
-  // into the shoulder.
-  const neckFinish = straightNeckMm(neckR);
-  const overlap = Math.min(collarHeight * 0.72, neck.crimpMm * 0.85, neckFinish);
-  const collarBottom = bottleH - overlap;
+  const collarBottom = bottleH - Math.min(collarHeight * 0.72, neck.crimpMm * 0.85);
   const collarTop = collarBottom + collarHeight;
 
   const capH = design.cap.heightMm;

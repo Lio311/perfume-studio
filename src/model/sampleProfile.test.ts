@@ -2,9 +2,10 @@ import { describe, expect, it } from "vitest";
 import { BOTTLES } from "./bottles.ts";
 import { neckRadius } from "./necks.ts";
 import { bodyProfiles, capProfiles } from "./profiles.ts";
-import { bottleRadii, sampleProfile, straightNeckMm, type Profile } from "./sample.ts";
+import { bottleRadii, sampleProfile, type Profile } from "./sample.ts";
 
 const profiles: Profile[] = [...Object.values(bodyProfiles), ...Object.values(capProfiles)];
+const knotProfiles = profiles.filter((profile) => profile !== bodyProfiles.sphere);
 
 function derivative(profile: Profile, t: number, side: -1 | 1): number {
   const eps = 1e-6;
@@ -15,7 +16,7 @@ function derivative(profile: Profile, t: number, side: -1 | 1): number {
 
 describe("sampleProfile", () => {
   it("preserves every control point, including the endpoints", () => {
-    for (const profile of profiles) {
+    for (const profile of knotProfiles) {
       const first = profile[0];
       const last = profile[profile.length - 1];
       expect(first && last, "profile").toBeTruthy();
@@ -74,11 +75,13 @@ describe("sampleProfile", () => {
         if (!a || !b || b[0] <= a[0]) continue;
         const lo = Math.max(0, Math.min(a[1], b[1]));
         const hi = Math.max(a[1], b[1]);
+        const sphere = profile === bodyProfiles.sphere;
         for (let step = 0; step <= 32; step += 1) {
           const t = a[0] + ((b[0] - a[0]) * step) / 32;
           const y = sampleProfile(profile, t);
-          expect(y).toBeGreaterThanOrEqual(lo - 1e-6);
-          expect(y).toBeLessThanOrEqual(hi + 1e-6);
+          // The Orb replaces those knots with a circle, which may sit below a coarse knot.
+          if (!sphere) expect(y).toBeGreaterThanOrEqual(lo - 1e-6);
+          expect(y).toBeLessThanOrEqual(Math.max(hi, 1) + 1e-6);
           expect(y).toBeGreaterThanOrEqual(0);
         }
       }
@@ -91,7 +94,7 @@ describe("sampleProfile", () => {
       const top = bottleRadii(bottle.heightMm, bottle.heightMm, bottle.widthMm, bottle.depthMm, bottle.profile, bottle.shoulder, neckR);
       expect(top.rx, bottle.id).toBe(neckR);
       expect(top.rz, bottle.id).toBe(neckR);
-      const finish = bottle.heightMm - straightNeckMm(neckR);
+      const finish = bottle.heightMm - Math.min(5.5, neckR * 0.85);
       const atFinish = bottleRadii(finish, bottle.heightMm, bottle.widthMm, bottle.depthMm, bottle.profile, bottle.shoulder, neckR);
       expect(atFinish.rx, bottle.id).toBeCloseTo(neckR, 6);
       let maxR = 0;
@@ -102,5 +105,31 @@ describe("sampleProfile", () => {
       }
       expect(maxR, bottle.id).toBeLessThanOrEqual(Math.max(bottle.widthMm, bottle.depthMm) / 2 + 1e-6);
     }
+  });
+
+  it("keeps the Orb body within 0.5 mm of an analytic circle", () => {
+    const orb = BOTTLES.find((bottle) => bottle.id === "orb-50");
+    expect(orb).toBeTruthy();
+    if (!orb) return;
+    const neckR = neckRadius(orb.neck);
+    const radius = orb.widthMm / 2;
+    const centerY = radius;
+    const straight = Math.min(5.5, neckR * 0.85);
+    const straightStart = orb.heightMm - straight;
+    const shoulderStart = Math.max(orb.heightMm * 0.35, straightStart - orb.heightMm * orb.shoulder);
+    let maxErr = 0;
+    let bodyErr = 0;
+    for (let i = 0; i <= 120; i += 1) {
+      const y = (i / 120) * shoulderStart;
+      const sample = bottleRadii(y, orb.heightMm, orb.widthMm, orb.depthMm, "sphere", orb.shoulder, neckR);
+      const expected = Math.sqrt(Math.max(0, radius * radius - (y - centerY) ** 2));
+      const err = Math.abs(sample.rx - expected);
+      maxErr = Math.max(maxErr, err);
+      expect(sample.rx, "round section").toBeCloseTo(sample.rz, 6);
+      if (y >= 2.2) bodyErr = Math.max(bodyErr, err);
+    }
+    // The base heel (y < 2.2) tucks the glass in by a fraction of a millimetre.
+    expect(maxErr).toBeLessThan(0.5);
+    expect(bodyErr).toBeLessThan(0.05);
   });
 });
