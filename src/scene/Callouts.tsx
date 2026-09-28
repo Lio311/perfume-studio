@@ -61,7 +61,6 @@ export function Callouts() {
   const camera = useThree((s) => s.camera);
   const gl = useThree((s) => s.gl);
   const anchor = useRef(new THREE.Vector3());
-  const camRight = useRef(new THREE.Vector3());
 
   useLayoutEffect(() => {
     const slot = document.querySelector(".stage-slot");
@@ -118,11 +117,6 @@ export function Callouts() {
         home[2] + burst[2] * local + frame.center[2],
       );
       if (part === "liquid" && !parked) anchor.current.y *= 0.62;
-      camRight.current.setFromMatrixColumn(camera.matrixWorld, 0);
-      const span = part === "box"
-        ? Math.max(frame.size[0], frame.size[2])
-        : Math.max(frame.size[0], frame.size[2], fit.bottleW, fit.bottleD);
-      anchor.current.addScaledVector(camRight.current, SIDES[part] * (span * 0.54 + 8));
       items.push({
         key: part,
         side: SIDES[part],

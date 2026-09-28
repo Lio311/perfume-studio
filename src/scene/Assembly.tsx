@@ -563,6 +563,7 @@ function LabelPart() {
     const map = new THREE.CanvasTexture(canvas);
     map.colorSpace = THREE.SRGBColorSpace;
     map.anisotropy = 8;
+    map.flipY = true;
     map.needsUpdate = true;
     return map;
   }, [canvas]);

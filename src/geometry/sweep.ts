@@ -270,7 +270,8 @@ export function buildLabelPatch(args: SweepArgs & { yCenter: number; patchH: num
       const ang = Math.PI / 2 - span + ((ai / aSteps) * span * 2);
       const [x, z] = sectionPoint(args.section, ang, sample.rx, sample.rz, args.softness, sample.morph, y);
       positions.push(x, y - args.yCenter, z - anchor.rz);
-      uvs.push(ai / aSteps, yi / ySteps);
+      // u = 0 is the left of the canvas. On the +Z face that is negative X, so the word is not mirrored.
+      uvs.push(1 - ai / aSteps, yi / ySteps);
     }
   }
   const stride = aSteps + 1;

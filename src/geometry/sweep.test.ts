@@ -44,6 +44,39 @@ describe("bottle shell, liquid and label share one profile", () => {
       expect(Math.abs(p.max.x), bottle.id).toBeLessThanOrEqual(bottle.widthMm / 2 + 1);
       expect(p.max.z, bottle.id).toBeLessThan(8);
       expect(p.min.z, bottle.id).toBeGreaterThan(-bottle.depthMm);
+      const pos = label.getAttribute("position");
+      const uv = label.getAttribute("uv");
+      let leftX = Infinity;
+      let rightX = -Infinity;
+      let leftU = 0;
+      let rightU = 0;
+      let lowY = Infinity;
+      let highY = -Infinity;
+      let lowV = 0;
+      let highV = 0;
+      if (!pos || !uv) throw new Error("label attributes");
+      for (let i = 0; i < pos.count; i += 1) {
+        const x = pos.getX(i);
+        const y = pos.getY(i);
+        if (x < leftX) {
+          leftX = x;
+          leftU = uv.getX(i);
+        }
+        if (x > rightX) {
+          rightX = x;
+          rightU = uv.getX(i);
+        }
+        if (y < lowY) {
+          lowY = y;
+          lowV = uv.getY(i);
+        }
+        if (y > highY) {
+          highY = y;
+          highV = uv.getY(i);
+        }
+      }
+      expect(leftU, bottle.id).toBeLessThan(rightU);
+      expect(lowV, bottle.id).toBeLessThan(highV);
       glass.dispose();
       liquid.dispose();
       label.dispose();
