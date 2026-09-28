@@ -5,12 +5,14 @@ import type { VariantPart } from "../model/types.ts";
 import { requestShot } from "../scene/capture.ts";
 import { useLab } from "../store/labStore.ts";
 import { thumbFor } from "../thumbnails/thumbs.ts";
+import { SupplierImport } from "./SupplierImport.tsx";
 
 export function Modals() {
   const modal = useLab((s) => s.modal);
   if (modal === "save") return <SaveModal />;
   if (modal === "compare") return <CompareModal />;
   if (modal === "upload") return <UploadModal />;
+  if (modal === "supplier") return <SupplierImport />;
   return null;
 }
 

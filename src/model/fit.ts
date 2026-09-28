@@ -83,8 +83,8 @@ export function computeFit(design: Design, exploded = false): Fit {
     slim: [0.78, 0.16],
   };
   const [fw, fh] = fractions[logo.plate];
-  const labelW = Math.min(bottleW - 6, bottleW * fw * design.label.scale);
-  const labelH = Math.min(shoulderY * 0.8, shoulderY * fh * design.label.scale);
+  const labelW = logo.widthMm ? Math.min(bottleW - 2, logo.widthMm) : Math.min(bottleW - 6, bottleW * fw * design.label.scale);
+  const labelH = logo.heightMm ? Math.min(shoulderY * 0.9, logo.heightMm) : Math.min(shoulderY * 0.8, shoulderY * fh * design.label.scale);
   const labelY = Math.max(labelH / 2 + 4, shoulderY * 0.46);
   const labelZ = bottleD / 2 + 0.55;
 

@@ -147,6 +147,9 @@ export interface LogoSpec {
   frame: LogoFrame;
   tags: string[];
   model: ModelSource;
+  /** Set on supplier imports so the decal uses real millimetres. */
+  widthMm?: number;
+  heightMm?: number;
 }
 
 export type PumpStyle =

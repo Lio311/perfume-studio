@@ -4,6 +4,26 @@ import { BOXES, COLLARS, PUMPS } from "./hardware.ts";
 import { LOGOS } from "./logos.ts";
 import type { BottleSpec, BoxSpec, CapSpec, CollarSpec, LogoSpec, PumpSpec, VariantPart } from "./types.ts";
 
+export interface ImportedCatalog {
+  bottles: BottleSpec[];
+  caps: CapSpec[];
+  labels: LogoSpec[];
+  pumps: PumpSpec[];
+  collars: CollarSpec[];
+  boxes: BoxSpec[];
+}
+
+const imported: ImportedCatalog = { bottles: [], caps: [], labels: [], pumps: [], collars: [], boxes: [] };
+
+export function setImportedCatalog(next: ImportedCatalog): void {
+  imported.bottles = next.bottles;
+  imported.caps = next.caps;
+  imported.labels = next.labels;
+  imported.pumps = next.pumps;
+  imported.collars = next.collars;
+  imported.boxes = next.boxes;
+}
+
 export interface CatalogEntry {
   id: string;
   kind: VariantPart;
@@ -15,31 +35,31 @@ export interface CatalogEntry {
 }
 
 export function bottleById(id: string): BottleSpec {
-  return BOTTLES.find((b) => b.id === id) ?? BOTTLES[0];
+  return imported.bottles.find((b) => b.id === id) ?? BOTTLES.find((b) => b.id === id) ?? BOTTLES[0];
 }
 export function capById(id: string): CapSpec {
-  return CAPS.find((b) => b.id === id) ?? CAPS[0];
+  return imported.caps.find((b) => b.id === id) ?? CAPS.find((b) => b.id === id) ?? CAPS[0];
 }
 export function logoById(id: string): LogoSpec {
-  return LOGOS.find((b) => b.id === id) ?? LOGOS[0];
+  return imported.labels.find((b) => b.id === id) ?? LOGOS.find((b) => b.id === id) ?? LOGOS[0];
 }
 export function pumpById(id: string): PumpSpec {
-  return PUMPS.find((b) => b.id === id) ?? PUMPS[0];
+  return imported.pumps.find((b) => b.id === id) ?? PUMPS.find((b) => b.id === id) ?? PUMPS[0];
 }
 export function collarById(id: string): CollarSpec {
-  return COLLARS.find((b) => b.id === id) ?? COLLARS[0];
+  return imported.collars.find((b) => b.id === id) ?? COLLARS.find((b) => b.id === id) ?? COLLARS[0];
 }
 export function boxById(id: string): BoxSpec {
-  return BOXES.find((b) => b.id === id) ?? BOXES[0];
+  return imported.boxes.find((b) => b.id === id) ?? BOXES.find((b) => b.id === id) ?? BOXES[0];
 }
 
 export function listFor(kind: VariantPart): CatalogEntry[] {
-  if (kind === "bottle") return BOTTLES.map(toEntry("bottle"));
-  if (kind === "cap") return CAPS.map(toEntry("cap"));
-  if (kind === "label") return LOGOS.map(toEntry("label"));
-  if (kind === "pump") return PUMPS.map(toEntry("pump"));
-  if (kind === "collar") return COLLARS.map(toEntry("collar"));
-  return BOXES.map(toEntry("box"));
+  if (kind === "bottle") return [...BOTTLES, ...imported.bottles].map(toEntry("bottle"));
+  if (kind === "cap") return [...CAPS, ...imported.caps].map(toEntry("cap"));
+  if (kind === "label") return [...LOGOS, ...imported.labels].map(toEntry("label"));
+  if (kind === "pump") return [...PUMPS, ...imported.pumps].map(toEntry("pump"));
+  if (kind === "collar") return [...COLLARS, ...imported.collars].map(toEntry("collar"));
+  return [...BOXES, ...imported.boxes].map(toEntry("box"));
 }
 
 function mm(n: number): string {

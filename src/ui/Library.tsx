@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { partLabel, tx } from "../i18n/copy.ts";
-import { CATALOG_COUNTS, listFor } from "../model/catalog.ts";
+import { downloadPack } from "../import/supplierDb.ts";
+import { listFor } from "../model/catalog.ts";
 import { LIQUID_PALETTE } from "../model/materials.ts";
 import type { VariantPart } from "../model/types.ts";
 import { useLab } from "../store/labStore.ts";
@@ -31,20 +32,24 @@ export function Library() {
   const setModal = useLab((s) => s.setModal);
   const randomize = useLab((s) => s.randomize);
   const removePending = useLab((s) => s.removePending);
+  const suppliers = useLab((s) => s.suppliers);
+  const removeSupplier = useLab((s) => s.removeSupplier);
   const [tab, setTab] = useState<(typeof TABS)[number]>("cap");
   const [query, setQuery] = useState("");
   const [cat, setCat] = useState("all");
+  const [supplier, setSupplier] = useState("all");
 
   const items = useMemo(() => {
     if (tab === "liquid" || tab === "pending") return [];
     const q = query.trim().toLowerCase();
     const family = CAP_CATS.find((entry) => entry.id === cat);
     return listFor(tab).filter((item) => {
+      if (supplier !== "all" && !item.tags.includes(`supplier:${supplier}`)) return false;
       if (q && !`${item.he} ${item.en} ${item.id} ${item.tags.join(" ")}`.toLowerCase().includes(q)) return false;
       if (tab !== "cap" || !family || family.tags.length === 0) return true;
       return family.tags.some((tag) => item.tags.includes(tag));
     });
-  }, [tab, query, cat]);
+  }, [tab, query, cat, supplier, suppliers]);
 
   const activeId =
     tab === "bottle" ? design.bottle.variantId :
@@ -59,7 +64,7 @@ export function Library() {
     <aside className={`panel library ${open ? "is-open" : ""}`} dir={lang === "he" ? "rtl" : "ltr"}>
       <div className="panel-head">
         <h2>{t.library}</h2>
-        <span className="count">{tab in CATALOG_COUNTS ? CATALOG_COUNTS[tab as VariantPart] : tab === "pending" ? pending.length : LIQUID_PALETTE.length}</span>
+        <span className="count">{tab === "pending" ? pending.length : tab === "liquid" ? LIQUID_PALETTE.length : items.length}</span>
         <button type="button" className="text-btn" onClick={() => randomize()}>{t.random}</button>
       </div>
       <input className="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t.search} />
@@ -70,6 +75,25 @@ export function Library() {
           </button>
         ))}
       </div>
+      {suppliers.length > 0 && tab !== "liquid" && tab !== "pending" && (
+        <div className="supplier-row">
+          <button type="button" className={supplier === "all" ? "is-on" : ""} onClick={() => setSupplier("all")}>{t.supplierAll}</button>
+          {suppliers.map((pack) => (
+            <button key={pack.id} type="button" className={supplier === pack.id ? "is-on" : ""} data-supplier={pack.id} onClick={() => setSupplier(pack.id)}>
+              {pack.name}
+            </button>
+          ))}
+          {supplier !== "all" && (
+            <>
+              <button type="button" onClick={() => {
+                const pack = suppliers.find((item) => item.id === supplier);
+                if (pack) downloadPack(pack);
+              }}>{t.exportPack}</button>
+              <button type="button" onClick={() => { removeSupplier(supplier); setSupplier("all"); }}>{t.removeSupplier}</button>
+            </>
+          )}
+        </div>
+      )}
       {tab === "cap" && (
         <div className="cat-row" role="tablist">
           {CAP_CATS.map((entry) => (
@@ -116,6 +140,7 @@ export function Library() {
         </div>
       ) : (
         <div className={tab !== "cap" && items.length <= 16 ? "thumb-row" : "thumb-grid"}>
+          {items.length === 0 && supplier !== "all" && <p className="hint">{t.importedEmpty}</p>}
           {items.map((item) => (
             <button
               key={item.id}
@@ -137,9 +162,13 @@ export function Library() {
           ))}
         </div>
       )}
+      <button type="button" className="upload-btn" data-import-catalog onClick={() => setModal("supplier")}>
+        {t.importCatalog}
+      </button>
       <button type="button" className="upload-btn" onClick={() => setModal("upload")}>
         {t.addPart}
       </button>
     </aside>
   );
 }
+

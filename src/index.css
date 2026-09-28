@@ -521,6 +521,23 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   box-shadow: var(--shadow);
 }
 .modal.wide { width: min(980px, 100%); }
+.supplier-modal { width: min(1080px, 100%); max-height: min(860px, calc(100vh - 48px)); overflow: auto; }
+.supplier-name { display: grid; gap: 4px; margin-top: 8px; }
+.supplier-name input { margin-top: 0; }
+.file-btn { display: inline-flex; cursor: pointer; }
+.review-wrap { overflow: auto; max-height: 280px; margin-top: 8px; }
+.review-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.review-table th, .review-table td { padding: 6px 4px; vertical-align: middle; white-space: nowrap; }
+.review-table img { width: 42px; height: 42px; object-fit: cover; border-radius: 6px; background: #111; vertical-align: middle; }
+.review-table input, .review-table select { width: 76px; margin: 0; padding: 6px 8px; }
+.review-table tr.is-on td { background: rgba(214, 178, 106, 0.1); }
+.crop-block { margin-top: 8px; }
+.crop-stage { position: relative; margin-top: 8px; cursor: crosshair; touch-action: none; }
+.crop-stage img { width: min(100%, 520px); display: block; border-radius: 8px; }
+.crop-stage i { position: absolute; border: 1px solid #d6b26a; background: rgba(214, 178, 106, 0.2); pointer-events: none; }
+.supplier-row { display: flex; gap: 6px; overflow: auto; padding-bottom: 8px; scrollbar-width: none; }
+.supplier-row button { flex: 0 0 auto; border: 1px solid var(--line); background: transparent; color: var(--muted); white-space: nowrap; padding: 5px 10px; border-radius: 999px; font-size: 12px; }
+.supplier-row button.is-on { color: var(--bg); border-color: var(--text); background: var(--text); }
 .modal header { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
 .modal header button { border: 0; background: transparent; color: var(--muted); }
 .save-row, .modal-actions, .compare-picks { display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0; }

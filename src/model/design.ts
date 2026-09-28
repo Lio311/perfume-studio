@@ -1,3 +1,4 @@
+import { finishFromColor, importedMeta } from "../import/registry.ts";
 import { bottleById, boxById, capById, collarById, logoById, pumpById } from "./catalog.ts";
 import type { Design, VariantPart } from "./types.ts";
 
@@ -62,6 +63,32 @@ export function createDefaultDesign(): Design {
   };
 }
 
+function paintImported(design: Design, kind: VariantPart, id: string): void {
+  const extra = importedMeta(id);
+  if (!extra) return;
+  const finish = finishFromColor(extra.color, kind);
+  if (kind === "bottle") {
+    design.bottle.color = extra.color;
+    design.bottle.finish = finish;
+  } else if (kind === "cap") {
+    design.cap.color = extra.color;
+    design.cap.finish = finish;
+  } else if (kind === "label") {
+    design.label.color = extra.color;
+    design.label.finish = finish;
+  } else if (kind === "pump") {
+    design.pump.color = extra.color;
+    design.pump.finish = finish;
+  } else if (kind === "collar") {
+    design.collar.color = extra.color;
+    design.collar.finish = finish;
+  } else {
+    design.box.color = extra.color;
+    design.box.finish = finish;
+  }
+  if (extra.neck && kind !== "box" && kind !== "label") design.bottle.neck = extra.neck;
+}
+
 export function applyVariant(design: Design, kind: VariantPart, id: string): void {
   if (kind === "bottle") {
     const spec = bottleById(id);
@@ -70,6 +97,7 @@ export function applyVariant(design: Design, kind: VariantPart, id: string): voi
     design.bottle.heightMm = spec.heightMm;
     design.bottle.widthMm = spec.widthMm;
     design.bottle.depthMm = spec.depthMm;
+    paintImported(design, kind, spec.id);
     return;
   }
   if (kind === "cap") {
@@ -77,22 +105,36 @@ export function applyVariant(design: Design, kind: VariantPart, id: string): voi
     design.cap.variantId = spec.id;
     design.cap.heightMm = spec.heightMm;
     design.cap.widthMm = spec.widthMm;
+    paintImported(design, kind, spec.id);
     return;
   }
   if (kind === "label") {
     design.label.variantId = logoById(id).id;
+    paintImported(design, kind, id);
     return;
   }
   if (kind === "pump") {
     design.pump.variantId = pumpById(id).id;
+    paintImported(design, kind, id);
     return;
   }
   if (kind === "collar") {
     design.collar.variantId = collarById(id).id;
+    paintImported(design, kind, id);
     return;
   }
-  design.box.variantId = boxById(id).id;
-  design.box.linked = true;
+  const box = boxById(id);
+  design.box.variantId = box.id;
+  const extra = importedMeta(id);
+  if (extra) {
+    design.box.widthMm = extra.widthMm;
+    design.box.heightMm = extra.heightMm;
+    design.box.depthMm = extra.depthMm;
+    design.box.linked = false;
+  } else {
+    design.box.linked = true;
+  }
+  paintImported(design, kind, box.id);
 }
 
 export interface Look {

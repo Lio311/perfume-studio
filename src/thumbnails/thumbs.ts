@@ -1,3 +1,4 @@
+import { importedMeta } from "../import/registry.ts";
 import { bottleById, capById, logoById } from "../model/catalog.ts";
 import { neckRadius } from "../model/necks.ts";
 import { bottleOutline, capRadius, clamp } from "../model/sample.ts";
@@ -22,6 +23,8 @@ function lineThumb(draw: (ctx: CanvasRenderingContext2D, w: number, h: number) =
 }
 
 export function thumbFor(kind: VariantPart, id: string, text = ""): string {
+  const imported = importedMeta(id);
+  if (imported?.thumb) return imported.thumb;
   if (kind === "bottle") return bottleThumb(id);
   if (kind === "cap") return capThumb(id);
   if (kind === "label") return logoThumb(id, text);

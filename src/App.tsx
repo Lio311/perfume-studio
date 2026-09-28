@@ -13,6 +13,7 @@ import { requestShot } from "./scene/capture.ts";
 import { CompareBoard } from "./ui/CompareBoard.tsx";
 import { Modals } from "./ui/Modals.tsx";
 import { stopSpeaking } from "./audio/speech.ts";
+import { loadPacks } from "./import/supplierDb.ts";
 
 export default function App() {
   const theme = useLab((s) => s.theme);
@@ -44,6 +45,12 @@ export default function App() {
   useEffect(() => {
     applyTheme(theme);
   }, [theme]);
+
+  useEffect(() => {
+    void loadPacks().then((packs) => {
+      if (packs.length && useLab.getState().suppliers.length === 0) useLab.getState().setSuppliers(packs);
+    }).catch(() => undefined);
+  }, []);
 
   useEffect(() => {
     const sync = () => {

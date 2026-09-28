@@ -12,6 +12,8 @@ import type { ThemeId } from "../theme/themes.ts";
 import type { Lang } from "../model/types.ts";
 import type { LabCommand } from "../parser/interpret.ts";
 import { parseVoiceParam, readVoiceParam, type VoiceVariant } from "../audio/wake.ts";
+import { deletePack, savePack } from "../import/supplierDb.ts";
+import { syncRegistry, type SupplierPack } from "../import/registry.ts";
 
 export type LabMode = "assemble" | "explode" | "dimensions" | "compare";
 export type ViewPreset = "home" | "front" | "three" | "top" | "side";
@@ -67,7 +69,8 @@ interface LabState {
   lang: Lang;
   libraryOpen: boolean;
   sideOpen: boolean;
-  modal: "save" | "compare" | "upload" | null;
+  modal: "save" | "compare" | "upload" | "supplier" | null;
+  suppliers: SupplierPack[];
   chat: ChatMessage[];
   saved: SavedDesign[];
   pending: PendingPart[];
@@ -112,6 +115,9 @@ interface LabState {
   toggleCompare: (id: string) => void;
   addPending: (part: PendingPart) => void;
   removePending: (id: string) => void;
+  setSuppliers: (packs: SupplierPack[]) => void;
+  upsertSupplier: (pack: SupplierPack) => void;
+  removeSupplier: (id: string) => void;
   setVoice: (voice: VoiceVariant) => void;
   setSoundOn: (on: boolean) => void;
   setQuality: (quality: "high" | "medium") => void;
@@ -291,6 +297,7 @@ export const useLab = create<LabState>()(
       chat: [],
       saved: seeds(),
       pending: [],
+      suppliers: [],
       compareIds: ["seed-atelier", "seed-blush", "seed-noir"],
       voice: readVoiceParam(),
       soundOn: true,
@@ -407,6 +414,22 @@ export const useLab = create<LabState>()(
         }),
       addPending: (part) => set((state) => ({ pending: [part, ...state.pending].slice(0, 30), modal: null })),
       removePending: (id) => set((state) => ({ pending: state.pending.filter((item) => item.id !== id) })),
+      setSuppliers: (packs) => {
+        syncRegistry(packs);
+        set({ suppliers: packs });
+      },
+      upsertSupplier: (pack) => {
+        const suppliers = [pack, ...get().suppliers.filter((item) => item.id !== pack.id)];
+        syncRegistry(suppliers);
+        set({ suppliers, modal: null });
+        void savePack(pack);
+      },
+      removeSupplier: (id) => {
+        const suppliers = get().suppliers.filter((item) => item.id !== id);
+        syncRegistry(suppliers);
+        set({ suppliers });
+        void deletePack(id);
+      },
       setVoice: (voice) => {
         if (typeof location !== "undefined" && typeof history !== "undefined") {
           const url = new URL(location.href);

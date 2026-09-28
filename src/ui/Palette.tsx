@@ -19,6 +19,7 @@ export function CommandPalette() {
   const setMode = useLab((s) => s.setMode);
   const isolate = useLab((s) => s.isolate);
   const selected = useLab((s) => s.selected);
+  const suppliers = useLab((s) => s.suppliers);
   const [query, setQuery] = useState("");
 
   useEffect(() => {
@@ -44,7 +45,7 @@ export function CommandPalette() {
     })));
     const q = query.trim().toLowerCase();
     return [...rows, ...parts].filter((row) => !q || row.hay.toLowerCase().includes(q) || row.label.toLowerCase().includes(q)).slice(0, 12);
-  }, [apply, blueprint, isolate, lang, query, selected, setBlueprint, setMode, setPresent, setStage, t]);
+  }, [apply, blueprint, isolate, lang, query, selected, setBlueprint, setMode, setPresent, setStage, suppliers, t]);
 
   if (!open) return null;
   return (
