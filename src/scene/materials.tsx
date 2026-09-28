@@ -165,17 +165,19 @@ export function FinishMaterial({
   useEffect(() => {
     fade.uColor.value.set(theme === "dark" ? 0xf6e5c7 : 0x2c3e50);
   }, [theme, fade]);
-  const actualOpacity = opacity !== undefined ? opacity : clear ? 0.14 : finish === "frosted" ? 0.45 : 0.32;
-  const tintDistance = 120 - (actualOpacity * 110);
-  const baseColor = useMemo(() => {
-    if (glassLike && finish === "tinted") {
-      const target = new THREE.Color(color);
-      const white = new THREE.Color("#ffffff");
-      const t = Math.max(0, 1 - actualOpacity);
-      return "#" + target.lerp(white, t).getHexString();
+  let materialOpacity = 1.0;
+  let materialTransmission = 0;
+  if (glassLike) {
+    if (opacity !== undefined) {
+      // Map opacity 0-1 to reasonable alpha blending limits so it never completely disappears (invisible)
+      // and transitions smoothly to solid plastic.
+      materialOpacity = 0.15 + opacity * 0.85;
+      materialTransmission = Math.max(0.01, 0.95 - opacity * 0.94);
+    } else {
+      materialOpacity = effectiveGlassOpacity(finish) ?? 1.0;
+      materialTransmission = Math.max(0.01, glassTransmission(finish));
     }
-    return color;
-  }, [color, finish, glassLike, actualOpacity]);
+  }
 
   if (blueprint) {
     return <shaderMaterial transparent depthWrite toneMapped={false} uniforms={fade} vertexShader={BLUE_VERT} fragmentShader={BLUE_FRAG} />;
@@ -184,7 +186,7 @@ export function FinishMaterial({
 
   return (
     <meshPhysicalMaterial
-      color={baseColor}
+      color={color}
       flatShading={flat}
       map={wood ?? paper?.map ?? undefined}
       bumpMap={leather ?? paper?.bump ?? undefined}
@@ -201,17 +203,17 @@ export function FinishMaterial({
         finish === "wood" ? 0.7 :
         0.84
       }
-      transmission={glassLike ? Math.max(0.01, glassTransmission(finish, opacity) ?? 0) : 0}
+      transmission={materialTransmission}
       thickness={glassLike ? (finish === "tinted" ? 4.2 : 2.8) : 0}
       ior={clear ? 1.52 : 1.5}
       clearcoat={clear || finish === "tinted" ? 1 : metal ? 0.65 : 0.04}
       clearcoatRoughness={metal ? 0.12 : 0.04}
       attenuationColor={clear ? "#fff8ee" : color}
-      attenuationDistance={clear ? 160 : finish === "tinted" ? tintDistance : 36}
+      attenuationDistance={clear ? 160 : finish === "tinted" ? 36 : 36}
       envMapIntensity={metal ? 1.65 : glassLike ? 1.7 : finish === "matteBlack" ? 0.28 : 0.7}
       specularIntensity={glassLike || metal ? 1 : 0.3}
       transparent={glassLike}
-      opacity={glassLike ? (finish === "tinted" || finish === "clear" ? 1.0 : (effectiveGlassOpacity(finish, opacity) ?? 1)) : 1}
+      opacity={materialOpacity}
       depthWrite={!glassLike}
       side={THREE.FrontSide}
     />
