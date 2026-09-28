@@ -186,7 +186,7 @@ export function Inspector() {
           {part === "pump" && (
             <>
               <p className="hint">{t.snap}</p>
-              <Readout label={t.width} value={fit.actuatorR * 2} />
+              <Readout label={t.width} value={fit.headR * 2} />
               <Readout label={t.height} value={fit.actuatorH} />
             </>
           )}
@@ -345,7 +345,7 @@ function SpecCard({ part }: { part: PartKey }) {
         : part === "collar"
           ? `Ø${(fit.collarOuter * 2).toFixed(1)} × ${fit.collarHeight.toFixed(1)}`
           : part === "pump"
-            ? `Ø${(fit.actuatorR * 2).toFixed(1)} × ${fit.actuatorH.toFixed(1)}`
+            ? `Ø${(fit.headR * 2).toFixed(1)} × ${fit.actuatorH.toFixed(1)}`
             : part === "label"
               ? `${fit.labelW.toFixed(1)} × ${fit.labelH.toFixed(1)}`
               : `${lang === "he" ? "מילוי" : "Fill"} ${Math.round(design.liquid.fill * 100)}%`;
