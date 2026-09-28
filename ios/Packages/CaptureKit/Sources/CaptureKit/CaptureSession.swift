@@ -31,9 +31,23 @@ public struct CaptureSnapshot: Sendable {
     }
 }
 
+/// Produces camera frames for the distance guide.
+/// `CardCaptureSession` is the M1 implementation (wide-camera world tracking).
+/// A later milestone can add another `CaptureFrameSource` that starts an
+/// `ObjectCaptureSession` only when `ObjectCaptureSession.isSupported`.
+/// Object Capture is not implemented in M1.
+public protocol CaptureFrameSource: AnyObject {
+    var isCameraSupported: Bool { get }
+    var isLiDARSupported: Bool { get }
+    var onFrame: ((CVPixelBuffer, CaptureSnapshot) -> Void)? { get set }
+    var onSessionFailed: (() -> Void)? { get set }
+    func start()
+    func stop()
+}
+
 /// World tracking on the wide camera. LiDAR is optional and is never required to start.
 /// Frames are delivered on a background queue, at the camera rate (60 fps on device, so ≥ 20).
-public final class CardCaptureSession: NSObject, ARSessionDelegate {
+public final class CardCaptureSession: NSObject, ARSessionDelegate, CaptureFrameSource {
     public let arSession = ARSession()
     public let queue = DispatchQueue(label: "com.perfumestudio.capture", qos: .userInteractive)
 
@@ -55,6 +69,10 @@ public final class CardCaptureSession: NSObject, ARSessionDelegate {
     }
 
     /// Pins the wide camera so ARKit does not swap to the ultra-wide macro camera.
+    /// The test phone is an iPhone 15, which has no LiDAR. Smoothed scene depth is
+    /// turned on only when `supportsFrameSemantics(.smoothedSceneDepth)` is true
+    /// (an iPhone 16 Pro and other LiDAR devices). Missing LiDAR is not an error
+    /// and is not an Info.plist requirement.
     public func start() {
         guard isCameraSupported, !running else { return }
         let configuration = ARWorldTrackingConfiguration()

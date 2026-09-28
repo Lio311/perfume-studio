@@ -3,14 +3,14 @@ import PackKit
 
 /// Debug numbers shown after a long press: source, raw Z, filtered Z, σ over 1 s, and fps.
 public struct DistanceDebugStrip: Equatable, Sendable {
-    public var source: DistanceSource?
+    public var source: DistanceSourceInfo?
     public var rawMillimetres: Double?
     public var filteredMillimetres: Double?
     public var sigmaMillimetres: Double
     public var framesPerSecond: Double
 
     public init(
-        source: DistanceSource?,
+        source: DistanceSourceInfo?,
         rawMillimetres: Double?,
         filteredMillimetres: Double?,
         sigmaMillimetres: Double,
@@ -24,12 +24,7 @@ public struct DistanceDebugStrip: Equatable, Sendable {
     }
 
     public var sourceLabel: String {
-        switch source {
-        case .card: return "כרטיס"
-        case .lidar: return "LiDAR"
-        case .vio: return "VIO"
-        case nil: return "—"
-        }
+        source?.label ?? "—"
     }
 }
 

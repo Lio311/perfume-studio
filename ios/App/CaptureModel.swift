@@ -6,10 +6,12 @@ import MeasureKit
 
 /// Owns the camera session and the PackKit distance pipeline. UI updates stay on the main queue.
 final class CaptureModel: ObservableObject {
+    /// M1 frame source. A later milestone can add another `CaptureFrameSource`
+    /// without changing the distance pipeline. Object Capture is not implemented here.
     let capture = CardCaptureSession()
 
     @Published private(set) var guide: DistanceGuide.Output?
-    @Published private(set) var source: DistanceSource?
+    @Published private(set) var source: DistanceSourceInfo?
     @Published private(set) var rawMm: Double?
     @Published private(set) var filteredMm: Double?
     @Published private(set) var sigmaMm: Double = 0

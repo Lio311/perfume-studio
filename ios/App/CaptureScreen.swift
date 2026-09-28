@@ -24,7 +24,7 @@ struct CaptureScreen: View {
                     state: model.guide?.state,
                     direction: model.guide?.direction ?? DistanceGuide.Direction.none,
                     distanceCm: model.guide?.distanceCm,
-                    showsApproximateBadge: model.source == .vio,
+                    showsApproximateBadge: model.source?.isApproximate == true,
                     debug: model.showDebug ? debugStrip : nil
                 )
                 .ignoresSafeArea()
@@ -141,7 +141,7 @@ struct CaptureSettingsSheet: View {
     @Binding var halfBandCm: Double
     @Binding var autoCapture: Bool
     @Binding var haptic: Bool
-    var source: DistanceSource?
+    var source: DistanceSourceInfo?
     var lidarSupported: Bool
     @Environment(\.dismiss) private var dismiss
 
@@ -180,11 +180,6 @@ struct CaptureSettingsSheet: View {
     }
 
     private var sourceLabel: String {
-        switch source {
-        case .card: return "כרטיס"
-        case .lidar: return "LiDAR"
-        case .vio: return "VIO"
-        case nil: return "—"
-        }
+        source?.label ?? "—"
     }
 }
