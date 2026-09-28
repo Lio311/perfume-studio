@@ -32,7 +32,7 @@ const COPY: Record<Lang, {
     appBody: "אירעה שגיאה בטעינת העיצוב. רענון שומר את העיצוב. איפוס מוחק אותו ומתחיל מחדש.",
     reload: "רענון",
     resetDesign: "איפוס עיצוב",
-    appConfirmBody: "האיפוס מחזיר את העיצוב, את מצב הממשק ואת היסטוריית הביטול, ואז מרענן. הסקיצות השמורות, הצ'אט וההעלאות נשארים. קטלוגי הספקים נשארים.",
+    appConfirmBody: "האיפוס מאפס את העיצוב ואת מצב הממשק ומוחק את היסטוריית הביטול. הסקיצות השמורות, הצ'אט וההעלאות נשארים. קטלוגי הספקים נשארים.",
     reset: "איפוס",
     retry: "נסו שוב",
     confirmTitle: "לאפס את העיצוב?",
@@ -49,7 +49,7 @@ const COPY: Record<Lang, {
     appBody: "Something went wrong while loading the design. Reload keeps it. Reset clears it and starts over.",
     reload: "Reload",
     resetDesign: "Reset design",
-    appConfirmBody: "Reset restores the design, UI state, and undo history, then reloads. Saved sketches, chat, and uploads stay. Supplier catalogs stay.",
+    appConfirmBody: "Resets the design and interface state and clears undo history. Saved sketches, chat, and uploads stay. Supplier catalogs stay.",
     reset: "Reset",
     retry: "Try again",
     confirmTitle: "Reset this design?",
@@ -262,20 +262,50 @@ export function reloadKeepingDesign(reload: () => void = () => location.reload()
   reload();
 }
 
+function isQuotaError(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const name = (error as { name?: unknown }).name;
+  return name === "QuotaExceededError" || name === "NS_ERROR_DOM_QUOTA_REACHED";
+}
+
+/** Replace the lab blob even when storage is already full. Other UI keys are dropped first. */
+function writeResetBlob(json: string): void {
+  const spare: string[] = [];
+  for (let i = 0; i < localStorage.length; i += 1) {
+    const key = localStorage.key(i);
+    if (key && key !== DESIGN_STORAGE_KEY && isResetStorageKey(key)) spare.push(key);
+  }
+  for (const key of spare) localStorage.removeItem(key);
+  
+  const previous = localStorage.getItem(DESIGN_STORAGE_KEY);
+  try {
+    localStorage.setItem(DESIGN_STORAGE_KEY, json);
+  } catch (error) {
+    if (!isQuotaError(error)) throw error;
+    localStorage.removeItem(DESIGN_STORAGE_KEY);
+    try {
+      localStorage.setItem(DESIGN_STORAGE_KEY, json);
+    } catch (secondError) {
+      if (previous !== null) {
+        try {
+          localStorage.setItem(DESIGN_STORAGE_KEY, previous);
+        } catch {
+          // Ignore
+        }
+      }
+      throw secondError;
+    }
+  }
+}
+
 /** Writes a trimmed lab blob, drops other UI keys, and reloads. Saved sketches, chat, and uploads stay. */
 export function resetDesignAndReload(reload: () => void = () => location.reload()): void {
   pauseLabStorageWrites();
   try {
     if (typeof localStorage !== "undefined") {
       const parsed = readStorageValue(localStorage.getItem(DESIGN_STORAGE_KEY));
-      const payload = resetPersistedPayload(parsed?.state);
-      localStorage.setItem(DESIGN_STORAGE_KEY, JSON.stringify(payload));
-      const keys: string[] = [];
-      for (let i = 0; i < localStorage.length; i += 1) {
-        const key = localStorage.key(i);
-        if (key && key !== DESIGN_STORAGE_KEY && isResetStorageKey(key)) keys.push(key);
-      }
-      for (const key of keys) localStorage.removeItem(key);
+      const payload = resetPersistedPayload(parsed?.state, useLab.getState().lang);
+      writeResetBlob(JSON.stringify(payload));
     }
   } catch (error) {
     console.error(error);

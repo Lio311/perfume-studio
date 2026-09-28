@@ -1,5 +1,5 @@
 import { importedMeta } from "../import/registry.ts";
-import { bottleById, capById, logoById } from "../model/catalog.ts";
+import { bottleById, capById, logoById, pumpById } from "../model/catalog.ts";
 import { neckRadius } from "../model/necks.ts";
 import { bottleOutline, capRadius, clamp } from "../model/sample.ts";
 import { drawLogo } from "../geometry/logos.ts";
@@ -111,17 +111,79 @@ function logoThumb(id: string, text: string): string {
 
 function pumpThumb(id: string): string {
   return lineThumb((ctx, w, h) => {
+    const spec = pumpById(id);
     ctx.strokeStyle = "#d4b48a";
     ctx.lineWidth = 1.5;
-    ctx.translate(w / 2, h * 0.72);
-    ctx.strokeRect(-6, -70, 12, 54);
+    ctx.lineJoin = "round";
+    ctx.translate(w / 2, h * 0.65); // adjust Y to center better
+
+    // Dip tube (long thin line down)
     ctx.beginPath();
-    ctx.arc(0, -78, 16, 0, Math.PI * 2);
+    ctx.moveTo(-2, 0);
+    ctx.lineTo(-2, 40);
+    ctx.moveTo(2, 0);
+    ctx.lineTo(2, 40);
     ctx.stroke();
+
+    // Ferrule / collar (base of the pump)
+    const ferruleW = 28;
+    const ferruleH = 16;
+    ctx.strokeRect(-ferruleW / 2, -ferruleH, ferruleW, ferruleH);
+
+    // Stem (the part that goes up and down)
+    const stemW = 10;
+    const stemH = 8;
+    ctx.strokeRect(-stemW / 2, -ferruleH - stemH, stemW, stemH);
+
+    // Actuator
+    const baseActuatorW = 26;
+    const rw = (baseActuatorW / 2) * (spec.radiusFactor || 1); 
+    const rh = (spec.actuatorHeightMm || 14) * 1.5; // actuator height
+    const baseY = -ferruleH - stemH;
+
     ctx.beginPath();
-    ctx.moveTo(16, -78);
-    ctx.lineTo(34, -86);
+    if (spec.style === "dome") {
+      ctx.moveTo(-rw, baseY);
+      ctx.lineTo(-rw, baseY - rh * 0.5);
+      ctx.bezierCurveTo(-rw, baseY - rh * 1.2, rw, baseY - rh * 1.2, rw, baseY - rh * 0.5);
+      ctx.lineTo(rw, baseY);
+    } else if (spec.style === "shroud") {
+      // Shroud covers the ferrule
+      const shroudBottom = 2; // covers ferrule down to bottle neck
+      ctx.moveTo(-rw, shroudBottom);
+      ctx.lineTo(-rw, baseY - rh);
+      ctx.lineTo(rw, baseY - rh);
+      ctx.lineTo(rw, shroudBottom);
+    } else if (spec.style === "flat") {
+      ctx.moveTo(-rw, baseY);
+      ctx.lineTo(-rw, baseY - rh);
+      ctx.lineTo(rw, baseY - rh);
+      ctx.lineTo(rw, baseY);
+    } else {
+      // standard / crimp / screw / mini / soft
+      const rCorner = spec.style === "soft" ? 4 : 2;
+      ctx.moveTo(-rw, baseY);
+      ctx.lineTo(-rw, baseY - rh + rCorner);
+      ctx.quadraticCurveTo(-rw, baseY - rh, -rw + rCorner, baseY - rh);
+      ctx.lineTo(rw - rCorner, baseY - rh);
+      ctx.quadraticCurveTo(rw, baseY - rh, rw, baseY - rh + rCorner);
+      ctx.lineTo(rw, baseY);
+    }
+    ctx.closePath();
+    ctx.fillStyle = "rgba(212, 180, 138, 0.05)";
+    ctx.fill();
     ctx.stroke();
+
+    // Nozzle
+    const nzY = baseY - rh * 0.5;
+    const nzL = (spec.nozzleMm || 4) * 1.5;
+    ctx.beginPath();
+    ctx.moveTo(rw, nzY - 2);
+    ctx.lineTo(rw + nzL, nzY - 1);
+    ctx.lineTo(rw + nzL, nzY + 1);
+    ctx.lineTo(rw, nzY + 2);
+    ctx.stroke();
+
     ctx.globalAlpha = id.length ? 1 : 1;
   }, `pump:${id}`);
 }

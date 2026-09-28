@@ -262,15 +262,139 @@ export interface CollarState {
   visible: boolean;
 }
 
+/**
+ * Structure id. The registry in `src/model/closures/` is the list, not a union in this file.
+ * A magnet is a latch, not one of these ids.
+ */
+export type BoxStructure = string;
+
+/** How the carton stays shut. Magnet is valid only on the structures that say so. */
+export type BoxLatch = "magnet" | "ribbon" | "none";
+
+/** Lift-off variant id. Legal values live on the lift-off registry entry. */
+export type LiftOffVariant = string;
+
+export interface LiftOffState {
+  /** shoulder-neck, telescope-full, or telescope-partial. */
+  variant: LiftOffVariant;
+  /** Visible inner neck between the lid and the base, millimetres. Shoulder-neck uses this. */
+  neckMm: number;
+  /** How far the lid comes down, millimetres. */
+  lidDepthMm: number;
+}
+
+/** Matchbox drawer pull. None, a ribbon loop, or a thumb notch. */
+export type DrawerPull = "none" | "ribbon" | "notch";
+
+/** Plan shape. Rect is built. Cylinder is built for lift-off. Polygon is stored and drawn as a rect until a later entry. */
+export type BoxShapeType = "rect" | "cylinder" | "polygon";
+
+export interface BoxShape {
+  type: BoxShapeType;
+  /** Polygon only. Hexagon is 6, octagon is 8. */
+  sides?: number;
+}
+
+/** Opening in a sleeve. Shape is open so a later cutout does not need a migration. */
+export interface SleeveWindow {
+  shape: string;
+  transparent: boolean;
+}
+
+/**
+ * Motion a future entry can declare (unfold, rotate, flaps).
+ * The pose loop does not switch on `type`; the entry owns the meaning of `params`.
+ */
+export interface StructureMotion {
+  type: string;
+  params: Record<string, number | string | boolean | ReadonlyArray<number | string>>;
+}
+
+/** One outer-to-inner layer. A structure layer is a registry entry. An insert layer is the platform. */
+export interface BoxLayer {
+  role: "structure" | "insert";
+  structure: string;
+  latch: BoxLatch;
+  hingeAxis: string;
+  doors: 1 | 2;
+  drawerCount: number;
+  direction: string;
+  /** Shoulder-neck band, millimetres. The lift-off slider writes the same value. */
+  neckHeight: number;
+  /** Degrees. Zero is a level lid seam. */
+  splitPlaneAngle: number;
+  window: SleeveWindow | null;
+  motion: StructureMotion | null;
+}
+
+export interface TrayLift {
+  /** Rise in millimetres. Zero stays put. */
+  height: number;
+  /** lidAngle follows the lid. ribbonPull waits for a pull tab or ribbon. */
+  trigger: string;
+}
+
+export interface InsertPose {
+  tiltAngle: number;
+  invert: boolean;
+}
+
+export interface InsertMotion {
+  trayLift: TrayLift;
+  pullTab: boolean;
+  extractDirection: string;
+  pose: InsertPose;
+}
+
+export type BoxBoard = "rigid" | "carton";
+
+export type WrapFinish = "matte" | "gloss" | "soft-touch" | "velvet" | "paper-texture";
+
+export type OuterWrap = "none" | "cellophane" | "sleeve" | "tissue";
+
+export type InsertMaterial = "eva" | "pulp" | "card" | "velvet-foam";
+
+export type InsertOrientation = "standing" | "lying";
+
+export interface BoxWrap {
+  color: string;
+  finish: WrapFinish;
+}
+
+export interface BoxInsert {
+  material: InsertMaterial;
+  orientation: InsertOrientation;
+  clearanceMm: number;
+}
+
 export interface BoxState {
   variantId: string;
   finish: FinishId;
   color: string;
+  /** Outer size in millimetres. Ignored while `linked` derives the carton from the insert. */
   heightMm: number;
   widthMm: number;
   depthMm: number;
   linked: boolean;
   visible: boolean;
+  /** Inner structure: lift-off, tube, hinged lid, sleeve, drawer, book, or a later registry id. */
+  structure: BoxStructure;
+  latch: BoxLatch;
+  liftOff: LiftOffState;
+  drawerPull: DrawerPull;
+  /** Rect, cylinder, or polygon. Polygon renders as a rect until that entry exists. */
+  shape: BoxShape;
+  /** Outer to inner. A leading sleeve slides off the inner box. `tube` is a round canister. */
+  layers: BoxLayer[];
+  insertMotion: InsertMotion;
+  /** Greyboard / carton caliper. */
+  boardMm: number;
+  material: BoxBoard;
+  wrap: BoxWrap;
+  ribbon: boolean;
+  pullTab: boolean;
+  outerWrap: OuterWrap;
+  insert: BoxInsert;
 }
 
 export interface LiquidState {

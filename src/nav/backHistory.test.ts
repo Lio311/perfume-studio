@@ -25,6 +25,7 @@ function idle(over: Partial<BackSurface> = {}): BackSurface {
     wizard: false,
     step: 0,
     shareLink: false,
+    boxOpen: false,
     ...over,
   };
 }
@@ -93,6 +94,10 @@ describe("browser back", () => {
     expect(backAction(idle({ wizard: true, step: 2, modal: true }))).toBe("modal");
     expect(backAction(idle({ wizard: true, step: 2, aimed: true }))).toBe("selection");
     expect(backAction(idle({ wizard: true, step: 2, explode: 0.4 }))).toBe("mode");
+    expect(backAction(idle({ boxOpen: true }))).toBe("box");
+    expect(backAction(idle({ boxOpen: true, stage: "box" }))).toBe("box");
+    expect(backAction(idle({ boxOpen: true, stage: "box", wizard: true, step: 6 }))).toBe("box");
+    expect(backAction(idle({ boxOpen: true, aimed: true }))).toBe("selection");
   });
 
   it("does not push a guard when nothing is open, so the first back leaves", () => {
@@ -140,6 +145,51 @@ describe("browser back", () => {
     });
     expect(finished.wizard).toBe(false);
     expect(backAction(finished)).toBe("stage");
+    const open = backSurface({
+      modal: null,
+      present: false,
+      palette: false,
+      help: false,
+      solo: null,
+      aimed: false,
+      stage: "box",
+      mode: "assemble",
+      explode: 0,
+      design: { step: 6 },
+      boxOpen: true,
+    });
+    expect(open.wizard).toBe(true);
+    expect(backAction(open)).toBe("box");
+  });
+
+  it("closes an open box in one back, then the carton stage is the next layer", () => {
+    const { history, popWith } = createHistory();
+    const trap: Trap = { armed: false };
+    let surface = idle({ stage: "box", boxOpen: true });
+    syncHistoryTrap(history, surface, trap);
+    expect(history.pushCount).toBe(1);
+    const applied: string[] = [];
+    popWith(() => {
+      handleHistoryPop(
+        history,
+        surface,
+        (action) => {
+          applied.push(action);
+          if (action === "box") surface = { ...surface, boxOpen: false };
+          if (action === "stage") surface = { ...surface, stage: "bottle" };
+        },
+        () => surface,
+        trap,
+      );
+    });
+    history.back();
+    expect(applied).toEqual(["box"]);
+    expect(history.left).toBe(false);
+    expect(surface.boxOpen).toBe(false);
+    history.back();
+    expect(applied).toEqual(["box", "stage"]);
+    expect(history.left).toBe(false);
+    expect(surface.stage).toBe("bottle");
   });
 
   it("does not push a wizard layer for the step already on screen, so back leaves", () => {
@@ -204,12 +254,12 @@ describe("browser back", () => {
 
     expect(history.pushCount).toBe(3);
     expect(history.length).toBe(4);
-    expect(history.state).toEqual({ lab: 1, step: 3 });
+    expect(history.state).toMatchObject({ lab: 1, step: 3 });
 
     history.back();
     expect(applied).toEqual(["wizard"]);
     expect(surface.current.step).toBe(2);
-    expect(history.state).toEqual({ lab: 1, step: 2 });
+    expect(history.state).toMatchObject({ lab: 1, step: 2 });
     expect(history.left).toBe(false);
 
     history.back();
@@ -237,13 +287,13 @@ describe("browser back", () => {
     syncHistoryTrap(history, surface.current, trap);
     surface.current = { ...surface.current, modal: true };
     syncHistoryTrap(history, surface.current, trap);
-    expect(history.state).toEqual({ lab: 1 });
+    expect(history.state).toMatchObject({ lab: 1 });
 
     history.back();
     expect(applied).toEqual(["modal"]);
     expect(surface.current.modal).toBe(false);
     expect(surface.current.step).toBe(2);
-    expect(history.state).toEqual({ lab: 1, step: 2 });
+    expect(history.state).toMatchObject({ lab: 1, step: 2 });
 
     surface.current = { ...surface.current, aimed: true };
     syncHistoryTrap(history, surface.current, trap);
@@ -302,7 +352,7 @@ describe("browser back", () => {
     syncHistoryTrap(history, surface.current, trap);
     surface.current = idle({ wizard: false, step: 0, stage: "together" });
     syncHistoryTrap(history, surface.current, trap);
-    expect(history.state).toEqual({ lab: 1 });
+    expect(history.state).toMatchObject({ lab: 1 });
     history.back();
     expect(surface.current.stage).toBe("bottle");
     expect(history.left).toBe(false);
@@ -320,7 +370,7 @@ describe("browser back", () => {
     surface.current = { ...surface.current, step: 4 };
     syncHistoryTrap(history, surface.current, trap);
     expect(history.pushCount).toBe(1);
-    expect(history.state).toEqual({ lab: 1, step: 4 });
+    expect(history.state).toMatchObject({ lab: 1, step: 4 });
     history.back();
     expect(surface.current.step).toBe(3);
     history.back();
@@ -399,7 +449,7 @@ describe("browser back", () => {
       const trap: Trap = { armed: false };
       const surface = { current: initial };
       syncHistoryTrap(history, surface.current, trap);
-      expect(history.state).toEqual({ lab: 1 });
+      expect(history.state).toMatchObject({ lab: 1 });
       popWith(() => {
         handleHistoryPop(
           history,
@@ -431,22 +481,22 @@ describe("browser back", () => {
     syncHistoryTrap(history, surface.current, trap);
     surface.current = { ...surface.current, aimed: true };
     syncHistoryTrap(history, surface.current, trap);
-    expect(history.state).toEqual({ lab: 1 });
+    expect(history.state).toMatchObject({ lab: 1 });
     surface.current = { ...surface.current, aimed: false };
     syncHistoryTrap(history, surface.current, trap);
-    expect(history.state).toEqual({ lab: 1 });
+    expect(history.state).toMatchObject({ lab: 1 });
 
     surface.current = { ...surface.current, step: 3 };
     syncHistoryTrap(history, surface.current, trap);
-    expect(history.state).toEqual({ lab: 1, step: 3 });
+    expect(history.state).toMatchObject({ lab: 1, step: 3 });
 
     history.back();
     expect(surface.current.step).toBe(2);
-    expect(history.state).toEqual({ lab: 1, step: 2 });
+    expect(history.state).toMatchObject({ lab: 1, step: 2 });
 
     history.forward();
     expect(surface.current.step).toBe(3);
-    expect(history.state).toEqual({ lab: 1, step: 3 });
+    expect(history.state).toMatchObject({ lab: 1, step: 3 });
     expect(history.left).toBe(false);
   });
 
@@ -502,16 +552,53 @@ describe("browser back", () => {
     surface.current = { ...surface.current, step: 4 };
     syncHistoryTrap(history, surface.current, trap);
     jumpBack(2, surface, history, trap);
-    expect(history.state).toEqual({ lab: 1, step: 2 });
+    expect(history.state).toMatchObject({ lab: 1, step: 2 });
     expect(history.length).toBe(4);
     history.forward();
     expect(surface.current.step).toBe(2);
-    expect(history.state).toEqual({ lab: 1, step: 2 });
+    expect(history.state).toMatchObject({ lab: 1, step: 2 });
     history.back();
     expect(surface.current.step).toBe(1);
     expect(history.left).toBe(false);
     history.back();
     expect(surface.current.step).toBe(0);
+    history.back();
+    expect(history.left).toBe(true);
+  });
+
+  it("after a reload, Back walks to step 0 and Forward still skips a guard", () => {
+    const { history, popWith } = createHistory();
+    const trap: Trap = { armed: false };
+    const surface = { current: idle({ wizard: true, step: 0 }) };
+    syncHistoryTrap(history, surface.current, trap);
+    bindWizard(history, popWith, surface, trap);
+    surface.current = { ...surface.current, step: 2 };
+    syncHistoryTrap(history, surface.current, trap);
+    surface.current = { ...surface.current, aimed: true };
+    syncHistoryTrap(history, surface.current, trap);
+    surface.current = { ...surface.current, aimed: false };
+    syncHistoryTrap(history, surface.current, trap);
+    surface.current = { ...surface.current, step: 4 };
+    syncHistoryTrap(history, surface.current, trap);
+    const top = history.state as { seq?: number; step?: number };
+    expect(top.step).toBe(4);
+    expect(top.seq).toBeGreaterThan(1);
+
+    const reloaded: Trap = { armed: false };
+    syncHistoryTrap(history, surface.current, reloaded);
+    bindWizard(history, popWith, surface, reloaded);
+    history.back();
+    expect(surface.current.step).toBe(3);
+    history.forward();
+    expect(surface.current.step).toBe(4);
+    expect((history.state as { seq?: number }).seq).toBe(top.seq);
+
+    history.back();
+    history.back();
+    history.back();
+    history.back();
+    expect(surface.current.step).toBe(0);
+    expect(history.left).toBe(false);
     history.back();
     expect(history.left).toBe(true);
   });
@@ -524,7 +611,7 @@ describe("browser back", () => {
     bindWizard(history, popWith, surface, trap);
     surface.current = { ...surface.current, step: 4 };
     syncHistoryTrap(history, surface.current, trap);
-    expect(history.state).toEqual({ lab: 1, step: 4 });
+    expect(history.state).toMatchObject({ lab: 1, step: 4 });
 
     const reloaded: Trap = { armed: false };
     syncHistoryTrap(history, surface.current, reloaded);
@@ -548,18 +635,18 @@ describe("browser back", () => {
     syncHistoryTrap(history, surface.current, trap);
     surface.current = { ...surface.current, shareLink: true };
     syncHistoryTrap(history, surface.current, trap);
-    expect(history.state).toEqual({ lab: 1, share: 1 });
+    expect(history.state).toMatchObject({ lab: 1, share: 1 });
 
     history.back();
     expect(surface.current.shareLink).toBe(false);
     expect(surface.current.step).toBe(2);
-    expect(history.state).toEqual({ lab: 1, step: 2 });
+    expect(history.state).toMatchObject({ lab: 1, step: 2 });
 
     surface.current = { ...surface.current, shareLink: true };
     syncHistoryTrap(history, surface.current, trap);
     surface.current = { ...surface.current, shareLink: false };
     syncHistoryTrap(history, surface.current, trap);
     expect(surface.current.step).toBe(2);
-    expect(history.state).toEqual({ lab: 1, step: 2 });
+    expect(history.state).toMatchObject({ lab: 1, step: 2 });
   });
 });

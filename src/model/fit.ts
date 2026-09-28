@@ -1,4 +1,6 @@
-import { bottleById, boxById, capById, collarById, logoById, pumpById } from "./catalog.ts";
+import { labelPatchExtent } from "../geometry/sweep.ts";
+import { envelopeFromDesign } from "./boxFields.ts";
+import { bottleById, capById, collarById, logoById, pumpById } from "./catalog.ts";
 import { NECKS, neckRadius, neckStandard } from "./necks.ts";
 import { bottleRadii, neckFinishMm } from "./sample.ts";
 import type { Design, PartKey } from "./types.ts";
@@ -34,6 +36,20 @@ export interface Fit {
   boxD: number;
   boxX: number;
   boxZ: number;
+  boardMm: number;
+  floorMm: number;
+  cavityW: number;
+  cavityD: number;
+  cavityH: number;
+  stackMm: number;
+  insertW: number;
+  insertD: number;
+  insertH: number;
+  /** Bottle base lift when the carton is the stage and the insert is standing. */
+  seatY: number;
+  /** Vertical center of a bottle laid in the channel. */
+  lyingLift: number;
+  lyingShiftZ: number;
   anchors: Record<PartKey, [number, number, number]>;
   explode: Record<PartKey, [number, number, number]>;
 }
@@ -72,7 +88,6 @@ export function computeFit(design: Design, exploded = false): Fit {
   const collar = collarById(design.collar.variantId);
   const pump = pumpById(design.pump.variantId);
   const logo = logoById(design.label.variantId);
-  const box = boxById(design.box.variantId);
   const neck = Object.hasOwn(NECKS, design.bottle.neck) ? NECKS[design.bottle.neck] : neckStandard(design.bottle.neck);
   const neckR = neckRadius(design.bottle.neck);
   const bottleH = design.bottle.heightMm;
@@ -130,25 +145,39 @@ export function computeFit(design: Design, exploded = false): Fit {
     slim: [0.78, 0.16],
   };
   const squareMark = logo.mark === "diamond" || logo.mark === "seal" || logo.mark === "crest" || logo.plate === "diamond" || logo.plate === "circle" || logo.plate === "square";
-  const [fw, fh] = squareMark ? [0.5, 0.56] : fractions[logo.plate];
+  const [baseW, baseH] = squareMark ? [0.5, 0.56] : fractions[logo.plate];
   const labelY = Math.max(12, shoulderY * 0.46);
   const face = bottleRadii(labelY, bottleH, bottleW, bottleD, bottle.profile, bottle.shoulder, neckR, bottle.finishMm);
-  const labelW = Math.min(
-    face.rx * 1.7,
-    logo.widthMm ? Math.min(bottleW - 2, logo.widthMm) : Math.min(bottleW - 6, bottleW * fw * design.label.scale),
-  );
-  const labelH = Math.min(
-    Math.max(8, shoulderY * 0.72),
-    logo.heightMm ? logo.heightMm : shoulderY * fh * design.label.scale,
-  );
+  const widthCap = Math.min(face.rx * 1.72, bottleW - 6);
+  const heightCap = Math.max(8, shoulderY * 0.72);
+  const rawW = logo.widthMm ? logo.widthMm : bottleW * baseW * design.label.scale;
+  const rawH = logo.heightMm ?? shoulderY * baseH * design.label.scale;
+  const desiredW = Math.min(widthCap, rawW);
+  const desiredH = Math.min(heightCap, rawH);
+  const extent = labelPatchExtent({
+    height: bottleH,
+    width: bottleW,
+    depth: bottleD,
+    section: bottle.section,
+    softness: bottle.softness,
+    faceted: bottle.faceted,
+    neckR,
+    profile: bottle.profile,
+    shoulder: bottle.shoulder,
+    finishMm: bottle.finishMm,
+    yCenter: labelY,
+    patchH: desiredH,
+    patchW: desiredW,
+  });
+  const labelW = extent.width;
+  const labelH = extent.height;
   const labelZ = face.rz + 0.45;
 
-  const contentH = bottleH + Math.max(0, capBottom + capH - bottleH);
-  const contentW = Math.max(bottleW, capW);
-  const contentD = Math.max(bottleD, capD);
-  const boxW = design.box.linked ? contentW + box.padMm * 2 : design.box.widthMm;
-  const boxD = design.box.linked ? contentD + box.padMm * 2 : design.box.depthMm;
-  const boxH = design.box.linked ? contentH + box.liftMm : design.box.heightMm;
+  const envelope = envelopeFromDesign(design);
+  const fixed = design.box.linked === false;
+  const boxW = fixed ? design.box.widthMm : envelope.outerW;
+  const boxD = fixed ? design.box.depthMm : envelope.outerD;
+  const boxH = fixed ? design.box.heightMm : envelope.outerH;
   // Home camera is normalize(0.78, 0.22, 1). These axes are that view's
   // screen-right and floor-back, so the carton sits beside the glass and further away.
   const side = 140;
@@ -211,6 +240,18 @@ export function computeFit(design: Design, exploded = false): Fit {
     boxD,
     boxX,
     boxZ,
+    boardMm: envelope.boardMm,
+    floorMm: envelope.floorMm,
+    cavityW: envelope.cavity.widthMm,
+    cavityD: envelope.cavity.depthMm,
+    cavityH: envelope.cavity.heightMm,
+    stackMm: envelope.cavity.stackMm,
+    insertW: envelope.insertW,
+    insertD: envelope.insertD,
+    insertH: envelope.insertH,
+    seatY: envelope.boardMm + envelope.floorMm,
+    lyingLift: envelope.boardMm + envelope.floorMm + Math.max(bottleD, capD) / 2,
+    lyingShiftZ: -envelope.cavity.stackMm / 2,
     anchors,
     explode,
   };

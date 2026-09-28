@@ -1,12 +1,20 @@
 import { useId } from "react";
+import { formatMoney } from "../budget/money.ts";
 import { bottleById, boxById, capById, collarById, logoById, pumpById } from "../model/catalog.ts";
 import { computeFit } from "../model/fit.ts";
-import { FINISHES, PALETTE, LIQUID_PALETTE } from "../model/materials.ts";
+import { FINISHES, PALETTE, LIQUID_PALETTE, effectiveGlassOpacity } from "../model/materials.ts";
 import { NECK_IDS } from "../model/necks.ts";
-import type { FinishId, NeckId, PartKey } from "../model/types.ts";
+import { setUnboxingMuted, useUnboxingTrack } from "../audio/unboxingTrack.ts";
+import { DEFAULT_INSERT_MOTION, INSERT_MATERIALS, OUTER_WRAPS, sleeveOverActive, withInnerStructure, withNeckHeight, withSleeveOver, withSleeveWindow } from "../model/boxFields.ts";
+import { listClosures } from "../model/closures/registry.ts";
+import type { BoxLatch, FinishId, InsertMaterial, InsertOrientation, NeckId, OuterWrap, PartKey, VariantPart } from "../model/types.ts";
 import { partLabel, tx } from "../i18n/copy.ts";
 import { useLab } from "../store/labStore.ts";
+import { Alternatives } from "./BudgetSuggestions.tsx";
+import { clampLabelText } from "../geometry/logos.ts";
 import { BrandTextField, labelVisibleAfterTextChange } from "./brandField.tsx";
+import { ExamplePriceMark, PartialMark, PartPriceEditor } from "./PriceTag.tsx";
+import { useBudgetModel } from "./useBudget.ts";
 
 export function Inspector() {
   const lang = useLab((s) => s.lang);
@@ -24,6 +32,8 @@ export function Inspector() {
   const suppliers = useLab((s) => s.suppliers);
   const brandHeadingId = useId();
   const part = selected;
+  const quantity = useLab((s) => s.brief.quantity);
+  const budget = useBudgetModel();
   const hidden = hiddenDesignPart(part, design, suppliers);
   const name = hidden ? (hidden.name || hidden.code || hidden.id) : variantName(part, design, lang);
   let fit: ReturnType<typeof computeFit>;
@@ -55,6 +65,17 @@ export function Inspector() {
       {part && (
         <>
           {badge && !hidden && <div className="badge is-fit" dir="ltr">{badge}</div>}
+          {!hidden && (
+            <p className="combo-total" data-combo-total>
+              <span>{t.totalPrice}</span>
+              <bdi dir="ltr">{formatMoney(budget.summary.totalIls, "ILS", lang)}</bdi>
+              <PartialMark count={budget.summary.unpricedCount} />
+              {!quantity && <em>{t.basePriceNote}</em>}
+              {budget.belowMoq && <em className="is-warn">{t.belowMoq}</em>}
+              <ExamplePriceMark count={budget.exampleCount} />
+              {budget.summary.over && <em className="is-over">{t.budgetOver}</em>}
+            </p>
+          )}
           {!hidden && <SpecCard part={part} />}
           <div className="part-title">
             <div>
@@ -68,6 +89,8 @@ export function Inspector() {
               </div>
             )}
           </div>
+          {!hidden && part !== "liquid" && <PartPriceEditor kind={part as VariantPart} partId={design[part].variantId} />}
+          {!hidden && <Alternatives />}
           <h3>{t.color}</h3>
           <div className="swatches">
             {(part === "liquid" ? LIQUID_PALETTE : PALETTE).map((color) => {
@@ -109,6 +132,22 @@ export function Inspector() {
                   </button>
                 ))}
               </div>
+              {part === "bottle" && (() => {
+                const glassOpacity = effectiveGlassOpacity(design.bottle.finish, design.bottle.opacity ?? undefined);
+                if (glassOpacity === null) return null;
+                return (
+                  <Slider
+                    label={lang === "he" ? "אטימות זכוכית" : "Glass Opacity"}
+                    value={glassOpacity * 100}
+                    min={0}
+                    max={100}
+                    suffix="%"
+                    onGesture={beginGesture}
+                    onGestureEnd={endGesture}
+                    onChange={(value) => patch("bottle", { opacity: value / 100 })}
+                  />
+                );
+              })()}
             </>
           )}
           {part === "bottle" && (
@@ -202,7 +241,7 @@ export function Inspector() {
                 value={design.label.text}
                 hint={t.brandHint}
                 labelId={brandHeadingId}
-                onChange={(text) => patch("label", { text, visible: labelVisibleAfterTextChange(text, design.label.visible) })}
+                onChange={(text) => patch("label", { text: clampLabelText(text), visible: labelVisibleAfterTextChange(text, design.label.visible) })}
               />
               <Slider label={t.scale} value={design.label.scale * 100} min={55} max={160} suffix="%" onGesture={beginGesture} onGestureEnd={endGesture} onChange={(value) => patch("label", { scale: value / 100 })} />
               <Readout label={t.width} value={fit.labelW} />
@@ -234,11 +273,14 @@ export function Inspector() {
                 ))}
               </div>
               <h3>{t.logoOnBox}</h3>
-              <input className="search" value={design.label.text} onChange={(event) => patch("label", { text: event.target.value.slice(0, 32) })} />
+              <input className="search" value={design.label.text} onChange={(event) => {
+                patch("label", { text: clampLabelText(event.target.value) });
+              }} />
               <Slider label={t.width} value={fit.boxW} min={40} max={160} onGesture={beginGesture} onGestureEnd={endGesture} onChange={(widthMm) => patch("box", { widthMm })} />
               <Slider label={t.depth} value={fit.boxD} min={30} max={140} onGesture={beginGesture} onGestureEnd={endGesture} onChange={(depthMm) => patch("box", { depthMm })} />
               <Slider label={t.height} value={fit.boxH} min={70} max={240} onGesture={beginGesture} onGestureEnd={endGesture} onChange={(heightMm) => patch("box", { heightMm })} />
               <button type="button" className="text-btn fit" onClick={() => patch("box", { linked: true })}>{t.fit}</button>
+              <BoxPack />
             </>
           )}
           {part === "liquid" && (
@@ -254,6 +296,247 @@ export function Inspector() {
         </>
       )}
     </section>
+  );
+}
+
+function BoxPack() {
+  const lang = useLab((s) => s.lang);
+  const t = tx(lang);
+  const box = useLab((s) => s.design.box);
+  const patch = useLab((s) => s.patch);
+  const cutaway = useLab((s) => s.cutaway);
+  const setCutaway = useLab((s) => s.setCutaway);
+  const quality = useLab((s) => s.quality);
+  const setQuality = useLab((s) => s.setQuality);
+  const track = useUnboxingTrack();
+  const insertLabel: Record<InsertMaterial, string> = {
+    eva: t.insertEva,
+    pulp: t.insertPulp,
+    card: t.insertCard,
+    "velvet-foam": t.insertVelvet,
+  };
+  const wrapLabel: Record<OuterWrap, string> = {
+    none: t.wrapNone,
+    cellophane: t.wrapCellophane,
+    sleeve: t.wrapSleeve,
+    tissue: t.wrapTissue,
+  };
+  const orient = box.insert?.orientation ?? "standing";
+  const specs = listClosures();
+  const current = specs.find((spec) => spec.id === box.structure);
+  const latchLabel: Record<BoxLatch, string> = { magnet: t.latchMagnet, ribbon: t.latchRibbon, none: t.latchNone };
+  const layers = box.layers ?? [];
+  const sleeveOn = sleeveOverActive(layers);
+  const sleeveWindow = layers.find((layer) => layer.structure === "sleeve")?.window ?? null;
+  const motion = box.insertMotion ?? DEFAULT_INSERT_MOTION;
+  const trayOn = motion.trayLift.height > 0;
+  return (
+    <div className="box-pack" data-box-pack>
+      <h3>{t.closure}</h3>
+      <div className="chips">
+        {specs.map((spec) => (
+          <button
+            key={spec.preset.id}
+            type="button"
+            className={box.structure === spec.id ? "chip is-on" : "chip"}
+            onClick={() => patch("box", { structure: spec.id, latch: spec.preset.latch, layers: withInnerStructure(layers, spec.id, spec.preset.latch) })}
+          >
+            {lang === "he" ? spec.preset.label.he : spec.preset.label.en}
+          </button>
+        ))}
+      </div>
+      {current && current.latches.length > 1 && (
+        <>
+          <h3>{t.latch}</h3>
+          <div className="chips">
+            {current.latches.map((id) => (
+              <button
+                key={id}
+                type="button"
+                className={box.latch === id ? "chip is-on" : "chip"}
+                onClick={() => patch("box", { latch: id, layers: withInnerStructure(layers, box.structure, id) })}
+              >
+                {latchLabel[id]}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+      {current?.liftOff && box.liftOff && (
+        <>
+          <h3>{t.lidFit}</h3>
+          <div className="chips">
+            {current.liftOff.variants.map((variant) => (
+              <button
+                key={variant.id}
+                type="button"
+                className={box.liftOff.variant === variant.id ? "chip is-on" : "chip"}
+                onClick={() => patch("box", { liftOff: { ...box.liftOff, variant: variant.id } })}
+              >
+                {lang === "he" ? variant.label.he : variant.label.en}
+              </button>
+            ))}
+          </div>
+          {box.liftOff.variant === "shoulder-neck" && (
+            <DimFields
+              fields={[
+                {
+                  label: t.neckHeight,
+                  value: box.liftOff.neckMm,
+                  min: current.liftOff.neckMm[0],
+                  max: current.liftOff.neckMm[1],
+                  onChange: (neckMm) => patch("box", { liftOff: { ...box.liftOff, neckMm }, layers: withNeckHeight(layers, neckMm) }),
+                },
+              ]}
+            />
+          )}
+          {box.liftOff.variant !== "telescope-full" && (
+            <DimFields
+              fields={[
+                {
+                  label: t.lidDepth,
+                  value: box.liftOff.lidDepthMm,
+                  min: current.liftOff.lidDepthMm[0],
+                  max: current.liftOff.lidDepthMm[1],
+                  onChange: (lidDepthMm) => patch("box", { liftOff: { ...box.liftOff, lidDepthMm } }),
+                },
+              ]}
+            />
+          )}
+        </>
+      )}
+      {box.structure === "lift-off" && (
+        <>
+          <h3>{t.shape}</h3>
+          <div className="chips">
+            <button type="button" className={box.shape?.type !== "cylinder" ? "chip is-on" : "chip"} onClick={() => patch("box", { shape: { type: "rect" } })}>
+              {t.shapeRect}
+            </button>
+            <button type="button" className={box.shape?.type === "cylinder" ? "chip is-on" : "chip"} onClick={() => patch("box", { shape: { type: "cylinder" } })}>
+              {t.shapeCylinder}
+            </button>
+          </div>
+        </>
+      )}
+      <div className="chips">
+        <button type="button" className={sleeveOn ? "chip is-on" : "chip"} onClick={() => patch("box", { layers: withSleeveOver(box, !sleeveOn) })}>
+          {t.sleeveOver}
+        </button>
+        {sleeveOn && (
+          <button
+            type="button"
+            className={sleeveWindow ? "chip is-on" : "chip"}
+            onClick={() => patch("box", { layers: withSleeveWindow(layers, sleeveWindow ? null : { shape: "rect", transparent: true }) })}
+          >
+            {t.sleeveWindow}
+          </button>
+        )}
+        {(box.structure === "lift-off" || box.structure === "book") && (
+          <button
+            type="button"
+            className={trayOn ? "chip is-on" : "chip"}
+            onClick={() =>
+              patch("box", {
+                insertMotion: { ...motion, trayLift: { height: trayOn ? 0 : 22, trigger: "lidAngle" } },
+              })
+            }
+          >
+            {t.trayRise}
+          </button>
+        )}
+      </div>
+      {current?.pulls && (
+        <>
+          <h3>{t.drawerPull}</h3>
+          <div className="chips">
+            {current.pulls.map((id) => (
+              <button
+                key={id}
+                type="button"
+                className={box.drawerPull === id ? "chip is-on" : "chip"}
+                onClick={() => patch("box", { drawerPull: id === "ribbon" || id === "notch" ? id : "none" })}
+              >
+                {id === "ribbon" ? t.pullRibbon : id === "notch" ? t.thumbNotch : t.latchNone}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+      <h3>{t.insert}</h3>
+      <div className="chips">
+        {INSERT_MATERIALS.map((id) => (
+          <button
+            key={id}
+            type="button"
+            className={box.insert?.material === id ? "chip is-on" : "chip"}
+            onClick={() => patch("box", { insert: { ...box.insert, material: id } })}
+          >
+            {insertLabel[id]}
+          </button>
+        ))}
+      </div>
+      <div className="chips">
+        {(["standing", "lying"] as InsertOrientation[]).map((id) => (
+          <button
+            key={id}
+            type="button"
+            className={orient === id ? "chip is-on" : "chip"}
+            onClick={() => patch("box", { insert: { ...box.insert, orientation: id } })}
+          >
+            {id === "standing" ? t.orientStanding : t.orientLying}
+          </button>
+        ))}
+      </div>
+      <h3>{t.outerWrap}</h3>
+      <div className="chips">
+        {OUTER_WRAPS.map((id) => (
+          <button
+            key={id}
+            type="button"
+            className={box.outerWrap === id ? "chip is-on" : "chip"}
+            onClick={() => patch("box", { outerWrap: id })}
+          >
+            {wrapLabel[id]}
+          </button>
+        ))}
+      </div>
+      <div className="chips">
+        <button type="button" className={box.ribbon ? "chip is-on" : "chip"} onClick={() => patch("box", { ribbon: !box.ribbon })}>
+          {t.ribbon}
+        </button>
+        <button type="button" className={box.pullTab ? "chip is-on" : "chip"} onClick={() => patch("box", { pullTab: !box.pullTab })}>
+          {t.pullTab}
+        </button>
+        <button type="button" className={cutaway ? "chip is-on" : "chip"} onClick={() => setCutaway(!cutaway)}>
+          {t.cutaway}
+        </button>
+      </div>
+      <div className="unbox-soon">
+        <h3>{t.unboxing}</h3>
+        <label>
+          <input type="checkbox" disabled checked={false} readOnly />
+          <span>{t.hands}</span>
+          <em>{t.comingSoon}</em>
+        </label>
+        <button
+          type="button"
+          className={track.muted ? "chip" : "chip is-on"}
+          aria-pressed={!track.muted}
+          title={t.soundtrackHint}
+          onClick={() => setUnboxingMuted(!track.muted)}
+        >
+          {track.muted ? t.soundUnmute : t.soundMute}
+        </button>
+        <div className="chips">
+          <button type="button" className={quality === "high" ? "chip is-on" : "chip"} onClick={() => setQuality("high", true)}>
+            {t.qualityHigh}
+          </button>
+          <button type="button" className={quality === "fallback" ? "chip is-on" : "chip"} onClick={() => setQuality("fallback", true)}>
+            {t.qualityFallback}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 

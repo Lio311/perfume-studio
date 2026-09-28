@@ -3,7 +3,7 @@ import { persist } from "zustand/middleware";
 import { commitSavedDesigns } from "./saveResult.ts";
 import { createLabStorage, LAB_PERSIST_VERSION, mergePersistedLab, migratePersisted, partializeLabState } from "./hydrate.ts";
 import { produce } from "immer";
-import { applyLook, applyVariant, createDefaultDesign, estimateMl, LOOKS } from "../model/design.ts";
+import { applyLook, applyVariant, createDefaultDesign, estimateMl, hydrateDesign, LOOKS } from "../model/design.ts";
 import { BOTTLES } from "../model/bottles.ts";
 import { CAPS } from "../model/caps.ts";
 import { LOGOS } from "../model/logos.ts";
@@ -20,10 +20,20 @@ import { formatPackNotice, type PackNotice } from "../import/notices.ts";
 import { tx } from "../i18n/copy.ts";
 import { isVariantPart, syncRegistry, type SupplierPack } from "../import/registry.ts";
 import { apiClient } from "../api/client.ts";
+import type { BudgetBrief, PriceOverride } from "../budget/types.ts";
+import { clampLabelText } from "../geometry/logos.ts";
 
 export type LabMode = "assemble" | "explode" | "dimensions" | "compare";
 export type ViewPreset = "home" | "front" | "three" | "top" | "side";
 export type StageMode = "bottle" | "box" | "together";
+export type RenderTier = "high" | "fallback";
+
+function initialQuality(): RenderTier {
+  if (typeof window === "undefined" || typeof window.matchMedia !== "function") return "high";
+  const coarse = window.matchMedia("(pointer: coarse)").matches;
+  const narrow = window.innerWidth < 840;
+  return coarse || narrow ? "fallback" : "high";
+}
 
 export interface ChatMessage {
   id: string;
@@ -79,6 +89,12 @@ interface LabState {
   units: "mm" | "cm" | "in";
   suppliers: SupplierPack[];
   packNotices: PackNotice[];
+  brief: BudgetBrief;
+  /** Not persisted. True while the brief dialog is open over an existing brief. */
+  briefEditing: boolean;
+  priceOverrides: Record<string, PriceOverride>;
+  /** ILS received for 1 unit of a foreign currency. Empty until the user types a rate. */
+  exchangeRates: Record<string, number>;
   chat: ChatMessage[];
   saved: SavedDesign[];
   pending: PendingPart[];
@@ -95,6 +111,9 @@ interface LabState {
   palette: boolean;
   help: boolean;
   boxOpen: boolean;
+  cutaway: boolean;
+  quality: RenderTier;
+  tierLock: boolean;
   select: (part: PartKey | null) => void;
   hover: (part: PartKey | null, x?: number, y?: number) => void;
   patch: (part: PartKey, partial: Record<string, unknown>) => void;
@@ -134,6 +153,12 @@ interface LabState {
   showPackNotices: (notices: PackNotice[]) => void;
   upsertSupplier: (pack: SupplierPack, notices?: PackNotice[]) => void;
   removeSupplier: (id: string) => void;
+  setBrief: (patch: Partial<Pick<BudgetBrief, "ceilingIls" | "volumeMl">> & { quantity?: number | null; projectName?: string }) => void;
+  confirmBrief: () => void;
+  openBrief: () => void;
+  closeBrief: () => void;
+  setPriceOverride: (id: string, price: PriceOverride | null) => void;
+  setExchangeRate: (currency: string, ilsPerUnit: number | null) => void;
   setVoice: (voice: VoiceVariant) => void;
   setSoundOn: (on: boolean) => void;
   setStage: (stage: StageMode) => void;
@@ -145,6 +170,8 @@ interface LabState {
   setPalette: (on: boolean) => void;
   setHelp: (on: boolean) => void;
   setBoxOpen: (open: boolean) => void;
+  setCutaway: (on: boolean) => void;
+  setQuality: (quality: RenderTier, lock?: boolean) => void;
   setUnits: (unit: "mm" | "cm" | "in") => void;
   applyVoiceParam: (value: string | null) => void;
 }
@@ -268,9 +295,12 @@ function applyOne(design: Design, command: LabCommand, ui: { explode: number; mo
     case "fill":
       design.liquid.fill = clamp(command.value, 0.05, 0.95);
       break;
-    case "text":
-      design.label.text = command.text.slice(0, 32);
+    case "text": {
+      const text = clampLabelText(command.text);
+      design.label.text = text;
+      design.label.visible = text.length > 0 ? true : design.label.visible;
       break;
+    }
     case "explode":
       ui.explode = command.value ? 1 : 0;
       ui.mode = command.value ? "explode" : ui.mode === "explode" ? "assemble" : ui.mode;
@@ -396,6 +426,9 @@ export const useLab = create<LabState>()(
       palette: false,
       help: false,
       boxOpen: false,
+      cutaway: false,
+      quality: initialQuality(),
+      tierLock: false,
       theme: "dark",
       lang: "he",
       libraryOpen: false,
@@ -407,6 +440,10 @@ export const useLab = create<LabState>()(
       pending: [],
       suppliers: [],
       packNotices: [],
+      brief: { ceilingIls: 30, volumeMl: 50, confirmed: false },
+      briefEditing: false,
+      priceOverrides: {},
+      exchangeRates: {},
       compareIds: ["seed-atelier", "seed-blush", "seed-noir"],
       voice: readVoiceParam(),
       soundOn: true,
@@ -419,6 +456,9 @@ export const useLab = create<LabState>()(
             Object.assign(target, partial);
             if (part === "box" && ("heightMm" in partial || "widthMm" in partial || "depthMm" in partial) && !("linked" in partial)) {
               draft.box.linked = false;
+            }
+            if (part === "box" && typeof partial.color === "string" && !("wrap" in partial) && draft.box.wrap) {
+              draft.box.wrap.color = partial.color;
             }
           });
           return state.gesturing ? { design: next } : { design: next, past: [...state.past, state.design].slice(-30), future: [] };
@@ -546,13 +586,37 @@ export const useLab = create<LabState>()(
         return { ok: true };
       },
       newDesign: () => {
-        set({ design: createDefaultDesign(), past: [], future: [], modal: null });
+        const design = createDefaultDesign();
+        design.bottle.visible = false;
+        design.cap.visible = false;
+        design.label.visible = false;
+        design.pump.visible = false;
+        design.collar.visible = false;
+        design.box.visible = false;
+        design.liquid.visible = true;
+
+        set((state) => ({
+          design,
+          past: [],
+          future: [],
+          modal: null,
+          selected: null,
+          aimed: false,
+          solo: null,
+          mode: "assemble",
+          stage: "bottle",
+          present: false,
+          explode: 0,
+          fullToken: state.fullToken + 1,
+          brief: { ceilingIls: 30, volumeMl: 50, confirmed: false },
+          briefEditing: false,
+        }));
       },
       loadDesign: async (id) => {
         try {
           const loaded = await apiClient.get<SavedDesign>(`/designs/${id}`);
           if (loaded && loaded.design) {
-            set((state) => ({ design: loaded.design, modal: null, focusToken: state.focusToken + 1 }));
+            set((state) => ({ design: hydrateDesign(loaded.design), modal: null, focusToken: state.focusToken + 1 }));
             return;
           }
         } catch (e) {
@@ -560,7 +624,7 @@ export const useLab = create<LabState>()(
         }
         const found = get().saved.find((item) => item.id === id);
         if (!found) return;
-        set((state) => ({ design: found.design, modal: null, focusToken: state.focusToken + 1 }));
+        set((state) => ({ design: hydrateDesign(found.design), modal: null, focusToken: state.focusToken + 1 }));
       },
       deleteDesign: async (id) => {
         set((state) => ({ saved: state.saved.filter((item) => item.id !== id), compareIds: state.compareIds.filter((item) => item !== id) }));
@@ -597,6 +661,52 @@ export const useLab = create<LabState>()(
         commitSuppliers(set, get, suppliers, [], false);
         void deletePack(id);
       },
+      setBrief: (patch) =>
+        set((state) => ({
+          brief: {
+            ...state.brief,
+            ceilingIls: patch.ceilingIls === undefined ? state.brief.ceilingIls : clamp(patch.ceilingIls, 1, 100000),
+            volumeMl: patch.volumeMl === undefined ? state.brief.volumeMl : clamp(patch.volumeMl, 1, 1000),
+            quantity: patch.quantity === undefined
+              ? state.brief.quantity
+              : patch.quantity != null && Number.isInteger(patch.quantity) && patch.quantity >= 1
+                ? patch.quantity
+                : undefined,
+            projectName: patch.projectName === undefined ? state.brief.projectName : patch.projectName,
+          },
+        })),
+      confirmBrief: () =>
+        set((state) => ({
+          brief: { ...state.brief, confirmed: true },
+          briefEditing: false,
+          libraryOpen: true,
+          sideOpen: true,
+        })),
+      openBrief: () => set({ briefEditing: true }),
+      closeBrief: () => set({ briefEditing: false }),
+      setPriceOverride: (id, price) =>
+        set((state) => {
+          const priceOverrides = { ...state.priceOverrides };
+          if (!price) {
+            delete priceOverrides[id];
+            return { priceOverrides };
+          }
+          if ("absent" in price) {
+            priceOverrides[id] = { absent: true };
+            return { priceOverrides };
+          }
+          if (!Number.isFinite(price.value) || price.value <= 0) return {};
+          priceOverrides[id] = { value: price.value, currency: price.currency };
+          return { priceOverrides };
+        }),
+      setExchangeRate: (currency, ilsPerUnit) =>
+        set((state) => {
+          const exchangeRates = { ...state.exchangeRates };
+          const code = currency.trim().toUpperCase();
+          if (!code || ilsPerUnit === null || !Number.isFinite(ilsPerUnit) || ilsPerUnit <= 0) delete exchangeRates[code];
+          else exchangeRates[code] = ilsPerUnit;
+          return { exchangeRates };
+        }),
       setVoice: (voice) => {
         if (typeof location !== "undefined" && typeof history !== "undefined") {
           const url = new URL(location.href);
@@ -627,6 +737,8 @@ export const useLab = create<LabState>()(
       setPalette: (palette) => set({ palette, help: false }),
       setHelp: (help) => set({ help, palette: false }),
       setBoxOpen: (boxOpen) => set({ boxOpen }),
+      setCutaway: (cutaway) => set({ cutaway }),
+      setQuality: (quality, lock = false) => set((state) => ({ quality, tierLock: lock || state.tierLock })),
       applyVoiceParam: (value: string | null) => set({ voice: parseVoiceParam(value) }),
     }),
     {

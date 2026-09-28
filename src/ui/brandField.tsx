@@ -1,4 +1,5 @@
 import { useId, type ChangeEvent } from "react";
+import { clampLabelText } from "../geometry/logos.ts";
 
 /** Overlay copy is shown only while the brand field has no characters. */
 export function brandHintText(value: string, hint: string): string {
@@ -39,7 +40,7 @@ export function BrandTextField({
           value={value}
           aria-labelledby={labelId}
           aria-describedby={hintId}
-          onChange={(event: ChangeEvent<HTMLInputElement>) => onChange(event.target.value.slice(0, 32))}
+          onChange={(event: ChangeEvent<HTMLInputElement>) => onChange(clampLabelText(event.target.value))}
         />
         {overlay ? <span className="brand-hint" aria-hidden="true">{overlay}</span> : null}
         <span id={hintId} className="brand-hint-sr">{hint}</span>

@@ -1,9 +1,12 @@
-import { useMemo, useEffect } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
-import type { FinishId } from "../model/types.ts";
-import { assignClearGlassFade, DEFAULT_GLASS_OPACITY, effectiveGlassDraw, isGlass, renderedGlassOpacity, tintedGlassColor } from "../model/materials.ts";
+import { useFrame } from "@react-three/fiber";
+import type { BoxBoard, FinishId, WrapFinish } from "../model/types.ts";
+import { computeGlassProps, isGlass } from "../model/materials.ts";
 import { leatherBump, woodMap } from "../geometry/textures.ts";
+import { paperMaps, velvetMaps } from "../geometry/wrapTextures.ts";
 import { useLab } from "../store/labStore.ts";
+import { sectionPlanes } from "./sectionPlane.ts";
 
 const BLUE_VERT = `
   varying vec3 vNormal;
@@ -39,7 +42,14 @@ const BLUE_FRAG = `
   }
 `;
 
-function mattePaper(hex: string): { map: THREE.CanvasTexture; bump: THREE.CanvasTexture } {
+/**
+ * Neutral fibre albedo, multiplied by the finish colour.
+ * A white map leaves no headroom: cream (#f4efe6) under the studio key and lightformers
+ * tone-maps to a flat 255 face. This gray stays a tinted paper so edges and grain read.
+ */
+export const MATTE_PAPER_ALBEDO = "#c4bdb2";
+
+function mattePaper(): { map: THREE.CanvasTexture; bump: THREE.CanvasTexture } {
   const canvas = document.createElement("canvas");
   canvas.width = 256;
   canvas.height = 256;
@@ -48,21 +58,20 @@ function mattePaper(hex: string): { map: THREE.CanvasTexture; bump: THREE.Canvas
   bumpCanvas.width = 256;
   bumpCanvas.height = 256;
   const bumpCtx = bumpCanvas.getContext("2d");
-  const base = new THREE.Color(hex);
   if (ctx && bumpCtx) {
-    ctx.fillStyle = "#ffffff";
+    ctx.fillStyle = MATTE_PAPER_ALBEDO;
     ctx.fillRect(0, 0, 256, 256);
     bumpCtx.fillStyle = "#808080";
     bumpCtx.fillRect(0, 0, 256, 256);
-    const ink = `rgba(${Math.round(base.r * 40)},${Math.round(base.g * 40)},${Math.round(base.b * 40)},0.22)`;
-    ctx.fillStyle = ink;
-    for (let i = 0; i < 1600; i += 1) {
+    for (let i = 0; i < 2400; i += 1) {
       const x = Math.random() * 256;
       const y = Math.random() * 256;
-      const w = 1 + Math.random() * 2.2;
-      ctx.globalAlpha = 0.15 + Math.random() * 0.45;
+      const w = 1 + Math.random() * 2.8;
+      const n = 58 + Math.random() * 160;
+      ctx.globalAlpha = 0.28 + Math.random() * 0.5;
+      ctx.fillStyle = `rgb(${n | 0},${Math.max(0, n - 12) | 0},${Math.max(0, n - 26) | 0})`;
       ctx.fillRect(x, y, w, 1);
-      bumpCtx.fillStyle = `rgb(${90 + Math.random() * 90},${90 + Math.random() * 90},${90 + Math.random() * 90})`;
+      bumpCtx.fillStyle = `rgb(${70 + Math.random() * 120},${70 + Math.random() * 120},${70 + Math.random() * 120})`;
       bumpCtx.fillRect(x, y, w, 1);
     }
     ctx.globalAlpha = 1;
@@ -93,6 +102,8 @@ const CLEAR_FRAG = `
   varying vec3 vNormal;
   varying vec3 vWorld;
   uniform float uFade;
+  uniform float uOpacity;
+  uniform vec3 uTint;
   void main() {
     vec3 N = normalize(vNormal);
     vec3 V = normalize(cameraPosition - vWorld);
@@ -103,18 +114,38 @@ const CLEAR_FRAG = `
     vec3 env = mix(vec3(0.74, 0.77, 0.81), vec3(0.98, 0.985, 0.99), envH);
     vec3 L = normalize(vec3(0.22, 0.92, 0.34));
     float spec = pow(max(dot(reflect(-L, N), V), 0.0), 70.0);
-    vec3 color = mix(env * 0.42, vec3(0.97, 0.98, 0.99), fres);
+    float tintAmt = clamp(uOpacity * 1.15, 0.0, 1.0);
+    vec3 tint = mix(vec3(0.97, 0.98, 0.99), uTint, tintAmt);
+    vec3 color = mix(env * 0.55, tint, fres);
     color += vec3(1.0) * spec * 0.9;
-    float alpha = 0.02 + fres * 0.78 + spec * 0.42;
-    gl_FragColor = vec4(color, clamp(alpha, 0.0, 0.86) * uFade);
+    float cover = 0.08 + clamp(uOpacity, 0.0, 1.0) * 0.92;
+    gl_FragColor = vec4(color, cover * uFade);
   }
 `;
 
-function ClearGlass({ opacity = DEFAULT_GLASS_OPACITY.clear }: { opacity?: number }) {
-  const uniforms = useMemo(() => ({ uFade: { value: 0 } }), []);
-  const userFade = assignClearGlassFade(uniforms, opacity);
+function ClearGlass({ opacity = 0.14, color = "#f4f0e8", clippingPlanes }: { opacity?: number; color?: string; clippingPlanes?: THREE.Plane[] }) {
+  const ref = useRef<THREE.ShaderMaterial>(null);
+  const uniforms = useMemo(
+    () => ({ uFade: { value: 1 }, uOpacity: { value: opacity }, uTint: { value: new THREE.Color(color) } }),
+    [],
+  );
+  const opacityRef = useRef(opacity);
+  const colorRef = useRef(color);
+  opacityRef.current = opacity;
+  colorRef.current = color;
+  // Fiber copies uniforms onto the material, so slider changes have to write that copy.
+  useFrame(() => {
+    const material = ref.current;
+    if (!material?.uniforms?.uOpacity) return;
+    const amount = opacityRef.current;
+    uniforms.uOpacity.value = amount;
+    material.uniforms.uOpacity.value = amount;
+    uniforms.uTint.value.set(colorRef.current);
+    material.uniforms.uTint.value.set(colorRef.current);
+  });
   return (
     <shaderMaterial
+      ref={ref}
       transparent
       depthWrite={false}
       depthTest
@@ -123,10 +154,9 @@ function ClearGlass({ opacity = DEFAULT_GLASS_OPACITY.clear }: { opacity?: numbe
       polygonOffsetFactor={-1}
       polygonOffsetUnits={-1}
       uniforms={uniforms}
-      uniforms-uFade-value={userFade}
-      userData-glassBody={true}
       vertexShader={CLEAR_VERT}
       fragmentShader={CLEAR_FRAG}
+      clippingPlanes={clippingPlanes}
     />
   );
 }
@@ -137,16 +167,18 @@ export function FinishMaterial({
   opacity,
   flat = false,
   glass = false,
+  section = false,
 }: {
   finish: FinishId;
   color: string;
-  opacity?: number | null;
+  opacity?: number;
   flat?: boolean;
   glass?: boolean;
+  section?: boolean;
 }) {
   const wood = useMemo(() => (finish === "wood" ? woodMap() : null), [finish]);
   const leather = useMemo(() => (finish === "leather" ? leatherBump() : null), [finish]);
-  const paper = useMemo(() => (finish === "matteBlack" ? mattePaper(color) : null), [finish, color]);
+  const paper = useMemo(() => (finish === "matteBlack" ? mattePaper() : null), [finish]);
 
   useEffect(() => {
     return () => {
@@ -158,32 +190,41 @@ export function FinishMaterial({
       }
     };
   }, [wood, leather, paper]);
+  const glassLike = glass && isGlass(finish);
+  const gp = useMemo(
+    () => (glassLike ? computeGlassProps(finish, opacity) : null),
+    [glassLike, finish, opacity],
+  );
+  const metal = finish === "gold" || finish === "silver" || finish === "rose";
   const blueprint = useLab((s) => s.blueprint);
   const theme = useLab((s) => s.theme);
-  const glassLike = glass && isGlass(finish);
-  const metal = finish === "gold" || finish === "silver" || finish === "rose";
+  const quality = useLab((s) => s.quality);
+  const cutaway = useLab((s) => s.cutaway);
   const matte = finish === "matteBlack";
   const clear = finish === "clear";
+  const clearHigh = clear && glass && quality === "high";
+  const planes = section && cutaway ? sectionPlanes : undefined;
   const fade = useMemo(() => ({ uFade: { value: 1 }, uColor: { value: new THREE.Color() } }), []);
   useEffect(() => {
     fade.uColor.value.set(theme === "dark" ? 0xf6e5c7 : 0x2c3e50);
   }, [theme, fade]);
-  const draw = glassLike ? effectiveGlassDraw(finish, opacity) : null;
-  let materialOpacity = 1.0;
-  let materialTransmission = 0;
-  if (glassLike) {
-    materialOpacity = draw?.opacity ?? renderedGlassOpacity(finish, opacity) ?? 1.0;
-    materialTransmission = draw?.transmission ?? 0;
-  }
+
+  const meshRef = useRef<THREE.MeshPhysicalMaterial>(null);
+  useEffect(() => {
+    if (meshRef.current) {
+      meshRef.current.userData.intendedOpacity = gp ? gp.materialOpacity : 1.0;
+    }
+  }, [gp]);
 
   if (blueprint) {
-    return <shaderMaterial transparent depthWrite toneMapped={false} uniforms={fade} vertexShader={BLUE_VERT} fragmentShader={BLUE_FRAG} />;
+    return <shaderMaterial transparent depthWrite toneMapped={false} uniforms={fade} vertexShader={BLUE_VERT} fragmentShader={BLUE_FRAG} clippingPlanes={planes} />;
   }
-  if (clear && glass) return <ClearGlass opacity={typeof opacity === "number" ? opacity : DEFAULT_GLASS_OPACITY.clear} />;
+  if (clear && glass && !clearHigh) return <ClearGlass opacity={opacity !== undefined ? opacity : 0.14} color={color} clippingPlanes={planes} />;
 
   return (
     <meshPhysicalMaterial
-      color={finish === "tinted" ? tintedGlassColor(color, opacity) : color}
+      ref={meshRef}
+      color={color}
       flatShading={flat}
       map={wood ?? paper?.map ?? undefined}
       bumpMap={leather ?? paper?.bump ?? undefined}
@@ -191,31 +232,59 @@ export function FinishMaterial({
       emissive="#000000"
       emissiveIntensity={0}
       metalness={metal ? 1 : 0}
-      roughness={
-        draw ? draw.roughness :
-        clear ? 0.015 :
-        metal ? 0.14 :
-        matte ? 0.68 :
-        finish === "wood" ? 0.7 :
-        0.84
-      }
+      roughness={gp ? gp.roughness : metal ? 0.22 : matte ? 0.68 : finish === "wood" ? 0.7 : 0.84}
       sheen={matte ? 0.06 : 0}
       sheenRoughness={0.62}
       sheenColor="#4a4f56"
-      transmission={materialTransmission}
-      thickness={draw ? draw.thickness : glassLike ? 2.8 : 0}
-      ior={clear ? 1.52 : 1.5}
-      clearcoat={draw ? draw.clearcoat : clear ? 1 : metal ? 0.65 : 0.04}
+      transmission={gp ? gp.transmission : 0}
+      thickness={gp ? gp.thickness : 0}
+      ior={gp ? gp.ior : 1.5}
+      clearcoat={gp ? 1 : metal ? 0.65 : 0.04}
       clearcoatRoughness={metal ? 0.12 : 0.04}
-      attenuationColor={clear ? "#fff8ee" : color}
-      attenuationDistance={draw ? draw.attenuationDistance : clear ? 160 : 36}
-      envMapIntensity={metal ? 1.65 : draw ? draw.envMapIntensity : matte ? 0.35 : 0.7}
-      specularIntensity={glassLike || metal ? 1 : matte ? 0.4 : 0.3}
-      transparent={draw ? draw.transparent : glassLike}
-      opacity={materialOpacity}
-      userData-glassBody={glassLike ? true : undefined}
-      depthWrite={draw ? draw.depthWrite : !glassLike}
+      attenuationColor={gp ? color : "#fff8ee"}
+      attenuationDistance={gp ? 36 : 160}
+      envMapIntensity={metal ? 1.65 : gp ? 1.7 : matte ? 0.35 : 0.7}
+      clippingPlanes={planes}
+      specularIntensity={gp || metal ? 1 : matte ? 0.4 : 0.3}
+      transparent={!!gp}
+      opacity={gp ? gp.materialOpacity : 1}
+      depthWrite={!gp}
       side={THREE.FrontSide}
+    />
+  );
+}
+
+export function WrapMaterial({
+  color,
+  finish,
+  board,
+  section = false,
+}: {
+  color: string;
+  finish: WrapFinish;
+  board: BoxBoard;
+  section?: boolean;
+}) {
+  const cutaway = useLab((s) => s.cutaway);
+  const paper = useMemo(() => (finish === "paper-texture" || finish === "matte" ? paperMaps() : null), [finish]);
+  const velvet = useMemo(() => (finish === "velvet" ? velvetMaps() : null), [finish]);
+  const planes = section && cutaway ? sectionPlanes : undefined;
+  const pile = finish === "velvet";
+  const gloss = finish === "gloss";
+  return (
+    <meshPhysicalMaterial
+      color={color}
+      map={pile ? velvet?.map : paper?.map}
+      roughnessMap={pile ? velvet?.rough : paper?.rough}
+      metalness={0}
+      roughness={gloss ? 0.16 : pile ? 0.82 : finish === "soft-touch" ? 0.68 : board === "carton" ? 0.9 : 0.84}
+      clearcoat={gloss ? 0.75 : finish === "soft-touch" ? 0.18 : 0}
+      clearcoatRoughness={gloss ? 0.18 : 0.45}
+      sheen={pile ? 1 : finish === "soft-touch" ? 0.22 : 0}
+      sheenColor={color}
+      sheenRoughness={pile ? 0.38 : 0.6}
+      envMapIntensity={gloss ? 0.85 : pile ? 0.45 : 0.28}
+      clippingPlanes={planes}
     />
   );
 }
@@ -260,8 +329,13 @@ export function JuiceMaterial({ color, top }: { color: string; top: number }) {
     () => ({ uColor: { value: new THREE.Color(color) }, uFade: { value: 1 }, uTop: { value: top } }),
     [color, top],
   );
+  const ref = useRef<THREE.ShaderMaterial>(null);
+  useEffect(() => {
+    if (ref.current) ref.current.userData.intendedFade = 1;
+  }, []);
   return (
     <shaderMaterial
+      ref={ref}
       transparent
       depthWrite
       side={THREE.FrontSide}

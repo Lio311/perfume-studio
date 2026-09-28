@@ -1,27 +1,27 @@
-import { useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useContext, useEffect, useLayoutEffect, useMemo, useRef, type ReactNode } from "react";
 import { useFrame } from "@react-three/fiber";
 import { RoundedBox } from "@react-three/drei";
 import * as THREE from "three";
 import { bottleById, boxById, capById, collarById, logoById, pumpById } from "../model/catalog.ts";
-import { computeFit } from "../model/fit.ts";
-import { bottleGlassSetting, isGlass } from "../model/materials.ts";
+import { closureForForm } from "../model/boxFields.ts";
+import { trayLiftNow } from "./trayLift.ts";
+import { computeFit, type Fit } from "../model/fit.ts";
+import { isGlass } from "../model/materials.ts";
 import type { BoxForm, PartKey, PumpStyle } from "../model/types.ts";
+import { ClosureBox } from "./boxClosure.tsx";
 import { buildBottleGeometry, buildCapGeometry, buildLabelPatch } from "../geometry/sweep.ts";
-import { logoTexture } from "../geometry/logos.ts";
+import { cartonMarkSize, FOIL_ENV_FLOOR, labelEmissive, labelFinish, labelInk } from "../geometry/logos.ts";
+import type { LogoApplication } from "../model/types.ts";
+import { LabelPaintProvider, useCartonLabelCanvas, useLabelMaps, useSharedLabelCanvas } from "./labelPaint.ts";
 import { useLab } from "../store/labStore.ts";
 import { latheGeometry, latheProfile } from "../import/lathe.ts";
 import { clickPart, doubleClickPart, markPartPointer, swapFlashOn } from "./focusClick.ts";
-import { materialOpacityTarget, writeBottleGlassFrame, type OpacityFadeState } from "./materialFade.ts";
 import { FinishMaterial, JuiceMaterial } from "./materials.tsx";
 import { Callouts } from "./Callouts.tsx";
 import { explodeLocal } from "./explodeCurve.ts";
 import { PartGuides, posedFrame, turntableHome } from "./Guides.tsx";
 import { HoloShell } from "./voiceScenery.tsx";
 import { Clock } from "./clock.ts";
-
-function rememberFade(mat: THREE.Material, baseOpacity: number): void {
-  mat.userData.fadeBase = baseOpacity;
-}
 
 function PartShell({
   part,
@@ -102,7 +102,8 @@ function PartShell({
       ty = park[1];
       tz = park[2];
     } else if (state.stage === "box" && part !== "box") {
-      ty += 8;
+      const lying = state.design.box.insert?.orientation === "lying" && !state.solo && !state.aimed;
+      if (!lying) ty += (state.design.box.boardMm ?? 2.2) + 5;
     }
     const yaw = isolated ? 0 : local * 0.14 * (index % 2 === 0 ? 1 : -1);
     group.rotation.y = THREE.MathUtils.damp(group.rotation.y, yaw, 5, dt);
@@ -135,42 +136,22 @@ function PartShell({
       const mesh = obj as THREE.Mesh;
       if (solid || !mesh.isMesh || !mesh.material) return;
       const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
-      if (mesh.userData.liquidDepth) {
-        for (const mat of mats) {
-          const write = !ghost;
-          if (mat.depthWrite !== write) mat.depthWrite = write;
-          if (mat.colorWrite) mat.colorWrite = false;
-          if (mat.transparent) mat.transparent = false;
-        }
-        return;
-      }
-      const glassSetting = part === "bottle"
-        ? bottleGlassSetting(state.design.bottle.finish, state.design.bottle.opacity)
-        : null;
       for (const mat of mats) {
         const shader = mat as THREE.ShaderMaterial;
-        if (mat.userData.glassBody && glassSetting && writeBottleGlassFrame(mat as THREE.ShaderMaterial, glassSetting, ghost, dt)) {
-          continue;
-        }
-        const memory: OpacityFadeState = {
-          baseOpacity: typeof mat.userData.fadeBase === "number" ? mat.userData.fadeBase : undefined,
-        };
         if (shader.uniforms?.uFade) {
-          const resolved = materialOpacityTarget(memory, shader.uniforms.uFade.value, ghost);
-          rememberFade(mat, resolved.baseOpacity);
-          const next = THREE.MathUtils.damp(shader.uniforms.uFade.value, resolved.target, 7, dt);
-          if (Math.abs(shader.uniforms.uFade.value - next) > 0.001) shader.uniforms.uFade.value = next;
+          const fadeTarget = ghost ? 0.1 : (mat.userData.intendedFade ?? 1);
+          shader.uniforms.uFade.value = THREE.MathUtils.damp(shader.uniforms.uFade.value, fadeTarget, 7, dt);
           if (!mat.transparent) mat.transparent = true;
           const newDepthWrite = shader.uniforms.uFade.value > 0.55;
           if (mat.depthWrite !== newDepthWrite) mat.depthWrite = newDepthWrite;
           continue;
         }
-        const resolved = materialOpacityTarget(memory, mat.opacity, ghost);
-        rememberFade(mat, resolved.baseOpacity);
-        const newTransparent = ghost || resolved.baseOpacity < 0.999;
+        const intended = (mat.userData.intendedOpacity as number | undefined) ?? mat.opacity;
+        const target = ghost ? intended * 0.1 : intended;
+        const newTransparent = ghost || intended < 0.999;
         if (mat.transparent !== newTransparent) mat.transparent = newTransparent;
-        const next = THREE.MathUtils.damp(mat.opacity, resolved.target, 7, dt);
-        if (Math.abs(mat.opacity - next) > 0.001) mat.opacity = next;
+        const newOpacity = THREE.MathUtils.damp(mat.opacity, target, 7, dt);
+        if (Math.abs(mat.opacity - newOpacity) > 0.001) mat.opacity = newOpacity;
         const newDepthWrite = mat.opacity > 0.5;
         if (mat.depthWrite !== newDepthWrite) mat.depthWrite = newDepthWrite;
       }
@@ -287,14 +268,17 @@ export function Assembly() {
   });
 
   return (
+    <LabelPaintProvider>
     <Clock.Provider value={clock}>
       <BoxPart />
-      <BottlePart />
-      <LiquidPart />
-      <LabelPart />
-      <CollarPart />
-      <PumpPart />
-      <CapPart />
+      <BottleSeat>
+        <BottlePart />
+        <LiquidPart />
+        <LabelPart />
+        <CollarPart />
+        <PumpPart />
+        <CapPart />
+      </BottleSeat>
       <PartGuides />
       <Callouts />
       <HoloShell />
@@ -302,7 +286,28 @@ export function Assembly() {
       <Shadow fitWidth={fit.bottleW} />
       <Turntable />
     </Clock.Provider>
+    </LabelPaintProvider>
   );
+}
+
+function BottleSeat({ children }: { children: ReactNode }) {
+  const ref = useRef<THREE.Group>(null);
+  useFrame(() => {
+    const group = ref.current;
+    if (!group) return;
+    const state = useLab.getState();
+    const lying = state.stage === "box" && state.design.box.insert?.orientation === "lying" && !state.solo && !state.aimed;
+    const rise = state.stage === "box" ? trayLiftNow.mm : 0;
+    if (!lying) {
+      group.rotation.x = 0;
+      group.position.set(0, rise, 0);
+      return;
+    }
+    const seated = computeFit(state.design, false);
+    group.rotation.x = Math.PI / 2;
+    group.position.set(0, seated.lyingLift + rise, seated.lyingShiftZ);
+  });
+  return <group ref={ref}>{children}</group>;
 }
 
 function Turntable() {
@@ -328,6 +333,7 @@ function Turntable() {
 }
 
 function Shadow({ fitWidth }: { fitWidth: number }) {
+  const quality = useLab((s) => s.quality);
   const map = useMemo(() => {
     const canvas = document.createElement("canvas");
     canvas.width = 128;
@@ -346,7 +352,7 @@ function Shadow({ fitWidth }: { fitWidth: number }) {
   useEffect(() => {
     if (map) return () => map.dispose();
   }, [map]);
-  if (!map) return null;
+  if (quality !== "fallback" || !map) return null;
   return (
     <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.05, 0]}>
       <planeGeometry args={[fitWidth * 1.8, fitWidth * 1.35]} />
@@ -381,7 +387,7 @@ function BottlePart() {
   return (
     <PartShell part="bottle" index={5} home={[0, 0, 0]} explode={[0, 0, 0]} visible={design.bottle.visible && onStage} variantKey={spec.id}>
       <mesh geometry={geo} renderOrder={2}>
-        <FinishMaterial finish={design.bottle.finish} color={design.bottle.color} opacity={design.bottle.opacity} flat={spec.faceted} glass />
+        <FinishMaterial finish={design.bottle.finish} color={design.bottle.color} opacity={design.bottle.opacity ?? undefined} flat={spec.faceted} glass />
         <GoldRim part="bottle" stamp={spec.id + design.bottle.finish} hull={!isGlass(design.bottle.finish)} />
       </mesh>
     </PartShell>
@@ -420,16 +426,6 @@ function LiquidPart() {
   );
   return (
     <PartShell part="liquid" index={5} home={[0, 0, 0]} explode={[0, 0, 0]} visible={design.liquid.visible && design.bottle.visible && onStage} variantKey={spec.id + design.liquid.color + surface.toFixed(1)}>
-      {/* Writes the liquid's depth before the floor grid so grid lines fail the depth test inside the liquid. Color is drawn later by JuiceMaterial; this mesh never writes color. */}
-      <mesh geometry={geo} renderOrder={-1.5} userData={{ liquidDepth: true }} raycast={() => null}>
-        <meshBasicMaterial
-          colorWrite={false}
-          depthWrite
-          polygonOffset
-          polygonOffsetFactor={1}
-          polygonOffsetUnits={1}
-        />
-      </mesh>
       <mesh geometry={geo} renderOrder={1}>
         <JuiceMaterial color={design.liquid.color} top={surface} />
       </mesh>
@@ -636,6 +632,64 @@ function Actuator({
   );
 }
 
+function LabelFinishMaterial({
+  map,
+  mask,
+  emissiveMap,
+  ink,
+  application,
+  overlay = false,
+}: {
+  map: THREE.Texture;
+  mask: THREE.Texture | null;
+  emissiveMap: THREE.Texture | null;
+  ink: string;
+  application: LogoApplication;
+  overlay?: boolean;
+}) {
+  const finish = labelFinish(application);
+  const flat = finish.metalness === 0 && finish.bumpScale === 0;
+  if (flat || !mask) {
+    return (
+      <meshBasicMaterial
+        map={map}
+        toneMapped={false}
+        transparent={overlay}
+        depthWrite={!overlay}
+        polygonOffset={!overlay}
+        polygonOffsetFactor={-4}
+        polygonOffsetUnits={-4}
+      />
+    );
+  }
+  // Roughness is multiplied by the map. The uniform stays 1 so the plate (green = 1) stays matte
+  // and the ink uses labelFinish().roughness, stored in that channel. Metalness uses the blue channel.
+  // Foil keeps an environment floor and a small ink-coloured emissive so the face stays the ink colour
+  // when the studio behind the camera is dark. The emissive map is black on the plate.
+  const envMapIntensity = application === "foil" ? Math.max(finish.envMapIntensity, FOIL_ENV_FLOOR) : finish.envMapIntensity;
+  return (
+    <meshStandardMaterial
+      map={map}
+      metalness={finish.metalness}
+      metalnessMap={mask}
+      roughness={1}
+      roughnessMap={mask}
+      bumpMap={finish.bumpScale !== 0 ? mask : undefined}
+      bumpScale={finish.bumpScale}
+      envMapIntensity={envMapIntensity}
+      emissive={labelEmissive(ink, application)}
+      emissiveIntensity={finish.emissive}
+      emissiveMap={finish.emissive > 0 ? emissiveMap ?? undefined : undefined}
+      toneMapped={finish.metalness < 0.5}
+      transparent={overlay}
+      depthWrite={!overlay}
+      polygonOffset={!overlay}
+      polygonOffsetFactor={-4}
+      polygonOffsetUnits={-4}
+    />
+  );
+}
+
 function LabelPart() {
   const design = useLab((s) => s.design);
   const stage = useLab((s) => s.stage);
@@ -644,35 +698,10 @@ function LabelPart() {
   const bottle = bottleById(design.bottle.variantId);
   const spec = logoById(design.label.variantId);
   const fit = computeFit(design, false);
-  const ink = useMemo(() => inkFor(spec.application, design.label.color), [spec.application, design.label.color]);
-  const [fontTick, setFontTick] = useState(0);
-  useEffect(() => {
-    let live = true;
-    const fonts = document.fonts;
-    if (!fonts) return undefined;
-    void fonts.ready.then(() => {
-      if (live) setFontTick(1);
-    });
-    return () => {
-      live = false;
-    };
-  }, []);
-  
-  const canvas = useMemo(() => {
-    const aspect = fit.labelW / Math.max(4, fit.labelH);
-    const width = 2048;
-    const height = Math.max(128, Math.round(width / Math.min(6, Math.max(0.45, aspect))));
-    return logoTexture(spec, design.label.text, ink, width, height);
-  }, [spec, design.label.text, ink, fontTick, fit.labelW, fit.labelH]);
-  const texture = useMemo(() => {
-    const map = new THREE.CanvasTexture(canvas);
-    map.colorSpace = THREE.SRGBColorSpace;
-    map.anisotropy = 16;
-    map.flipY = true;
-    map.needsUpdate = true;
-    return map;
-  }, [canvas]);
-  useEffect(() => () => texture.dispose(), [texture]);
+  const ink = labelInk(design.label.color, spec.application);
+  const shared = useSharedLabelCanvas();
+  const canvas = useMemo(() => shared ?? document.createElement("canvas"), [shared]);
+  const { color: texture, mask, emissive } = useLabelMaps(canvas, ink, spec.application);
   const plate = useDisposable(() => buildLabelPatch({
     height: design.bottle.heightMm,
     width: design.bottle.widthMm,
@@ -691,25 +720,11 @@ function LabelPart() {
   return (
     <PartShell part="label" index={4} home={[0, fit.labelY, fit.labelZ]} explode={fit.explode.label} visible={design.label.visible && onStage} variantKey={spec.id + design.label.text + bottle.id}>
       <mesh geometry={plate} renderOrder={8}>
-        <meshBasicMaterial map={texture} toneMapped={false} polygonOffset polygonOffsetFactor={-4} polygonOffsetUnits={-4} />
+        <LabelFinishMaterial map={texture} mask={mask} emissiveMap={emissive} ink={ink} application={spec.application} />
         <GoldRim part="label" stamp={spec.id + design.label.text} />
       </mesh>
     </PartShell>
   );
-}
-
-function relativeLuminance(hex: string): number {
-  const color = new THREE.Color(hex);
-  const lin = (channel: number) => (channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4);
-  return 0.2126 * lin(color.r) + 0.7152 * lin(color.g) + 0.0722 * lin(color.b);
-}
-
-function inkFor(application: string, plate: string): string {
-  const lum = relativeLuminance(plate);
-  if (application === "foil") return "#fff6e4";
-  if (application === "emboss") return lum > 0.62 ? "#6d583c" : "#f6f1e6";
-  if (application === "engrave") return lum > 0.45 ? "#241c14" : "#0c0b0a";
-  return lum > 0.55 ? "#221910" : "#f4eee4";
 }
 
 function BoxPart() {
@@ -723,29 +738,27 @@ function BoxPart() {
   const shown = stage === "box" || (stage === "together" && design.box.visible);
   return (
     <PartShell part="box" index={0} home={home} explode={burst} visible={shown} variantKey={spec.id}>
-      <BoxFormMesh form={spec.form} w={fit.boxW} h={fit.boxH} d={fit.boxD} finish={design.box.finish} color={design.box.color} />
+      <BoxFormMesh form={spec.form} w={fit.boxW} h={fit.boxH} d={fit.boxD} fit={fit} finish={design.box.finish} color={design.box.color} />
     </PartShell>
   );
 }
 
 function BrandPlate({ w, y, z }: { w: number; y: number; z: number }) {
   const blueprint = useLab((s) => s.blueprint);
-  const text = useLab((s) => s.design.label.text);
   const variantId = useLab((s) => s.design.label.variantId);
-  const tex = useMemo(() => {
-    const planeW = Math.min(w * 0.48, 52);
-    const canvas = logoTexture(logoById(variantId), text, "#f6f1e6", 1024, Math.max(96, Math.round(1024 * 18 / planeW)));
-    const texture = new THREE.CanvasTexture(canvas);
-    texture.colorSpace = THREE.SRGBColorSpace;
-    texture.anisotropy = 4;
-    return texture;
-  }, [text, variantId, w]);
-  useEffect(() => () => tex.dispose(), [tex]);
-  if (blueprint) return null;
+  const color = useLab((s) => s.design.label.color);
+  const text = useLab((s) => s.design.label.text);
+  const spec = logoById(variantId);
+  const ink = labelInk(color, spec.application);
+  const canvas = useCartonLabelCanvas();
+  const aspect = Number(canvas.dataset.aspect);
+  const { width: planeW, height: planeH } = cartonMarkSize(w, aspect);
+  const { color: tex, mask, emissive } = useLabelMaps(canvas, ink, spec.application);
+  if (blueprint || text.trim().length === 0) return null;
   return (
     <mesh position={[0, y, z]}>
-      <planeGeometry args={[Math.min(w * 0.48, 52), 18]} />
-      <meshBasicMaterial map={tex} transparent toneMapped={false} depthWrite={false} />
+      <planeGeometry args={[planeW, planeH]} />
+      <LabelFinishMaterial map={tex} mask={mask} emissiveMap={emissive} ink={ink} application={spec.application} overlay />
     </mesh>
   );
 }
@@ -887,6 +900,7 @@ function BoxFormMesh({
   w,
   h,
   d,
+  fit,
   finish,
   color,
 }: {
@@ -894,6 +908,7 @@ function BoxFormMesh({
   w: number;
   h: number;
   d: number;
+  fit: Fit;
   finish: Parameters<typeof FinishMaterial>[0]["finish"];
   color: string;
 }) {
@@ -926,6 +941,9 @@ function BoxFormMesh({
     const state = useLab.getState();
     state.setBoxOpen(!state.boxOpen);
   };
+  const structure = useLab((s) => s.design.box.structure ?? "lift-off");
+  const legacyForm = (form === "tube" || form === "plinth") && structure === closureForForm(form).structure;
+  if (!legacyForm) return <ClosureBox form={form} fit={fit} />;
   if (form === "tube") {
     return (
       <group>

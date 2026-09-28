@@ -23,6 +23,8 @@ export interface Trap {
   /** Mirror of entries pushed on this page, so a pop can tell Back from Forward. */
   stack?: unknown[];
   index?: number;
+  /** Sequence of the entry now showing. History states carry the same number across a reload. */
+  seq?: number;
 }
 
 export interface BackSurface {
@@ -37,6 +39,8 @@ export interface BackSurface {
   explode: number;
   /** The copy-failed share URL is on screen. Back closes it before a wizard step. */
   shareLink: boolean;
+  /** The carton lid is open. One Back closes it, before the stage or wizard step. */
+  boxOpen: boolean;
   /**
    * The wizard is choosing the stage, including the carton step.
    * That stage is not its own Back layer. Wizard steps above 0 are.
@@ -52,6 +56,7 @@ export type BackAction =
   | "overlays"
   | "selection"
   | "share"
+  | "box"
   | "stage"
   | "mode"
   | "wizard"
@@ -74,25 +79,48 @@ function isOverlayGuard(state: unknown): boolean {
   return isLabHistory(state) && historyWizardStep(state) === undefined;
 }
 
+function historySeq(state: unknown): number | undefined {
+  if (!isLabHistory(state)) return undefined;
+  const seq = (state as { seq?: unknown }).seq;
+  return typeof seq === "number" && Number.isInteger(seq) && seq >= 0 ? seq : undefined;
+}
+
 function sameState(a: unknown, b: unknown): boolean {
   if (a === b) return true;
   if (!isLabHistory(a) || !isLabHistory(b)) return false;
-  return historyWizardStep(a) === historyWizardStep(b) && isOverlayGuard(a) === isOverlayGuard(b);
+  return historyWizardStep(a) === historyWizardStep(b)
+    && isOverlayGuard(a) === isOverlayGuard(b)
+    && historySeq(a) === historySeq(b)
+    && isShareGuard(a) === isShareGuard(b);
 }
 
 function ensureStack(trap: Trap, current: unknown) {
+  if (trap.seq === undefined) trap.seq = historySeq(current);
   if (trap.stack) return;
   trap.stack = [current];
   trap.index = 0;
 }
 
+function nextSeq(trap: Trap, current: unknown): number {
+  let max = historySeq(current) ?? 0;
+  if (typeof trap.seq === "number" && trap.seq > max) max = trap.seq;
+  for (const entry of trap.stack ?? []) {
+    const seq = historySeq(entry);
+    if (typeof seq === "number" && seq > max) max = seq;
+  }
+  return max + 1;
+}
+
 function push(history: HistoryLike, trap: Trap, data: unknown) {
   ensureStack(trap, history.state);
+  const seq = nextSeq(trap, history.state);
+  const stamped = data && typeof data === "object" ? { ...(data as Record<string, unknown>), seq } : data;
   const index = trap.index ?? 0;
   trap.stack!.splice(index + 1);
-  trap.stack!.push(data);
+  trap.stack!.push(stamped);
   trap.index = index + 1;
-  history.pushState(data, "");
+  trap.seq = seq;
+  history.pushState(stamped, "");
   trap.armed = true;
 }
 
@@ -112,27 +140,39 @@ function isShareGuard(state: unknown): boolean {
 /**
  * Direction of one pop.
  * Entries this page pushed are matched against the mirror.
- * After a reload the mirror is only the current entry, so the step stored on the revealed entry decides:
- * a higher step is Forward, a lower step is Back. Unknown is not treated as Back.
+ * Each entry carries a running `seq`. After a reload the mirror is only the current entry,
+ * so a lower seq is Back and a higher seq is Forward. The document under the stack has no seq
+ * and is Back. A step number is the fallback for entries written before seq existed.
  */
 function notePop(trap: Trap, state: unknown, fromStep: number | undefined): PopDir {
+  const departed = trap.seq;
+  const revealedSeq = historySeq(state);
+  if (typeof revealedSeq === "number") trap.seq = revealedSeq;
+  else if (!isLabHistory(state)) trap.seq = undefined;
+
   const stack = trap.stack;
   const index = trap.index ?? 0;
+  let dir: PopDir = "unknown";
   if (stack) {
     if (index > 0 && sameState(stack[index - 1], state)) {
       trap.index = index - 1;
-      return "back";
-    }
-    if (index + 1 < stack.length && sameState(stack[index + 1], state)) {
+      dir = "back";
+    } else if (index + 1 < stack.length && sameState(stack[index + 1], state)) {
       trap.index = index + 1;
-      return "forward";
+      dir = "forward";
     }
   }
-  const revealed = historyWizardStep(state);
-  if (typeof fromStep === "number" && typeof revealed === "number" && revealed !== fromStep) {
-    return revealed > fromStep ? "forward" : "back";
+  if (dir === "unknown" && typeof departed === "number" && typeof revealedSeq === "number" && revealedSeq !== departed) {
+    dir = revealedSeq > departed ? "forward" : "back";
   }
-  return "unknown";
+  if (dir === "unknown" && typeof departed === "number" && !isLabHistory(state)) dir = "back";
+  if (dir === "unknown") {
+    const revealed = historyWizardStep(state);
+    if (typeof fromStep === "number" && typeof revealed === "number" && revealed !== fromStep) {
+      return revealed > fromStep ? "forward" : "back";
+    }
+  }
+  return dir;
 }
 
 /**
@@ -154,6 +194,7 @@ export function backAction(surface: BackSurface): BackAction {
   if (surface.shareLink) return "share";
   if (surface.palette || surface.help) return "overlays";
   if (surface.solo || surface.aimed) return "selection";
+  if (surface.boxOpen) return "box";
   if (surface.stage !== "bottle" && !surface.wizard) return "stage";
   if (surface.mode !== "assemble" || surface.explode > 0.02) return "mode";
   if (surface.wizard && surface.step > 0) return "wizard";
@@ -172,6 +213,7 @@ export function backSurface(state: {
   explode: number;
   design: { step?: number };
   shareUrl?: string;
+  boxOpen?: boolean;
 }): BackSurface {
   const raw = state.design.step;
   const known = typeof raw === "number" && Number.isInteger(raw) && raw >= 0 && raw <= 7;
@@ -189,6 +231,7 @@ export function backSurface(state: {
     shareLink: Boolean(state.shareUrl),
     wizard,
     step: wizard ? raw : 0,
+    boxOpen: state.boxOpen === true,
   };
 }
 
@@ -363,6 +406,9 @@ export function handleHistoryPop(
       else if (dir === "back") history.back();
       return;
     }
+    // A reload records the current step as the baseline, so the document under step 1
+    // would otherwise look like that later step. Back from step 1 lands on step 0.
+    if (dir === "back" && !isLabHistory(history.state) && surface.step === 1) trap.baselineStep = 0;
     const baseline = trap.baselineStep ?? 0;
     if (dir !== "forward" && baseline < surface.step) applyWizard(apply, readAfter, trap);
     else if (dir === "forward") history.forward();

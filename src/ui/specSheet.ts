@@ -35,7 +35,7 @@ export function buildSpecHtml(design: Design, lang: Lang, render: string): strin
     : "—";
   const glassFinish = FINISHES.find((item) => item.id === design.bottle.finish);
   const glassName = glassFinish ? glassFinish.name[lang] : design.bottle.finish;
-  const glassOpacity = renderedGlassOpacity(design.bottle.finish, design.bottle.opacity);
+  const glassOpacity = renderedGlassOpacity(design.bottle.finish, design.bottle.opacity ?? undefined);
   const glass = glassOpacity === null
     ? `${glassName} · ${design.bottle.color}`
     : `${glassName} · ${design.bottle.color} · ${Math.round(glassOpacity * 100)}%`;

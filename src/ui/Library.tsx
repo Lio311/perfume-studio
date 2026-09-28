@@ -1,17 +1,21 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { factsById } from "../budget/descriptors.ts";
+import { matchingBottleIds } from "../budget/volume.ts";
 import { partLabel, tx } from "../i18n/copy.ts";
 import { capPackNotices } from "../import/notices.ts";
 import { downloadPack } from "../import/supplierDb.ts";
-import { normalizeCurrency } from "../model/price.ts";
 import { isVariantPart } from "../import/registry.ts";
 import { entryMatches, listFor } from "../model/catalog.ts";
-import { formatSupplierAmount } from "../model/price.ts";
+import { formatSupplierAmount, sanitizeSupplierPrice } from "../model/price.ts";
 import { markSwap } from "../scene/focusClick.ts";
-import { effectiveGlassOpacity, LIQUID_PALETTE, renderedGlassOpacity } from "../model/materials.ts";
+import { LIQUID_PALETTE } from "../model/materials.ts";
 import type { VariantPart } from "../model/types.ts";
 import { historyWizardStep } from "../nav/backHistory.ts";
 import { useLab } from "../store/labStore.ts";
 import { thumbFor } from "../thumbnails/thumbs.ts";
+import { PriceTag } from "./PriceTag.tsx";
+import { useBudgetModel } from "./useBudget.ts";
+import { clampLabelText } from "../geometry/logos.ts";
 
 const TABS: Array<VariantPart | "liquid" | "pending"> = ["bottle", "cap", "label", "pump", "collar", "box", "liquid", "pending"];
 const WIZARD_ORDER: Array<VariantPart | "liquid"> = ["bottle", "liquid", "pump", "collar", "cap", "label", "box"];
@@ -58,6 +62,9 @@ export function Library() {
   const [query, setQuery] = useState("");
   const [cat, setCat] = useState("all");
   const [supplier, setSupplier] = useState("all");
+  const [allBottles, setAllBottles] = useState(false);
+  const brief = useLab((s) => s.brief);
+  const { priceFor } = useBudgetModel();
   const gridRef = useRef<HTMLDivElement>(null);
   const tabRef = useRef(tab);
   
@@ -71,6 +78,9 @@ export function Library() {
   useEffect(() => {
     if (!isWizard) return;
     const next = WIZARD_ORDER[wizardStep];
+    if (useLab.getState().selected !== next) {
+      useLab.setState({ selected: next });
+    }
     if (!next || tabRef.current === next) return;
     setQuery("");
     setCat("all");
@@ -89,17 +99,6 @@ export function Library() {
     setTab(next);
   }, [selected, focusToken, isWizard]);
 
-  const items = useMemo(() => {
-    if (visibleTab === "liquid" || visibleTab === "pending") return [];
-    const q = query.trim().toLowerCase();
-    const family = CAP_CATS.find((entry) => entry.id === cat);
-    return listFor(visibleTab).filter((item) => {
-      if (supplier !== "all" && !item.tags.includes(`supplier:${supplier}`)) return false;
-      if (q && !entryMatches(item, q)) return false;
-      if (q || visibleTab !== "cap" || !family || family.tags.length === 0) return true;
-      return family.tags.some((tag) => item.tags.includes(tag));
-    });
-  }, [visibleTab, query, cat, supplier, suppliers]);
 
   const activeId =
     visibleTab === "bottle" ? design.bottle.variantId :
@@ -110,14 +109,31 @@ export function Library() {
     visibleTab === "box" ? design.box.variantId :
     "";
 
+  const bottleMatch = useMemo(() => {
+    if (visibleTab !== "bottle") return null;
+    const bottles = listFor("bottle").map((item) => ({ id: item.id, fillMl: factsById("bottle", item.id)?.fillMl ?? null }));
+    return matchingBottleIds(bottles, brief.volumeMl, activeId ? [activeId] : []);
+  }, [visibleTab, brief.volumeMl, activeId, suppliers]);
+
+  const items = useMemo(() => {
+    if (visibleTab === "liquid" || visibleTab === "pending") return [];
+    const q = query.trim().toLowerCase();
+    const family = CAP_CATS.find((entry) => entry.id === cat);
+    return listFor(visibleTab).filter((item) => {
+      if (supplier !== "all" && !item.tags.includes(`supplier:${supplier}`)) return false;
+      if (q && !entryMatches(item, q)) return false;
+      if (visibleTab === "bottle" && brief.confirmed && !allBottles && bottleMatch && !bottleMatch.ids.has(item.id)) return false;
+      if (q || visibleTab !== "cap" || !family || family.tags.length === 0) return true;
+      return family.tags.some((tag) => item.tags.includes(tag));
+    });
+  }, [visibleTab, query, cat, supplier, suppliers, brief.confirmed, brief.volumeMl, allBottles, bottleMatch]);
+
   useEffect(() => {
     const on = gridRef.current?.querySelector(".thumb.is-on, .swatch.is-on");
     on?.scrollIntoView({ block: "nearest", inline: "nearest" });
     document.querySelector(`.library [data-part="${visibleTab}"]`)?.scrollIntoView({ block: "nearest", inline: "nearest" });
   }, [visibleTab, activeId, items, focusToken]);
 
-  const glassOpacity = effectiveGlassOpacity(design.bottle.finish, design.bottle.opacity);
-  const glassPercent = renderedGlassOpacity(design.bottle.finish, design.bottle.opacity);
 
   return (
     <aside className={`panel library ${open ? "is-open" : ""}`} dir={lang === "he" ? "rtl" : "ltr"}>
@@ -152,6 +168,7 @@ export function Library() {
           {activeTabs.map((key) => (
             <button key={key} type="button" role="tab" data-part={key} aria-selected={tab === key} className={tab === key ? "is-on" : ""} onClick={() => {
               setTab(key);
+              if (key !== "pending") useLab.getState().select(key);
               if (isWizard && key !== "pending") {
                 useLab.getState().setStage(key === "box" ? "box" : "bottle");
               }
@@ -183,6 +200,14 @@ export function Library() {
           )}
         </div>
       )}
+      {visibleTab === "bottle" && brief.confirmed && (
+        <div className="volume-row">
+          <p className="hint">{bottleMatch?.relaxed ? t.volumeRelaxed : t.volumeFilter} · <bdi dir="ltr">{brief.volumeMl}</bdi> {t.capacityShort}</p>
+          <button type="button" className={allBottles ? "is-on" : ""} onClick={() => setAllBottles((value) => !value)}>
+            {allBottles ? t.volumeOnly : t.showAllBottles}
+          </button>
+        </div>
+      )}
       {visibleTab === "cap" && (
         <div className="cat-row" role="tablist">
           {CAP_CATS.map((entry) => (
@@ -193,41 +218,15 @@ export function Library() {
         </div>
       )}
       {visibleTab === "label" && (
-        <input className="search" style={{ marginTop: "-8px", marginBottom: "12px" }} value={design.label.text} placeholder={t.brand} onChange={(event) => patch("label", { text: event.target.value.slice(0, 32), visible: true })} />
+        <input className="search" style={{ marginTop: "-8px", marginBottom: "12px" }} value={design.label.text} placeholder={t.brand} onChange={(event) => patch("label", { text: clampLabelText(event.target.value), visible: true })} />
       )}
       {visibleTab === "liquid" ? (
-        <div className="liquid-panel" style={{ padding: "8px 0" }}>
-          <div className="swatches liquid-swatches" ref={gridRef}>
-            {LIQUID_PALETTE.map((color) => (
-              <button
-                key={color}
-                type="button"
-                className={design.bottle.color.toLowerCase() === color ? "swatch is-on" : "swatch"}
-                style={{ background: color }}
-                onClick={() => {
-                  const currentFinish = useLab.getState().design.bottle.finish;
-                  patch("bottle", { color, finish: currentFinish === "clear" ? "tinted" : currentFinish });
-                  // Also make sure liquid is visible so they can proceed
-                  patch("liquid", { visible: true });
-                }}
-              />
-            ))}
-            <label className="picker">
-              <input type="color" value={typeof design.bottle.color === "string" ? design.bottle.color : "#000000"} onChange={(event) => {
-                const currentFinish = useLab.getState().design.bottle.finish;
-                patch("bottle", { color: event.target.value, finish: currentFinish === "clear" ? "tinted" : currentFinish });
-                patch("liquid", { visible: true });
-              }} />
-            </label>
-          </div>
-
-          {glassOpacity !== null && (
-            <label className="slider" style={{ marginTop: "16px" }}>
-              <span>{lang === "he" ? "אטימות זכוכית" : "Glass Opacity"}</span>
-              <span>{Math.round((glassPercent ?? 0) * 100)}%</span>
-              <input type="range" min="0" max="1" step="0.01" value={glassOpacity} onChange={(event) => patch("bottle", { opacity: parseFloat(event.target.value) })} />
-            </label>
-          )}
+        <div className="liquid-panel" style={{ padding: "32px 16px", textAlign: "center" }}>
+          <p style={{ color: "var(--text-dim)", marginBottom: "16px" }}>
+            {lang === "he" 
+              ? "בחרו מאפייני צבע ואטימות בחלונית המאפיינים מימין."
+              : "Select color and opacity in the properties panel on the right."}
+          </p>
         </div>
       ) : visibleTab === "pending" ? (
         <div className="pending-list">
@@ -251,7 +250,7 @@ export function Library() {
             const kind: unknown = part.kind;
             const q = query.trim().toLowerCase();
             if (!isVariantPart(kind)) return [];
-            const priced = part.price?.currency ? normalizeCurrency(part.price.currency) : null;
+            const checked = part.price ? sanitizeSupplierPrice(part.price) : null;
             if (q) {
               const hay = `${part.name} ${part.code} ${pack.name} ${part.neck ?? ""} ${part.widthMm} ${part.heightMm}`.toLowerCase();
               if (!hay.includes(q) && !hay.replace(/\s+/g, "").includes(q.replace(/\s+/g, ""))) return [];
@@ -261,7 +260,7 @@ export function Library() {
                 {part.thumb && <img src={part.thumb} alt="" />}
                 <div>
                   <strong>{part.name}</strong>
-                  <span>{pack.name}{part.lathe ? "" : ` · ${t.tempShape}`} · {part.price ? <bdi dir="ltr">{formatSupplierAmount(part.price.value, priced ?? undefined, lang)}</bdi> : t.noPrice}</span>
+                  <span>{pack.name}{part.lathe ? "" : ` · ${t.tempShape}`} · {checked?.price ? <bdi dir="ltr">{formatSupplierAmount(checked.price.value, checked.unpriced ? undefined : checked.price.currency, lang)}</bdi> : t.noPrice}</span>
                 </div>
                 <button type="button" onClick={() => {
                   applyCommands([{ type: "variant", part: kind, id: part.id }]);
@@ -298,6 +297,7 @@ export function Library() {
               <span>{lang === "he" ? item.he : item.en}</span>
               {item.tags.includes("placeholder") && <em className="temp-badge">{t.tempShape}</em>}
               {item.mm && <bdi className="mm" dir="ltr">{item.mm}</bdi>}
+              <PriceTag price={priceFor(visibleTab, item.id)} compact />
             </button>
           ))}
         </div>

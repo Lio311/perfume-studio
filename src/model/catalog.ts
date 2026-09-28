@@ -2,7 +2,7 @@ import { BOTTLES } from "./bottles.ts";
 import { CAPS } from "./caps.ts";
 import { BOXES, COLLARS, PUMPS } from "./hardware.ts";
 import { LOGOS } from "./logos.ts";
-import type { BottleSpec, BoxSpec, CapSpec, CollarSpec, LogoSpec, PumpSpec, VariantPart } from "./types.ts";
+import type { BottleSpec, BoxSpec, CapSpec, CollarSpec, LogoApplication, LogoSpec, PumpSpec, VariantPart } from "./types.ts";
 
 export interface ImportedCatalog {
   bottles: BottleSpec[];
@@ -49,15 +49,6 @@ export interface CatalogEntry {
   hay: string;
 }
 
-export function catalogHas(kind: VariantPart, id: string): boolean {
-  if (kind === "bottle") return imported.bottles.some((item) => item.id === id) || BOTTLES.some((item) => item.id === id);
-  if (kind === "cap") return imported.caps.some((item) => item.id === id) || CAPS.some((item) => item.id === id);
-  if (kind === "label") return imported.labels.some((item) => item.id === id) || LOGOS.some((item) => item.id === id);
-  if (kind === "pump") return imported.pumps.some((item) => item.id === id) || PUMPS.some((item) => item.id === id);
-  if (kind === "collar") return imported.collars.some((item) => item.id === id) || COLLARS.some((item) => item.id === id);
-  return imported.boxes.some((item) => item.id === id) || BOXES.some((item) => item.id === id);
-}
-
 export function bottleById(id: string): BottleSpec {
   return imported.bottles.find((b) => b.id === id) ?? BOTTLES.find((b) => b.id === id) ?? BOTTLES[0];
 }
@@ -66,6 +57,12 @@ export function capById(id: string): CapSpec {
 }
 export function logoById(id: string): LogoSpec {
   return imported.labels.find((b) => b.id === id) ?? LOGOS.find((b) => b.id === id) ?? LOGOS[0];
+}
+
+/** Finish of a built-in or imported label. Unknown ids stay unset so a missing pack is not treated as decal. */
+export function logoApplication(id: string): LogoApplication | null {
+  const spec = imported.labels.find((item) => item.id === id) ?? LOGOS.find((item) => item.id === id);
+  return spec?.application ?? null;
 }
 export function pumpById(id: string): PumpSpec {
   return imported.pumps.find((b) => b.id === id) ?? PUMPS.find((b) => b.id === id) ?? PUMPS[0];

@@ -1,7 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { hydrateBox } from "../model/boxFields.ts";
+import { setImportedCatalog } from "../model/catalog.ts";
 import { createDefaultDesign } from "../model/design.ts";
-import type { Design } from "../model/types.ts";
-import { createLabStorage, LAB_PERSIST_VERSION, mergePersistedLab, migratePersisted, partializeLabState, readStorageValue, sanitizeDesign, type HydratedSlice } from "./hydrate.ts";
+import type { Design, LogoSpec } from "../model/types.ts";
+import { createLabStorage, DEFAULT_BUDGET_BRIEF, LAB_PERSIST_VERSION, mergePersistedLab, migratePersisted, partializeLabState, readStorageValue, resetPersistedPayload, resumeLabStorageWrites, sanitizeDesign, type HydratedSlice } from "./hydrate.ts";
 import { useLab } from "./labStore.ts";
 
 function slice(design: Design = createDefaultDesign()): HydratedSlice {
@@ -96,7 +98,7 @@ describe("saved design hydration", () => {
     expect(merged.design.label.scale).toBe(1.6);
     expect(merged.design.liquid.color).toBe(defaults.liquid.color);
     expect(merged.design.liquid.fill).toBe(0);
-    expect(merged.design.liquid.visible).toBe(false);
+    expect(merged.design.liquid.visible).toBe(defaults.liquid.visible);
     expect(merged.theme).toBe("dark");
     expect(merged.lang).toBe("he");
     expect(merged.chat).toEqual([
@@ -107,7 +109,7 @@ describe("saved design hydration", () => {
     expect(merged.compareIds).toEqual(["seed-atelier"]);
   });
 
-  it("replaces an unknown variant id with that slot's default", () => {
+  it("replaces an incomplete unknown bottle and fills a known cap from its own spec", () => {
     const merged = mergePersistedLab(
       {
         design: {
@@ -385,7 +387,7 @@ describe("saved design hydration", () => {
     expect(useLab.getState().design.pump.variantId).toBe("pack-pump-3");
     expect(useLab.getState().saved[0]?.design.bottle.variantId).toBe("pack-bouteille-12");
     const written = JSON.parse(memory.get("perfume-lab-v1") ?? "{}") as { state: { design: { bottle: { variantId: string } } }; version: number };
-    expect(written.version).toBe(5);
+    expect(written.version).toBe(6);
     expect(written.state.design.bottle.variantId).toBe("pack-bouteille-12");
     await useLab.persist.rehydrate();
     expect(useLab.getState().design.bottle.variantId).toBe("pack-bouteille-12");
@@ -421,32 +423,199 @@ describe("saved design hydration", () => {
 
   it("keeps unknown top-level fields and a null slot falls back", () => {
     const merged = mergePersistedLab(
-      { brief: { title: "עבודה" }, priceOverrides: { cara: 12 }, exchangeRates: { USD: 3.7 }, design: { bottle: null, cap: null } },
+      { workshopNote: "עבודה", brief: { title: "עבודה" }, priceOverrides: { cara: 12 }, exchangeRates: { USD: 3.7 }, design: { bottle: null, cap: null } },
       slice(),
     );
     const extra = merged as HydratedSlice & {
-      brief: { title: string };
-      priceOverrides: { cara: number };
+      workshopNote: string;
+      brief: { ceilingIls: number; volumeMl: number; confirmed: boolean };
+      priceOverrides: Record<string, unknown>;
       exchangeRates: { USD: number };
     };
-    expect(extra.brief).toEqual({ title: "עבודה" });
-    expect(extra.priceOverrides).toEqual({ cara: 12 });
+    expect(extra.workshopNote).toBe("עבודה");
+    expect(extra.brief).toEqual(DEFAULT_BUDGET_BRIEF);
+    expect(extra.priceOverrides).toEqual({});
     expect(extra.exchangeRates).toEqual({ USD: 3.7 });
     expect(merged.design.bottle.variantId).toBe("cara-50");
     expect(merged.design.bottle.visible).toBe(true);
     expect(merged.design.cap.variantId).toBe("cap-cube-tall");
     expect("modal" in mergePersistedLab({ modal: "save", design: {} }, slice())).toBe(false);
 
+    const undo = () => undefined;
+    const mergedFns = mergePersistedLab(
+      { undo: "replaced", note: "נשאר", brief: { title: "נשאר" } },
+      { ...slice(), undo },
+    ) as HydratedSlice & { undo: () => void; note: string; brief: typeof DEFAULT_BUDGET_BRIEF };
+    expect(mergedFns.undo).toBe(undo);
+    expect(mergedFns.note).toBe("נשאר");
+    expect(mergedFns.brief).toEqual(DEFAULT_BUDGET_BRIEF);
+
     const partial = partializeLabState({
       ...slice(),
       brief: { title: "עבודה" },
+      briefEditing: true,
       selected: "bottle",
-      undo: () => undefined,
+      shareUrl: "https://example.test/#d=1",
+      packNotices: ["something"],
+      undo,
     });
-    expect(partial.brief).toEqual({ title: "עבודה" });
-    expect("selected" in partial).toBe(false);
-    expect("undo" in partial).toBe(false);
     expect(partial.design).toEqual(slice().design);
+    expect(partial.theme).toBe("dark");
+    expect(partial.lang).toBe("he");
+    expect(partial.brief).toEqual({ title: "עבודה" });
+    expect("briefEditing" in partial).toBe(false);
+    expect("selected" in partial).toBe(false);
+    expect("shareUrl" in partial).toBe(false);
+    expect("packNotices" in partial).toBe(false);
+    expect("undo" in partial).toBe(false);
+    expect("past" in partial).toBe(false);
+    expect(Object.keys(partial).sort()).toEqual(["brief", "chat", "compareIds", "design", "lang", "pending", "saved", "theme"]);
+  });
+
+  it("reloads a fully configured box and leaves cutaway, quality, tier lock, and pack notices behind", async () => {
+    const design = createDefaultDesign();
+    design.box = hydrateBox({
+      variantId: "box-rigid",
+      finish: "leather",
+      color: "#243044",
+      heightMm: 140,
+      widthMm: 90,
+      depthMm: 70,
+      linked: false,
+      visible: true,
+      structure: "drawer",
+      latch: "ribbon",
+      liftOff: { variant: "telescope-full", neckMm: 22, lidDepthMm: 48 },
+      drawerPull: "notch",
+      shape: { type: "polygon", sides: 8 },
+      layers: [
+        {
+          role: "structure",
+          structure: "sleeve",
+          latch: "none",
+          hingeAxis: "",
+          doors: 1,
+          drawerCount: 1,
+          direction: "out",
+          neckHeight: 0,
+          splitPlaneAngle: 0,
+          window: { shape: "rect", transparent: true },
+          motion: null,
+        },
+        {
+          role: "structure",
+          structure: "drawer",
+          latch: "ribbon",
+          hingeAxis: "",
+          doors: 1,
+          drawerCount: 1,
+          direction: "out",
+          neckHeight: 0,
+          splitPlaneAngle: 0,
+          window: null,
+          motion: null,
+        },
+      ],
+      insertMotion: {
+        trayLift: { height: 30, trigger: "lidAngle" },
+        pullTab: true,
+        extractDirection: "out",
+        pose: { tiltAngle: 12, invert: false },
+      },
+      boardMm: 3.1,
+      material: "carton",
+      wrap: { color: "#243044", finish: "velvet" },
+      ribbon: true,
+      pullTab: true,
+      outerWrap: "cellophane",
+      insert: { material: "velvet-foam", orientation: "lying", clearanceMm: 4 },
+    });
+
+    const partial = partializeLabState({
+      ...slice(design),
+      brief: { projectName: "קופסה" },
+      cutaway: true,
+      quality: "high",
+      tierLock: true,
+      shareUrl: "https://example.test/#d=1",
+      packNotices: [{ kind: "dropped", ref: "x" }],
+    });
+    expect(partial.brief).toEqual({ projectName: "קופסה" });
+    expect("cutaway" in partial).toBe(false);
+    expect("quality" in partial).toBe(false);
+    expect("tierLock" in partial).toBe(false);
+    expect("shareUrl" in partial).toBe(false);
+    expect("packNotices" in partial).toBe(false);
+
+    const mem: Record<string, string> = {};
+    vi.stubGlobal("localStorage", {
+      setItem: (key: string, value: string) => {
+        mem[key] = value;
+      },
+      getItem: (key: string) => mem[key] ?? null,
+      removeItem: (key: string) => {
+        delete mem[key];
+      },
+    });
+    const storage = createLabStorage<Record<string, unknown>>();
+    storage.setItem("perfume-lab-v1", { state: partial, version: 6 });
+    const raw = mem["perfume-lab-v1"] ?? "";
+    expect(raw).toContain("telescope-full");
+    expect(raw).toContain("notch");
+    expect(raw).not.toContain("tierLock");
+    expect(raw).not.toContain("cutaway");
+    expect(raw).not.toContain("packNotices");
+
+    const loaded = await storage.getItem("perfume-lab-v1");
+    const live = { ...slice(), cutaway: false, quality: "fallback" as const, tierLock: false };
+    const merged = mergePersistedLab(loaded?.state, live) as HydratedSlice & {
+      brief: { title: string };
+      cutaway: boolean;
+      quality: string;
+      tierLock: boolean;
+    };
+    expect(merged.design.box).toEqual(design.box);
+    expect(merged.design.box.structure).toBe("drawer");
+    expect(merged.design.box.latch).toBe("ribbon");
+    expect(merged.design.box.liftOff).toEqual({ variant: "telescope-full", neckMm: 22, lidDepthMm: 48 });
+    expect(merged.design.box.drawerPull).toBe("notch");
+    expect(merged.design.box.shape).toEqual({ type: "polygon", sides: 8 });
+    expect(merged.design.box.layers.map((layer) => layer.structure)).toEqual(["sleeve", "drawer"]);
+    expect(merged.brief).toEqual({ ...DEFAULT_BUDGET_BRIEF, projectName: "קופסה" });
+    expect(merged.cutaway).toBe(false);
+    expect(merged.quality).toBe("fallback");
+    expect(merged.tierLock).toBe(false);
+  });
+
+  it("keeps the current language on reset and does not pause writes or keep a share url", () => {
+    resumeLabStorageWrites();
+    const reset = resetPersistedPayload({
+      lang: "he",
+      chat: [{ id: "c1", role: "user", text: "שלום" }],
+      shareUrl: "https://example.test/#d=1",
+      workshopNote: "עבודה",
+      brief: { title: "עבודה" },
+    }, "en");
+    expect(reset.state.lang).toBe("en");
+    expect(reset.state.shareUrl).toBeUndefined();
+    expect(reset.state.workshopNote).toBe("עבודה");
+    expect(reset.state.brief).toEqual(DEFAULT_BUDGET_BRIEF);
+    expect(reset.version).toBe(6);
+    const fromRecord = resetPersistedPayload({ lang: "en", chat: [] });
+    expect(fromRecord.state.lang).toBe("en");
+
+    const mem: Record<string, string> = {};
+    vi.stubGlobal("localStorage", {
+      setItem: (key: string, value: string) => {
+        mem[key] = value;
+      },
+      getItem: (key: string) => mem[key] ?? null,
+      removeItem: (key: string) => {
+        delete mem[key];
+      },
+    });
+    createLabStorage().setItem("perfume-lab-v1", { state: { lang: "en" }, version: 5 });
+    expect(mem["perfume-lab-v1"]).toContain("en");
   });
 
   it("fills a known bottle from its own spec and does not reopen the wizard when step is missing", () => {
@@ -485,6 +654,210 @@ describe("saved design hydration", () => {
     const merged = mergePersistedLab(migrated, slice());
     expect(merged.design.pump.variantId).toBe("pump-crimp");
     expect(merged.design.bottle.visible).toBe(true);
+  });
+
+  it("keeps a trailing emoji whole when stored label text is capped", () => {
+    const wave = "👋";
+    const text = "a".repeat(31) + wave;
+    const design = sanitizeDesign({
+      label: { variantId: "lg-heebo-word", text, color: "#141414", finish: "gold", scale: 1, visible: true },
+    });
+    expect(design.label.text).toBe(text);
+    expect(text.slice(0, 32)).not.toBe(text);
+    expect(Array.from(design.label.text)).toHaveLength(32);
+  });
+
+  it("restores light ink for an old dark label colour and cream for old foil", () => {
+    const migrated = migratePersisted({
+      design: {
+        label: { variantId: "lg-heebo-word", color: "#141414", text: "NOIR" },
+      },
+      saved: [{
+        id: "old",
+        name: "Old",
+        createdAt: 1,
+        design: { label: { variantId: "lg-foil-word", color: "#141414", text: "NOIR" } },
+      }],
+    }, 5) as {
+      design: { label: { color: string } };
+      saved: Array<{ design: { label: { color: string } } }>;
+    };
+    expect(migrated.design.label.color).toBe("#f4eee4");
+    expect(migrated.saved[0]?.design.label.color).toBe("#fff6e4");
+
+    const current = migratePersisted({
+      design: { label: { variantId: "lg-foil-word", color: "#c9a36a", text: "NOIR" } },
+    }, 6) as { design: { label: { color: string } } };
+    expect(current.design.label.color).toBe("#c9a36a");
+  });
+
+  it("migrates engrave, emboss, and chat snapshots, and leaves a missing label alone", () => {
+    const migrated = migratePersisted({
+      design: { label: { variantId: "lg-engrave-word", color: "#141414", text: "NOIR" } },
+      past: [{ label: { variantId: "lg-emboss-mono", color: "#141414", text: "NOIR" } }],
+      chat: [{
+        id: "m1",
+        role: "lab",
+        snapshot: { label: { variantId: "lg-heebo-word", color: "#141414", text: "NOIR" } },
+      }],
+    }, 5) as {
+      design: { label: { color: string } };
+      past: Array<{ label: { color: string } }>;
+      chat: Array<{ snapshot: { label: { color: string } } }>;
+    };
+    expect(migrated.design.label.color).toBe("#0c0b0a");
+    expect(migrated.past[0]?.label.color).toBe("#f6f1e6");
+    expect(migrated.chat[0]?.snapshot.label.color).toBe("#f4eee4");
+
+    const missing = migratePersisted({ design: { bottle: { variantId: "cara-50" } } }, 5) as {
+      design: { label?: unknown };
+    };
+    expect(missing.design.label).toBeUndefined();
+  });
+
+  it("keeps an imported supplier finish instead of rewriting it as decal", () => {
+    const engraved: LogoSpec = {
+      id: "supplier-engrave",
+      name: { he: "ספק", en: "Supplier" },
+      plate: "plaque",
+      mark: "word",
+      application: "engrave",
+      font: "heebo",
+      frame: "none",
+      tags: ["imported"],
+      model: { type: "procedural" },
+    };
+    setImportedCatalog({ bottles: [], caps: [], labels: [engraved], pumps: [], collars: [], boxes: [] });
+    try {
+      const migrated = migratePersisted({
+        design: { label: { variantId: "supplier-engrave", color: "#141414", text: "NOIR" } },
+      }, 5) as { design: { label: { color: string } } };
+      expect(migrated.design.label.color).toBe("#0c0b0a");
+
+      const unknown = migratePersisted({
+        design: { label: { variantId: "supplier-missing", color: "#141414", text: "NOIR" } },
+      }, 5) as { design: { label: { color: string } } };
+      expect(unknown.design.label.color).toBe("#141414");
+    } finally {
+      setImportedCatalog({ bottles: [], caps: [], labels: [], pumps: [], collars: [], boxes: [] });
+    }
+  });
+
+  it("drops a corrupt budget and keeps a finite known-currency quote", () => {
+    const merged = mergePersistedLab(
+      {
+        brief: { ceilingIls: Number.NaN, volumeMl: 12.5, confirmed: 1, quantity: 3, title: "לא" },
+        priceOverrides: {
+          ok: { value: 12.5, currency: "nis" },
+          bad: { value: "12", currency: "USD" },
+          unknown: { value: 4, currency: "dollar" },
+          missing: { value: 4 },
+          cleared: { absent: true },
+          zero: { value: 0, currency: "EUR" },
+          huge: { value: Number.POSITIVE_INFINITY, currency: "GBP" },
+        },
+        exchangeRates: { usd: 3.7, FOO: 2, EUR: Number.NaN, $: 3.65, "₪": 1, gbp: -4 },
+      },
+      slice(),
+    ) as HydratedSlice & {
+      brief: { ceilingIls: number; volumeMl: number; confirmed: boolean; quantity?: number; title?: string };
+      priceOverrides: Record<string, { value?: number; currency?: string; absent?: true }>;
+      exchangeRates: Record<string, number>;
+    };
+    expect(merged.brief).toEqual({ ceilingIls: 30, volumeMl: 12.5, confirmed: false, quantity: 3 });
+    expect(merged.brief.title).toBeUndefined();
+    expect(merged.priceOverrides).toEqual({
+      ok: { value: 12.5, currency: "ILS" },
+      cleared: { absent: true },
+    });
+    expect(merged.exchangeRates).toEqual({ USD: 3.65, ILS: 1 });
+  });
+
+  it("round-trips the budget through storage and ignores a corrupted reload", async () => {
+    const memory = new Map<string, string>();
+    vi.stubGlobal("localStorage", {
+      getItem: (key: string) => memory.get(key) ?? null,
+      setItem: (key: string, value: string) => {
+        memory.set(key, value);
+      },
+      removeItem: (key: string) => {
+        memory.delete(key);
+      },
+      key: (index: number) => [...memory.keys()][index] ?? null,
+      get length() {
+        return memory.size;
+      },
+    });
+    useLab.setState({
+      brief: { ceilingIls: 30, volumeMl: 50, confirmed: false },
+      briefEditing: false,
+      priceOverrides: {},
+      exchangeRates: {},
+      libraryOpen: false,
+      sideOpen: false,
+    });
+    useLab.getState().setBrief({ ceilingIls: 80, volumeMl: 30, quantity: 4 });
+    useLab.getState().confirmBrief();
+    useLab.getState().setPriceOverride("cara-50", { value: 90, currency: "ils" });
+    useLab.getState().setPriceOverride("cap-cyl-32", { absent: true });
+    useLab.getState().setExchangeRate("usd", 3.7);
+    useLab.getState().openBrief();
+
+    const written = JSON.parse(memory.get("perfume-lab-v1") ?? "{}") as {
+      state: {
+        brief: { ceilingIls: number; volumeMl: number; confirmed: boolean; quantity?: number };
+        briefEditing?: boolean;
+        priceOverrides: Record<string, { value?: number; currency?: string; absent?: true }>;
+        exchangeRates: Record<string, number>;
+      };
+      version: number;
+    };
+    expect(written.version).toBe(6);
+    expect(written.state.brief).toEqual({ ceilingIls: 80, volumeMl: 30, confirmed: true, quantity: 4 });
+    expect(written.state.briefEditing).toBeUndefined();
+    expect(written.state.priceOverrides["cara-50"]).toEqual({ value: 90, currency: "ils" });
+    expect(written.state.priceOverrides["cap-cyl-32"]).toEqual({ absent: true });
+    expect(written.state.exchangeRates).toEqual({ USD: 3.7 });
+
+    await useLab.persist.rehydrate();
+    expect(useLab.getState().brief).toEqual({ ceilingIls: 80, volumeMl: 30, confirmed: true, quantity: 4 });
+    expect(useLab.getState().priceOverrides["cara-50"]).toEqual({ value: 90, currency: "ILS" });
+    expect(useLab.getState().briefEditing).toBe(true);
+
+    useLab.getState().closeBrief();
+    written.state.brief = { ceilingIls: Number.NaN, volumeMl: 1000, confirmed: true, quantity: 0 } as typeof written.state.brief;
+    written.state.priceOverrides = {
+      "cara-50": { value: 90, currency: "ILS" },
+      bad: { value: 1, currency: "dollar" },
+      zero: { value: 0, currency: "USD" },
+      cleared: { absent: true },
+      "usd-cap": { value: 4, currency: "$" },
+    };
+    written.state.exchangeRates = { USD: 3.7, FOO: 9, $: 3.2 };
+    written.state.briefEditing = true;
+    written.version = 5;
+    memory.set("perfume-lab-v1", JSON.stringify(written));
+    await useLab.persist.rehydrate();
+
+    expect(useLab.getState().brief).toEqual({ ceilingIls: 80, volumeMl: 1000, confirmed: true });
+    expect(useLab.getState().briefEditing).toBe(false);
+    expect(useLab.getState().priceOverrides).toEqual({
+      "cara-50": { value: 90, currency: "ILS" },
+      cleared: { absent: true },
+      "usd-cap": { value: 4, currency: "USD" },
+    });
+    expect(useLab.getState().exchangeRates).toEqual({ USD: 3.2 });
+    const reloaded = JSON.parse(memory.get("perfume-lab-v1") ?? "{}") as { state: { briefEditing?: boolean } };
+    expect(reloaded.state.briefEditing).toBeUndefined();
+
+    useLab.setState({
+      brief: DEFAULT_BUDGET_BRIEF,
+      briefEditing: false,
+      priceOverrides: {},
+      exchangeRates: {},
+      libraryOpen: false,
+      sideOpen: false,
+    });
   });
 });
 

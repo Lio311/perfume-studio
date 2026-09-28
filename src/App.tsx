@@ -1,4 +1,7 @@
 import { useEffect, useRef, useState } from "react";
+import { BudgetBrief } from "./ui/BudgetBrief.tsx";
+import { BudgetMeter } from "./ui/BudgetMeter.tsx";
+import { SavingsPanel } from "./ui/BudgetSuggestions.tsx";
 import { LabCanvas } from "./scene/LabCanvas.tsx";
 import { applyTheme } from "./theme/themes.ts";
 import { partLabel, tx, wizardTitle } from "./i18n/copy.ts";
@@ -10,7 +13,6 @@ import { clipToast } from "./ui/toast.ts";
 import { TopBar } from "./ui/TopBar.tsx";
 import { Library } from "./ui/Library.tsx";
 import { Inspector } from "./ui/Inspector.tsx";
-import { ChatPanel } from "./ui/ChatPanel.tsx";
 import { Crumb, Dock, Timeline } from "./ui/Dock.tsx";
 import { CommandPalette, Intro, ShortcutHelp } from "./ui/Palette.tsx";
 import { requestShot } from "./scene/capture.ts";
@@ -18,6 +20,9 @@ import { CompareBoard } from "./ui/CompareBoard.tsx";
 import { Modals } from "./ui/Modals.tsx";
 import { stopSpeaking } from "./audio/speech.ts";
 import { acknowledgePackLoads, adoptLoadedSuppliers, loadPacks } from "./import/supplierDb.ts";
+import { isKnownPack, withInnerStructure } from "./model/boxFields.ts";
+import { packById } from "./model/closures/registry.ts";
+import { hydrateDesign } from "./model/design.ts";
 
 function applyBackAction(action: Exclude<BackAction, "leave">, trap: Trap) {
   const lab = useLab.getState();
@@ -26,8 +31,9 @@ function applyBackAction(action: Exclude<BackAction, "leave">, trap: Trap) {
   else if (action === "overlays") {
     lab.setPalette(false);
     lab.setHelp(false);
-  }   else if (action === "selection") lab.showFull();
+  } else if (action === "selection") lab.showFull();
   else if (action === "share") lab.setShareUrl("");
+  else if (action === "box") lab.setBoxOpen(false);
   else if (action === "stage") lab.setStage("bottle");
   else if (action === "wizard") {
     const step = wizardStepAfterPop(history, trap);
@@ -71,10 +77,12 @@ export default function App() {
   const helpOpen = useLab((s) => s.help);
   const setHelp = useLab((s) => s.setHelp);
   const design = useLab((s) => s.design);
+  const stage = useLab((s) => s.stage);
+  const boxOpen = useLab((s) => s.boxOpen);
+  const quality = useLab((s) => s.quality);
   const modal = useLab((s) => s.modal);
   const setModal = useLab((s) => s.setModal);
   const toast = useLab((s) => s.toast);
-  const stage = useLab((s) => s.stage);
   const explode = useLab((s) => s.explode);
   const wizardStep = useLab((s) => s.design.step);
   const shareUrl = useLab((s) => s.shareUrl);
@@ -82,6 +90,9 @@ export default function App() {
   const [hintOn, setHintOn] = useState(true);
   const [shareLock, setShareLock] = useState(() => location.hash.startsWith("#d="));
   const [swapping, setSwapping] = useState(false);
+  const [savingsOpen, setSavingsOpen] = useState(false);
+  const step = design.step ?? 7;
+  const prevStep = useRef(step);
 
   const sig = `${design.bottle.variantId}|${design.cap.variantId}|${design.pump.variantId}|${design.collar.variantId}|${design.label.variantId}|${design.box.variantId}`;
   const seen = useRef(sig);
@@ -99,7 +110,11 @@ export default function App() {
 
   useEffect(() => {
     applyTheme(theme);
-  }, []);
+  }, [theme]);
+
+  useEffect(() => {
+    document.documentElement.dataset.pose = `${stage}:${boxOpen ? "open" : "closed"}:${design.box.structure}:${quality}`;
+  }, [stage, boxOpen, design.box.structure, quality]);
 
   useEffect(() => {
     let cancelled = false;
@@ -180,7 +195,71 @@ export default function App() {
 
   useEffect(() => {
     syncHistoryTrap(history, backSurface(useLab.getState()), trapRef.current);
-  }, [aimed, explode, helpOpen, modal, mode, palette, present, shareUrl, solo, stage, wizardStep]);
+  }, [aimed, boxOpen, explode, helpOpen, modal, mode, palette, present, shareUrl, solo, stage, wizardStep]);
+
+  useEffect(() => {
+    const applyShot = () => {
+      const params = new URLSearchParams(location.search);
+      const closure = params.get("closure") ?? params.get("structure");
+      if (!isKnownPack(closure)) return;
+      const choice = packById(closure);
+      if (!choice) return;
+      const design = hydrateDesign(useLab.getState().design);
+      design.box.structure = choice.structure.id;
+      design.box.latch = choice.latch;
+      design.box.layers = withInnerStructure(design.box.layers, choice.structure.id, choice.latch);
+      const variant = params.get("variant");
+      if (variant && choice.structure.liftOff?.variants.some((item) => item.id === variant)) {
+        design.box.liftOff = { ...design.box.liftOff, variant };
+      }
+      const pull = params.get("pull");
+      if (pull === "ribbon" || pull === "notch" || pull === "none") design.box.drawerPull = pull;
+      design.box.visible = true;
+      design.bottle.visible = true;
+      design.cap.visible = true;
+      design.pump.visible = true;
+      design.collar.visible = true;
+      design.liquid.visible = true;
+      design.label.visible = true;
+      if (params.get("orient") === "lying") design.box.insert.orientation = "lying";
+      const latch = params.get("latch");
+      if (latch === "ribbon" || latch === "magnet" || latch === "none") {
+        design.box.latch = latch;
+        design.box.layers = design.box.layers.map((layer) =>
+          layer.structure === choice.structure.id ? { ...layer, latch } : layer,
+        );
+      }
+      if (params.get("shape") === "octagon") design.box.shape = { type: "polygon", sides: 8 };
+      if (params.get("shape") === "cylinder") design.box.shape = { type: "cylinder" };
+      if (params.get("sleeve") === "0") design.box.layers = design.box.layers.filter((layer) => layer.structure !== "sleeve");
+      const color = params.get("color");
+      if (color && /^#[0-9a-f]{6}$/i.test(color)) {
+        design.box.color = color;
+        if (design.box.wrap) design.box.wrap = { ...design.box.wrap, color };
+      }
+      const board = params.get("board");
+      if (board === "carton" || board === "rigid") design.box.material = board;
+      const tier = params.get("tier") === "fallback" ? "fallback" as const : "high" as const;
+      useLab.setState({
+        design,
+        stage: "box",
+        boxOpen: params.get("pose") === "open",
+        cutaway: params.get("cut") === "1",
+        quality: tier,
+        tierLock: true,
+        theme: params.get("theme") === "dark" ? "dark" : "light",
+        libraryOpen: false,
+        sideOpen: false,
+        explode: 0,
+        blueprint: false,
+        selected: "box",
+      });
+    };
+    if (useLab.persist.hasHydrated()) applyShot();
+    return useLab.persist.onFinishHydration(() => {
+      applyShot();
+    });
+  }, []);
 
   useEffect(() => {
     const fade = () => setHintOn(false);
@@ -199,6 +278,20 @@ export default function App() {
   }, [toast]);
 
   useEffect(() => () => stopSpeaking(), [voice]);
+
+  useEffect(() => {
+    const remember = () => {
+      prevStep.current = useLab.getState().design.step ?? 7;
+    };
+    if (useLab.persist.hasHydrated()) remember();
+    return useLab.persist.onFinishHydration(remember);
+  }, []);
+
+  useEffect(() => {
+    if (!useLab.persist.hasHydrated()) return;
+    if ((prevStep.current ?? 7) < 7 && step >= 7) setSavingsOpen(true);
+    prevStep.current = step;
+  }, [step]);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -268,6 +361,7 @@ export default function App() {
         <TopBar />
         <Library />
         <div className="stage-slot">
+          <BudgetMeter onSavings={() => setSavingsOpen(true)} />
           <div style={{ position: 'absolute', top: 12, right: 12, display: 'flex', gap: 8, pointerEvents: 'auto', zIndex: 10 }} dir={lang === "he" ? "rtl" : "ltr"}>
             <button type="button" className="icon-btn" style={{ background: 'var(--bg)' }} onClick={() => undo()} disabled={past === 0}>{t.undo}</button>
             <button type="button" className="icon-btn" style={{ background: 'var(--bg)' }} onClick={() => redo()} disabled={future === 0}>{t.redo}</button>
@@ -317,7 +411,7 @@ export default function App() {
         </div>
         <div className={`side-col ${sideOpen ? "is-open" : ""}`}>
           <Inspector />
-          <ChatPanel />
+          {/* <ChatPanel /> */}
         </div>
       </div>
       {shareLock && (
@@ -335,6 +429,8 @@ export default function App() {
       <CommandPalette />
       <ShortcutHelp />
       <Modals />
+      <BudgetBrief />
+      <SavingsPanel open={savingsOpen} onClose={() => setSavingsOpen(false)} />
     </div>
   );
 }
