@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { flushSync } from "react-dom";
 import { tx } from "../i18n/copy.ts";
 import { bottleById } from "../model/catalog.ts";
-import { estimateMl } from "../model/design.ts";
+
 import { requestShot } from "../scene/capture.ts";
 import { useLab, type LabMode } from "../store/labStore.ts";
 import { pngDownloadName } from "./pngName.ts";
@@ -23,6 +23,7 @@ export function TopBar() {
   const setMode = useLab((s) => s.setMode);
   const setModal = useLab((s) => s.setModal);
   const newDesign = useLab((s) => s.newDesign);
+  const patch = useLab((s) => s.patch);
   const stage = useLab((s) => s.stage);
   const blueprint = useLab((s) => s.blueprint);
   const setStage = useLab((s) => s.setStage);
@@ -36,7 +37,7 @@ export function TopBar() {
   const setShareUrl = useLab((s) => s.setShareUrl);
   const [menu, setMenu] = useState<null | "view" | "export">(null);
   const t = tx(lang);
-  const ml = estimateMl(design);
+  
   const spec = bottleById(design.bottle.variantId);
   const modeLabel: Record<LabMode, string> = {
     assemble: t.assemble,
@@ -130,14 +131,12 @@ export function TopBar() {
     <header className="topbar" dir={lang === "he" ? "rtl" : "ltr"}>
       <div className="brand">
         <strong>{t.brandLine}</strong>
-        <p className="spec">
-          <span>{t.project}</span>
-          <span>·</span>
-          <bdi>{design.label.text}</bdi>
-          <span>·</span>
-          <bdi>{ml} {lang === "he" ? "מ״ל" : "ml"}</bdi>
-          <span className="spec-name">{lang === "he" ? spec.name.he : spec.name.en}</span>
-        </p>
+        <input
+          className="project-name-input"
+          value={design.label.text}
+          onChange={(e) => patch("label", { text: e.target.value })}
+          placeholder={t.project}
+        />
       </div>
       <div className="modes" dir="ltr" role="tablist">
         {MODES.map((key) => (
