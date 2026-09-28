@@ -2,6 +2,8 @@ import { useRef, useState, type PointerEvent as ReactPointerEvent } from "react"
 import DOMPurify from "dompurify";
 import { partLabel, tx } from "../i18n/copy.ts";
 import { cropPage } from "../import/crop.ts";
+import { formatPackNotice } from "../import/notices.ts";
+import { MAX_PACK_BYTES } from "../import/packValidate.ts";
 import { parsePackFile } from "../import/supplierDb.ts";
 import { readPdfCatalog, type CatalogPageImage } from "../import/pdfCatalog.ts";
 import { regexCatalogSource, type DraftItem, type ImportProfile, type NormRect } from "../import/parseCatalog.ts";
@@ -181,11 +183,18 @@ export function SupplierImport() {
             {t.importPack}
             <input type="file" accept="application/json,.json" hidden onChange={(event) => {
               const file = event.target.files?.[0];
+              event.currentTarget.value = "";
               if (!file) return;
+              if (file.size > MAX_PACK_BYTES) {
+                setError(t.packTooBig);
+                return;
+              }
               void file.text().then((text) => {
                 const result = parsePackFile(text);
-                if (result.ok) upsertSupplier(result.pack);
-                else setError(lang === "he" ? result.error.he : result.error.en);
+                if (result.ok) {
+                  upsertSupplier(result.pack, result.warnings);
+                  setError(result.warnings.map((notice) => formatPackNotice(lang, notice)).join(" "));
+                } else setError(lang === "he" ? result.error.he : result.error.en);
               });
             }} />
           </label>

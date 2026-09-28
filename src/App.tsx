@@ -91,9 +91,10 @@ export default function App() {
 
   useEffect(() => {
     let cancelled = false;
-    const ready = loadPacks().then((packs) => {
+    const ready = loadPacks().then(({ packs, warnings }) => {
       if (cancelled) return;
-      if (packs.length && useLab.getState().suppliers.length === 0) useLab.getState().setSuppliers(packs);
+      const state = useLab.getState();
+      if (state.suppliers.length === 0 && (packs.length > 0 || warnings.length > 0)) state.setSuppliers(packs, warnings);
     }).catch(() => undefined);
     const hydrated = new Promise<void>((resolve) => {
       if (useLab.persist.hasHydrated()) {
@@ -179,7 +180,7 @@ export default function App() {
 
   useEffect(() => {
     if (!toast) return undefined;
-    const timer = window.setTimeout(() => useLab.setState({ toast: "" }), 1600);
+    const timer = window.setTimeout(() => useLab.setState({ toast: "" }), toast.length > 80 ? 6000 : 1600);
     return () => window.clearTimeout(timer);
   }, [toast]);
 

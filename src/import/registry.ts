@@ -1,6 +1,8 @@
 import { clearLatheProfiles, setLatheProfile } from "./lathe.ts";
+import type { PackNotice } from "./notices.ts";
 import { setImportedCatalog } from "../model/catalog.ts";
 import { isNeckId } from "../model/necks.ts";
+import type { SupplierPrice } from "../model/price.ts";
 import type { BottleSpec, BoxSpec, CapProfileName, CapSpec, CollarSpec, FinishId, LogoSpec, NeckId, PumpSpec, SectionKind, VariantPart } from "../model/types.ts";
 import type { DraftItem, ImportProfile } from "./parseCatalog.ts";
 
@@ -26,6 +28,8 @@ export interface SupplierPart {
   page: number;
   /** Normalised half-profile. Present for photo-revolved parts. */
   lathe?: number[];
+  /** Checked by `sanitizeSupplierPrice`. Absent when the pack omitted it or the value was invalid. */
+  price?: SupplierPrice;
 }
 
 export interface SupplierPack {
@@ -97,17 +101,17 @@ function capSection(profile: ImportProfile): SectionKind {
   return profile === "cube" ? "rect" : "circle";
 }
 
-function readNeck(neck: unknown, ref: string, messages: string[]): NeckId | null {
+function readNeck(neck: unknown, ref: string, notices: PackNotice[]): NeckId | null {
   if (neck == null) return null;
   if (isNeckId(neck)) return neck;
-  messages.push(`החלק ${ref}: הצוואר «${String(neck)}» אינו נתמך ולכן לא הוחל. הצווארים הנתמכים הם FEA13, FEA15, FEA17, FEA18 ו־FEA20.`);
+  notices.push({ type: "badNeck", ref, neck: String(neck) });
   return null;
 }
 
-export function syncRegistry(packs: SupplierPack[]): string[] {
+export function syncRegistry(packs: SupplierPack[]): PackNotice[] {
   meta.clear();
   clearLatheProfiles();
-  const messages: string[] = [];
+  const notices: PackNotice[] = [];
   const bottles: BottleSpec[] = [];
   const caps: CapSpec[] = [];
   const labels: LogoSpec[] = [];
@@ -118,10 +122,10 @@ export function syncRegistry(packs: SupplierPack[]): string[] {
     for (const part of pack.parts) {
       const kind: unknown = part.kind;
       if (!isVariantPart(kind)) {
-        messages.push(`החלק ${part.code || part.id}: הסוג «${String(part.kind)}» אינו מוכר, ולכן החלק דולג ולא הפך לקופסה.`);
+        notices.push({ type: "unknownKind", ref: part.code || part.id, kind: String(part.kind) });
         continue;
       }
-      const neck = readNeck(part.neck, part.code || part.id, messages);
+      const neck = readNeck(part.neck, part.code || part.id, notices);
       const listed = neck === part.neck ? part : { ...part, neck };
       meta.set(part.id, {
         color: part.color,
@@ -220,7 +224,7 @@ export function syncRegistry(packs: SupplierPack[]): string[] {
     }
   }
   setImportedCatalog({ bottles, caps, labels, pumps, collars, boxes });
-  return messages;
+  return notices;
 }
 
 export function finishFromColor(hex: string, kind: VariantPart): FinishId {

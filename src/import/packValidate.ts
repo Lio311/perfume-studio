@@ -1,6 +1,12 @@
+import { tx } from "../i18n/copy.ts";
+import { isBuiltinCatalogId } from "../model/catalog.ts";
 import { isNeckId } from "../model/necks.ts";
+import { sanitizeSupplierPrice } from "../model/price.ts";
+import type { VariantPart } from "../model/types.ts";
+import type { PackNotice } from "./notices.ts";
 import type { ImportProfile } from "./parseCatalog.ts";
 import { isVariantPart } from "./registry.ts";
+import { isDataObject, plainData, safeRecord } from "./safeJson.ts";
 
 export interface PackFileError {
   he: string;
@@ -16,13 +22,14 @@ export interface ValidatedPack {
 }
 
 export type PackCheck =
-  | { ok: true; value: ValidatedPack }
+  | { ok: true; value: ValidatedPack; warnings: PackNotice[] }
   | { ok: false; error: PackFileError };
 
-const FILE_ERROR: PackFileError = {
-  he: "הקובץ אינו חבילת ספק.",
-  en: "That file is not a supplier pack.",
-};
+export const MAX_PACK_BYTES = 5 * 1024 * 1024;
+const MAX_ISSUES = 10;
+const LATHE_MAX = 1.2;
+
+const SOURCES = new Set(["pdf", "photo", "scan", "manual"]);
 
 const PROFILES: readonly ImportProfile[] = [
   "cylinder",
@@ -38,11 +45,34 @@ const PROFILES: readonly ImportProfile[] = [
   "collar",
 ];
 
+/**
+ * Inclusive millimetre bounds.
+ * Bottle, cap, and box match the lab size clamps. Pump height matches the stock actuators
+ * (8–18). Collar height spans the stock collars (5.4–11). Labels have no stock millimetres,
+ * so their axes only reject absurd sizes.
+ */
+const MM: Record<VariantPart, { widthMm: readonly [number, number]; heightMm: readonly [number, number]; depthMm: readonly [number, number] }> = {
+  bottle: { widthMm: [26, 96], heightMm: [48, 180], depthMm: [20, 90] },
+  cap: { widthMm: [16, 48], heightMm: [10, 78], depthMm: [16, 48] },
+  box: { widthMm: [40, 160], heightMm: [70, 240], depthMm: [30, 140] },
+  pump: { widthMm: [8, 48], heightMm: [8, 18], depthMm: [8, 48] },
+  collar: { widthMm: [8, 48], heightMm: [5, 12], depthMm: [8, 48] },
+  label: { widthMm: [8, 160], heightMm: [8, 160], depthMm: [0, 160] },
+};
+
 const HEX = /^#[0-9a-fA-F]{6}$/;
 const THUMB = /^data:image\/(jpeg|png|webp);base64,/;
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
+function fileError(): PackFileError {
+  return { he: tx("he").packNotPack, en: tx("en").packNotPack };
+}
+
+function tooBig(): PackFileError {
+  return { he: tx("he").packTooBig, en: tx("en").packTooBig };
+}
+
+function missingName(): PackFileError {
+  return { he: tx("he").packMissingName, en: tx("en").packMissingName };
 }
 
 function partRef(part: Record<string, unknown>): string {
@@ -60,14 +90,26 @@ function enPart(ref: string): string {
 }
 
 function reject(issues: PackFileError[]): PackFileError {
+  const shown = issues.slice(0, MAX_ISSUES);
+  const extra = issues.length - shown.length;
+  const heMore = extra > 0 ? ` ${tx("he").packAndMore.replace("{n}", String(extra))}` : "";
+  const enMore = extra > 0 ? ` ${tx("en").packAndMore.replace("{n}", String(extra))}` : "";
   return {
-    he: `הקובץ נדחה. ${issues.map((item) => item.he).join(" ")}`,
-    en: `The pack was rejected. ${issues.map((item) => item.en).join(" ")}`,
+    he: `${tx("he").packRejected} ${shown.map((item) => item.he).join(" ")}${heMore}`,
+    en: `${tx("en").packRejected} ${shown.map((item) => item.en).join(" ")}${enMore}`,
   };
 }
 
+function isVersion(value: unknown): value is 2 {
+  return typeof value === "number" && Number.isInteger(value) && value === 2;
+}
+
+function isSource(value: unknown): value is string {
+  return typeof value === "string" && SOURCES.has(value);
+}
+
 function validatePart(raw: unknown): PackFileError[] {
-  if (!isRecord(raw)) {
+  if (!isDataObject(raw)) {
     return [{ he: "אחד החלקים אינו אובייקט.", en: "One of the parts is not an object." }];
   }
   const ref = partRef(raw);
@@ -103,12 +145,19 @@ function validatePart(raw: unknown): PackFileError[] {
         en: `${en}: missing neck. It must be null or one of FEA13, FEA15, FEA17, FEA18, FEA20.`,
       });
   }
+  const ranges = isVariantPart(raw.kind) ? MM[raw.kind] : undefined;
   for (const field of ["widthMm", "heightMm", "depthMm"] as const) {
     const value = raw[field];
     if (typeof value !== "number" || !Number.isFinite(value) || value < 0) {
       issues.push({
         he: `${he}: ${field} חייב להיות מספר אי-שלילי.`,
         en: `${en}: ${field} must be a non-negative number.`,
+      });
+    } else if (ranges && (value < ranges[field][0] || value > ranges[field][1])) {
+      const [min, max] = ranges[field];
+      issues.push({
+        he: `${he}: ${field} חייב להיות בין ${min} ל־${max}.`,
+        en: `${en}: ${field} must be between ${min} and ${max}.`,
       });
     }
   }
@@ -137,38 +186,49 @@ function validatePart(raw: unknown): PackFileError[] {
   if (typeof raw.page !== "number" || !Number.isInteger(raw.page) || raw.page < 1) {
     issues.push({ he: `${he}: page חייב להיות מספר עמוד שלם מ־1 ומעלה.`, en: `${en}: page must be an integer of 1 or more.` });
   }
-  if ("lathe" in raw && raw.lathe !== undefined) {
+  if (Object.hasOwn(raw, "lathe") && raw.lathe !== undefined) {
     const lathe = raw.lathe;
     if (!Array.isArray(lathe) || lathe.some((sample) => typeof sample !== "number" || !Number.isFinite(sample))) {
       issues.push({
         he: `${he}: lathe חייב להיות מערך של מספרים.`,
         en: `${en}: lathe must be an array of numbers.`,
       });
+    } else if (lathe.some((sample) => sample < 0 || sample > LATHE_MAX)) {
+      issues.push({
+        he: `${he}: ערכי lathe חייבים להיות בין 0 ל־${LATHE_MAX}.`,
+        en: `${en}: lathe values must be between 0 and ${LATHE_MAX}.`,
+      });
     }
   }
   return issues;
 }
 
-/**
- * Structural check for a supplier pack. Unknown part and pack fields are kept.
- * A `price` object, when present, is not interpreted and is not a reason to reject.
- */
-export function validatePackText(text: string): PackCheck {
-  let value: unknown;
-  try {
-    value = JSON.parse(text);
-  } catch {
-    return { ok: false, error: FILE_ERROR };
-  }
-  if (!isRecord(value) || !Array.isArray(value.parts)) return { ok: false, error: FILE_ERROR };
-  if (typeof value.name !== "string" || value.name.trim() === "") {
-    return {
-      ok: false,
-      error: { he: "הקובץ נדחה. חסר שם ספק.", en: "The pack was rejected. The supplier name is missing." },
-    };
-  }
+function identityIssues(part: Record<string, unknown>, seen: Set<string>): PackFileError[] {
+  if (typeof part.id !== "string" || part.id.trim() === "") return [];
+  const id = part.id.trim();
+  const ref = partRef(part);
+  const he = hePart(ref);
+  const en = enPart(ref);
   const issues: PackFileError[] = [];
-  if ("createdAt" in value && value.createdAt !== undefined) {
+  if (seen.has(id)) {
+    issues.push({
+      he: `${he}: המזהה «${id}» מופיע יותר מפעם אחת בחבילה.`,
+      en: `${en}: id "${id}" is duplicated in this pack.`,
+    });
+  }
+  seen.add(id);
+  if (isBuiltinCatalogId(id)) {
+    issues.push({
+      he: `${he}: המזהה «${id}» שמור לקטלוג המובנה.`,
+      en: `${en}: id "${id}" belongs to the built-in catalog.`,
+    });
+  }
+  return issues;
+}
+
+function envelopeIssues(value: Record<string, unknown>): PackFileError[] {
+  const issues: PackFileError[] = [];
+  if (Object.hasOwn(value, "createdAt") && value.createdAt !== undefined) {
     const createdAt = value.createdAt;
     if (typeof createdAt !== "number" || !Number.isFinite(createdAt) || createdAt < 0) {
       issues.push({
@@ -177,22 +237,144 @@ export function validatePackText(text: string): PackCheck {
       });
     }
   }
-  for (const part of value.parts) issues.push(...validatePart(part));
-  if (issues.length) return { ok: false, error: reject(issues) };
+  if (Object.hasOwn(value, "version") && value.version !== undefined && !isVersion(value.version)) {
+    issues.push({
+      he: "version חייב להיות המספר השלם 2.",
+      en: "version must be the integer 2.",
+    });
+  }
+  if (Object.hasOwn(value, "source") && value.source !== undefined && !isSource(value.source)) {
+    issues.push({
+      he: "source חייב להיות pdf, photo, scan או manual.",
+      en: "source must be pdf, photo, scan, or manual.",
+    });
+  }
+  if (Object.hasOwn(value, "supplier") && value.supplier !== undefined && !isDataObject(value.supplier)) {
+    issues.push({
+      he: "supplier חייב להיות אובייקט.",
+      en: "supplier must be an object.",
+    });
+  }
+  return issues;
+}
 
-  const rest = { ...value };
+function cleanMeasurements(value: unknown): unknown[] | Record<string, unknown> | undefined {
+  if (Array.isArray(value)) {
+    if (!value.every((item) => isDataObject(item))) return undefined;
+    return value.map((item) => plainData(safeRecord(item)));
+  }
+  if (isDataObject(value)) return plainData(safeRecord(value));
+  return undefined;
+}
+
+function takePart(raw: Record<string, unknown>, warnings: PackNotice[]): Record<string, unknown> {
+  const ref = partRef(raw) || "part";
+  const copy = safeRecord(raw);
+  if (Object.hasOwn(raw, "price")) {
+    const price = sanitizeSupplierPrice(raw.price);
+    if (price) copy.price = price;
+    else {
+      delete copy.price;
+      warnings.push({ type: "droppedPrice", ref });
+    }
+  }
+  for (const field of ["mesh", "scan"] as const) {
+    if (!Object.hasOwn(raw, field)) continue;
+    if (isDataObject(raw[field])) copy[field] = safeRecord(raw[field]);
+    else {
+      delete copy[field];
+      warnings.push({ type: "droppedField", ref, field });
+    }
+  }
+  if (Object.hasOwn(raw, "measurements")) {
+    const cleaned = cleanMeasurements(raw.measurements);
+    if (cleaned) copy.measurements = cleaned;
+    else {
+      delete copy.measurements;
+      warnings.push({ type: "droppedField", ref, field: "measurements" });
+    }
+  }
+  return plainData(copy);
+}
+
+function assemble(value: Record<string, unknown>, parts: Array<Record<string, unknown>>): ValidatedPack {
+  const rest = safeRecord(value);
   delete rest.id;
   delete rest.name;
   delete rest.createdAt;
   delete rest.parts;
   return {
-    ok: true,
-    value: {
-      id: value.id,
-      name: value.name,
-      createdAt: typeof value.createdAt === "number" ? value.createdAt : undefined,
-      parts: value.parts as Array<Record<string, unknown>>,
-      rest,
-    },
+    id: value.id,
+    name: value.name as string,
+    createdAt: typeof value.createdAt === "number" ? value.createdAt : undefined,
+    parts,
+    rest,
   };
+}
+
+/**
+ * Structural check for a supplier pack. Unknown optional fields are kept after
+ * dangerous keys are removed. An invalid `price` becomes a warning, not a rejection.
+ */
+export function validatePackText(text: string): PackCheck {
+  if (text.length > MAX_PACK_BYTES) return { ok: false, error: tooBig() };
+  let value: unknown;
+  try {
+    value = JSON.parse(text);
+  } catch {
+    return { ok: false, error: fileError() };
+  }
+  return checkPack(value, "reject");
+}
+
+function metaWarning(issue: PackFileError): PackNotice | undefined {
+  if (issue.en.startsWith("version")) return { type: "droppedMeta", field: "version" };
+  if (issue.en.startsWith("source")) return { type: "droppedMeta", field: "source" };
+  if (issue.en.startsWith("supplier")) return { type: "droppedMeta", field: "supplier" };
+  if (issue.en.startsWith("createdAt")) return { type: "droppedMeta", field: "createdAt" };
+  return undefined;
+}
+
+/** `reject` fails the file. `drop` keeps the pack and reports bad parts as warnings. */
+export function checkPack(value: unknown, mode: "reject" | "drop"): PackCheck {
+  if (!isDataObject(value) || !Array.isArray(value.parts)) return { ok: false, error: fileError() };
+  if (typeof value.name !== "string" || value.name.trim() === "") return { ok: false, error: missingName() };
+
+  const warnings: PackNotice[] = [];
+  const issues = envelopeIssues(value);
+  if (mode === "drop") {
+    for (const issue of issues) {
+      const notice = metaWarning(issue);
+      if (notice) warnings.push(notice);
+    }
+  }
+
+  const partIssues: PackFileError[] = [];
+  const kept: Array<Record<string, unknown>> = [];
+  const seen = new Set<string>();
+  for (const part of value.parts) {
+    const ref = isDataObject(part) ? partRef(part) || "part" : "part";
+    const all = [...validatePart(part), ...(isDataObject(part) ? identityIssues(part, seen) : [])];
+    if (all.length) {
+      if (mode === "drop") warnings.push({ type: "droppedPart", ref });
+      else partIssues.push(...all);
+      continue;
+    }
+    if (isDataObject(part)) kept.push(takePart(part, warnings));
+  }
+
+  if (mode === "reject" && (issues.length || partIssues.length)) {
+    return { ok: false, error: reject([...issues, ...partIssues]) };
+  }
+
+  const envelope = safeRecord(value);
+  if (mode === "drop") {
+    if (!isVersion(envelope.version)) delete envelope.version;
+    if (Object.hasOwn(envelope, "source") && !isSource(envelope.source)) delete envelope.source;
+    if (Object.hasOwn(envelope, "supplier") && !isDataObject(envelope.supplier)) delete envelope.supplier;
+    if (Object.hasOwn(envelope, "createdAt") && !(typeof envelope.createdAt === "number" && Number.isFinite(envelope.createdAt) && envelope.createdAt >= 0)) {
+      delete envelope.createdAt;
+    }
+  }
+  return { ok: true, value: assemble(envelope, kept), warnings };
 }

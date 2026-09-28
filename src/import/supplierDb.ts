@@ -1,6 +1,11 @@
 import DOMPurify from "dompurify";
-import { validatePackText, type PackFileError } from "./packValidate.ts";
-import type { SupplierPack, SupplierPart } from "./registry.ts";
+import type { PackNotice } from "./notices.ts";
+import { checkPack, validatePackText, type PackFileError, type ValidatedPack } from "./packValidate.ts";
+import type { SupplierPack } from "./registry.ts";
+import { isDataObject, plainData } from "./safeJson.ts";
+import { sanitizeSupplierPrice } from "../model/price.ts";
+
+export { sanitizeSupplierPrice };
 
 const DB_NAME = "perfume-lab-suppliers";
 const STORE = "packs";
@@ -17,13 +22,31 @@ function openDb(): Promise<IDBDatabase> {
   });
 }
 
-export async function loadPacks(): Promise<SupplierPack[]> {
+export function reviveStoredPack(raw: unknown): { pack: SupplierPack | null; warnings: PackNotice[] } {
+  const checked = checkPack(raw, "drop");
+  if (!checked.ok) return { pack: null, warnings: [{ type: "droppedPack" }] };
+  return { pack: materialize(checked.value), warnings: checked.warnings };
+}
+
+export async function loadPacks(): Promise<{ packs: SupplierPack[]; warnings: PackNotice[] }> {
   const db = await openDb();
-  return new Promise((resolve, reject) => {
+  const rows = await new Promise<unknown[]>((resolve, reject) => {
     const request = db.transaction(STORE, "readonly").objectStore(STORE).getAll();
-    request.onsuccess = () => resolve((request.result as SupplierPack[]).sort((a, b) => b.createdAt - a.createdAt));
+    request.onsuccess = () => resolve(request.result as unknown[]);
     request.onerror = () => reject(request.error);
   });
+  const revived = rows.map((row) => ({ row, ...reviveStoredPack(row) }));
+  const warnings = revived.flatMap((item) => item.warnings);
+  const packs = revived.flatMap((item) => (item.pack ? [item.pack] : []));
+  packs.sort((a, b) => b.createdAt - a.createdAt);
+  await Promise.all(revived.map(async (item) => {
+    if (!item.pack) {
+      if (isDataObject(item.row) && typeof item.row.id === "string") await deletePack(item.row.id);
+      return;
+    }
+    if (item.warnings.length) await savePack(item.pack);
+  }));
+  return { packs, warnings };
 }
 
 export async function savePack(pack: SupplierPack): Promise<void> {
@@ -59,33 +82,31 @@ export function downloadPack(pack: SupplierPack): void {
 }
 
 export type PackFileResult =
-  | { ok: true; pack: SupplierPack }
+  | { ok: true; pack: SupplierPack; warnings: PackNotice[] }
   | { ok: false; error: PackFileError };
 
 export type { PackFileError };
 
-function sanitizePart(part: Record<string, unknown>): SupplierPart {
-  return {
-    ...part,
-    name: DOMPurify.sanitize(typeof part.name === "string" ? part.name : ""),
-    code: DOMPurify.sanitize(typeof part.code === "string" ? part.code : ""),
-  } as SupplierPart;
+function materialize(value: ValidatedPack): SupplierPack {
+  const pack = plainData<Record<string, unknown>>(value.rest);
+  pack.id = typeof value.id === "string" && value.id.trim() ? value.id : `pack-${Date.now().toString(36)}`;
+  pack.name = DOMPurify.sanitize(value.name);
+  pack.createdAt = value.createdAt ?? Date.now();
+  pack.parts = value.parts.map((part) => {
+    const next = plainData<Record<string, unknown>>(part);
+    next.name = DOMPurify.sanitize(typeof next.name === "string" ? next.name : "");
+    next.code = DOMPurify.sanitize(typeof next.code === "string" ? next.code : "");
+    return next;
+  });
+  return pack as unknown as SupplierPack;
 }
 
 export function parsePackFile(text: string): PackFileResult {
   const checked = validatePackText(text);
   if (!checked.ok) return checked;
-  const name = DOMPurify.sanitize(checked.value.name);
-  if (!name.trim()) {
+  const pack = materialize(checked.value);
+  if (!pack.name.trim()) {
     return { ok: false, error: { he: "הקובץ נדחה. חסר שם ספק.", en: "The pack was rejected. The supplier name is missing." } };
   }
-  const { id, createdAt, parts, rest } = checked.value;
-  const pack = {
-    ...rest,
-    id: typeof id === "string" && id.trim() ? id : `pack-${Date.now().toString(36)}`,
-    name,
-    createdAt: createdAt ?? Date.now(),
-    parts: parts.map(sanitizePart),
-  } as SupplierPack;
-  return { ok: true, pack };
+  return { ok: true, pack, warnings: checked.warnings };
 }

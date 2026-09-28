@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { partLabel, tx } from "../i18n/copy.ts";
+import { formatPackNotice } from "../import/notices.ts";
 import { downloadPack } from "../import/supplierDb.ts";
 import { isVariantPart } from "../import/registry.ts";
 import { entryMatches, listFor } from "../model/catalog.ts";
@@ -35,6 +36,7 @@ export function Library() {
   const randomize = useLab((s) => s.randomize);
   const removePending = useLab((s) => s.removePending);
   const suppliers = useLab((s) => s.suppliers);
+  const packNotices = useLab((s) => s.packNotices);
   const removeSupplier = useLab((s) => s.removeSupplier);
   const selected = useLab((s) => s.selected);
   const focusToken = useLab((s) => s.focusToken);
@@ -108,6 +110,13 @@ export function Library() {
         <button type="button" className="library-close" onClick={() => useLab.getState().setLibraryOpen(false)} aria-label={t.close}>×</button>
         <button type="button" className="text-btn" onClick={() => randomize()}>{t.random}</button>
       </div>
+      {packNotices.length > 0 && (
+        <div className="pack-notices">
+          {packNotices.map((notice, index) => (
+            <p key={`${notice.type}-${index}`} className="hint">{formatPackNotice(lang, notice)}</p>
+          ))}
+        </div>
+      )}
       {tab !== "liquid" && tab !== "pending" && (
         <input className="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t.search} />
       )}
@@ -197,25 +206,40 @@ export function Library() {
         <div className="pending-list">
           <p className="hint">{t.pendingNote}</p>
           {pending.length === 0 && suppliers.every((pack) => pack.parts.length === 0) && <p className="hint">{t.pendingEmpty}</p>}
-          {suppliers.flatMap((pack) => pack.parts.filter((part) => {
-            if (!isVariantPart(part.kind)) return false;
+          {suppliers.flatMap((pack) => pack.parts.flatMap((part) => {
+            const kind: unknown = part.kind;
             const q = query.trim().toLowerCase();
-            if (!q) return true;
-            const hay = `${part.name} ${part.code} ${pack.name} ${part.neck ?? ""} ${part.widthMm} ${part.heightMm}`.toLowerCase();
-            return hay.includes(q) || hay.replace(/\s+/g, "").includes(q.replace(/\s+/g, ""));
-          }).map((part) => (
-            <article key={part.id} className="pending-card">
-              {part.thumb && <img src={part.thumb} alt="" />}
-              <div>
-                <strong>{part.name}</strong>
-                <span>{pack.name}{part.lathe ? "" : ` · ${t.tempShape}`}</span>
-              </div>
-              <button type="button" onClick={() => {
-                applyCommands([{ type: "variant", part: part.kind, id: part.id }]);
-                markSwap(part.kind);
-              }}>{t.replace}</button>
-            </article>
-          )))}
+            if (!isVariantPart(kind)) {
+              const note = formatPackNotice(lang, { type: "unknownKind", ref: part.code || part.id, kind: String(part.kind) });
+              const hay = `${part.name} ${part.code} ${pack.name} ${String(part.kind)} ${note}`.toLowerCase();
+              if (q && !hay.includes(q) && !hay.replace(/\s+/g, "").includes(q.replace(/\s+/g, ""))) return [];
+              return [(
+                <article key={part.id} className="pending-card">
+                  <div>
+                    <strong>{part.name || part.code || part.id}</strong>
+                    <span>{note}</span>
+                  </div>
+                </article>
+              )];
+            }
+            if (q) {
+              const hay = `${part.name} ${part.code} ${pack.name} ${part.neck ?? ""} ${part.widthMm} ${part.heightMm}`.toLowerCase();
+              if (!hay.includes(q) && !hay.replace(/\s+/g, "").includes(q.replace(/\s+/g, ""))) return [];
+            }
+            return [(
+              <article key={part.id} className="pending-card">
+                {part.thumb && <img src={part.thumb} alt="" />}
+                <div>
+                  <strong>{part.name}</strong>
+                  <span>{pack.name}{part.lathe ? "" : ` · ${t.tempShape}`}</span>
+                </div>
+                <button type="button" onClick={() => {
+                  applyCommands([{ type: "variant", part: kind, id: part.id }]);
+                  markSwap(kind);
+                }}>{t.replace}</button>
+              </article>
+            )];
+          }))}
           {pending.map((item) => (
             <article key={item.id} className="pending-card">
               {item.files[0]?.thumb && <img src={item.files[0].thumb} alt="" />}

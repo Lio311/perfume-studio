@@ -199,6 +199,18 @@ const he = {
   wizard5: "שלב 5: בחירת פקק",
   wizard6: "שלב 6: בחירת לוגו ומיתוג",
   wizard7: "שלב 7: בחירת אריזה",
+  packNotPack: "הקובץ אינו חבילת ספק.",
+  packRejected: "הקובץ נדחה.",
+  packAndMore: "ועוד {n}.",
+  packTooBig: "הקובץ גדול מ־5 מ״ב ולכן נדחה.",
+  packMissingName: "הקובץ נדחה. חסר שם ספק.",
+  noticeUnknownKind: "החלק {ref}: הסוג «{kind}» אינו מוכר, ולכן החלק דולג ולא הפך לקופסה.",
+  noticeBadNeck: "החלק {ref}: הצוואר «{neck}» אינו נתמך ולכן לא הוחל. הצווארים הנתמכים הם FEA13, FEA15, FEA17, FEA18 ו־FEA20.",
+  noticeDroppedPrice: "החלק {ref}: המחיר אינו תקין ולכן הוסר. החלק עצמו יובא.",
+  noticeDroppedField: "החלק {ref}: השדה {field} אינו אובייקט תקין ולכן הוסר.",
+  noticeDroppedPart: "החלק {ref}: הוסר כי אינו עומד בכללי החבילה.",
+  noticeDroppedPack: "חבילה שמורה הוסרה כי אינה תקינה.",
+  noticeDroppedMeta: "השדה {field} הוסר מהחבילה כי אינו בפורמט הנדרש.",
 };
 
 const en: typeof he = {
@@ -400,6 +412,18 @@ const en: typeof he = {
   wizard5: "Step 5: Choose a Cap",
   wizard6: "Step 6: Choose Logo & Branding",
   wizard7: "Step 7: Choose a Box",
+  packNotPack: "That file is not a supplier pack.",
+  packRejected: "The pack was rejected.",
+  packAndMore: "and {n} more.",
+  packTooBig: "The file is larger than 5 MB, so it was rejected.",
+  packMissingName: "The pack was rejected. The supplier name is missing.",
+  noticeUnknownKind: "Part {ref}: kind \"{kind}\" is not supported, so the part was skipped and did not become a box.",
+  noticeBadNeck: "Part {ref}: neck \"{neck}\" is not supported, so it was not applied. Supported necks are FEA13, FEA15, FEA17, FEA18, and FEA20.",
+  noticeDroppedPrice: "Part {ref}: the price is invalid, so it was removed. The part itself was imported.",
+  noticeDroppedField: "Part {ref}: {field} is not a plain object, so it was removed.",
+  noticeDroppedPart: "Part {ref} was removed because it does not match the pack rules.",
+  noticeDroppedPack: "A stored pack was removed because it is not valid.",
+  noticeDroppedMeta: "Field {field} was removed from the pack because it has the wrong format.",
 };
 
 export const copy = { he, en };

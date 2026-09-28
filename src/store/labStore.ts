@@ -14,6 +14,7 @@ import type { Lang } from "../model/types.ts";
 import type { LabCommand } from "../parser/interpret.ts";
 import { parseVoiceParam, readVoiceParam, type VoiceVariant } from "../audio/wake.ts";
 import { deletePack, savePack } from "../import/supplierDb.ts";
+import { formatPackNotice, type PackNotice } from "../import/notices.ts";
 import { isVariantPart, syncRegistry, type SupplierPack } from "../import/registry.ts";
 import { apiClient } from "../api/client.ts";
 
@@ -74,6 +75,7 @@ interface LabState {
   modal: "save" | "compare" | "upload" | "supplier" | "photo" | null;
   units: "mm" | "cm" | "in";
   suppliers: SupplierPack[];
+  packNotices: PackNotice[];
   chat: ChatMessage[];
   saved: SavedDesign[];
   pending: PendingPart[];
@@ -121,8 +123,8 @@ interface LabState {
   toggleCompare: (id: string) => void;
   addPending: (part: PendingPart) => void;
   removePending: (id: string) => void;
-  setSuppliers: (packs: SupplierPack[]) => void;
-  upsertSupplier: (pack: SupplierPack) => void;
+  setSuppliers: (packs: SupplierPack[], notices?: PackNotice[]) => void;
+  upsertSupplier: (pack: SupplierPack, notices?: PackNotice[]) => void;
   removeSupplier: (id: string) => void;
   setVoice: (voice: VoiceVariant) => void;
   setSoundOn: (on: boolean) => void;
@@ -332,6 +334,23 @@ function tweenExplode(to: number, ms: number) {
   explodeRaf = requestAnimationFrame(step);
 }
 
+function commitSuppliers(
+  set: (partial: Partial<LabState>) => void,
+  get: () => LabState,
+  packs: SupplierPack[],
+  extra: PackNotice[],
+  closeModal: boolean,
+) {
+  const notices = [...extra, ...syncRegistry(packs)];
+  const toast = notices.map((notice) => formatPackNotice(get().lang, notice)).join(" ");
+  set({
+    suppliers: packs,
+    packNotices: notices,
+    ...(closeModal ? { modal: null } : {}),
+    ...(toast ? { toast } : {}),
+  });
+}
+
 export const useLab = create<LabState>()(
   persist(
     (set, get) => ({
@@ -368,6 +387,7 @@ export const useLab = create<LabState>()(
       saved: seeds(),
       pending: [],
       suppliers: [],
+      packNotices: [],
       compareIds: ["seed-atelier", "seed-blush", "seed-noir"],
       voice: readVoiceParam(),
       soundOn: true,
@@ -536,20 +556,17 @@ export const useLab = create<LabState>()(
         }),
       addPending: (part) => set((state) => ({ pending: [part, ...state.pending].slice(0, 30), modal: null })),
       removePending: (id) => set((state) => ({ pending: state.pending.filter((item) => item.id !== id) })),
-      setSuppliers: (packs) => {
-        syncRegistry(packs);
-        set({ suppliers: packs });
+      setSuppliers: (packs, notices = []) => {
+        commitSuppliers(set, get, packs, notices, false);
       },
-      upsertSupplier: (pack) => {
+      upsertSupplier: (pack, notices = []) => {
         const suppliers = [pack, ...get().suppliers.filter((item) => item.id !== pack.id)];
-        syncRegistry(suppliers);
-        set({ suppliers, modal: null });
+        commitSuppliers(set, get, suppliers, notices, notices.length === 0);
         void savePack(pack);
       },
       removeSupplier: (id) => {
         const suppliers = get().suppliers.filter((item) => item.id !== id);
-        syncRegistry(suppliers);
-        set({ suppliers });
+        commitSuppliers(set, get, suppliers, [], false);
         void deletePack(id);
       },
       setVoice: (voice) => {
