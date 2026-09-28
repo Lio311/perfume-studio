@@ -176,7 +176,6 @@ export function syncRegistry(packs: SupplierPack[]): void {
           rings: 2,
           knurl: false,
           flareMm: 0.35,
-          widthMm: part.widthMm > 0 ? part.widthMm : undefined,
           tags: shared,
           model: { type: "procedural" },
         });

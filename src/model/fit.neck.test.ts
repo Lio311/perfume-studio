@@ -3,7 +3,7 @@ import { BOTTLES } from "./bottles.ts";
 import { createDefaultDesign, applyVariant } from "./design.ts";
 import { computeFit } from "./fit.ts";
 import { NECKS, neckRadius } from "./necks.ts";
-import { bottleRadii, classicFinishMm, neckFinishMm, neckLipY } from "./sample.ts";
+import { bottleRadii, classicFinishMm, neckFinishMm } from "./sample.ts";
 
 function withPump(bottleId: string, pumpId: string) {
   const design = createDefaultDesign();
@@ -60,11 +60,14 @@ describe("crimp pump seats on the neck lip", () => {
     const bottle = BOTTLES.find((item) => item.id === "orb-50");
     if (!bottle) throw new Error("missing orb");
     const neckR = neckRadius(bottle.neck);
-    const lip = neckLipY(bottle.heightMm, bottle.widthMm, bottle.depthMm, bottle.profile, bottle.shoulder, neckR, bottle.finishMm);
+    // The lip is the top of the bottle. Comparing against that height fails
+    // if the crimp is parked on the collar instead.
+    const lip = bottle.heightMm;
     const crimp = computeFit(withPump(bottle.id, "pump-crimp"), true);
     const screw = computeFit(withPump(bottle.id, "pump-screw"), true);
-    expect(crimp.pumpBase).toBeCloseTo(lip, 1);
-    expect(crimp.collarTop).toBeCloseTo(lip, 1);
+    expect(crimp.pumpBase).toBeCloseTo(lip, 4);
+    expect(crimp.collarTop).toBeCloseTo(lip, 4);
+    expect(crimp.pumpBase).not.toBeCloseTo(crimp.collarTop - 0.3, 1);
     expect(crimp.collarBottom).toBeLessThan(lip - 4);
     const underCollar = bottleRadii(
       crimp.collarBottom + 0.3,
@@ -77,7 +80,8 @@ describe("crimp pump seats on the neck lip", () => {
       bottle.finishMm,
     );
     expect(underCollar.rx).toBeCloseTo(neckR, 1);
-    expect(screw.pumpBase).toBeGreaterThan(lip + 0.4);
+    expect(screw.pumpBase).toBeGreaterThan(bottle.heightMm + 0.4);
+    expect(screw.pumpBase).toBeCloseTo(screw.collarTop - 0.3, 4);
   });
 
   it("lengthens steep bulbs and leaves a square shoulder at the crimp seat", () => {

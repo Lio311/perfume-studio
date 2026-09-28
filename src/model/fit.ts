@@ -1,6 +1,6 @@
 import { bottleById, boxById, capById, collarById, logoById, pumpById } from "./catalog.ts";
 import { NECKS, neckRadius } from "./necks.ts";
-import { bottleRadii, neckFinishMm, neckLipY } from "./sample.ts";
+import { bottleRadii, neckFinishMm } from "./sample.ts";
 import type { Design, PartKey } from "./types.ts";
 
 export interface Fit {
@@ -43,19 +43,19 @@ function definedSize(value: number | undefined): value is number {
 }
 
 /**
- * Crimp button radius. A catalog width wins over a radius factor, and the
- * pump wins over the collar. With neither, the button is 0.9 of the neck,
- * or the actuator when that is already wider.
+ * Crimp button radius. A pump width wins over a radius factor. A collar
+ * radius factor is used only when the pump sets neither. A collar width is
+ * the collar's own diameter, not the button. With no catalog size, the
+ * button is 0.9 of the neck, or the actuator when that is already wider.
  */
 export function crimpHeadRadius(
   neckR: number,
   actuatorR: number,
   pump: { widthMm?: number; radiusFactor?: number },
-  collar: { widthMm?: number; radiusFactor?: number },
+  collar: { radiusFactor?: number },
 ): number {
   if (definedSize(pump.widthMm)) return pump.widthMm / 2;
   if (definedSize(pump.radiusFactor)) return neckR * pump.radiusFactor;
-  if (definedSize(collar.widthMm)) return collar.widthMm / 2;
   if (definedSize(collar.radiusFactor)) return neckR * collar.radiusFactor;
   return Math.max(actuatorR, neckR * 0.9);
 }
@@ -80,9 +80,8 @@ export function computeFit(design: Design, exploded = false): Fit {
   const collarHeight = stockFerrule
     ? Math.min(ferrule.heightMaxMm, Math.max(ferrule.heightMinMm, collar.heightMm))
     : collar.heightMm;
-  // Lip is the top of the straight finish. Closures seat on that, not on the
-  // shoulder blend below it.
-  const lip = neckLipY(bottleH, bottleW, bottleD, bottle.profile, bottle.shoulder, neckR, bottle.finishMm);
+  // The lip is the top of the glass. The straight finish hangs below it.
+  const lip = bottleH;
   const overlap = Math.min(collarHeight * 0.72, neck.crimpMm * 0.85);
   let collarBottom = lip - overlap;
   let collarTop = collarBottom + collarHeight;

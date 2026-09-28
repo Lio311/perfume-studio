@@ -192,12 +192,7 @@ export interface CollarSpec {
   rings: number;
   knurl: boolean;
   flareMm: number;
-  /**
-   * Crimp button diameter in millimetres.
-   * Used when the pump does not give a width or radius factor.
-   */
-  widthMm?: number;
-  /** Crimp button radius as a fraction of the neck radius. */
+  /** Crimp button radius as a fraction of the neck radius, when the pump sets neither a width nor a factor. */
   radiusFactor?: number;
   tags: string[];
   model: ModelSource;

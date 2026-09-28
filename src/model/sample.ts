@@ -69,26 +69,6 @@ export function neckFinishMm(height: number, neckR: number, finishMm?: number): 
   return Math.min(height * 0.18, Math.max(classic, finishMm));
 }
 
-/** Glass lip: the top of the straight finish. Closures seat here, not on the bulb. */
-export function neckLipY(
-  height: number,
-  width: number,
-  depth: number,
-  profile: ProfileName,
-  shoulder: number,
-  neckR: number,
-  finishMm?: number,
-): number {
-  let lip = 0;
-  const steps = 48;
-  for (let i = 0; i <= steps; i += 1) {
-    const y = (i / steps) * height;
-    const sample = bottleRadii(y, height, width, depth, profile, shoulder, neckR, finishMm);
-    if (Math.abs(sample.rx - neckR) < 0.08 && Math.abs(sample.rz - neckR) < 0.08) lip = y;
-  }
-  return lip;
-}
-
 export function bottleRadii(
   y: number,
   height: number,
