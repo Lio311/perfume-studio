@@ -49,15 +49,6 @@ export interface CatalogEntry {
   hay: string;
 }
 
-export function catalogHas(kind: VariantPart, id: string): boolean {
-  if (kind === "bottle") return imported.bottles.some((item) => item.id === id) || BOTTLES.some((item) => item.id === id);
-  if (kind === "cap") return imported.caps.some((item) => item.id === id) || CAPS.some((item) => item.id === id);
-  if (kind === "label") return imported.labels.some((item) => item.id === id) || LOGOS.some((item) => item.id === id);
-  if (kind === "pump") return imported.pumps.some((item) => item.id === id) || PUMPS.some((item) => item.id === id);
-  if (kind === "collar") return imported.collars.some((item) => item.id === id) || COLLARS.some((item) => item.id === id);
-  return imported.boxes.some((item) => item.id === id) || BOXES.some((item) => item.id === id);
-}
-
 export function bottleById(id: string): BottleSpec {
   return imported.bottles.find((b) => b.id === id) ?? BOTTLES.find((b) => b.id === id) ?? BOTTLES[0];
 }
