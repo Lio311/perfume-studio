@@ -47,7 +47,7 @@ const BLUE_FRAG = `
  * A white map leaves no headroom: cream (#f4efe6) under the studio key and lightformers
  * tone-maps to a flat 255 face. This gray stays a tinted paper so edges and grain read.
  */
-export const MATTE_PAPER_ALBEDO = "#c4bdb2";
+export const MATTE_PAPER_ALBEDO = "#8f887c";
 
 function mattePaper(): { map: THREE.CanvasTexture; bump: THREE.CanvasTexture } {
   const canvas = document.createElement("canvas");
@@ -228,7 +228,7 @@ export function FinishMaterial({
       flatShading={flat}
       map={wood ?? paper?.map ?? undefined}
       bumpMap={leather ?? paper?.bump ?? undefined}
-      bumpScale={leather ? 0.35 : paper ? 0.35 : 0}
+      bumpScale={leather ? 0.35 : paper ? 0.55 : 0}
       emissive="#000000"
       emissiveIntensity={0}
       metalness={metal ? 1 : 0}
@@ -243,7 +243,7 @@ export function FinishMaterial({
       clearcoatRoughness={metal ? 0.12 : 0.04}
       attenuationColor={gp ? color : "#fff8ee"}
       attenuationDistance={gp ? 36 : 160}
-      envMapIntensity={metal ? 1.65 : gp ? 1.7 : matte ? 0.35 : 0.7}
+      envMapIntensity={metal ? 1.65 : gp ? 1.7 : matte ? 0.08 : 0.7}
       clippingPlanes={planes}
       specularIntensity={gp || metal ? 1 : matte ? 0.4 : 0.3}
       transparent={!!gp}

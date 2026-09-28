@@ -96,7 +96,7 @@ export interface GlassProps {
   ior: number;
 }
 
-export function computeGlassProps(finish: FinishId, slider?: number): GlassProps | null {
+export function computeGlassProps(finish: FinishId, slider?: number | null): GlassProps | null {
   const glass = glassFinish(finish);
   if (!glass) return null;
 
