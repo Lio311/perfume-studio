@@ -4,7 +4,7 @@ import * as THREE from "three";
 import { logoById } from "../../model/catalog.ts";
 import type { InsertMaterial, LogoApplication } from "../../model/types.ts";
 import type { Fit } from "../../model/fit.ts";
-import { cartonMarkPlate, FOIL_ENV_FLOOR, labelEmissive, labelFinish, labelInk, paintLabel } from "../../geometry/logos.ts";
+import { cartonMarkPlate, labelEmissive, labelFinish, labelInk, paintLabel } from "../../geometry/logos.ts";
 import { useLab } from "../../store/labStore.ts";
 import { useLabelMaps } from "../labelPaint.ts";
 import { FinishMaterial, WrapMaterial } from "../materials.tsx";
@@ -46,27 +46,40 @@ function CartonInk({
 }) {
   const finish = labelFinish(application);
   const flat = finish.metalness === 0 && finish.bumpScale === 0;
-  if (flat || !mask) {
-    return <meshBasicMaterial map={map} transparent depthWrite={false} toneMapped={false} alphaTest={0.05} />;
+  // Foil on a lit carton mirrors the studio and disappears. Keep the ink colour unlit so it reads as print.
+  if (flat || !mask || application === "foil") {
+    return (
+      <meshBasicMaterial
+        map={map}
+        transparent
+        depthWrite={false}
+        toneMapped={false}
+        alphaTest={0.04}
+        polygonOffset
+        polygonOffsetFactor={-4}
+        polygonOffsetUnits={-8}
+      />
+    );
   }
-  const env = application === "foil" ? Math.max(finish.envMapIntensity, FOIL_ENV_FLOOR) : finish.envMapIntensity;
   return (
     <meshStandardMaterial
       map={map}
       transparent
       depthWrite={false}
-      alphaTest={0.05}
+      alphaTest={0.04}
+      polygonOffset
+      polygonOffsetFactor={-4}
+      polygonOffsetUnits={-8}
       metalness={finish.metalness}
       metalnessMap={mask}
-      roughness={1}
-      roughnessMap={mask}
+      roughness={finish.roughness}
       bumpMap={finish.bumpScale !== 0 ? mask : undefined}
       bumpScale={finish.bumpScale}
-      envMapIntensity={env}
+      envMapIntensity={finish.envMapIntensity}
       emissive={labelEmissive(ink, application)}
       emissiveIntensity={finish.emissive}
       emissiveMap={finish.emissive > 0 ? emissiveMap ?? undefined : undefined}
-      toneMapped={finish.metalness < 0.5}
+      toneMapped
     />
   );
 }
@@ -81,7 +94,7 @@ export function BrandMark({ w, y, z }: { w: number; y: number; z: number }) {
   const ink = labelInk(inkColor, spec.application);
   const plate = cartonMarkPlate(spec.application);
   const show = !blueprint && (text.trim().length > 0 || plate !== "clear");
-  const planeW = Math.min(w * 0.48, 52);
+  const planeW = Math.min(w * 0.62, 64);
   const canvas = useMemo(() => {
     const width = 1024;
     const height = Math.max(96, Math.round((width * 18) / Math.max(8, planeW)));
@@ -95,8 +108,8 @@ export function BrandMark({ w, y, z }: { w: number; y: number; z: number }) {
   const maps = useLabelMaps(canvas, ink, spec.application);
   if (!show) return null;
   return (
-    <mesh position={[0, y, z]}>
-      <planeGeometry args={[planeW, 18]} />
+    <mesh position={[0, y, z + 0.85]} renderOrder={6}>
+      <planeGeometry args={[planeW, 22]} />
       <CartonInk map={maps.color} mask={maps.mask} emissiveMap={maps.emissive} ink={ink} application={spec.application} />
     </mesh>
   );
@@ -212,7 +225,7 @@ export function InsertBlock({ fit }: { fit: Fit }) {
         <meshPhysicalMaterial color={color} roughness={velvet ? 0.78 : 0.92} sheen={velvet ? 1 : 0} sheenColor={color} sheenRoughness={0.42} clippingPlanes={planes} />
       </mesh>
       <mesh geometry={well} position={[0, fit.floorMm, 0]}>
-        <meshPhysicalMaterial color={color} roughness={velvet ? 0.8 : 0.9} sheen={velvet ? 1 : 0} sheenColor={color} sheenRoughness={0.4} envMapIntensity={0.72} clippingPlanes={planes} />
+        <meshPhysicalMaterial color={color} roughness={velvet ? 0.72 : 0.78} metalness={0.04} sheen={velvet ? 1 : 0.18} sheenColor={velvet ? color : "#8a8176"} sheenRoughness={0.46} envMapIntensity={0.9} clippingPlanes={planes} />
       </mesh>
     </group>
   );
@@ -244,6 +257,7 @@ export function Tub({ w, h, d, wall, front = "full" }: { w: number; h: number; d
         <boxGeometry args={[wall, h, d - wall * 2]} />
         <Skin />
       </mesh>
+      <pointLight position={[0, Math.max(wall * 2, h * 0.62), 0]} intensity={6.5} distance={Math.max(90, h * 2.2)} decay={2} color="#fff1dc" />
     </group>
   );
 }

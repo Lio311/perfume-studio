@@ -217,7 +217,7 @@ function CameraRig() {
     const framed = dir.clone();
     const boxScene = state.stage === "box" && !state.solo;
     if (boxScene) {
-      framed.set(state.boxOpen ? 0.85 : 0.72, state.boxOpen ? 1.4 : 0.46, state.boxOpen ? 0.62 : 1);
+      framed.set(state.boxOpen ? 0.82 : 0.72, state.boxOpen ? 0.95 : 0.46, state.boxOpen ? 0.78 : 1);
       framed.normalize();
     } else if (state.stage !== "bottle" && state.boxOpen && !state.solo) {
       framed.set(0.62, 0.92, 1);
@@ -228,6 +228,25 @@ function CameraRig() {
     const pose = poseFor(framed, undefined, exploded ? 0.72 : boxScene ? BOX_FILL : present ? 0.58 : undefined);
     goalPos.current.copy(pose.position);
     goalTarget.current.copy(pose.target);
+    if (boxScene && pullBack <= 1) {
+      camera.position.copy(pose.position);
+      look.current.copy(pose.target);
+      camera.up.copy(UP);
+      camera.lookAt(pose.target);
+      fromPos.current.copy(camera.position);
+      fromLook.current.copy(look.current);
+      ORBIT_TARGET.copy(pose.target);
+      mode.current = "idle";
+      sceneSpan.flying = false;
+      measureRadius();
+      const rig = controls as { enabled: boolean; target: THREE.Vector3; update: () => void } | null;
+      if (rig) {
+        rig.target.copy(pose.target);
+        rig.enabled = true;
+        rig.update();
+      }
+      return;
+    }
     if (pullBack > 1) {
       const away = pose.position.clone().sub(pose.target);
       const length = away.length();

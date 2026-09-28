@@ -290,23 +290,33 @@ export function WrapMaterial({
       map={pile ? velvet?.map : paper?.map}
       roughnessMap={pile ? velvet?.rough : paper?.rough}
       metalness={0}
-      roughness={gloss ? 0.16 : pile ? 0.82 : soft ? 0.62 : board === "carton" ? 0.86 : 0.8}
-      clearcoat={gloss ? 0.75 : soft ? 0.34 : 0.08}
-      clearcoatRoughness={gloss ? 0.18 : 0.42}
-      sheen={pile ? 1 : soft ? 0.38 : 0.12}
+      roughness={gloss ? 0.16 : pile ? 0.82 : soft ? 0.72 : board === "carton" ? 0.86 : 0.8}
+      clearcoat={gloss ? 0.75 : soft ? 0.16 : 0.06}
+      clearcoatRoughness={gloss ? 0.18 : 0.48}
+      sheen={pile ? 1 : soft ? 0.28 : 0.12}
       sheenColor={color}
       sheenRoughness={pile ? 0.38 : 0.55}
-      envMapIntensity={gloss ? 0.9 : pile ? 0.55 : soft ? 0.62 : 0.48}
+      envMapIntensity={gloss ? 0.9 : pile ? 0.55 : soft ? 0.32 : 0.4}
       clippingPlanes={planes}
       onBeforeCompile={(shader) => {
-        shader.fragmentShader = shader.fragmentShader.replace(
-          "#include <dithering_fragment>",
-          `float wrapNd = clamp(dot(normalize(normal), normalize(vViewPosition)), 0.0, 1.0);
-           gl_FragColor.rgb += vec3(0.93, 0.86, 0.72) * pow(1.0 - wrapNd, 2.5) * 0.2;
-           #include <dithering_fragment>`,
-        );
+        shader.vertexShader = shader.vertexShader
+          .replace("#include <common>", "#include <common>\nvarying vec3 vWrapWorld;")
+          .replace("#include <begin_vertex>", "#include <begin_vertex>\nvWrapWorld = (modelMatrix * vec4(transformed, 1.0)).xyz;");
+        shader.fragmentShader = shader.fragmentShader
+          .replace("#include <common>", "#include <common>\nvarying vec3 vWrapWorld;")
+          .replace(
+            "#include <dithering_fragment>",
+            `float wrapN1 = fract(sin(dot(vWrapWorld.xy, vec2(12.9898, 78.233))) * 43758.5453);
+             float wrapN2 = fract(sin(dot(vWrapWorld.yz * 1.7, vec2(39.346, 11.135))) * 24634.6345);
+             float wrapN3 = fract(sin(dot(vWrapWorld.xz * 0.37, vec2(27.168, 91.724))) * 13976.317);
+             float wrapGrain = wrapN1 * 0.5 + wrapN2 * 0.32 + wrapN3 * 0.18;
+             gl_FragColor.rgb *= mix(0.74, 0.96, wrapGrain);
+             float wrapNd = clamp(dot(normalize(normal), normalize(vViewPosition)), 0.0, 1.0);
+             gl_FragColor.rgb += vec3(0.96, 0.9, 0.78) * pow(1.0 - wrapNd, 2.4) * 0.2;
+             #include <dithering_fragment>`,
+          );
       }}
-      customProgramCacheKey={() => "wrap-edge"}
+      customProgramCacheKey={() => "wrap-paper-grain"}
     />
   );
 }

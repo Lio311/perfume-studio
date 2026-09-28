@@ -26,6 +26,7 @@ function LidShell({ w, h, d, wall }: { w: number; h: number; d: number; wall: nu
         <boxGeometry args={[wall, h, d - wall * 2]} />
         <Skin />
       </mesh>
+      <pointLight position={[0, h * 0.42, 0]} intensity={8} distance={Math.max(100, h * 1.8)} decay={2} color="#fff3e2" />
     </group>
   );
 }

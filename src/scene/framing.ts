@@ -143,8 +143,8 @@ function cornersOf(box: THREE.Box3): THREE.Vector3[] {
 
 const FILL = 0.66;
 export const FOCUS_FILL = 0.6;
-/** Box stage target, as a fraction of the viewport-height safe rect. Lands near 60% of the viewport. */
-export const BOX_FILL = 0.66;
+/** Box stage target, as a fraction of the viewport-height safe rect. Lands near 64% of the viewport. */
+export const BOX_FILL = 0.71;
 
 /** Full-viewport frame for the carton, so the dock slot does not shrink the product. */
 export function boxViewportFrame(width: number, height: number): StageFrame {
@@ -257,10 +257,12 @@ export function fitPose(
     const top = box.cy - box.h / 2;
     const bottom = box.cy + box.h / 2;
     const inside = left >= safe.left + marginX && rightEdge <= safe.right - marginX && top >= safe.top + marginY && bottom <= safe.bottom - marginY;
-    if (inside && box.h <= safe.height * 0.7 && box.w <= safe.width * 0.92) break;
+    const heightCap = safe.height * Math.min(0.78, Math.max(fill, 0.66));
+    if (inside && box.h <= heightCap && box.w <= safe.width * 0.92 && box.h >= safe.height * fill * 0.92) break;
     const hScale = box.h / Math.max(1, safe.height * fill);
     const wScale = box.w / Math.max(1, allowedW);
-    best *= Math.max(1.06, hScale, wScale);
+    const overflow = Math.max(hScale, wScale, inside ? 1 : 1.06);
+    best *= overflow > 1.02 ? overflow : Math.max(0.9, hScale);
   }
 
   const radius = bounds.getBoundingSphere(new THREE.Sphere()).radius;

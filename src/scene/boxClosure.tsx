@@ -133,8 +133,8 @@ export function ClosureBox({ form, fit }: { form: BoxForm; fit: Fit }) {
         <SleeveBuilder form={form} fit={fit} spec={sleeveSpec} dims={outerDims} bind={bindSleeve} ribbon={false} pullTab={false} latch="none" drawerPull="none" shape={{ type: "rect" }} shellOnly window={sleeveWindow} />
       )}
       <OuterSkin w={outerDims.w} h={outerDims.h} d={outerDims.d} amount={amount} />
-      <pointLight position={[0, dims.h * 0.42, 0]} intensity={6} distance={Math.max(80, dims.h * 2.4)} decay={2} color="#fff6ea" />
-      <pointLight position={[0, dims.h * 0.78, dims.d * 0.15]} intensity={3.2} distance={Math.max(70, dims.h * 2)} decay={2} color="#f3efe6" />
+      <pointLight position={[0, dims.h * 0.42, 0]} intensity={3.4} distance={Math.max(80, dims.h * 2.4)} decay={2} color="#fff6ea" />
+      <pointLight position={[0, dims.h * 0.78, dims.d * 0.15]} intensity={1.8} distance={Math.max(70, dims.h * 2)} decay={2} color="#f3efe6" />
     </group>
   );
 }
