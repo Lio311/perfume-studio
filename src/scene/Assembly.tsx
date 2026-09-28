@@ -290,9 +290,9 @@ function Turntable() {
   if (!solo) return null;
   return (
     <group ref={disc} position={[0, 0.6, 0]}>
-      <mesh rotation={[-Math.PI / 2, 0, 0]}>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} visible={false}>
         <circleGeometry args={[52, 72]} />
-        <meshStandardMaterial color={theme === "light" ? "#e2e5e9" : "#12161c"} metalness={theme === "light" ? 0.1 : 0.72} roughness={theme === "light" ? 0.9 : 0.28} />
+        <meshStandardMaterial color={theme === "light" ? "#e2e5e9" : "#12161c"} metalness={theme === "light" ? 0.1 : 0.72} roughness={theme === "light" ? 0.9 : 0.28} transparent opacity={0} />
       </mesh>
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.2, 0]}>
         <ringGeometry args={[34, 48, 80]} />
