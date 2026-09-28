@@ -1,4 +1,8 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+vi.mock("dompurify", () => ({
+  default: { sanitize: (value: string) => value },
+}));
 import { capById } from "../model/catalog.ts";
 import { parseCatalogPages } from "./parseCatalog.ts";
 import { partFromDraft, syncRegistry } from "./registry.ts";

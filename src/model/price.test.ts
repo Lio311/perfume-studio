@@ -1,0 +1,400 @@
+import { describe, expect, it } from "vitest";
+import { tx } from "../i18n/copy.ts";
+import { FIELD_LABEL, ltr } from "../import/fieldText.ts";
+import { formatSupplierAmount, sanitizeSupplierPrice, type PriceIssue } from "./price.ts";
+
+const clean = {
+  value: 0.48,
+  currency: "USD",
+  moq: 5000,
+  tiers: [
+    { minQty: 20000, value: 0.41 },
+    { minQty: 50000, value: 0.36 },
+  ],
+  quotedAt: "2026-10-06",
+};
+
+function codes(issues: PriceIssue[]): string[] {
+  return issues.map((item) => item.code);
+}
+
+describe("sanitizeSupplierPrice", () => {
+  it("keeps a canonical price and returns no issues", () => {
+    const result = sanitizeSupplierPrice(clean);
+    expect(result.issues).toEqual([]);
+    expect(result.price).toEqual(clean);
+    expect(JSON.stringify(result.price)).not.toContain('"qty"');
+    expect(sanitizeSupplierPrice({ value: 1, currency: "EUR" })).toEqual({
+      price: { value: 1, currency: "EUR" },
+      issues: [],
+    });
+  });
+
+  it("drops a tier whose minQty equals moq and keeps the rest of the price", () => {
+    const result = sanitizeSupplierPrice({
+      value: 0.48,
+      currency: "USD",
+      moq: 5000,
+      tiers: [
+        { minQty: 5000, value: 0.48 },
+        { minQty: 20000, value: 0.41 },
+        { minQty: 50000, value: 0.36 },
+      ],
+    });
+    expect(result.price).toEqual({
+      value: 0.48,
+      currency: "USD",
+      moq: 5000,
+      tiers: [
+        { minQty: 20000, value: 0.41 },
+        { minQty: 50000, value: 0.36 },
+      ],
+    });
+    expect(result.issues).toEqual([
+      expect.objectContaining({
+        path: "tiers[0].minQty",
+        code: "tier_not_above_moq",
+        severity: "warning",
+      }),
+    ]);
+    expect(result.issues[0].he).toContain(`מדרגה ${ltr(1)}`);
+    expect(result.issues[0].he).not.toContain("מדרגה 0");
+    expect(result.issues[0].he).toContain(FIELD_LABEL.he.minQty);
+    expect(result.issues[0].he).toContain(FIELD_LABEL.he.moq);
+    expect(result.issues[0].en).toContain(`Tier ${ltr(1)}`);
+    expect(result.issues[0].en).toContain(FIELD_LABEL.en.minQty);
+    expect(result.issues[0].en).toContain(FIELD_LABEL.en.moq);
+  });
+
+  it("drops a tier that does not ascend and keeps the ones that do", () => {
+    const result = sanitizeSupplierPrice({
+      value: 1,
+      currency: "USD",
+      tiers: [
+        { minQty: 10, value: 1 },
+        { minQty: 2, value: 0.5 },
+        { minQty: 30, value: 0.4 },
+      ],
+    });
+    expect(result.price).toEqual({
+      value: 1,
+      currency: "USD",
+      tiers: [
+        { minQty: 10, value: 1 },
+        { minQty: 30, value: 0.4 },
+      ],
+    });
+    expect(codes(result.issues)).toEqual(["tier_not_ascending"]);
+    expect(result.issues[0].path).toBe("tiers[1].minQty");
+
+    const duplicate = sanitizeSupplierPrice({
+      value: 1,
+      currency: "USD",
+      tiers: [
+        { minQty: 5, value: 1 },
+        { minQty: 5, value: 0.9 },
+      ],
+    });
+    expect(duplicate.price?.tiers).toEqual([{ minQty: 5, value: 1 }]);
+    expect(codes(duplicate.issues)).toEqual(["tier_not_ascending"]);
+  });
+
+  it("keeps a tier whose value rises and reports it", () => {
+    const result = sanitizeSupplierPrice({
+      value: 1,
+      currency: "USD",
+      moq: 1,
+      tiers: [
+        { minQty: 10, value: 0.8 },
+        { minQty: 20, value: 0.9 },
+      ],
+    });
+    expect(result.price).toEqual({
+      value: 1,
+      currency: "USD",
+      moq: 1,
+      tiers: [
+        { minQty: 10, value: 0.8 },
+        { minQty: 20, value: 0.9 },
+      ],
+    });
+    expect(result.issues).toEqual([
+      expect.objectContaining({ path: "tiers[1].value", code: "tier_value_rose" }),
+    ]);
+    expect(result.issues[0].he).toContain("המחיר");
+    expect(result.issues[0].en).toContain("higher");
+  });
+
+  it("reads a legacy qty tier as minQty and always writes minQty", () => {
+    const price = sanitizeSupplierPrice({
+      value: 1.5,
+      currency: "USD",
+      tiers: [
+        { qty: 10, value: 1.2 },
+        { qty: 100, value: 0.9 },
+      ],
+    });
+    expect(price.issues).toEqual([]);
+    expect(price.price).toEqual({
+      value: 1.5,
+      currency: "USD",
+      tiers: [
+        { minQty: 10, value: 1.2 },
+        { minQty: 100, value: 0.9 },
+      ],
+    });
+    expect(JSON.stringify(price.price)).not.toContain('"qty"');
+
+    expect(sanitizeSupplierPrice({
+      value: 1,
+      currency: "USD",
+      tiers: [{ minQty: 2, value: 1 }, { qty: 4, value: 0.8 }],
+    }).price).toEqual({
+      value: 1,
+      currency: "USD",
+      tiers: [{ minQty: 2, value: 1 }, { minQty: 4, value: 0.8 }],
+    });
+
+    const both = sanitizeSupplierPrice({
+      value: 2,
+      currency: "EUR",
+      tiers: [{ minQty: 5, qty: 9, value: 1.1 }],
+    });
+    expect(both.issues).toEqual([]);
+    expect(both.price).toEqual({
+      value: 2,
+      currency: "EUR",
+      tiers: [{ minQty: 5, value: 1.1 }],
+    });
+  });
+
+  it("drops an invalid tier and keeps the price", () => {
+    const zeroQty = sanitizeSupplierPrice({
+      value: 1,
+      currency: "USD",
+      moq: 5,
+      tiers: [
+        { minQty: 0, value: 0.9 },
+        { minQty: 1.5, value: 0.8 },
+        { minQty: 10, value: 0 },
+        { minQty: 20, value: 0.4 },
+      ],
+    });
+    expect(zeroQty.price).toEqual({
+      value: 1,
+      currency: "USD",
+      moq: 5,
+      tiers: [{ minQty: 20, value: 0.4 }],
+    });
+    expect(codes(zeroQty.issues)).toEqual(["tier_not_above_moq", "tier_min_qty", "tier_value"]);
+    expect(zeroQty.issues.every((item) => item.severity === "warning")).toBe(true);
+
+    const result = sanitizeSupplierPrice({
+      value: 1,
+      currency: "USD",
+      tiers: [{ qty: 0, value: 1 }],
+    });
+    expect(result.price).toEqual({ value: 1, currency: "USD" });
+    expect(codes(result.issues)).toEqual(["tier_below_min"]);
+    expect(result.issues[0]).toMatchObject({ path: "tiers[0].minQty", severity: "warning" });
+
+    const empty = sanitizeSupplierPrice({ value: 1, currency: "USD", tiers: [] });
+    expect(empty.price).toEqual({ value: 1, currency: "USD" });
+    expect(empty.issues).toEqual([]);
+
+    const notArray = sanitizeSupplierPrice({ value: 1, currency: "USD", tiers: {} });
+    expect(notArray.price).toEqual({ value: 1, currency: "USD" });
+    expect(codes(notArray.issues)).toEqual(["price_tiers"]);
+    expect(notArray.issues[0].he).toContain(FIELD_LABEL.he.tiers);
+    expect(notArray.issues[0].he).not.toContain("tiers");
+    expect(notArray.issues[0].en.startsWith(FIELD_LABEL.en.tiers)).toBe(true);
+    expect(notArray.issues[0].en.startsWith("tiers")).toBe(false);
+  });
+
+  it("requires minQty of at least 2 when moq is absent, and does not sort tiers", () => {
+    const low = sanitizeSupplierPrice({
+      value: 1,
+      currency: "USD",
+      tiers: [
+        { minQty: 1, value: 0.5 },
+        { minQty: 10, value: 0.4 },
+      ],
+    });
+    expect(low.price?.tiers).toEqual([{ minQty: 10, value: 0.4 }]);
+    expect(codes(low.issues)).toEqual(["tier_below_min"]);
+
+    const unsorted = sanitizeSupplierPrice({
+      value: 1,
+      currency: "USD",
+      tiers: [
+        { minQty: 30, value: 0.4 },
+        { minQty: 10, value: 0.8 },
+      ],
+    });
+    expect(unsorted.price?.tiers).toEqual([{ minQty: 30, value: 0.4 }]);
+    expect(codes(unsorted.issues)).toEqual(["tier_not_ascending"]);
+  });
+
+  it("does not read qty when a non-numeric minQty is present", () => {
+    const result = sanitizeSupplierPrice({
+      value: 1,
+      currency: "USD",
+      tiers: [{ minQty: "10", qty: 20, value: 0.5 }],
+    });
+    expect(result.price).toEqual({ value: 1, currency: "USD" });
+    expect(result.issues[0]).toMatchObject({ path: "tiers[0].minQty", code: "tier_min_qty", severity: "warning" });
+  });
+
+  it("flags a first tier priced above the base, and keeps it", () => {
+    const result = sanitizeSupplierPrice({
+      value: 1,
+      currency: "USD",
+      tiers: [{ minQty: 5, value: 1.2 }],
+    });
+    expect(result.price?.tiers).toEqual([{ minQty: 5, value: 1.2 }]);
+    expect(result.issues[0]).toMatchObject({
+      path: "tiers[0].value",
+      code: "tier_value_rose",
+      severity: "warning",
+    });
+
+    const cheaper = sanitizeSupplierPrice({
+      value: 2,
+      currency: "USD",
+      tiers: [{ minQty: 5, value: 1.2 }],
+    });
+    expect(cheaper.issues).toEqual([]);
+    expect(cheaper.price?.tiers).toEqual([{ minQty: 5, value: 1.2 }]);
+  });
+
+  it("stores an ISO currency, including shekel spellings and lowercase codes", () => {
+    expect(sanitizeSupplierPrice({ value: 1, currency: "usd" })).toEqual({
+      price: { value: 1, currency: "USD" },
+      issues: [],
+    });
+    expect(sanitizeSupplierPrice({ value: 2, currency: "₪" }).price?.currency).toBe("ILS");
+    expect(sanitizeSupplierPrice({ value: 2, currency: " NIS " }).price?.currency).toBe("ILS");
+    expect(sanitizeSupplierPrice({ value: 2, currency: "ש\"ח" }).price?.currency).toBe("ILS");
+    expect(sanitizeSupplierPrice({ value: 2, currency: "ש״ח" }).price?.currency).toBe("ILS");
+    expect(sanitizeSupplierPrice({ value: 2, currency: "ils" }).price?.currency).toBe("ILS");
+    expect(sanitizeSupplierPrice({ value: 3, currency: "$" }).price?.currency).toBe("USD");
+    expect(sanitizeSupplierPrice({ value: 3, currency: "usd" }).price?.currency).toBe("USD");
+    const badCurrency = sanitizeSupplierPrice({ value: 1.5, currency: "US", moq: 2, tiers: [{ minQty: 10, value: 1 }] });
+    expect(badCurrency.price).toEqual({ value: 1.5, moq: 2, tiers: [{ minQty: 10, value: 1 }], currencyText: "US" });
+    expect(badCurrency.price).not.toHaveProperty("currency");
+    expect(badCurrency.unpriced).toBe(true);
+    const foo = sanitizeSupplierPrice({ value: 2, currency: "FOO" });
+    expect(foo.unpriced).toBe(true);
+    expect(foo.price).toEqual({ value: 2, currencyText: "FOO" });
+    expect(foo.issues[0].en).toContain(ltr("\"FOO\""));
+    expect(foo.issues[0].he).toContain("מטבע לא ידוע");
+    const dollar = sanitizeSupplierPrice({ value: 3, currency: "dollar" });
+    expect(dollar.price?.currencyText).toBe("dollar");
+    expect(dollar.issues[0].he).toContain(ltr("«dollar»"));
+    expect(dollar.issues[0].en).toContain(ltr("\"dollar\""));
+    expect(badCurrency.issues[0]).toMatchObject({ path: "currency", code: "price_currency", severity: "warning" });
+    expect(badCurrency.issues[0].he).toContain("מטבע לא ידוע");
+    expect(badCurrency.issues[0].en).toContain("Unknown currency");
+    expect(sanitizeSupplierPrice({ value: 4, currency: "USD" }).unpriced).toBeUndefined();
+  });
+
+  it("ignores an unknown price key and keeps the price", () => {
+    const result = sanitizeSupplierPrice({ value: 1, currency: "USD", note: "cash", moq: 2 });
+    expect(result.price).toEqual({ value: 1, currency: "USD", moq: 2 });
+    expect(result.price).not.toHaveProperty("note");
+    expect(result.unpriced).toBeUndefined();
+    expect(result.issues).toEqual([
+      expect.objectContaining({ path: "note", code: "price_unknown_field", severity: "warning" }),
+    ]);
+    expect(result.issues[0].he).toContain(ltr("note"));
+    expect(result.issues[0].en).toContain(ltr("note"));
+    expect(result.issues[0].en).toContain("ignored");
+  });
+
+  it("returns structured warnings and no price when the base quote is invalid", () => {
+    const zero = sanitizeSupplierPrice({ value: 0, currency: "USD" });
+    expect(zero.price).toBeUndefined();
+    expect(codes(zero.issues)).toEqual(["price_value"]);
+    expect(zero.issues[0]).toMatchObject({ path: "value", code: "price_value", severity: "warning" });
+    expect(zero.issues[0].he).toContain("המחיר");
+    expect(zero.issues[0].en).toContain("price");
+
+    const again = sanitizeSupplierPrice({ value: 1, currency: "EUR" });
+    expect(again.issues).toEqual([]);
+    expect(zero.issues).toHaveLength(1);
+
+    expect(sanitizeSupplierPrice({ value: -1, currency: "USD" }).price).toBeUndefined();
+    expect(sanitizeSupplierPrice({ value: Number.POSITIVE_INFINITY, currency: "USD" }).price).toBeUndefined();
+    expect(codes(sanitizeSupplierPrice({ value: 1, currency: "USD", moq: 0 }).issues)).toEqual(["price_moq"]);
+    expect(codes(sanitizeSupplierPrice({ value: 1, currency: "USD", moq: 1.5 }).issues)).toEqual(["price_moq"]);
+    expect(sanitizeSupplierPrice([]).issues[0]).toMatchObject({ path: "", code: "price_invalid", severity: "warning" });
+    expect(sanitizeSupplierPrice(null).price).toBeUndefined();
+    expect(sanitizeSupplierPrice(undefined).price).toBeUndefined();
+  });
+
+  it("drops only an invalid quotedAt and keeps the base price", () => {
+    const result = sanitizeSupplierPrice({
+      value: 1.25,
+      currency: "USD",
+      moq: 1,
+      tiers: [{ minQty: 10, value: 1 }],
+      quotedAt: "2026-02-31",
+    });
+    expect(result.price).toEqual({
+      value: 1.25,
+      currency: "USD",
+      moq: 1,
+      tiers: [{ minQty: 10, value: 1 }],
+    });
+    expect(result.price).not.toHaveProperty("quotedAt");
+    expect(result.issues[0]).toMatchObject({ path: "quotedAt", code: "price_quoted_at", severity: "warning" });
+    expect(result.issues[0].he).toContain(FIELD_LABEL.he.quotedAt);
+    expect(result.issues[0].he).not.toContain("quotedAt");
+    expect(result.issues[0].en).toContain(FIELD_LABEL.en.quotedAt);
+    expect(result.issues[0].en).not.toContain("quotedAt");
+
+    expect(sanitizeSupplierPrice({ value: 1, currency: "USD", quotedAt: "06-10-2026" }).price).toEqual({
+      value: 1,
+      currency: "USD",
+    });
+    expect(sanitizeSupplierPrice({ value: 1, currency: "USD", quotedAt: "2026-10-06" }).price?.quotedAt).toBe("2026-10-06");
+    const dated = sanitizeSupplierPrice({
+      value: 1,
+      currency: "USD",
+      quotedAt: "2026-10-06T11:42:00+04:00",
+    });
+    expect(dated.issues).toEqual([]);
+    expect(dated.price?.quotedAt).toBe("2026-10-06");
+    expect(sanitizeSupplierPrice({
+      value: 1,
+      currency: "USD",
+      quotedAt: "2026-10-06T11:42:00.000Z",
+    }).price?.quotedAt).toBe("2026-10-06");
+  });
+
+  it("drops a malformed tiers value and keeps the base price", () => {
+    for (const tiers of [{}, "nope", null]) {
+      const result = sanitizeSupplierPrice({ value: 1.5, currency: "EUR", tiers });
+      expect(result.price).toEqual({ value: 1.5, currency: "EUR" });
+      expect(codes(result.issues)).toEqual(["price_tiers"]);
+    }
+  });
+
+  it("formats a supplier amount the way a price tag does", () => {
+    expect(formatSupplierAmount(0.48, "USD", "en")).toBe("0.48 USD");
+    expect(formatSupplierAmount(12, "ILS", "en")).toContain("12");
+    expect(formatSupplierAmount(12, "ils", "he")).toMatch(/12/);
+    expect(formatSupplierAmount(0.48, "USD", "he")).toContain("USD");
+    expect(formatSupplierAmount(1.5, undefined, "he")).toContain("מטבע לא ידוע");
+    expect(formatSupplierAmount(1.5, undefined, "en")).toContain("Unknown currency");
+    expect(tx("he").unknownCurrency).toBe("מטבע לא ידוע");
+    expect(tx("en").unknownCurrency).toBe("Unknown currency");
+  });
+
+  it("treats a missing price as absent copy, not zero", () => {
+    expect(sanitizeSupplierPrice(undefined).price).toBeUndefined();
+    expect(sanitizeSupplierPrice({ value: 0, currency: "USD" }).price).toBeUndefined();
+    expect(tx("he").noPrice).toBe("אין מחיר");
+    expect(tx("en").noPrice).toBe("No price");
+  });
+});
