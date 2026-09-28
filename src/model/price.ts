@@ -218,7 +218,12 @@ export function sanitizeSupplierPrice(raw: unknown): SupplierPriceResult {
 
   if (Object.hasOwn(raw, "tiers") && raw.tiers !== undefined) {
     if (!Array.isArray(raw.tiers)) {
-      issues.push(issue("tiers", "price_tiers", "tiers חייב להיות מערך, ולכן הוסר.", "tiers must be an array, so it was removed."));
+      issues.push(issue(
+        "tiers",
+        "price_tiers",
+        `${FIELD_LABEL.he.tiers} חייב להיות מערך, ולכן הוסר.`,
+        `${FIELD_LABEL.en.tiers} must be an array, so it was removed.`,
+      ));
     } else {
       const kept: SupplierPriceTier[] = [];
       let previousPrice = price.value;
@@ -303,8 +308,8 @@ export function sanitizeSupplierPrice(raw: unknown): SupplierPriceResult {
       issues.push(issue(
         "quotedAt",
         "price_quoted_at",
-        "quotedAt חייב להיות תאריך או תאריך-שעה ISO 8601, ולכן הוסר.",
-        "quotedAt must be an ISO 8601 date or date-time, so it was removed.",
+        `${FIELD_LABEL.he.quotedAt} חייב להיות תאריך או תאריך-שעה ISO 8601, ולכן הוסר.`,
+        `${FIELD_LABEL.en.quotedAt} must be an ISO 8601 date or date-time, so it was removed.`,
       ));
     } else {
       price.quotedAt = quotedAt.slice(0, 10);

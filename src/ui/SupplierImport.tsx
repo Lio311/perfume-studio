@@ -1,9 +1,9 @@
-import { useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import DOMPurify from "dompurify";
 import { partLabel, tx } from "../i18n/copy.ts";
 import { cropPage } from "../import/crop.ts";
 import { capPackNotices } from "../import/notices.ts";
-import { duplicateSlugIssues, issuesForDraft, KIND_DEFAULT_MM, MAX_PACK_BYTES, type FieldIssue } from "../import/packValidate.ts";
+import { duplicateClashIssue, duplicateClashes, issuesForDraft, KIND_DEFAULT_MM, MAX_PACK_BYTES, type FieldIssue, type SlugClash } from "../import/packValidate.ts";
 import { parsePackFile } from "../import/supplierDb.ts";
 import { readPdfCatalog, type CatalogPageImage } from "../import/pdfCatalog.ts";
 import { regexCatalogSource, type DraftItem, type ImportProfile, type NormRect } from "../import/parseCatalog.ts";
@@ -46,7 +46,7 @@ function blankRow(page = 1): Row {
   };
 }
 
-function draftProblems(row: Row, rows: readonly Row[]): FieldIssue[] {
+function draftProblems(row: Row, clash?: SlugClash): FieldIssue[] {
   return [
     ...issuesForDraft({
       id: row.id,
@@ -60,7 +60,7 @@ function draftProblems(row: Row, rows: readonly Row[]): FieldIssue[] {
       profile: row.profile,
       page: row.page,
     }),
-    ...duplicateSlugIssues(row, rows),
+    ...(clash ? [duplicateClashIssue(row.code.trim(), clash)] : []),
   ];
 }
 
@@ -161,8 +161,10 @@ export function SupplierImport() {
     reader.readAsDataURL(file);
   }
 
+  const clashes = useMemo(() => duplicateClashes(rows), [rows]);
+
   function commit() {
-    if (rows.some((row) => draftProblems(row, rows).length > 0)) return;
+    if (rows.some((row) => draftProblems(row, clashes.get(row.id)).length > 0)) return;
     const rawName = name.trim() || (lang === "he" ? "ספק" : "Supplier");
     const supplier = DOMPurify.sanitize(rawName);
     const id = `sup-${Date.now().toString(36)}`;
@@ -184,7 +186,7 @@ export function SupplierImport() {
   const current = rows.find((row) => row.id === active) ?? null;
   const page = pages.find((item) => item.page === current?.page) ?? null;
   const blankPages = pages.filter((item) => item.text.trim().length < 4);
-  const ready = rows.length > 0 && rows.every((row) => draftProblems(row, rows).length === 0);
+  const ready = rows.length > 0 && rows.every((row) => draftProblems(row, clashes.get(row.id)).length === 0);
 
   return (
     <div className="modal-back" onClick={() => setModal(null)}>
@@ -263,7 +265,7 @@ export function SupplierImport() {
               </thead>
               <tbody>
                 {rows.map((row) => {
-                  const problems = draftProblems(row, rows);
+                  const problems = draftProblems(row, clashes.get(row.id));
                   const message = (field: string) => {
                     const hit = problems.find((item) => item.field === field);
                     return hit ? (lang === "he" ? hit.he : hit.en) : "";

@@ -13,7 +13,8 @@ export type PackNotice =
   | { type: "droppedField"; ref: string; field: "mesh" | "scan" | "measurements" }
   | { type: "droppedPart"; ref: string; he?: string; en?: string }
   | { type: "droppedPack" }
-  | { type: "droppedMeta"; field: "version" | "source" | "supplier" | "createdAt" };
+  | { type: "droppedMeta"; field: "version" | "source" | "supplier" | "createdAt" }
+  | { type: "unreadableExport" };
 
 function fill(template: string, values: Record<string, string>): string {
   return template.replace(/\{(\w+)\}/g, (_, key: string) => values[key] ?? "");
@@ -37,12 +38,14 @@ export function formatPackNotice(lang: Lang, notice: PackNotice): string {
     case "priceIssue":
       return `${ltr(notice.ref)} · ${lang === "he" ? notice.he : notice.en}`;
     case "droppedField":
-      return fill(t.noticeDroppedField, { ref: ltr(notice.ref), field: ltr(notice.field) });
+      return fill(t.noticeDroppedField, { ref: ltr(notice.ref), field: FIELD_LABEL[lang][notice.field] });
     case "droppedPart":
       if (notice.he && notice.en) return lang === "he" ? notice.he : notice.en;
       return fill(t.noticeDroppedPart, { ref: ltr(notice.ref) });
     case "droppedPack":
       return t.noticeDroppedPack;
+    case "unreadableExport":
+      return t.noticeUnreadableExport;
     case "droppedMeta":
       return fill(t.noticeDroppedMeta, { field: FIELD_LABEL[lang][notice.field] });
   }

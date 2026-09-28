@@ -14,7 +14,7 @@ import { capPackNotices, formatPackNotice, type PackNotice } from "./notices.ts"
 import { bdi, FIELD_LABEL, ltr } from "./fieldText.ts";
 import { duplicateSlugIssues, issuesForDraft, KIND_DEFAULT_MM, MAX_PACK_BYTES } from "./packValidate.ts";
 import { codeSlug, importedMeta, isVariantPart, partFromDraft, syncRegistry, type SupplierPack, type SupplierPart } from "./registry.ts";
-import { adoptLoadedSuppliers, exportPackDocument, parsePackFile, reviveStoredPack, serializePack } from "./supplierDb.ts";
+import { adoptLoadedSuppliers, downloadPack, exportPackDocument, parsePackFile, reviveStoredPack, serializePack } from "./supplierDb.ts";
 import { sanitizeSupplierPrice } from "../model/price.ts";
 import { applyVariant, createDefaultDesign } from "../model/design.ts";
 import { mergeShareDesign } from "../model/share.ts";
@@ -739,10 +739,11 @@ describe("reviveStoredPack", () => {
       { id: "row-1", code: "A-1", kind: "cap" },
       { id: "row-2", code: "a 1", kind: "cap" },
     ];
-    const issue = duplicateSlugIssues(rows[1], rows)[0];
+    const issue = duplicateSlugIssues(rows[0], rows)[0];
     expect(issue.field).toBe("code");
-    expect(issue.he).toContain(ltr("a 1"));
-    expect(issue.en).toContain("already used");
+    expect(issue.he).toBe(`הקוד ${ltr("A-1")} מתנגש עם ${ltr("a 1")} (שורה ${ltr(2)}).`);
+    expect(issue.en).toBe(`Code ${ltr("A-1")} clashes with ${ltr("a 1")} (row ${ltr(2)}).`);
+    expect(duplicateSlugIssues(rows[1], rows)[0].he).toContain(ltr("A-1"));
     expect(duplicateSlugIssues(rows[0], [rows[0]])).toEqual([]);
   });
 
@@ -768,14 +769,42 @@ describe("reviveStoredPack", () => {
     expect(formatPackNotice("he", { type: "droppedMeta", field: "version" })).toContain("גרסה");
     expect(formatPackNotice("en", { type: "droppedMeta", field: "version" })).not.toContain("{field}");
     expect(formatPackNotice("en", { type: "unknownKind", ref: "X1", kind: "lid" }).startsWith(ltr("X1"))).toBe(true);
+    expect(formatPackNotice("he", { type: "droppedField", ref: "C 1", field: "mesh" })).toContain(FIELD_LABEL.he.mesh);
+    expect(formatPackNotice("en", { type: "droppedField", ref: "C 1", field: "mesh" })).toContain(FIELD_LABEL.en.mesh);
+    expect(formatPackNotice("he", { type: "droppedField", ref: "C 1", field: "scan" })).toContain(FIELD_LABEL.he.scan);
+    expect(formatPackNotice("en", { type: "droppedField", ref: "C 1", field: "scan" })).toContain("Scan");
+    expect(formatPackNotice("he", { type: "droppedField", ref: "C 1", field: "measurements" })).toContain(FIELD_LABEL.he.measurements);
+    expect(formatPackNotice("en", { type: "droppedField", ref: "C 1", field: "measurements" })).toContain("Measurements");
+    expect(formatPackNotice("he", { type: "droppedField", ref: "C 1", field: "mesh" })).not.toContain("mesh");
   });
 
   it("does not list an unreadable pack as a dropped part", () => {
     const revived = reviveStoredPack({ id: "broken-pack", name: "Broken", createdAt: 4, parts: "nope" });
     expect(revived.pack?.unreadable).toBe(true);
     const exported = exportPackDocument(revived.pack!);
-    expect(exported.warnings.filter((notice) => notice.type === "droppedPart")).toEqual([]);
-    expect(JSON.parse(exported.text).unreadable).toBeUndefined();
+    expect(exported.text).toBe("");
+    expect(exported.warnings).toEqual([{ type: "unreadableExport" }]);
+    expect(downloadPack(revived.pack!)).toEqual([{ type: "unreadableExport" }]);
+    expect(formatPackNotice("he", exported.warnings[0])).toContain("לא יוצאה");
+    expect(formatPackNotice("en", exported.warnings[0])).toContain("not exported");
+  });
+
+  it("reports a bad envelope field by its key", () => {
+    const revived = reviveStoredPack({
+      id: "meta",
+      name: "Meta",
+      createdAt: "yesterday",
+      version: "2",
+      source: "email",
+      supplier: "Gulf",
+      parts: [base],
+    });
+    expect(revived.warnings.filter((notice) => notice.type === "droppedMeta")).toEqual([
+      { type: "droppedMeta", field: "createdAt" },
+      { type: "droppedMeta", field: "version" },
+      { type: "droppedMeta", field: "source" },
+      { type: "droppedMeta", field: "supplier" },
+    ]);
   });
 
   it("warns that hidden parts were left out of an export", () => {

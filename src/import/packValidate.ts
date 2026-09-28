@@ -252,24 +252,52 @@ export function issuesForDraft(row: {
 
 const DRAFT_SUPPLIER = "draft";
 
+export interface SlugClash {
+  code: string;
+  /** 1-based position of the other row in the save order. */
+  row: number;
+}
+
+/**
+ * One sanitise pass. Maps a row id to the other row that would share its part id.
+ * The caller looks this up per row instead of scanning every row again.
+ */
+export function duplicateClashes(rows: readonly { id: string; code: string; kind: string }[]): Map<string, SlugClash> {
+  const generated = rows.map((row, index) => ({
+    row,
+    index,
+    partId: generatedPartId(DRAFT_SUPPLIER, row.code, row.kind, index),
+  }));
+  const byPart = new Map<string, typeof generated>();
+  for (const item of generated) {
+    const list = byPart.get(item.partId);
+    if (list) list.push(item);
+    else byPart.set(item.partId, [item]);
+  }
+  const clashes = new Map<string, SlugClash>();
+  for (const item of generated) {
+    const other = byPart.get(item.partId)?.find((entry) => entry.row.id !== item.row.id);
+    if (!other) continue;
+    clashes.set(item.row.id, { code: other.row.code.trim(), row: other.index + 1 });
+  }
+  return clashes;
+}
+
+export function duplicateClashIssue(code: string, clash: SlugClash): FieldIssue {
+  return {
+    field: "code",
+    he: `הקוד ${ltr(code)} מתנגש עם ${ltr(clash.code)} (שורה ${ltr(clash.row)}).`,
+    en: `Code ${ltr(code)} clashes with ${ltr(clash.code)} (row ${ltr(clash.row)}).`,
+  };
+}
+
 /** A second row whose final part id matches (`A-1` and `a 1`, or a sanitised code and item-N) cannot be saved. */
 export function duplicateSlugIssues(
   row: { id: string; code: string; kind: string },
   rows: readonly { id: string; code: string; kind: string }[],
 ): FieldIssue[] {
-  const index = rows.findIndex((item) => item.id === row.id);
-  if (index < 0) return [];
-  const id = generatedPartId(DRAFT_SUPPLIER, row.code, row.kind, index);
-  const clash = rows.some((other, otherIndex) =>
-    other.id !== row.id && generatedPartId(DRAFT_SUPPLIER, other.code, other.kind, otherIndex) === id,
-  );
-  if (!clash) return [];
-  const code = row.code.trim();
-  return [{
-    field: "code",
-    he: `הקוד ${ltr(code)} כבר בשימוש בשורה אחרת.`,
-    en: `Code ${ltr(code)} is already used on another row.`,
-  }];
+  const clash = duplicateClashes(rows).get(row.id);
+  return clash ? [duplicateClashIssue(row.code.trim(), clash)] : [];
 }
 
 function identityIssues(part: Record<string, unknown>, seen: Set<string>): PackFileError[] {
@@ -292,12 +320,16 @@ function identityIssues(part: Record<string, unknown>, seen: Set<string>): PackF
   return issues;
 }
 
-function envelopeIssues(value: Record<string, unknown>): PackFileError[] {
-  const issues: PackFileError[] = [];
+type EnvelopeField = "version" | "source" | "supplier" | "createdAt";
+type EnvelopeIssue = PackFileError & { field: EnvelopeField };
+
+function envelopeIssues(value: Record<string, unknown>): EnvelopeIssue[] {
+  const issues: EnvelopeIssue[] = [];
   if (Object.hasOwn(value, "createdAt") && value.createdAt !== undefined) {
     const createdAt = value.createdAt;
     if (typeof createdAt !== "number" || !Number.isFinite(createdAt) || createdAt < 0) {
       issues.push({
+        field: "createdAt",
         he: `${FIELD_LABEL.he.createdAt} חייב להיות מספר אי-שלילי.`,
         en: `${FIELD_LABEL.en.createdAt} must be a non-negative number.`,
       });
@@ -305,18 +337,21 @@ function envelopeIssues(value: Record<string, unknown>): PackFileError[] {
   }
   if (Object.hasOwn(value, "version") && value.version !== undefined && !isVersion(value.version)) {
     issues.push({
+      field: "version",
       he: `${FIELD_LABEL.he.version} חייב להיות המספר השלם 2.`,
       en: `${FIELD_LABEL.en.version} must be the integer 2.`,
     });
   }
   if (Object.hasOwn(value, "source") && value.source !== undefined && !isSource(value.source)) {
     issues.push({
+      field: "source",
       he: `${FIELD_LABEL.he.source} חייב להיות ${ltr("pdf")}, ${ltr("photo")}, ${ltr("scan")} או ${ltr("manual")}.`,
       en: `${FIELD_LABEL.en.source} must be ${ltr("pdf")}, ${ltr("photo")}, ${ltr("scan")}, or ${ltr("manual")}.`,
     });
   }
   if (Object.hasOwn(value, "supplier") && value.supplier !== undefined && !isDataObject(value.supplier)) {
     issues.push({
+      field: "supplier",
       he: `${FIELD_LABEL.he.supplier} חייב להיות אובייקט.`,
       en: `${FIELD_LABEL.en.supplier} must be an object.`,
     });
@@ -402,12 +437,16 @@ export function validatePackText(text: string): PackCheck {
   return checkPack(value, "reject");
 }
 
-function metaWarning(issue: PackFileError): PackNotice | undefined {
-  if (issue.en.startsWith(FIELD_LABEL.en.version)) return { type: "droppedMeta", field: "version" };
-  if (issue.en.startsWith(FIELD_LABEL.en.source)) return { type: "droppedMeta", field: "source" };
-  if (issue.en.startsWith(FIELD_LABEL.en.supplier)) return { type: "droppedMeta", field: "supplier" };
-  if (issue.en.startsWith(FIELD_LABEL.en.createdAt)) return { type: "droppedMeta", field: "createdAt" };
-  return undefined;
+function metaWarning(issue: EnvelopeIssue): PackNotice | undefined {
+  switch (issue.field) {
+    case "version":
+    case "source":
+    case "supplier":
+    case "createdAt":
+      return { type: "droppedMeta", field: issue.field };
+    default:
+      return undefined;
+  }
 }
 
 /** `reject` fails the file. `drop` keeps the pack and reports bad parts as warnings. */

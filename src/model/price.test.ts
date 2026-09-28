@@ -205,6 +205,10 @@ describe("sanitizeSupplierPrice", () => {
     const notArray = sanitizeSupplierPrice({ value: 1, currency: "USD", tiers: {} });
     expect(notArray.price).toEqual({ value: 1, currency: "USD" });
     expect(codes(notArray.issues)).toEqual(["price_tiers"]);
+    expect(notArray.issues[0].he).toContain(FIELD_LABEL.he.tiers);
+    expect(notArray.issues[0].he).not.toContain("tiers");
+    expect(notArray.issues[0].en.startsWith(FIELD_LABEL.en.tiers)).toBe(true);
+    expect(notArray.issues[0].en.startsWith("tiers")).toBe(false);
   });
 
   it("requires minQty of at least 2 when moq is absent, and does not sort tiers", () => {
@@ -344,6 +348,10 @@ describe("sanitizeSupplierPrice", () => {
     });
     expect(result.price).not.toHaveProperty("quotedAt");
     expect(result.issues[0]).toMatchObject({ path: "quotedAt", code: "price_quoted_at", severity: "warning" });
+    expect(result.issues[0].he).toContain(FIELD_LABEL.he.quotedAt);
+    expect(result.issues[0].he).not.toContain("quotedAt");
+    expect(result.issues[0].en).toContain(FIELD_LABEL.en.quotedAt);
+    expect(result.issues[0].en).not.toContain("quotedAt");
 
     expect(sanitizeSupplierPrice({ value: 1, currency: "USD", quotedAt: "06-10-2026" }).price).toEqual({
       value: 1,

@@ -31,6 +31,11 @@ export const FIELD_LABEL = {
     version: "גרסה",
     source: "מקור",
     supplier: "ספק",
+    tiers: "מדרגות מחיר",
+    quotedAt: "תאריך הצעת המחיר",
+    mesh: "מודל תלת-ממדי",
+    scan: "סריקה",
+    measurements: "מידות",
   },
   en: {
     widthMm: "Width",
@@ -53,6 +58,11 @@ export const FIELD_LABEL = {
     version: "Version",
     source: "Source",
     supplier: "Supplier",
+    tiers: "Price tiers",
+    quotedAt: "Quote date",
+    mesh: "3D model",
+    scan: "Scan",
+    measurements: "Measurements",
   },
 } as const;
 

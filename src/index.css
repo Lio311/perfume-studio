@@ -578,6 +578,8 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 .review-table th, .review-table td { padding: 6px 4px; vertical-align: middle; white-space: nowrap; }
 .review-table img { width: 42px; height: 42px; object-fit: cover; border-radius: 6px; background: #111; vertical-align: middle; }
 .review-table input, .review-table select { width: 76px; margin: 0; padding: 6px 8px; }
+.supplier-modal[dir="rtl"] .review-table input,
+.supplier-modal[dir="rtl"] .review-table select { text-align: right; }
 .review-table tr.is-on td { background: rgba(214, 178, 106, 0.1); }
 .crop-block { margin-top: 8px; }
 .crop-frame { position: relative; margin-top: 8px; cursor: crosshair; touch-action: none; width: 100%; line-height: 0; }

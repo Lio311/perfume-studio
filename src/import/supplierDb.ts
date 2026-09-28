@@ -244,6 +244,7 @@ function exportPart(part: SupplierPack["parts"][number], warnings: PackNotice[])
  * `currencyText` and `hiddenParts` are not in the schema.
  */
 export function exportPackDocument(pack: SupplierPack): { text: string; warnings: PackNotice[] } {
+  if (pack.unreadable) return { text: "", warnings: [{ type: "unreadableExport" }] };
   const warnings: PackNotice[] = [];
   const source = pack as unknown as Record<string, unknown>;
   const body = pickKeys(source, PACK_EXPORT_KEYS) ?? {};
@@ -289,6 +290,7 @@ function hiddenExportNotices(pack: SupplierPack): PackNotice[] {
 
 export function downloadPack(pack: SupplierPack): PackNotice[] {
   const result = exportPackDocument(pack);
+  if (pack.unreadable || !result.text) return result.warnings;
   const blob = new Blob([result.text], { type: "application/json" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
