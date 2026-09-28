@@ -113,12 +113,12 @@ describe("spec sheet HTML escaping", () => {
     const glass = html.match(/<th>Glass<\/th><td>(.*?)<\/td>/);
     const liquid = html.match(/<th>Liquid<\/th><td>(.*?)<\/td>/);
     const rendered = effectiveGlassOpacity("tinted", 0.1);
-    expect(rendered).toBeCloseTo(0.15 + 0.85 * 0.1);
+    expect(rendered).toBeCloseTo(0.1);
     expect(glass?.[1]).toBe(`Tinted · #112233 · ${Math.round((rendered ?? 0) * 100)}%`);
     expect(liquid?.[1]).toBe("50% · #abcdef");
   });
 
-  it("prints the mapped alpha for frosted and tinted glass at 0, 50, and 100", () => {
+  it("prints the slider for frosted and tinted glass at 0, 50, and 100", () => {
     for (const finish of ["frosted", "tinted"] as const) {
       for (const opacity of [0, 0.5, 1]) {
         const design = createDefaultDesign();
@@ -127,7 +127,7 @@ describe("spec sheet HTML escaping", () => {
         design.bottle.opacity = opacity;
         const html = buildSpecHtml(design, "en", "data:image/png;base64,AAAA");
         const rendered = effectiveGlassOpacity(finish, opacity);
-        expect(rendered).toBeCloseTo(0.15 + 0.85 * opacity);
+        expect(rendered).toBeCloseTo(opacity);
         const name = finish === "frosted" ? "Frosted" : "Tinted";
         expect(html.match(/<th>Glass<\/th><td>(.*?)<\/td>/)?.[1]).toBe(
           `${name} · #112233 · ${Math.round((rendered ?? 0) * 100)}%`,
