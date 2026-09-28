@@ -349,6 +349,7 @@ function BottlePart() {
         neckR: fit.neckR,
         profile: spec.profile,
         shoulder: spec.shoulder,
+        finishMm: spec.finishMm,
       }),
     [design.bottle.heightMm, design.bottle.widthMm, design.bottle.depthMm, design.bottle.neck, spec],
   );
@@ -385,6 +386,7 @@ function LiquidPart() {
         neckR: Math.max(3, fit.neckR - 1.2),
         profile: spec.profile,
         shoulder: spec.shoulder,
+        finishMm: spec.finishMm,
         inset: 2.4,
         closedTop: true,
         limitY: surface,
@@ -646,6 +648,7 @@ function LabelPart() {
     neckR: fit.neckR,
     profile: bottle.profile,
     shoulder: bottle.shoulder,
+    finishMm: bottle.finishMm,
     yCenter: fit.labelY,
     patchH: fit.labelH,
     patchW: fit.labelW,

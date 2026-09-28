@@ -1,9 +1,6 @@
 import { bodyProfiles, capProfiles } from "./profiles.ts";
 import type { CapProfileName, ProfileName } from "./types.ts";
 
-/** Bulb silhouettes are still wide at the shoulder sample, so a short finish lands on the crown. */
-const BULB_PROFILES = new Set<ProfileName>(["sphere"]);
-
 export type Profile = ReadonlyArray<readonly [number, number]>;
 
 export function clamp(v: number, min: number, max: number): number {
@@ -34,19 +31,42 @@ export function sampleProfile(profile: Profile, t: number): number {
   return last[1];
 }
 
+/** Finish main used for every profile: a short neck, never longer than 5.5 mm. */
+export function classicFinishMm(neckR: number): number {
+  return Math.min(5.5, neckR * 0.85);
+}
+
 /**
- * Length of the straight glass finish under the lip.
- * Most bottles keep a short 5.5 mm neck. A sphere's shoulder sample is still
- * about 0.78 of the body radius, so that short finish ends inside the crown
- * and a crimp has no cylinder to close on. The finish only has to clear the
- * ferrule (about one neck radius). A longer clear neck reads as a gap under
- * the pump.
+ * Straight glass under the lip, from the shoulder slope.
+ * The crimp seat has to land on a cylinder. A gentle shoulder only needs that
+ * seat. A bulb that is still wide where the shoulder starts (steeper than the
+ * orb) needs about one neck radius, or the ferrule closes on the crown.
+ * A longer neck than that reads as a gap under the pump.
  */
-export function neckFinishMm(height: number, neckR: number, profile: ProfileName): number {
-  const classic = Math.min(5.5, neckR * 0.85);
-  if (!BULB_PROFILES.has(profile)) return classic;
-  const seat = neckR * 0.98;
-  return Math.min(height * 0.18, Math.max(classic, seat));
+export function glassFinishMm(
+  height: number,
+  width: number,
+  profile: ProfileName,
+  shoulder: number,
+  neckR: number,
+  crimpMm: number,
+): number {
+  const classic = classicFinishMm(neckR);
+  const straightStart = height - classic;
+  const shoulderStart = Math.max(height * 0.35, straightStart - height * shoulder);
+  const shoulderLen = Math.max(0.001, straightStart - shoulderStart);
+  const end = bodyProfiles[profile][bodyProfiles[profile].length - 1]?.[1] ?? 1;
+  const slope = (width / 2 * end - neckR) / shoulderLen;
+  const steepBulb = end < 0.85 && slope >= 1.5;
+  const seat = steepBulb ? Math.max(crimpMm, neckR * 0.98) : Math.max(classic, crimpMm);
+  return Math.min(height * 0.18, seat);
+}
+
+/** Length of the straight glass finish. Catalog bottles pass their own `finishMm`. */
+export function neckFinishMm(height: number, neckR: number, finishMm?: number): number {
+  const classic = classicFinishMm(neckR);
+  if (finishMm == null) return classic;
+  return Math.min(height * 0.18, Math.max(classic, finishMm));
 }
 
 /** Glass lip: the top of the straight finish. Closures seat here, not on the bulb. */
@@ -57,12 +77,13 @@ export function neckLipY(
   profile: ProfileName,
   shoulder: number,
   neckR: number,
+  finishMm?: number,
 ): number {
   let lip = 0;
   const steps = 48;
   for (let i = 0; i <= steps; i += 1) {
     const y = (i / steps) * height;
-    const sample = bottleRadii(y, height, width, depth, profile, shoulder, neckR);
+    const sample = bottleRadii(y, height, width, depth, profile, shoulder, neckR, finishMm);
     if (Math.abs(sample.rx - neckR) < 0.08 && Math.abs(sample.rz - neckR) < 0.08) lip = y;
   }
   return lip;
@@ -76,10 +97,11 @@ export function bottleRadii(
   profile: ProfileName,
   shoulder: number,
   neckR: number,
+  finishMm?: number,
 ): { rx: number; rz: number; morph: number } {
   const halfW = width / 2;
   const halfD = depth / 2;
-  const straight = neckFinishMm(height, neckR, profile);
+  const straight = neckFinishMm(height, neckR, finishMm);
   const straightStart = height - straight;
   const shoulderStart = Math.max(height * 0.35, straightStart - height * shoulder);
   if (y >= straightStart) return { rx: neckR, rz: neckR, morph: 1 };
@@ -112,11 +134,12 @@ export function bottleOutline(
   shoulder: number,
   neckR: number,
   steps = 28,
+  finishMm?: number,
 ): Array<{ x: number; y: number }> {
   const pts: Array<{ x: number; y: number }> = [];
   for (let i = 0; i <= steps; i++) {
     const y = (i / steps) * height;
-    const { rx } = bottleRadii(y, height, width, width, profile, shoulder, neckR);
+    const { rx } = bottleRadii(y, height, width, width, profile, shoulder, neckR, finishMm);
     pts.push({ x: rx, y });
   }
   return pts;

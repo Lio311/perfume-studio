@@ -5,15 +5,6 @@ import { effectiveGlassOpacity, glassTransmission, isGlass } from "../model/mate
 import { leatherBump, woodMap } from "../geometry/textures.ts";
 import { useLab } from "../store/labStore.ts";
 
-/** Lift a near-black matte just enough that a rim light can draw its edge. Metals and glass stay put. */
-function liftMatte(hex: string): string {
-  const color = new THREE.Color(hex);
-  const lum = 0.2126 * color.r + 0.7152 * color.g + 0.0722 * color.b;
-  if (lum >= 0.05) return hex;
-  color.lerp(new THREE.Color("#3c4450"), 0.28);
-  return `#${color.getHexString()}`;
-}
-
 const BLUE_VERT = `
   varying vec3 vNormal;
   varying vec3 vView;
@@ -171,7 +162,6 @@ export function FinishMaterial({
   const metal = finish === "gold" || finish === "silver" || finish === "rose";
   const matte = finish === "matteBlack";
   const clear = finish === "clear";
-  const shown = matte ? liftMatte(color) : color;
   const fade = useMemo(() => ({ uFade: { value: 1 }, uColor: { value: new THREE.Color() } }), []);
   useEffect(() => {
     fade.uColor.value.set(theme === "dark" ? 0xf6e5c7 : 0x2c3e50);
@@ -197,26 +187,26 @@ export function FinishMaterial({
 
   return (
     <meshPhysicalMaterial
-      color={shown}
+      color={color}
       flatShading={flat}
       map={wood ?? paper?.map ?? undefined}
       bumpMap={leather ?? paper?.bump ?? undefined}
       bumpScale={leather ? 0.35 : paper ? 0.35 : 0}
       emissive="#000000"
       emissiveIntensity={0}
-      metalness={metal ? 1 : matte ? 0.04 : 0}
+      metalness={metal ? 1 : 0}
       roughness={
         clear ? 0.015 :
         finish === "frosted" ? 0.34 :
         finish === "tinted" ? 0.05 :
         metal ? 0.14 :
-        matte ? 0.55 :
+        matte ? 0.70 :
         finish === "wood" ? 0.7 :
         0.84
       }
-      sheen={matte ? 0.85 : 0}
-      sheenRoughness={0.42}
-      sheenColor={theme === "dark" ? "#d5deea" : "#f4f6f8"}
+      sheen={matte ? 0.06 : 0}
+      sheenRoughness={0.62}
+      sheenColor="#4a4f56"
       transmission={materialTransmission}
       thickness={glassLike ? (finish === "tinted" ? 4.2 : 2.8) : 0}
       ior={clear ? 1.52 : 1.5}
@@ -224,8 +214,8 @@ export function FinishMaterial({
       clearcoatRoughness={metal ? 0.12 : 0.04}
       attenuationColor={clear ? "#fff8ee" : color}
       attenuationDistance={clear ? 160 : finish === "tinted" ? 36 : 36}
-      envMapIntensity={metal ? 1.65 : glassLike ? 1.7 : matte ? 0.72 : 0.7}
-      specularIntensity={glassLike || metal ? 1 : matte ? 0.55 : 0.3}
+      envMapIntensity={metal ? 1.65 : glassLike ? 1.7 : matte ? 0.35 : 0.7}
+      specularIntensity={glassLike || metal ? 1 : matte ? 0.4 : 0.3}
       transparent={glassLike}
       opacity={materialOpacity}
       depthWrite={!glassLike}

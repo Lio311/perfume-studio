@@ -65,6 +65,11 @@ export interface BottleSpec {
   profile: ProfileName;
   /** Fraction of height used to ease the shoulder into the neck. */
   shoulder: number;
+  /**
+   * Straight glass under the lip, in millimetres.
+   * Steep bulbs store about one neck radius. Other bottles store the crimp seat.
+   */
+  finishMm?: number;
   heightMm: number;
   widthMm: number;
   depthMm: number;

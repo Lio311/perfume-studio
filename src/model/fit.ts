@@ -58,14 +58,14 @@ export function computeFit(design: Design, exploded = false): Fit {
     : collar.heightMm;
   // Lip is the top of the straight finish. Closures seat on that, not on the
   // shoulder blend below it.
-  const lip = neckLipY(bottleH, bottleW, bottleD, bottle.profile, bottle.shoulder, neckR);
+  const lip = neckLipY(bottleH, bottleW, bottleD, bottle.profile, bottle.shoulder, neckR, bottle.finishMm);
   const overlap = Math.min(collarHeight * 0.72, neck.crimpMm * 0.85);
   let collarBottom = lip - overlap;
   let collarTop = collarBottom + collarHeight;
   if (pump.style === "crimp") {
     // A crimp ferrule has no screw skirt. Sink it as far as the straight
     // finish allows, so a tall finish ends at the lip instead of a pedestal.
-    const finish = neckFinishMm(bottleH, neckR, bottle.profile);
+    const finish = neckFinishMm(bottleH, neckR, bottle.finishMm);
     const sunk = Math.min(collarHeight, Math.max(overlap, finish - 0.5));
     collarBottom = lip - sunk;
     collarTop = collarBottom + collarHeight;
@@ -100,7 +100,7 @@ export function computeFit(design: Design, exploded = false): Fit {
   const squareMark = logo.mark === "diamond" || logo.mark === "seal" || logo.mark === "crest" || logo.plate === "diamond" || logo.plate === "circle" || logo.plate === "square";
   const [fw, fh] = squareMark ? [0.5, 0.56] : fractions[logo.plate];
   const labelY = Math.max(12, shoulderY * 0.46);
-  const face = bottleRadii(labelY, bottleH, bottleW, bottleD, bottle.profile, bottle.shoulder, neckR);
+  const face = bottleRadii(labelY, bottleH, bottleW, bottleD, bottle.profile, bottle.shoulder, neckR, bottle.finishMm);
   const labelW = Math.min(
     face.rx * 1.7,
     logo.widthMm ? Math.min(bottleW - 2, logo.widthMm) : Math.min(bottleW - 6, bottleW * fw * design.label.scale),
