@@ -19,6 +19,10 @@ describe("brand field hint", () => {
     const empty = renderToStaticMarkup(createElement(BrandTextField, { value: "", hint: he, label: "טקסט על הלוגו", onChange: () => undefined }));
     expect(empty).toContain(he);
     expect(empty).toContain("brand-hint");
+    expect(empty).toContain('aria-hidden="true"');
+    expect(empty.split(he).length - 1).toBe(1);
+    expect(empty).not.toContain("aria-describedby");
+    expect(empty).not.toContain("placeholder");
 
     const typed = renderToStaticMarkup(createElement(BrandTextField, { value: "בושם שלי 2026", hint: he, label: "טקסט על הלוגו", onChange: () => undefined }));
     expect(typed).not.toContain(he);
@@ -27,6 +31,8 @@ describe("brand field hint", () => {
 
     const emptyEn = renderToStaticMarkup(createElement(BrandTextField, { value: "", hint: en, label: "Logo text", onChange: () => undefined }));
     expect(emptyEn).toContain(en);
+    expect(emptyEn).toContain('aria-hidden="true"');
+    expect(emptyEn.split(en).length - 1).toBe(1);
 
     const typedEn = renderToStaticMarkup(createElement(BrandTextField, { value: "Atelier", hint: en, label: "Logo text", onChange: () => undefined }));
     expect(typedEn).not.toContain(en);

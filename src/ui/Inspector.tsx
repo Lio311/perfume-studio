@@ -191,7 +191,7 @@ export function Inspector() {
           {part === "label" && (
             <>
               <h3>{t.brand}</h3>
-              <BrandTextField value={design.label.text} hint={t.brandHint} label={t.brand} onChange={(text) => patch("label", { text })} />
+              <BrandTextField value={design.label.text} hint={t.brandHint} label={t.brand} onChange={(text) => patch("label", { text, visible: true })} />
               <Slider label={t.scale} value={design.label.scale * 100} min={55} max={160} suffix="%" onGesture={beginGesture} onGestureEnd={endGesture} onChange={(value) => patch("label", { scale: value / 100 })} />
               <Readout label={t.width} value={fit.labelW} />
               <Readout label={t.height} value={fit.labelH} />

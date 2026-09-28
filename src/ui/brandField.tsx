@@ -25,7 +25,7 @@ export function BrandTextField({
         aria-label={label}
         onChange={(event: ChangeEvent<HTMLInputElement>) => onChange(event.target.value.slice(0, 32))}
       />
-      {shown ? <span className="brand-hint">{shown}</span> : null}
+      {shown ? <span className="brand-hint" aria-hidden="true">{shown}</span> : null}
     </div>
   );
 }
