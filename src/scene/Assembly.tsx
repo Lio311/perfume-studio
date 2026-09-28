@@ -10,9 +10,9 @@ import { isGlass } from "../model/materials.ts";
 import type { BoxForm, PartKey, PumpStyle } from "../model/types.ts";
 import { ClosureBox } from "./boxClosure.tsx";
 import { buildBottleGeometry, buildCapGeometry, buildLabelPatch } from "../geometry/sweep.ts";
-import { cartonMarkSize, FOIL_ENV_FLOOR, labelEmissive, labelFinish, labelInk } from "../geometry/logos.ts";
-import type { LogoApplication } from "../model/types.ts";
-import { LabelPaintProvider, useCartonLabelCanvas, useLabelMaps, useSharedLabelCanvas } from "./labelPaint.ts";
+import { labelInk } from "../geometry/logos.ts";
+import { LabelPaintProvider, useLabelMaps, useSharedLabelCanvas } from "./labelPaint.ts";
+import { CartonMark, LabelFinishMaterial } from "./cartonMark.tsx";
 import { useLab } from "../store/labStore.ts";
 import { latheGeometry, latheProfile } from "../import/lathe.ts";
 import { clickPart, doubleClickPart, markPartPointer, swapFlashOn } from "./focusClick.ts";
@@ -653,64 +653,6 @@ function Actuator({
   );
 }
 
-function LabelFinishMaterial({
-  map,
-  mask,
-  emissiveMap,
-  ink,
-  application,
-  overlay = false,
-}: {
-  map: THREE.Texture;
-  mask: THREE.Texture | null;
-  emissiveMap: THREE.Texture | null;
-  ink: string;
-  application: LogoApplication;
-  overlay?: boolean;
-}) {
-  const finish = labelFinish(application);
-  const flat = finish.metalness === 0 && finish.bumpScale === 0;
-  if (flat || !mask) {
-    return (
-      <meshBasicMaterial
-        map={map}
-        toneMapped={false}
-        transparent={overlay}
-        depthWrite={!overlay}
-        polygonOffset={!overlay}
-        polygonOffsetFactor={-4}
-        polygonOffsetUnits={-4}
-      />
-    );
-  }
-  // Roughness is multiplied by the map. The uniform stays 1 so the plate (green = 1) stays matte
-  // and the ink uses labelFinish().roughness, stored in that channel. Metalness uses the blue channel.
-  // Foil keeps an environment floor and a small ink-coloured emissive so the face stays the ink colour
-  // when the studio behind the camera is dark. The emissive map is black on the plate.
-  const envMapIntensity = application === "foil" ? Math.max(finish.envMapIntensity, FOIL_ENV_FLOOR) : finish.envMapIntensity;
-  return (
-    <meshStandardMaterial
-      map={map}
-      metalness={finish.metalness}
-      metalnessMap={mask}
-      roughness={1}
-      roughnessMap={mask}
-      bumpMap={finish.bumpScale !== 0 ? mask : undefined}
-      bumpScale={finish.bumpScale}
-      envMapIntensity={envMapIntensity}
-      emissive={labelEmissive(ink, application)}
-      emissiveIntensity={finish.emissive}
-      emissiveMap={finish.emissive > 0 ? emissiveMap ?? undefined : undefined}
-      toneMapped={finish.metalness < 0.5}
-      transparent={overlay}
-      depthWrite={!overlay}
-      polygonOffset={!overlay}
-      polygonOffsetFactor={-4}
-      polygonOffsetUnits={-4}
-    />
-  );
-}
-
 function LabelPart() {
   const design = useLab((s) => s.design);
   const stage = useLab((s) => s.stage);
@@ -761,26 +703,6 @@ function BoxPart() {
     <PartShell part="box" index={0} home={home} explode={burst} visible={shown} variantKey={spec.id}>
       <BoxFormMesh form={spec.form} w={fit.boxW} h={fit.boxH} d={fit.boxD} fit={fit} finish={design.box.finish} color={design.box.color} />
     </PartShell>
-  );
-}
-
-function BrandPlate({ w, y, z }: { w: number; y: number; z: number }) {
-  const blueprint = useLab((s) => s.blueprint);
-  const variantId = useLab((s) => s.design.label.variantId);
-  const color = useLab((s) => s.design.label.color);
-  const text = useLab((s) => s.design.label.text);
-  const spec = logoById(variantId);
-  const ink = labelInk(color, spec.application);
-  const canvas = useCartonLabelCanvas();
-  const aspect = Number(canvas.dataset.aspect);
-  const { width: planeW, height: planeH } = cartonMarkSize(w, aspect);
-  const { color: tex, mask, emissive } = useLabelMaps(canvas, ink, spec.application);
-  if (blueprint || text.trim().length === 0) return null;
-  return (
-    <mesh position={[0, y, z]}>
-      <planeGeometry args={[planeW, planeH]} />
-      <LabelFinishMaterial map={tex} mask={mask} emissiveMap={emissive} ink={ink} application={spec.application} overlay />
-    </mesh>
   );
 }
 
@@ -978,7 +900,7 @@ function BoxFormMesh({
             <FinishMaterial finish={finish} color={color} />
             <GoldRim part="box" stamp="box" />
           </mesh>
-          <BrandPlate w={w} y={h * 0.62} z={Math.min(w, d) / 2 + 0.4} />
+          <CartonMark w={w} y={h * 0.62} z={Math.min(w, d) / 2 + 0.4} />
         </group>
         <mesh position={[0, wall / 2, 0]} rotation={[-Math.PI / 2, 0, 0]}>
           <circleGeometry args={[Math.min(w, d) / 2 - 1.2, 40]} />
@@ -995,7 +917,7 @@ function BoxFormMesh({
           <GoldRim part="box" stamp="box" />
         </RoundedBox>
         <BottleTray w={w * 0.86} d={d * 0.86} holeW={bottleW} holeD={bottleD} y={Math.max(16, h * 0.18) + 1} />
-        <BrandPlate w={w} y={Math.max(18, h * 0.18) + 1} z={d / 2 + 0.4} />
+        <CartonMark w={w} y={Math.max(18, h * 0.18) + 1} z={d / 2 + 0.4} />
       </group>
     );
   }
@@ -1015,7 +937,7 @@ function BoxFormMesh({
           </mesh>
           <mesh position={[-w / 2 + wall / 2, 0, 0]}><boxGeometry args={[wall, h, d]} /><FinishMaterial finish={finish} color={color} /></mesh>
           <mesh position={[w / 2 - wall / 2, 0, 0]}><boxGeometry args={[wall, h, d]} /><FinishMaterial finish={finish} color={color} /></mesh>
-          <BrandPlate w={w} y={h * 0.12} z={0.4} />
+          <CartonMark w={w} y={h * 0.12} z={0.4} />
         </group>
       </group>
     );
@@ -1066,7 +988,7 @@ function BoxFormMesh({
           </mesh>
         </group>
       )}
-      <BrandPlate w={w} y={baseH * 0.42} z={d / 2 + 0.6} />
+      <CartonMark w={w} y={baseH * 0.42} z={d / 2 + 0.6} />
     </group>
   );
 }
