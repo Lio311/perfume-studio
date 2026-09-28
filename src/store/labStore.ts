@@ -129,7 +129,7 @@ interface LabState {
   addPending: (part: PendingPart) => void;
   removePending: (id: string) => void;
   setSuppliers: (packs: SupplierPack[]) => void;
-  upsertSupplier: (pack: SupplierPack) => void;
+  upsertSupplier: (pack: SupplierPack, close?: boolean) => void;
   removeSupplier: (id: string) => void;
   setBrief: (patch: Partial<Pick<BudgetBrief, "ceilingIls" | "volumeMl">>) => void;
   confirmBrief: () => void;
@@ -558,10 +558,10 @@ export const useLab = create<LabState>()(
         syncRegistry(packs);
         set({ suppliers: packs });
       },
-      upsertSupplier: (pack) => {
+      upsertSupplier: (pack, close = true) => {
         const suppliers = [pack, ...get().suppliers.filter((item) => item.id !== pack.id)];
         syncRegistry(suppliers);
-        set({ suppliers, modal: null });
+        set(close ? { suppliers, modal: null } : { suppliers });
         void savePack(pack);
       },
       removeSupplier: (id) => {

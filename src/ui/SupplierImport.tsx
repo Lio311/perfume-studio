@@ -205,7 +205,7 @@ export function SupplierImport() {
                     return dropsPrice.has(warning.reason) ? `${line} ${t.priceDropped}` : line;
                   }).join(" "));
                 } else setError("");
-                upsertSupplier(pack);
+                upsertSupplier(pack, warnings.length === 0);
               });
             }} />
           </label>
