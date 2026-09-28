@@ -185,6 +185,34 @@ export function decodeShareDesign(hash: string): Design | null {
   }
 }
 
+export function invalidShareMessage(lang: "he" | "en"): string {
+  return lang === "he" ? "הקישור לא תקין, נטען העיצוב האחרון" : "This link is invalid, your last design was loaded";
+}
+
+/** A `#d=` payload that cannot become a design. Null when the hash is not a share link or it decoded. */
+function invalidSharePayload(hash: string): boolean {
+  if (!hash.startsWith("#d=")) return false;
+  try {
+    return mergeShareDesign(parseShareJson(hash.slice(3))) === null;
+  } catch {
+    return true;
+  }
+}
+
+function clearInvalidShare(options: {
+  hash: string;
+  pathname: string;
+  search: string;
+  state: unknown;
+  replaceState: (state: unknown, title: string, url: string) => void;
+  noteInvalid?: () => void;
+}): boolean {
+  if (!invalidSharePayload(options.hash)) return false;
+  options.replaceState(options.state, "", `${options.pathname}${options.search}`);
+  options.noteInvalid?.();
+  return true;
+}
+
 /** How long a share link waits for IndexedDB before applying with the catalog already loaded. */
 export const SHARE_PACK_WAIT_MS = 2000;
 
@@ -215,29 +243,36 @@ export function applyIncomingShareHash(options: {
   cancelled?: () => boolean;
   timeoutMs?: number;
   noteMissing?: (ids: string[]) => void;
+  noteInvalid?: () => void;
   apply: (design: Design) => void;
   replaceState: (state: unknown, title: string, url: string) => void;
 }): Promise<boolean> {
   const timeoutMs = options.timeoutMs ?? SHARE_PACK_WAIT_MS;
   const hydrated = options.hydrated ?? Promise.resolve();
   return settleWithin(hydrated, timeoutMs).then(() => {
+    if (options.cancelled?.()) return false;
+    const loc = options.read();
+    if (!loc.hash.startsWith("#d=")) return false;
+    // A broken payload does not need the supplier catalog. Clear it before the pack wait.
+    if (clearInvalidShare({ ...loc, replaceState: options.replaceState, noteInvalid: options.noteInvalid })) return false;
     const snapshot = options.baseline();
     return settleWithin(options.ready, timeoutMs).then(() => {
       if (options.cancelled?.()) return false;
-      const loc = options.read();
-      if (!loc.hash.startsWith("#d=")) return false;
+      const next = options.read();
+      if (!next.hash.startsWith("#d=")) return false;
       if (options.baseline() !== snapshot) {
-        options.replaceState(loc.state, "", `${loc.pathname}${loc.search}`);
+        options.replaceState(next.state, "", `${next.pathname}${next.search}`);
         return false;
       }
       return applyShareHash({
-        hash: loc.hash,
-        pathname: loc.pathname,
-        search: loc.search,
-        state: loc.state,
+        hash: next.hash,
+        pathname: next.pathname,
+        search: next.search,
+        state: next.state,
         apply: options.apply,
         replaceState: options.replaceState,
         noteMissing: options.noteMissing,
+        noteInvalid: options.noteInvalid,
       });
     });
   });
@@ -270,8 +305,10 @@ export function applyShareHash(options: {
   apply: (design: Design) => void;
   replaceState: (state: unknown, title: string, url: string) => void;
   noteMissing?: (ids: string[]) => void;
+  noteInvalid?: () => void;
 }): boolean {
   if (!options.hash.startsWith("#d=")) return false;
+  if (clearInvalidShare(options)) return false;
   let raw: unknown;
   try {
     raw = parseShareJson(options.hash.slice(3));

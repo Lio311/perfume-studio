@@ -6,6 +6,7 @@ import { estimateMl } from "../model/design.ts";
 import { requestShot } from "../scene/capture.ts";
 import { useLab, type LabMode } from "../store/labStore.ts";
 import { pngDownloadName } from "./pngName.ts";
+import { clipToast } from "./toast.ts";
 import { downloadSpec } from "./specSheet.ts";
 import { VoiceSwitch } from "./VoiceSwitch.tsx";
 import { encodeShareDesign } from "../model/share.ts";
@@ -55,7 +56,7 @@ export function TopBar() {
         setNotice(t.shared);
         window.setTimeout(() => setNotice(""), 1800);
       },
-      () => setNotice(url),
+      () => setNotice(clipToast(url)),
     );
     setMenu(null);
   }
@@ -163,7 +164,7 @@ export function TopBar() {
         <button type="button" className="text-btn panel-toggle" onClick={() => setLibraryOpen(!libraryOpen)}>{t.library}</button>
         <button type="button" className="text-btn panel-toggle" onClick={() => setSideOpen(!sideOpen)}>{t.properties}</button>
       </div>
-      {notice && <div className="toast">{notice}</div>}
+      {notice && <div className="toast" dir={lang === "he" ? "rtl" : "ltr"}>{clipToast(notice)}</div>}
     </header>
   );
 }
