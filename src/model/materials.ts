@@ -201,7 +201,8 @@ export function tintedGlassColor(color: string, opacity?: number): string {
  * Params the frosted or tinted physical material draws.
  * The glass stays transparent and does not write depth at every slider position,
  * including 1, so opacity can reach 1 without a mode switch and without hiding
- * the liquid in the depth buffer. The floor grid is kept behind the bottle instead.
+ * the liquid in the depth buffer. The floor grid is drawn opaque, behind the bottle,
+ * so its lines are not composited on top of the liquid.
  */
 export function effectiveGlassDraw(finish: FinishId, opacity?: number): {
   opacity: number;

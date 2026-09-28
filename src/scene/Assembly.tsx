@@ -135,6 +135,15 @@ function PartShell({
       const mesh = obj as THREE.Mesh;
       if (solid || !mesh.isMesh || !mesh.material) return;
       const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+      if (mesh.userData.liquidDepth) {
+        for (const mat of mats) {
+          const write = !ghost;
+          if (mat.depthWrite !== write) mat.depthWrite = write;
+          if (mat.colorWrite) mat.colorWrite = false;
+          if (mat.transparent) mat.transparent = false;
+        }
+        return;
+      }
       const glassSetting = part === "bottle"
         ? bottleGlassSetting(state.design.bottle.finish, state.design.bottle.opacity)
         : null;
@@ -411,6 +420,16 @@ function LiquidPart() {
   );
   return (
     <PartShell part="liquid" index={5} home={[0, 0, 0]} explode={[0, 0, 0]} visible={design.liquid.visible && design.bottle.visible && onStage} variantKey={spec.id + design.liquid.color + surface.toFixed(1)}>
+      {/* Writes the liquid's depth before the floor grid so grid lines fail the depth test inside the liquid. Color is drawn later by JuiceMaterial; this mesh never writes color. */}
+      <mesh geometry={geo} renderOrder={-1.5} userData={{ liquidDepth: true }} raycast={() => null}>
+        <meshBasicMaterial
+          colorWrite={false}
+          depthWrite
+          polygonOffset
+          polygonOffsetFactor={1}
+          polygonOffsetUnits={1}
+        />
+      </mesh>
       <mesh geometry={geo} renderOrder={1}>
         <JuiceMaterial color={design.liquid.color} top={surface} />
       </mesh>
