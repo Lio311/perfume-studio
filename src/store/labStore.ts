@@ -574,7 +574,7 @@ export const useLab = create<LabState>()(
         design.pump.visible = false;
         design.collar.visible = false;
         design.box.visible = false;
-        design.liquid.visible = false;
+        design.liquid.visible = true;
 
         set((state) => ({
           design,
