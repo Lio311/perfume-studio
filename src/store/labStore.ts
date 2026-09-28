@@ -497,7 +497,6 @@ export const useLab = create<LabState>()(
         const newDesign = { id, name: name.trim() || "סקיצה", design: get().design, thumb, createdAt: Date.now() };
         set((state) => ({
           saved: [newDesign, ...state.saved].slice(0, 24),
-          modal: null,
         }));
         try {
           await apiClient.post("/designs", newDesign);
