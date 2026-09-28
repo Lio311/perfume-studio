@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { PALETTE } from "../model/materials.ts";
 import {
   clampLabelText,
   contrastingPlate,
@@ -67,6 +68,23 @@ describe("label text layout", () => {
     expect(contrastingPlate("rgb(255, 255, 255)")).toBe("#16130f");
     expect(contrastingPlate("#44bbdd")).toBe("#16130f");
     expect(contrastingPlate("#c9a36a")).toBe("#16130f");
+  });
+
+  it("keeps at least 3:1 contrast for every label palette colour", () => {
+    for (const ink of PALETTE) {
+      const plate = contrastingPlate(ink);
+      expect(contrastRatio(ink, plate), `${ink} on ${plate}`).toBeGreaterThanOrEqual(3);
+    }
+    expect(contrastRatio("#c9a36a", contrastingPlate("#c9a36a"))).toBeGreaterThanOrEqual(3);
+  });
+
+  it("does not parse short hex, colour names, or rgb() as black", () => {
+    const lights = ["#fff", "#FFF", "white", "rgb(255, 255, 255)", "rgb(255,255,255)"];
+    for (const ink of lights) {
+      expect(relativeLuminance(ink), ink).toBeGreaterThan(0.9);
+      expect(relativeLuminance(ink), ink).not.toBe(0);
+      expect(contrastingPlate(ink), ink).toBe("#16130f");
+    }
   });
 
   it("truncates by code points so an emoji is not split", () => {
