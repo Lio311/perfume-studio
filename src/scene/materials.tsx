@@ -165,15 +165,8 @@ export function FinishMaterial({
   useEffect(() => {
     fade.uColor.value.set(theme === "dark" ? 0xf6e5c7 : 0x2c3e50);
   }, [theme, fade]);
-  if (blueprint) {
-    return <shaderMaterial transparent depthWrite toneMapped={false} uniforms={fade} vertexShader={BLUE_VERT} fragmentShader={BLUE_FRAG} />;
-  }
-  if (clear && glass) return <ClearGlass opacity={opacity !== undefined ? opacity : 0.14} />;
-  
   const actualOpacity = opacity !== undefined ? opacity : clear ? 0.14 : finish === "frosted" ? 0.45 : 0.32;
-  // For tinted glass, opacity controls attenuation distance (how dark the tint is) instead of breaking transmission
-  const tintDistance = 120 - (actualOpacity * 110); // 0 -> 120 (faint), 1 -> 10 (very dark)
-
+  const tintDistance = 120 - (actualOpacity * 110);
   const baseColor = useMemo(() => {
     if (glassLike && finish === "tinted") {
       const target = new THREE.Color(color);
@@ -183,6 +176,11 @@ export function FinishMaterial({
     }
     return color;
   }, [color, finish, glassLike, actualOpacity]);
+
+  if (blueprint) {
+    return <shaderMaterial transparent depthWrite toneMapped={false} uniforms={fade} vertexShader={BLUE_VERT} fragmentShader={BLUE_FRAG} />;
+  }
+  if (clear && glass) return <ClearGlass opacity={opacity !== undefined ? opacity : 0.14} />;
 
   return (
     <meshPhysicalMaterial
