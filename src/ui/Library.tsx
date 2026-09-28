@@ -193,7 +193,7 @@ export function Library() {
           ))}
         </div>
       ) : (
-        <div ref={gridRef} className={tab !== "cap" && items.length <= 16 ? "thumb-row" : "thumb-grid"}>
+        <div ref={gridRef} className="thumb-grid">
           {items.length === 0 && supplier !== "all" && <p className="hint">{t.importedEmpty}</p>}
           {items.map((item) => (
             <button
@@ -223,10 +223,12 @@ export function Library() {
             applyCommands([{ type: "wizard_step", step: nextStep }]);
             if (nextStep < WIZARD_ORDER.length) {
               setTab(WIZARD_ORDER[nextStep]);
+            } else {
+              useLab.getState().setLibraryOpen(false);
             }
           }}
         >
-          {lang === "he" ? "לשלב הבא" : "Next Step"}
+          {wizardStep === WIZARD_ORDER.length - 1 ? (lang === "he" ? "סיום" : "Finish") : (lang === "he" ? "לשלב הבא" : "Next Step")}
         </button>
       )}
       <button type="button" className="upload-btn" data-photo3d onClick={() => setModal("photo")}>
