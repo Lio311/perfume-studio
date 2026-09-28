@@ -1,8 +1,9 @@
 import Foundation
 
-/// Fires once after green has been held for at least 0.5 s on a card whose tilt is at most 10°.
-/// Never fires for VIO, and never fires for LiDAR below 300 mm. LiDAR never auto-captures:
-/// the only firing source is the card.
+/// Fires once after green has been held for at least 0.5 s when the source allows
+/// auto-capture and tilt is at most 10°.
+/// Among camera sources only the card allows it. VIO never fires. LiDAR never fires,
+/// including below 300 mm, where `accepts` rejects the reading as well.
 public struct AutoCaptureGate: Equatable {
     public var hold: TimeInterval
     public var maxTiltDegrees: Double
@@ -22,13 +23,13 @@ public struct AutoCaptureGate: Equatable {
     /// Returns true on the single frame where the hold completes.
     public mutating func update(
         isGreen: Bool,
-        source: DistanceSource,
+        source: some DistanceSource,
         tiltDegrees: Double,
         zMm: Double,
         time: TimeInterval
     ) -> Bool {
         let qualified = isGreen
-            && source == .card
+            && source.allowsAutoCapture
             && source.accepts(rawZMm: zMm)
             && tiltDegrees.isFinite
             && tiltDegrees <= maxTiltDegrees

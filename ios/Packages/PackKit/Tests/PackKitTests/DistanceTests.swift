@@ -113,7 +113,7 @@ final class DistanceFilterTests: XCTestCase {
         let samples = [10.0, 30, 20, 100, 40, 20]
         let expected = [10.0, 12.5, 14.375, 17.03125, 20.2734375, 22.705078125]
         for (index, sample) in samples.enumerated() {
-            let result = filter.push(zMm: sample, time: Double(index) * 0.05, source: .card)
+            let result = filter.push(zMm: sample, time: Double(index) * 0.05, source: CameraDistance.card)
             XCTAssertEqual(result?.millimetres ?? .nan, expected[index], accuracy: 1e-9, "sample \(index)")
             XCTAssertFalse(result?.didReset ?? true)
         }
@@ -121,35 +121,35 @@ final class DistanceFilterTests: XCTestCase {
 
     func testGapAt300msDoesNotResetButLongerDoes() {
         var held = DistanceFilter()
-        _ = held.push(zMm: 10, time: 0, source: .card)
-        let kept = held.push(zMm: 50, time: 0.3, source: .card)
+        _ = held.push(zMm: 10, time: 0, source: CameraDistance.card)
+        let kept = held.push(zMm: 50, time: 0.3, source: CameraDistance.card)
         XCTAssertEqual(kept?.didReset, false)
         XCTAssertEqual(kept?.millimetres ?? .nan, 15, accuracy: 1e-9)
 
         var reset = DistanceFilter()
-        _ = reset.push(zMm: 10, time: 0, source: .card)
-        let fresh = reset.push(zMm: 50, time: 0.301, source: .card)
+        _ = reset.push(zMm: 10, time: 0, source: CameraDistance.card)
+        let fresh = reset.push(zMm: 50, time: 0.301, source: CameraDistance.card)
         XCTAssertEqual(fresh?.didReset, true)
         XCTAssertEqual(fresh?.millimetres ?? .nan, 50, accuracy: 1e-9)
     }
 
     func testSourceChangeResets() {
         var filter = DistanceFilter()
-        _ = filter.push(zMm: 10, time: 0, source: .card)
-        let next = filter.push(zMm: 80, time: 0.05, source: .vio)
+        _ = filter.push(zMm: 10, time: 0, source: CameraDistance.card)
+        let next = filter.push(zMm: 80, time: 0.05, source: CameraDistance.vio)
         XCTAssertEqual(next?.didReset, true)
         XCTAssertEqual(next?.millimetres ?? .nan, 80, accuracy: 1e-9)
     }
 
     func testLiDARBelow300IsIgnored() {
         var filter = DistanceFilter()
-        XCTAssertNil(filter.push(zMm: 299, time: 0, source: .lidar))
+        XCTAssertNil(filter.push(zMm: 299, time: 0, source: CameraDistance.lidar))
         XCTAssertNil(filter.value)
-        let accepted = filter.push(zMm: 300, time: 0, source: .lidar)
+        let accepted = filter.push(zMm: 300, time: 0, source: CameraDistance.lidar)
         XCTAssertEqual(accepted?.millimetres ?? .nan, 300, accuracy: 1e-9)
-        XCTAssertNil(filter.push(zMm: 100, time: 0.05, source: .lidar))
+        XCTAssertNil(filter.push(zMm: 100, time: 0.05, source: CameraDistance.lidar))
         XCTAssertEqual(filter.value ?? .nan, 300, accuracy: 1e-9)
-        let card = filter.push(zMm: 180, time: 0.1, source: .card)
+        let card = filter.push(zMm: 180, time: 0.1, source: CameraDistance.card)
         XCTAssertEqual(card?.didReset, true)
         XCTAssertEqual(card?.millimetres ?? .nan, 180, accuracy: 1e-9)
     }
@@ -221,25 +221,25 @@ final class DistanceGuideTests: XCTestCase {
 final class AutoCaptureTests: XCTestCase {
     func testFiresOnceAfterHalfASecondOfCardGreen() {
         var gate = AutoCaptureGate()
-        XCTAssertFalse(gate.update(isGreen: true, source: .card, tiltDegrees: 0, zMm: 200, time: 0))
-        XCTAssertFalse(gate.update(isGreen: true, source: .card, tiltDegrees: 0, zMm: 200, time: 0.49))
-        XCTAssertTrue(gate.update(isGreen: true, source: .card, tiltDegrees: 10, zMm: 200, time: 0.5))
-        XCTAssertFalse(gate.update(isGreen: true, source: .card, tiltDegrees: 0, zMm: 200, time: 0.8))
-        XCTAssertFalse(gate.update(isGreen: false, source: .card, tiltDegrees: 0, zMm: 200, time: 0.9))
-        XCTAssertFalse(gate.update(isGreen: true, source: .card, tiltDegrees: 0, zMm: 200, time: 1.0))
-        XCTAssertTrue(gate.update(isGreen: true, source: .card, tiltDegrees: 0, zMm: 200, time: 1.5))
+        XCTAssertFalse(gate.update(isGreen: true, source: CameraDistance.card, tiltDegrees: 0, zMm: 200, time: 0))
+        XCTAssertFalse(gate.update(isGreen: true, source: CameraDistance.card, tiltDegrees: 0, zMm: 200, time: 0.49))
+        XCTAssertTrue(gate.update(isGreen: true, source: CameraDistance.card, tiltDegrees: 10, zMm: 200, time: 0.5))
+        XCTAssertFalse(gate.update(isGreen: true, source: CameraDistance.card, tiltDegrees: 0, zMm: 200, time: 0.8))
+        XCTAssertFalse(gate.update(isGreen: false, source: CameraDistance.card, tiltDegrees: 0, zMm: 200, time: 0.9))
+        XCTAssertFalse(gate.update(isGreen: true, source: CameraDistance.card, tiltDegrees: 0, zMm: 200, time: 1.0))
+        XCTAssertTrue(gate.update(isGreen: true, source: CameraDistance.card, tiltDegrees: 0, zMm: 200, time: 1.5))
     }
 
     func testTiltAboveTenDegreesDoesNotFire() {
         var gate = AutoCaptureGate()
-        XCTAssertFalse(gate.update(isGreen: true, source: .card, tiltDegrees: 10.1, zMm: 200, time: 0))
-        XCTAssertFalse(gate.update(isGreen: true, source: .card, tiltDegrees: 10.1, zMm: 200, time: 1))
+        XCTAssertFalse(gate.update(isGreen: true, source: CameraDistance.card, tiltDegrees: 10.1, zMm: 200, time: 0))
+        XCTAssertFalse(gate.update(isGreen: true, source: CameraDistance.card, tiltDegrees: 10.1, zMm: 200, time: 1))
     }
 
     func testVIONeverAutoCaptures() {
         var gate = AutoCaptureGate()
         for time in stride(from: 0.0, through: 2, by: 0.1) {
-            XCTAssertFalse(gate.update(isGreen: true, source: .vio, tiltDegrees: 0, zMm: 200, time: time))
+            XCTAssertFalse(gate.update(isGreen: true, source: CameraDistance.vio, tiltDegrees: 0, zMm: 200, time: time))
         }
     }
 
@@ -247,8 +247,8 @@ final class AutoCaptureTests: XCTestCase {
         var below = AutoCaptureGate()
         var above = AutoCaptureGate()
         for time in stride(from: 0.0, through: 2, by: 0.1) {
-            XCTAssertFalse(below.update(isGreen: true, source: .lidar, tiltDegrees: 0, zMm: 250, time: time))
-            XCTAssertFalse(above.update(isGreen: true, source: .lidar, tiltDegrees: 0, zMm: 400, time: time))
+            XCTAssertFalse(below.update(isGreen: true, source: CameraDistance.lidar, tiltDegrees: 0, zMm: 250, time: time))
+            XCTAssertFalse(above.update(isGreen: true, source: CameraDistance.lidar, tiltDegrees: 0, zMm: 400, time: time))
         }
     }
 }
@@ -256,7 +256,7 @@ final class AutoCaptureTests: XCTestCase {
 final class DistanceSessionTests: XCTestCase {
     func testCalibrationIsAppliedBeforeTheFilter() {
         var session = DistanceSession(calibration: DistanceCalibration(biasMm: -2, scale: 1.01, sigmaMm: 0.4))
-        let reading = session.update(rawZMm: 200, source: .card, tiltDegrees: 0, time: 0)
+        let reading = session.update(rawZMm: 200, source: CameraDistance.card, tiltDegrees: 0, time: 0)
         XCTAssertTrue(reading.accepted)
         XCTAssertEqual(reading.filteredMm ?? .nan, 200 * 1.01 - 2, accuracy: 1e-9)
         XCTAssertFalse(reading.showsApproximateBadge)
@@ -265,16 +265,16 @@ final class DistanceSessionTests: XCTestCase {
     func testIdentityCalibrationLeavesZUnchanged() {
         XCTAssertEqual(DistanceCalibration.identity.apply(to: 200), 200, accuracy: 1e-12)
         var session = DistanceSession()
-        let reading = session.update(rawZMm: 200, source: .card, tiltDegrees: 0, time: 0)
+        let reading = session.update(rawZMm: 200, source: CameraDistance.card, tiltDegrees: 0, time: 0)
         XCTAssertEqual(reading.filteredMm ?? .nan, 200, accuracy: 1e-9)
     }
 
     func testLiDARBelow300IsNotAccepted() {
         var session = DistanceSession()
-        let ignored = session.update(rawZMm: 250, source: .lidar, tiltDegrees: 0, time: 0)
+        let ignored = session.update(rawZMm: 250, source: CameraDistance.lidar, tiltDegrees: 0, time: 0)
         XCTAssertFalse(ignored.accepted)
         XCTAssertNil(session.filter.value)
-        let kept = session.update(rawZMm: 320, source: .lidar, tiltDegrees: 0, time: 0.05)
+        let kept = session.update(rawZMm: 320, source: CameraDistance.lidar, tiltDegrees: 0, time: 0.05)
         XCTAssertTrue(kept.accepted)
         XCTAssertEqual(kept.filteredMm ?? .nan, 320, accuracy: 1e-9)
         XCTAssertFalse(kept.shouldAutoCapture)
@@ -285,7 +285,7 @@ final class DistanceSessionTests: XCTestCase {
         var fired = false
         var last: DistanceReading?
         for step in 0..<40 {
-            let reading = session.update(rawZMm: 200, source: .vio, tiltDegrees: 0, time: Double(step) * 0.05)
+            let reading = session.update(rawZMm: 200, source: CameraDistance.vio, tiltDegrees: 0, time: Double(step) * 0.05)
             XCTAssertTrue(reading.showsApproximateBadge)
             fired = fired || reading.shouldAutoCapture
             last = reading
@@ -299,11 +299,11 @@ final class DistanceSessionTests: XCTestCase {
         var firedAt: TimeInterval?
         for step in 0..<30 {
             let time = Double(step) * 0.05
-            let reading = session.update(rawZMm: 200, source: .card, tiltDegrees: 4, time: time)
+            let reading = session.update(rawZMm: 200, source: CameraDistance.card, tiltDegrees: 4, time: time)
             if reading.shouldAutoCapture { firedAt = time }
         }
         XCTAssertEqual(firedAt ?? -1, 0.6, accuracy: 1e-9)
-        let again = session.update(rawZMm: 200, source: .card, tiltDegrees: 4, time: 2)
+        let again = session.update(rawZMm: 200, source: CameraDistance.card, tiltDegrees: 4, time: 2)
         XCTAssertFalse(again.shouldAutoCapture)
     }
 
@@ -340,6 +340,34 @@ final class DistanceChooserTests: XCTestCase {
     func testNothingInViewReturnsNil() {
         XCTAssertNil(DistanceChooser.choose(cardDepthMm: nil, cardTiltDegrees: nil, lidarMm: 100, vioMm: nil))
     }
+}
+
+final class DistanceSourceProtocolTests: XCTestCase {
+    func testANewSourceIdResetsTheFilter() {
+        var filter = DistanceFilter()
+        _ = filter.push(zMm: 10, time: 0, source: CameraDistance.card)
+        let next = filter.push(zMm: 40, time: 0.05, source: FutureDepth(id: "objectCapture"))
+        XCTAssertEqual(next?.didReset, true)
+        XCTAssertEqual(next?.millimetres ?? .nan, 40, accuracy: 1e-9)
+    }
+
+    func testAutoCaptureFollowsTheSourceFlag() {
+        var optedOut = AutoCaptureGate()
+        var optedIn = AutoCaptureGate()
+        let out = FutureDepth(id: "objectCapture")
+        let into = FutureDepth(id: "objectCapture", allowsAutoCapture: true)
+        for time in stride(from: 0.0, through: 2, by: 0.1) {
+            XCTAssertFalse(optedOut.update(isGreen: true, source: out, tiltDegrees: 0, zMm: 200, time: time))
+        }
+        XCTAssertFalse(optedIn.update(isGreen: true, source: into, tiltDegrees: 0, zMm: 200, time: 0))
+        XCTAssertTrue(optedIn.update(isGreen: true, source: into, tiltDegrees: 0, zMm: 200, time: 0.5))
+    }
+}
+
+/// Stand-in for a later depth source. Not an Object Capture implementation.
+private struct FutureDepth: DistanceSource {
+    var id: String
+    var allowsAutoCapture = false
 }
 
 final class CornerRefinerTests: XCTestCase {
