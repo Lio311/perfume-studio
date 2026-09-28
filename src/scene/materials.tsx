@@ -1,7 +1,7 @@
-import { useMemo, useEffect } from "react";
+import { useMemo, useEffect, useRef } from "react";
 import * as THREE from "three";
 import type { FinishId } from "../model/types.ts";
-import { effectiveGlassOpacity, glassTransmission, isGlass } from "../model/materials.ts";
+import { computeGlassProps, isGlass } from "../model/materials.ts";
 import { leatherBump, woodMap } from "../geometry/textures.ts";
 import { useLab } from "../store/labStore.ts";
 
@@ -78,56 +78,7 @@ function mattePaper(hex: string): { map: THREE.CanvasTexture; bump: THREE.Canvas
   return { map, bump };
 }
 
-const CLEAR_VERT = `
-  varying vec3 vNormal;
-  varying vec3 vWorld;
-  void main() {
-    vec4 world = modelMatrix * vec4(position, 1.0);
-    vWorld = world.xyz;
-    vNormal = normalize(mat3(modelMatrix) * normal);
-    gl_Position = projectionMatrix * viewMatrix * world;
-  }
-`;
 
-const CLEAR_FRAG = `
-  varying vec3 vNormal;
-  varying vec3 vWorld;
-  uniform float uFade;
-  void main() {
-    vec3 N = normalize(vNormal);
-    vec3 V = normalize(cameraPosition - vWorld);
-    float ndv = max(dot(N, V), 0.0);
-    float fres = pow(1.0 - ndv, 2.45);
-    vec3 R = reflect(-V, N);
-    float envH = clamp(R.y * 0.5 + 0.58, 0.0, 1.0);
-    vec3 env = mix(vec3(0.74, 0.77, 0.81), vec3(0.98, 0.985, 0.99), envH);
-    vec3 L = normalize(vec3(0.22, 0.92, 0.34));
-    float spec = pow(max(dot(reflect(-L, N), V), 0.0), 70.0);
-    vec3 color = mix(env * 0.42, vec3(0.97, 0.98, 0.99), fres);
-    color += vec3(1.0) * spec * 0.9;
-    float alpha = 0.02 + fres * 0.78 + spec * 0.42;
-    gl_FragColor = vec4(color, clamp(alpha, 0.0, 0.86) * uFade);
-  }
-`;
-
-function ClearGlass({ opacity = 0.14 }: { opacity?: number }) {
-  const uniforms = useMemo(() => ({ uFade: { value: opacity / 0.14 } }), []);
-  return (
-    <shaderMaterial
-      transparent
-      depthWrite={false}
-      depthTest
-      side={THREE.FrontSide}
-      polygonOffset
-      polygonOffsetFactor={-1}
-      polygonOffsetUnits={-1}
-      uniforms={uniforms}
-      uniforms-uFade-value={opacity / 0.14}
-      vertexShader={CLEAR_VERT}
-      fragmentShader={CLEAR_FRAG}
-    />
-  );
-}
 
 export function FinishMaterial({
   finish,
@@ -156,37 +107,36 @@ export function FinishMaterial({
       }
     };
   }, [wood, leather, paper]);
+  const glassLike = glass && isGlass(finish);
+  const gp = useMemo(
+    () => glassLike ? computeGlassProps(finish, opacity) : null,
+    [glassLike, finish, opacity],
+  );
+  const metal = finish === "gold" || finish === "silver" || finish === "rose";
+
   const blueprint = useLab((s) => s.blueprint);
   const theme = useLab((s) => s.theme);
-  const glassLike = glass && isGlass(finish);
-  const metal = finish === "gold" || finish === "silver" || finish === "rose";
   const matte = finish === "matteBlack";
-  const clear = finish === "clear";
+
   const fade = useMemo(() => ({ uFade: { value: 1 }, uColor: { value: new THREE.Color() } }), []);
   useEffect(() => {
     fade.uColor.value.set(theme === "dark" ? 0xf6e5c7 : 0x2c3e50);
   }, [theme, fade]);
-  let materialOpacity = 1.0;
-  let materialTransmission = 0;
-  if (glassLike) {
-    if (opacity !== undefined) {
-      // Use pure alpha blending for the opacity slider to ensure the liquid is visible
-      // and the diffuse color becomes fully solid at 100%.
-      materialOpacity = 0.15 + opacity * 0.85;
-      materialTransmission = 0;
-    } else {
-      materialOpacity = effectiveGlassOpacity(finish) ?? 1.0;
-      materialTransmission = Math.max(0.01, glassTransmission(finish));
+
+  const meshRef = useRef<THREE.MeshPhysicalMaterial>(null);
+  useEffect(() => {
+    if (meshRef.current) {
+      meshRef.current.userData.intendedOpacity = gp ? gp.materialOpacity : 1.0;
     }
-  }
+  }, [gp]);
 
   if (blueprint) {
     return <shaderMaterial transparent depthWrite toneMapped={false} uniforms={fade} vertexShader={BLUE_VERT} fragmentShader={BLUE_FRAG} />;
   }
-  if (clear && glass) return <ClearGlass opacity={opacity !== undefined ? opacity : 0.14} />;
 
   return (
     <meshPhysicalMaterial
+      ref={meshRef}
       color={color}
       flatShading={flat}
       map={wood ?? paper?.map ?? undefined}
@@ -195,30 +145,22 @@ export function FinishMaterial({
       emissive="#000000"
       emissiveIntensity={0}
       metalness={metal ? 1 : 0}
-      roughness={
-        clear ? 0.015 :
-        finish === "frosted" ? 0.34 :
-        finish === "tinted" ? 0.05 :
-        metal ? 0.14 :
-        matte ? 0.68 :
-        finish === "wood" ? 0.7 :
-        0.84
-      }
+      roughness={gp ? gp.roughness : metal ? 0.14 : matte ? 0.68 : finish === "wood" ? 0.7 : 0.84}
       sheen={matte ? 0.06 : 0}
       sheenRoughness={0.62}
       sheenColor="#4a4f56"
-      transmission={materialTransmission}
-      thickness={glassLike ? (finish === "tinted" ? 4.2 : 2.8) : 0}
-      ior={clear ? 1.52 : 1.5}
-      clearcoat={clear || finish === "tinted" ? 1 : metal ? 0.65 : 0.04}
+      transmission={gp ? gp.transmission : 0}
+      thickness={gp ? gp.thickness : 0}
+      ior={gp ? gp.ior : 1.5}
+      clearcoat={gp ? 1 : metal ? 0.65 : 0.04}
       clearcoatRoughness={metal ? 0.12 : 0.04}
-      attenuationColor={clear ? "#fff8ee" : color}
-      attenuationDistance={clear ? 160 : finish === "tinted" ? 36 : 36}
-      envMapIntensity={metal ? 1.65 : glassLike ? 1.7 : matte ? 0.35 : 0.7}
-      specularIntensity={glassLike || metal ? 1 : matte ? 0.4 : 0.3}
-      transparent={glassLike}
-      opacity={materialOpacity}
-      depthWrite={!glassLike}
+      attenuationColor={gp ? color : "#fff8ee"}
+      attenuationDistance={gp ? 36 : 160}
+      envMapIntensity={metal ? 1.65 : gp ? 1.7 : matte ? 0.35 : 0.7}
+      specularIntensity={gp || metal ? 1 : matte ? 0.4 : 0.3}
+      transparent={!!gp}
+      opacity={gp ? gp.materialOpacity : 1}
+      depthWrite={!gp}
       side={THREE.FrontSide}
     />
   );
@@ -264,8 +206,13 @@ export function JuiceMaterial({ color, top }: { color: string; top: number }) {
     () => ({ uColor: { value: new THREE.Color(color) }, uFade: { value: 1 }, uTop: { value: top } }),
     [color, top],
   );
+  const ref = useRef<THREE.ShaderMaterial>(null);
+  useEffect(() => {
+    if (ref.current) ref.current.userData.intendedFade = 1;
+  }, []);
   return (
     <shaderMaterial
+      ref={ref}
       transparent
       depthWrite
       side={THREE.FrontSide}
