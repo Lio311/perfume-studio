@@ -15,7 +15,10 @@ describe("renderedGlassOpacity", () => {
       for (const opacity of [0, 0.5, 1] as const) {
         expect(usesFlatGlassAlpha(finish)).toBe(true);
         expect(renderedGlassOpacity(finish, opacity)).toBeCloseTo(mappedGlassOpacity(opacity));
-        expect(glassDrawTransmission(finish, opacity)).toBe(0);
+        const s0 = DEFAULT_GLASS_OPACITY[finish];
+        const base = glassDrawTransmission(finish);
+        const expected = Math.min(1, Math.max(0, (base * (1 - opacity)) / (1 - s0)));
+        expect(glassDrawTransmission(finish, opacity)).toBeCloseTo(expected);
       }
       expect(renderedGlassOpacity(finish, 0)).toBeCloseTo(0.15);
       expect(renderedGlassOpacity(finish, 0.5)).toBeCloseTo(0.575);
@@ -67,10 +70,28 @@ describe("renderedGlassOpacity", () => {
       attenuationDistance: 36,
       depthWrite: false,
     });
-    expect(effectiveGlassDraw("frosted", 0)).toMatchObject({ opacity: 0.15, transmission: 0, depthWrite: false });
-    expect(effectiveGlassDraw("tinted", 0)).toMatchObject({ opacity: 0.15, transmission: 0, depthWrite: false });
-    expect(effectiveGlassDraw("frosted", 1)).toMatchObject({ opacity: 1, transmission: 0 });
-    expect(effectiveGlassDraw("tinted", 1)).toMatchObject({ opacity: 1, transmission: 0 });
+    expect(effectiveGlassDraw("frosted", 0)).toMatchObject({ opacity: 0.15, depthWrite: false });
+    expect(effectiveGlassDraw("tinted", 0)).toMatchObject({ opacity: 0.15, depthWrite: false });
+    expect(effectiveGlassDraw("frosted", 0)!.transmission).toBeGreaterThan(0.35);
+    expect(effectiveGlassDraw("tinted", 0)!.transmission).toBeGreaterThan(0.55);
+    expect(effectiveGlassDraw("frosted", 0)!.transmission).toBeLessThanOrEqual(1);
+    expect(effectiveGlassDraw("tinted", 0)!.transmission).toBeLessThanOrEqual(1);
+    expect(effectiveGlassDraw("frosted", 1)).toMatchObject({ opacity: 1, transmission: 0, depthWrite: false });
+    expect(effectiveGlassDraw("tinted", 1)).toMatchObject({ opacity: 1, transmission: 0, depthWrite: false });
     expect(effectiveGlassDraw("clear")).toBeNull();
+  });
+
+  it("draws the same glass when the slider is untouched or parked on the default", () => {
+    for (const finish of ["frosted", "tinted"] as const) {
+      const untouched = effectiveGlassDraw(finish);
+      const parked = effectiveGlassDraw(finish, DEFAULT_GLASS_OPACITY[finish]);
+      expect(untouched).not.toBeNull();
+      expect(parked).not.toBeNull();
+      expect(Math.abs(parked!.opacity - untouched!.opacity)).toBeLessThanOrEqual(0.01);
+      expect(Math.abs(parked!.transmission - untouched!.transmission)).toBeLessThanOrEqual(0.01);
+      expect(parked!.depthWrite).toBe(false);
+      expect(untouched!.depthWrite).toBe(false);
+      expect(parked!.transmission).toBeCloseTo(glassDrawTransmission(finish), 5);
+    }
   });
 });

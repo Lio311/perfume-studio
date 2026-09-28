@@ -99,11 +99,7 @@ export function mappedGlassOpacity(opacity: number): number {
   return 0.15 + 0.85 * opacity;
 }
 
-/**
- * Frosted and tinted glass draw a flat alpha once the slider is explicit.
- * The untouched default does not: it keeps the refractive transmission below.
- * Clear glass stays on the fresnel shader.
- */
+/** Frosted and tinted glass use mapped alpha. Clear glass stays on the fresnel shader. */
 export function usesFlatGlassAlpha(finish: FinishId): boolean {
   const glass = glassFinish(finish);
   return glass !== null && glass !== "clear";
@@ -151,14 +147,21 @@ const GLASS_SURFACE: Record<GlassFinish, { roughness: number; thickness: number;
 
 /**
  * Transmission the physical glass material should use.
- * An explicit frosted or tinted slider uses 0 so `mappedGlassOpacity` is what you see.
- * The untouched default keeps the transmission stored with that finish, which is what
- * main draws when the design has no opacity value. Clear glass keeps its refractive default.
+ * Frosted and tinted, including a missing slider, use one curve. `s0` is the per-finish
+ * default and `base` is the transmission main draws there:
+ * `clamp(base · (1 - s) / (1 - s0), 0, 1)`.
+ * Parking the slider on `s0` matches the untouched default. `s = 1` is 0.
+ * Below `s0` the same slope is capped at 1, and opacity `0.15 + 0.85·s` keeps 0 clear.
+ * Clear glass keeps its refractive default.
  */
 export function glassDrawTransmission(finish: FinishId, opacity?: number): number {
   if (!isGlass(finish)) return 0;
-  if (usesFlatGlassAlpha(finish) && opacity !== undefined) return 0;
-  return Math.max(0.01, glassTransmission(finish));
+  const glass = glassFinish(finish);
+  if (!glass || glass === "clear") return Math.max(0.01, glassTransmission(finish));
+  const s0 = DEFAULT_GLASS_OPACITY[glass];
+  const base = GLASS_FINISH_DEFAULTS[glass].transmission;
+  const s = opacity ?? s0;
+  return Math.min(1, Math.max(0, (base * (1 - s)) / (1 - s0)));
 }
 
 /**
