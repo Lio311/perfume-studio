@@ -3,7 +3,7 @@ import { partLabel, tx } from "../i18n/copy.ts";
 import { downloadPack } from "../import/supplierDb.ts";
 import { entryMatches, listFor } from "../model/catalog.ts";
 import { markSwap } from "../scene/focusClick.ts";
-import { effectiveGlassOpacity, LIQUID_PALETTE } from "../model/materials.ts";
+import { effectiveGlassOpacity, LIQUID_PALETTE, renderedGlassOpacity } from "../model/materials.ts";
 import type { VariantPart } from "../model/types.ts";
 import { useLab } from "../store/labStore.ts";
 import { thumbFor } from "../thumbnails/thumbs.ts";
@@ -94,6 +94,7 @@ export function Library() {
   }, [tab, activeId, items, focusToken]);
 
   const glassOpacity = effectiveGlassOpacity(design.bottle.finish, design.bottle.opacity);
+  const glassPercent = renderedGlassOpacity(design.bottle.finish, design.bottle.opacity);
 
   return (
     <aside className={`panel library ${open ? "is-open" : ""}`} dir={lang === "he" ? "rtl" : "ltr"}>
@@ -187,7 +188,7 @@ export function Library() {
           {glassOpacity !== null && (
             <label className="slider" style={{ marginTop: "16px" }}>
               <span>{lang === "he" ? "אטימות זכוכית" : "Glass Opacity"}</span>
-              <span>{Math.round(glassOpacity * 100)}%</span>
+              <span>{Math.round((glassPercent ?? 0) * 100)}%</span>
               <input type="range" min="0" max="1" step="0.01" value={glassOpacity} onChange={(event) => patch("bottle", { opacity: parseFloat(event.target.value) })} />
             </label>
           )}

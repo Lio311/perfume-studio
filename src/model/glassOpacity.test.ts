@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
+import { glassOpacityThisFrame } from "../scene/materialFade.ts";
 import { createDefaultDesign } from "./design.ts";
 import {
+  bottleGlassSetting,
   clearGlassFade,
   glassDrawTransmission,
   mappedGlassOpacity,
@@ -9,48 +11,52 @@ import {
 } from "./materials.ts";
 
 describe("renderedGlassOpacity", () => {
-  it("uses the flat-alpha curve only when opacity is below the finish default", () => {
-    expect(mappedGlassOpacity(0)).toBeCloseTo(0.15);
-    expect(mappedGlassOpacity(0.1)).toBeCloseTo(0.235);
-    expect(mappedGlassOpacity(1)).toBeCloseTo(1);
-    expect(usesFlatGlassAlpha("tinted", undefined)).toBe(false);
-    expect(usesFlatGlassAlpha("tinted", 0.32)).toBe(false);
-    expect(usesFlatGlassAlpha("tinted", 0.4)).toBe(false);
-    expect(usesFlatGlassAlpha("tinted", 0.31)).toBe(true);
-    expect(usesFlatGlassAlpha("frosted", 0.45)).toBe(false);
-    expect(usesFlatGlassAlpha("frosted", 0)).toBe(true);
-    expect(usesFlatGlassAlpha("clear", 0.01)).toBe(false);
+  it("maps every frosted and tinted slider value, including 0, 50, and 100", () => {
+    for (const finish of ["frosted", "tinted"] as const) {
+      for (const opacity of [0, 0.5, 1] as const) {
+        expect(usesFlatGlassAlpha(finish, opacity)).toBe(true);
+        expect(renderedGlassOpacity(finish, opacity)).toBeCloseTo(mappedGlassOpacity(opacity));
+        expect(glassDrawTransmission(finish, opacity)).toBe(0);
+      }
+      expect(renderedGlassOpacity(finish, 0)).toBeCloseTo(0.15);
+      expect(renderedGlassOpacity(finish, 0.5)).toBeCloseTo(0.575);
+      expect(renderedGlassOpacity(finish, 1)).toBeCloseTo(1);
+      expect(renderedGlassOpacity(finish, 0)).toBeLessThan(renderedGlassOpacity(finish, 0.5) ?? 0);
+      expect(renderedGlassOpacity(finish, 0.5)).toBeLessThan(renderedGlassOpacity(finish, 1) ?? 0);
+    }
+    expect(usesFlatGlassAlpha("tinted", undefined)).toBe(true);
+    expect(renderedGlassOpacity("tinted")).toBeCloseTo(mappedGlassOpacity(0.32));
+    expect(renderedGlassOpacity("frosted")).toBeCloseTo(mappedGlassOpacity(0.45));
+    expect(glassDrawTransmission("tinted")).toBe(0);
+    expect(glassDrawTransmission("frosted")).toBe(0);
 
-    expect(renderedGlassOpacity("tinted", 0.1)).toBeCloseTo(mappedGlassOpacity(0.1));
-    expect(renderedGlassOpacity("frosted", 0)).toBeCloseTo(mappedGlassOpacity(0));
-    expect(renderedGlassOpacity("tinted", 0.32)).toBeCloseTo(0.32);
-    expect(renderedGlassOpacity("tinted", 0.4)).toBeCloseTo(0.4);
-    expect(renderedGlassOpacity("tinted")).toBeCloseTo(0.32);
-    expect(renderedGlassOpacity("frosted")).toBeCloseTo(0.45);
-    expect(renderedGlassOpacity("clear", 0.4)).toBeCloseTo(0.4);
+    expect(usesFlatGlassAlpha("clear", 0.01)).toBe(false);
+    expect(usesFlatGlassAlpha("clear", undefined)).toBe(false);
+    expect(renderedGlassOpacity("clear", 0)).toBeCloseTo(0);
+    expect(renderedGlassOpacity("clear", 0.5)).toBeCloseTo(0.5);
+    expect(renderedGlassOpacity("clear", 1)).toBeCloseTo(1);
     expect(renderedGlassOpacity("clear")).toBeCloseTo(0.14);
     expect(renderedGlassOpacity("gold", 0.4)).toBeNull();
+    expect(glassDrawTransmission("clear")).toBeGreaterThan(0);
   });
 
-  it("keeps refraction unless the slider drops below the default", () => {
-    expect(glassDrawTransmission("tinted")).toBeCloseTo(0.55);
-    expect(glassDrawTransmission("tinted", 0.32)).toBeCloseTo(0.55);
-    expect(glassDrawTransmission("tinted", 0.4)).toBeCloseTo(0.55);
-    expect(glassDrawTransmission("tinted", 0.1)).toBe(0);
-    expect(glassDrawTransmission("frosted", 0.45)).toBeCloseTo(0.35);
-    expect(glassDrawTransmission("frosted", 0.2)).toBe(0);
-  });
-
-  it("renders a fresh Cara 50 with non-zero glass opacity", () => {
+  it("shows the default Cara 50 on the first mount with a non-zero clear fade", () => {
     const design = createDefaultDesign();
     expect(design.bottle.variantId).toBe("cara-50");
     expect(design.bottle.finish).toBe("clear");
     expect(design.bottle.opacity).toBeUndefined();
-    const alpha = renderedGlassOpacity(design.bottle.finish, design.bottle.opacity);
-    expect(alpha).toBeGreaterThan(0);
+    expect(design.bottle.visible).toBe(true);
+
+    const setting = bottleGlassSetting(design.bottle.finish, design.bottle.opacity);
+    expect(setting.fade).toBeCloseTo(1);
+    expect(setting.fade).toBeGreaterThan(0);
     expect(clearGlassFade(design.bottle.opacity)).toBeCloseTo(1);
     expect(usesFlatGlassAlpha(design.bottle.finish, design.bottle.opacity)).toBe(false);
-    // The mesh stays off until a bottle is chosen. That is not an opacity of 0.
-    expect(design.bottle.visible).toBe(false);
+
+    // A material that still holds uFade 0 from before the first write must
+    // take the design fade, not stay invisible.
+    const first = glassOpacityThisFrame(0, setting.fade ?? 0, false);
+    expect(first.baseOpacity).toBeCloseTo(1);
+    expect(first.target).toBeCloseTo(1);
   });
 });

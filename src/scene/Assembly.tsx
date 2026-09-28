@@ -147,9 +147,10 @@ function PartShell({
           if (setting !== null) {
             const previousBase = typeof mat.userData.baseOpacity === "number" ? mat.userData.baseOpacity : undefined;
             const resolved = glassOpacityThisFrame(previousBase, setting, ghost);
+            const firstWrite = previousBase === undefined;
             mat.userData.baseOpacity = resolved.baseOpacity;
             if (shader.uniforms?.uFade && glassSetting.fade !== null) {
-              const next = THREE.MathUtils.damp(shader.uniforms.uFade.value, resolved.target, 7, dt);
+              const next = firstWrite ? resolved.target : THREE.MathUtils.damp(shader.uniforms.uFade.value, resolved.target, 7, dt);
               if (Math.abs(shader.uniforms.uFade.value - next) > 0.001) shader.uniforms.uFade.value = next;
               if (!mat.transparent) mat.transparent = true;
               const newDepthWrite = shader.uniforms.uFade.value > 0.55;
@@ -158,7 +159,7 @@ function PartShell({
             }
             const newTransparent = ghost || resolved.baseOpacity < 0.999;
             if (mat.transparent !== newTransparent) mat.transparent = newTransparent;
-            const next = THREE.MathUtils.damp(mat.opacity, resolved.target, 7, dt);
+            const next = firstWrite ? resolved.target : THREE.MathUtils.damp(mat.opacity, resolved.target, 7, dt);
             if (Math.abs(mat.opacity - next) > 0.001) mat.opacity = next;
             const newDepthWrite = mat.opacity > 0.5;
             if (mat.depthWrite !== newDepthWrite) mat.depthWrite = newDepthWrite;

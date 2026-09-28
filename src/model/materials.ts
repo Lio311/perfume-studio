@@ -92,30 +92,29 @@ export function effectiveGlassOpacity(finish: FinishId, opacity?: number): numbe
 }
 
 /**
- * Alpha the physical glass material draws once the slider is below that finish's default.
- * Tinted and frosted glass use this curve (with attenuationDistance 36) together with
- * transmission 0. Clear glass does not: it is a fresnel shader driven by the slider itself.
+ * Alpha frosted and tinted glass draw for a slider position (attenuationDistance 36).
+ * Clear glass does not use this: it is a fresnel shader driven by the slider itself.
  */
 export function mappedGlassOpacity(opacity: number): number {
   return 0.15 + 0.85 * opacity;
 }
 
 /**
- * Flat alpha (transmission 0) is the owner's slider look, but only after the user
- * lowers opacity below the finish default. A stored value that merely equals the
- * default — including the first slider event that writes that default — stays refractive.
+ * Frosted and tinted glass always draw this flat alpha, including the untouched
+ * default. Transmission stays 0 so the slider changes the picture; refraction was
+ * hiding the difference between 0% and 100%. Clear glass stays on the fresnel shader.
  */
 export function usesFlatGlassAlpha(finish: FinishId, opacity?: number): boolean {
+  void opacity;
   const glass = glassFinish(finish);
-  if (!glass || glass === "clear" || opacity === undefined) return false;
-  return opacity < DEFAULT_GLASS_OPACITY[glass];
+  return glass !== null && glass !== "clear";
 }
 
-/** Opacity actually rendered, shared by the material and the spec sheet. */
+/** Opacity actually rendered, shared by the material, the slider label, and the spec sheet. */
 export function renderedGlassOpacity(finish: FinishId, opacity?: number): number | null {
   const slider = effectiveGlassOpacity(finish, opacity);
   if (slider === null) return null;
-  if (usesFlatGlassAlpha(finish, opacity) && opacity !== undefined) return mappedGlassOpacity(opacity);
+  if (usesFlatGlassAlpha(finish, opacity)) return mappedGlassOpacity(slider);
   return slider;
 }
 
@@ -140,7 +139,8 @@ export function glassTransmission(finish: FinishId, opacity?: number): number {
 
 /**
  * Transmission the physical glass material should use.
- * Flat alpha (0) only when the slider is below the default; otherwise the refractive default.
+ * Frosted and tinted glass use 0 so `mappedGlassOpacity` is the opacity you see.
+ * Clear glass keeps the refractive default; the fresnel shader does not read this.
  */
 export function glassDrawTransmission(finish: FinishId, opacity?: number): number {
   if (!isGlass(finish)) return 0;

@@ -113,6 +113,8 @@ const CLEAR_FRAG = `
 function ClearGlass({ opacity = DEFAULT_GLASS_OPACITY.clear }: { opacity?: number }) {
   const userFade = opacity / DEFAULT_GLASS_OPACITY.clear;
   const uniforms = useMemo(() => ({ uFade: { value: userFade } }), []);
+  // Write before commit so the first frame cannot sample a leftover 0.
+  uniforms.uFade.value = userFade;
   return (
     <shaderMaterial
       transparent
@@ -171,8 +173,8 @@ export function FinishMaterial({
   let materialTransmission = 0;
   if (glassLike) {
     materialOpacity = renderedGlassOpacity(finish, opacity) ?? 1.0;
-    // transmission 0 is the owner's flat-alpha slider. It applies only below the
-    // finish default, so a value sitting on that default keeps refraction.
+    // Frosted and tinted use transmission 0 for the whole slider so the shared
+    // 0.15+0.85·o alpha is what is drawn. Clear glass returns above this.
     materialTransmission = glassDrawTransmission(finish, opacity);
   }
 
