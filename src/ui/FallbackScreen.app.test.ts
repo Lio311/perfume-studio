@@ -48,10 +48,11 @@ function clickLabel(el: HTMLElement, label: string) {
 
 describe("app error boundary", () => {
   afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
     installSceneProbe(null);
     resumeLabStorageWrites();
     useLab.setState({ lang: "he" });
-    vi.restoreAllMocks();
   });
 
   it("offers reload and a confirmed reset in the page language", () => {
@@ -105,6 +106,7 @@ describe("app error boundary", () => {
         past: [createDefaultDesign()],
         future: [createDefaultDesign()],
         brief: { title: "עבודה" },
+        shareUrl: "https://example.test/lab#d=old",
       },
       version: 4,
     }));
@@ -117,10 +119,7 @@ describe("app error boundary", () => {
     expect(localStorage.getItem(SUPPLIER_DB_NAME)).toBe("{\"packs\":[1]}");
     expect(reload).not.toHaveBeenCalled();
     expect(view.el.textContent).toContain("לאפס את העיצוב?");
-    expect(view.el.textContent).toContain("הסקיצות השמורות");
-    expect(view.el.textContent).toContain("הצ'אט");
-    expect(view.el.textContent).toContain("ההעלאות");
-    expect(view.el.textContent).toContain("קטלוגי הספקים נשארים");
+    expect(view.el.textContent).toContain("האיפוס מאפס את העיצוב ואת מצב הממשק ומוחק את היסטוריית הביטול");
 
     clickLabel(view.el, "ביטול");
     expect(view.el.textContent).toContain("רענון");
@@ -156,6 +155,7 @@ describe("app error boundary", () => {
     expect(stored.state.future).toEqual([]);
     expect(stored.state.theme).toBe("dark");
     expect(stored.state.lang).toBe("he");
+    expect("shareUrl" in stored.state).toBe(false);
     expect(stored.state.brief).toEqual({ title: "עבודה" });
     expect(localStorage.getItem("perfume-lab-draft")).toBeNull();
     const kept = localStorage.getItem(DESIGN_STORAGE_KEY);
@@ -167,6 +167,97 @@ describe("app error boundary", () => {
     expect(fresh.bottle.variantId).toBe("cara-50");
     expect(fresh.bottle.visible).toBe(true);
     expect(fresh.bottle.heightMm).toBeGreaterThan(0);
+    view.root.unmount();
+  });
+
+  it("keeps an English session on reset and still writes when storage is full", () => {
+    const reload = vi.fn();
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    useLab.setState({ lang: "en" });
+    const store = new Map<string, string>();
+    store.set(DESIGN_STORAGE_KEY, JSON.stringify({
+      state: {
+        design: { bottle: { variantId: "diamond-50", visible: true } },
+        lang: "he",
+        chat: [],
+        saved: [],
+        pending: [],
+        shareUrl: "https://example.test/lab#d=old",
+      },
+      version: 5,
+    }));
+    store.set("perfume-lab-draft", "draft");
+    const storage = {
+      get length() {
+        return store.size;
+      },
+      key: (index: number) => [...store.keys()][index] ?? null,
+      getItem: (key: string) => store.get(key) ?? null,
+      setItem: (key: string, value: string) => {
+        if (key === DESIGN_STORAGE_KEY && store.has(key)) {
+          const error = new Error("quota");
+          error.name = "QuotaExceededError";
+          throw error;
+        }
+        store.set(key, value);
+      },
+      removeItem: (key: string) => {
+        store.delete(key);
+      },
+    };
+    vi.stubGlobal("localStorage", storage);
+    const view = mount(createElement(AppErrorBoundary, null, createElement(Boom)));
+    clickLabel(view.el, "Reset design");
+    expect(view.el.textContent).toContain("Resets the design and interface state and clears undo history");
+    expect(store.get(DESIGN_STORAGE_KEY)).toContain("diamond-50");
+    const original = location.reload.bind(location);
+    Object.defineProperty(location, "reload", { configurable: true, value: reload });
+    clickLabel(view.el, "Yes, reset");
+    Object.defineProperty(location, "reload", { configurable: true, value: original });
+    expect(reload).toHaveBeenCalledOnce();
+    const stored = JSON.parse(store.get(DESIGN_STORAGE_KEY) ?? "{}") as {
+      state: { design: { bottle: { variantId: string } }; lang: string; shareUrl?: string };
+    };
+    expect(stored.state.design.bottle.variantId).toBe("cara-50");
+    expect(stored.state.lang).toBe("en");
+    expect(stored.state.shareUrl).toBeUndefined();
+    expect(store.has("perfume-lab-draft")).toBe(false);
+    view.root.unmount();
+  });
+
+  it("restores the previous saved state if the second write also fails", () => {
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    useLab.setState({ lang: "en" });
+    const store = new Map<string, string>();
+    const oldBlob = JSON.stringify({ state: { design: { bottle: { variantId: "diamond-50" } } }, version: 5 });
+    store.set(DESIGN_STORAGE_KEY, oldBlob);
+    const storage = {
+      get length() {
+        return store.size;
+      },
+      key: (index: number) => [...store.keys()][index] ?? null,
+      getItem: (key: string) => store.get(key) ?? null,
+      setItem: (key: string, value: string) => {
+        if (key === DESIGN_STORAGE_KEY) {
+          if (value !== oldBlob) {
+            const error = new Error("quota");
+            error.name = "QuotaExceededError";
+            throw error;
+          }
+        }
+        store.set(key, value);
+      },
+      removeItem: (key: string) => {
+        store.delete(key);
+      },
+    };
+    vi.stubGlobal("localStorage", storage);
+    
+    const view = mount(createElement(AppErrorBoundary, null, createElement(Boom)));
+    clickLabel(view.el, "Reset design");
+    clickLabel(view.el, "Yes, reset");
+    
+    expect(store.get(DESIGN_STORAGE_KEY)).toBe(oldBlob);
     view.root.unmount();
   });
 

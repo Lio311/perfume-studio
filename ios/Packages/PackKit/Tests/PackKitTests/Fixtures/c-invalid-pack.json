@@ -1,0 +1,32 @@
+{
+  "id": "sup-bad",
+  "name": "Broken Supplier",
+  "createdAt": 1791187200000,
+  "parts": [
+    {
+      "id": "sup-bad-x1",
+      "kind": "lid",
+      "code": "X1",
+      "name": "X1 · Broken",
+      "neck": "FEA16",
+      "widthMm": -3,
+      "heightMm": 30,
+      "depthMm": 30,
+      "capacityMl": null,
+      "profile": "cylinder",
+      "color": "gold",
+      "thumb": "",
+      "page": 1,
+      "price": {
+        "value": 0,
+        "currency": "usd",
+        "tiers": [
+          {
+            "minQty": 0,
+            "value": 0.4
+          }
+        ]
+      }
+    }
+  ]
+}

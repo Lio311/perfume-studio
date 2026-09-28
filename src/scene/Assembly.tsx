@@ -122,7 +122,6 @@ function PartShell({
     positions.needsUpdate = true;
     line.visible = local > 0.12 && (explode[0] !== 0 || explode[1] !== 0 || explode[2] !== 0);
     (line.material as THREE.LineBasicMaterial).opacity = Math.min(0.55, local);
-    const ghostTarget = ghost ? 0.1 : 1;
     group.traverse((obj) => {
       let node: THREE.Object3D | null = obj;
       let solid = false;
@@ -136,15 +135,16 @@ function PartShell({
       for (const mat of mats) {
         const shader = mat as THREE.ShaderMaterial;
         if (shader.uniforms?.uFade) {
-          shader.uniforms.uFade.value = THREE.MathUtils.damp(shader.uniforms.uFade.value, ghostTarget, 7, dt);
+          const fadeTarget = ghost ? 0.1 : (mat.userData.intendedFade ?? 1);
+          shader.uniforms.uFade.value = THREE.MathUtils.damp(shader.uniforms.uFade.value, fadeTarget, 7, dt);
           if (!mat.transparent) mat.transparent = true;
           const newDepthWrite = shader.uniforms.uFade.value > 0.55;
           if (mat.depthWrite !== newDepthWrite) mat.depthWrite = newDepthWrite;
           continue;
         }
-        if (mat.userData.baseOpacity === undefined) mat.userData.baseOpacity = mat.opacity;
-        const target = ghost ? 0.1 : (mat.userData.baseOpacity as number);
-        const newTransparent = ghost || (mat.userData.baseOpacity as number) < 0.999;
+        const intended = (mat.userData.intendedOpacity as number | undefined) ?? mat.opacity;
+        const target = ghost ? intended * 0.1 : intended;
+        const newTransparent = ghost || intended < 0.999;
         if (mat.transparent !== newTransparent) mat.transparent = newTransparent;
         const newOpacity = THREE.MathUtils.damp(mat.opacity, target, 7, dt);
         if (Math.abs(mat.opacity - newOpacity) > 0.001) mat.opacity = newOpacity;

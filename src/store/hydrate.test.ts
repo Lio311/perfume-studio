@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { setImportedCatalog } from "../model/catalog.ts";
 import { createDefaultDesign } from "../model/design.ts";
 import type { Design, LogoSpec } from "../model/types.ts";
-import { createLabStorage, mergePersistedLab, migratePersisted, partializeLabState, readStorageValue, sanitizeDesign, type HydratedSlice } from "./hydrate.ts";
+import { createLabStorage, mergePersistedLab, migratePersisted, partializeLabState, readStorageValue, resetPersistedPayload, resumeLabStorageWrites, sanitizeDesign, type HydratedSlice } from "./hydrate.ts";
 import { useLab } from "./labStore.ts";
 
 function slice(design: Design = createDefaultDesign()): HydratedSlice {
@@ -108,7 +108,7 @@ describe("saved design hydration", () => {
     expect(merged.compareIds).toEqual(["seed-atelier"]);
   });
 
-  it("replaces an unknown variant id with that slot's default", () => {
+  it("replaces an incomplete unknown bottle and fills a known cap from its own spec", () => {
     const merged = mergePersistedLab(
       {
         design: {
@@ -402,16 +402,61 @@ describe("saved design hydration", () => {
     expect(merged.design.cap.variantId).toBe("cap-cube-tall");
     expect("modal" in mergePersistedLab({ modal: "save", design: {} }, slice())).toBe(false);
 
+    const undo = () => undefined;
+    const mergedFns = mergePersistedLab(
+      { undo: "replaced", brief: { title: "נשאר" } },
+      { ...slice(), undo },
+    ) as HydratedSlice & { undo: () => void; brief: { title: string } };
+    expect(mergedFns.undo).toBe(undo);
+    expect(mergedFns.brief).toEqual({ title: "נשאר" });
+
     const partial = partializeLabState({
       ...slice(),
       brief: { title: "עבודה" },
       selected: "bottle",
-      undo: () => undefined,
+      shareUrl: "https://example.test/#d=1",
+      packNotices: ["something"],
+      undo,
     });
+    expect(partial.design).toEqual(slice().design);
+    expect(partial.theme).toBe("dark");
+    expect(partial.lang).toBe("he");
     expect(partial.brief).toEqual({ title: "עבודה" });
     expect("selected" in partial).toBe(false);
+    expect("shareUrl" in partial).toBe(false);
+    expect("packNotices" in partial).toBe(false);
     expect("undo" in partial).toBe(false);
-    expect(partial.design).toEqual(slice().design);
+    expect("past" in partial).toBe(false);
+    expect(Object.keys(partial).sort()).toEqual(["brief", "chat", "compareIds", "design", "lang", "pending", "saved", "theme"]);
+  });
+
+  it("keeps the current language on reset and does not pause writes or keep a share url", () => {
+    resumeLabStorageWrites();
+    const reset = resetPersistedPayload({
+      lang: "he",
+      chat: [{ id: "c1", role: "user", text: "שלום" }],
+      shareUrl: "https://example.test/#d=1",
+      brief: { title: "עבודה" },
+    }, "en");
+    expect(reset.state.lang).toBe("en");
+    expect(reset.state.shareUrl).toBeUndefined();
+    expect(reset.state.brief).toEqual({ title: "עבודה" });
+    expect(reset.version).toBe(5);
+    const fromRecord = resetPersistedPayload({ lang: "en", chat: [] });
+    expect(fromRecord.state.lang).toBe("en");
+
+    const mem: Record<string, string> = {};
+    vi.stubGlobal("localStorage", {
+      setItem: (key: string, value: string) => {
+        mem[key] = value;
+      },
+      getItem: (key: string) => mem[key] ?? null,
+      removeItem: (key: string) => {
+        delete mem[key];
+      },
+    });
+    createLabStorage().setItem("perfume-lab-v1", { state: { lang: "en" }, version: 5 });
+    expect(mem["perfume-lab-v1"]).toContain("en");
   });
 
   it("fills a known bottle from its own spec and does not reopen the wizard when step is missing", () => {

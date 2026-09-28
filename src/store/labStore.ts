@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { commitSavedDesigns } from "./saveResult.ts";
 import { createLabStorage, LAB_PERSIST_VERSION, mergePersistedLab, migratePersisted, partializeLabState } from "./hydrate.ts";
 import { produce } from "immer";
 import { applyLook, applyVariant, createDefaultDesign, estimateMl, LOOKS } from "../model/design.ts";
@@ -19,6 +20,7 @@ import { formatPackNotice, type PackNotice } from "../import/notices.ts";
 import { tx } from "../i18n/copy.ts";
 import { isVariantPart, syncRegistry, type SupplierPack } from "../import/registry.ts";
 import { apiClient } from "../api/client.ts";
+import type { BudgetBrief, PriceOverride } from "../budget/types.ts";
 import { clampLabelText } from "../geometry/logos.ts";
 
 export type LabMode = "assemble" | "explode" | "dimensions" | "compare";
@@ -79,6 +81,12 @@ interface LabState {
   units: "mm" | "cm" | "in";
   suppliers: SupplierPack[];
   packNotices: PackNotice[];
+  brief: BudgetBrief;
+  /** Not persisted. True while the brief dialog is open over an existing brief. */
+  briefEditing: boolean;
+  priceOverrides: Record<string, PriceOverride>;
+  /** ILS received for 1 unit of a foreign currency. Empty until the user types a rate. */
+  exchangeRates: Record<string, number>;
   chat: ChatMessage[];
   saved: SavedDesign[];
   pending: PendingPart[];
@@ -122,7 +130,7 @@ interface LabState {
   setModal: (modal: LabState["modal"]) => void;
   setShareUrl: (url: string) => void;
   pushChat: (message: ChatMessage) => void;
-  saveDesign: (name: string, thumb: string) => void;
+  saveDesign: (name: string, thumb: string) => { ok: boolean };
   loadDesign: (id: string) => void;
   newDesign: () => void;
   deleteDesign: (id: string) => void;
@@ -134,6 +142,12 @@ interface LabState {
   showPackNotices: (notices: PackNotice[]) => void;
   upsertSupplier: (pack: SupplierPack, notices?: PackNotice[]) => void;
   removeSupplier: (id: string) => void;
+  setBrief: (patch: Partial<Pick<BudgetBrief, "ceilingIls" | "volumeMl">> & { quantity?: number | null }) => void;
+  confirmBrief: () => void;
+  openBrief: () => void;
+  closeBrief: () => void;
+  setPriceOverride: (id: string, price: PriceOverride | null) => void;
+  setExchangeRate: (currency: string, ilsPerUnit: number | null) => void;
   setVoice: (voice: VoiceVariant) => void;
   setSoundOn: (on: boolean) => void;
   setStage: (stage: StageMode) => void;
@@ -410,6 +424,10 @@ export const useLab = create<LabState>()(
       pending: [],
       suppliers: [],
       packNotices: [],
+      brief: { ceilingIls: 30, volumeMl: 50, confirmed: false },
+      briefEditing: false,
+      priceOverrides: {},
+      exchangeRates: {},
       compareIds: ["seed-atelier", "seed-blush", "seed-noir"],
       voice: readVoiceParam(),
       soundOn: true,
@@ -534,17 +552,19 @@ export const useLab = create<LabState>()(
       setModal: (modal) => set({ modal }),
       setShareUrl: (shareUrl) => set({ shareUrl }),
       pushChat: (message) => set((state) => ({ chat: [...state.chat, message].slice(-40) })),
-      saveDesign: async (name, thumb) => {
+      saveDesign: (name, thumb) => {
+        const previous = get().saved;
         const id = uid("cfg");
         const newDesign = { id, name: name.trim() || "סקיצה", design: get().design, thumb, createdAt: Date.now() };
-        set((state) => ({
-          saved: [newDesign, ...state.saved].slice(0, 24),
-        }));
-        try {
-          await apiClient.post("/designs", newDesign);
-        } catch (e) {
-          console.error("Failed to save design to backend", e);
-        }
+        const next = [newDesign, ...previous].slice(0, 24);
+        const result = commitSavedDesigns(previous, next, (saved) => {
+          set({ saved });
+        });
+        if (!result.ok) return { ok: false };
+        void apiClient.post("/designs", newDesign).catch((error) => {
+          console.error("Failed to save design to backend", error);
+        });
+        return { ok: true };
       },
       newDesign: () => {
         set({ design: createDefaultDesign(), past: [], future: [], modal: null });
@@ -598,6 +618,51 @@ export const useLab = create<LabState>()(
         commitSuppliers(set, get, suppliers, [], false);
         void deletePack(id);
       },
+      setBrief: (patch) =>
+        set((state) => ({
+          brief: {
+            ...state.brief,
+            ceilingIls: patch.ceilingIls === undefined ? state.brief.ceilingIls : clamp(patch.ceilingIls, 1, 100000),
+            volumeMl: patch.volumeMl === undefined ? state.brief.volumeMl : clamp(patch.volumeMl, 1, 1000),
+            quantity: patch.quantity === undefined
+              ? state.brief.quantity
+              : patch.quantity != null && Number.isInteger(patch.quantity) && patch.quantity >= 1
+                ? patch.quantity
+                : undefined,
+          },
+        })),
+      confirmBrief: () =>
+        set((state) => ({
+          brief: { ...state.brief, confirmed: true },
+          briefEditing: false,
+          libraryOpen: true,
+          sideOpen: true,
+        })),
+      openBrief: () => set({ briefEditing: true }),
+      closeBrief: () => set({ briefEditing: false }),
+      setPriceOverride: (id, price) =>
+        set((state) => {
+          const priceOverrides = { ...state.priceOverrides };
+          if (!price) {
+            delete priceOverrides[id];
+            return { priceOverrides };
+          }
+          if ("absent" in price) {
+            priceOverrides[id] = { absent: true };
+            return { priceOverrides };
+          }
+          if (!Number.isFinite(price.value) || price.value <= 0) return {};
+          priceOverrides[id] = { value: price.value, currency: price.currency };
+          return { priceOverrides };
+        }),
+      setExchangeRate: (currency, ilsPerUnit) =>
+        set((state) => {
+          const exchangeRates = { ...state.exchangeRates };
+          const code = currency.trim().toUpperCase();
+          if (!code || ilsPerUnit === null || !Number.isFinite(ilsPerUnit) || ilsPerUnit <= 0) delete exchangeRates[code];
+          else exchangeRates[code] = ilsPerUnit;
+          return { exchangeRates };
+        }),
       setVoice: (voice) => {
         if (typeof location !== "undefined" && typeof history !== "undefined") {
           const url = new URL(location.href);

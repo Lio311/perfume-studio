@@ -1,13 +1,17 @@
 import { useId } from "react";
+import { formatMoney } from "../budget/money.ts";
 import { bottleById, boxById, capById, collarById, logoById, pumpById } from "../model/catalog.ts";
 import { computeFit } from "../model/fit.ts";
-import { FINISHES, PALETTE, LIQUID_PALETTE } from "../model/materials.ts";
+import { FINISHES, PALETTE, LIQUID_PALETTE, effectiveGlassOpacity } from "../model/materials.ts";
 import { NECK_IDS } from "../model/necks.ts";
-import type { FinishId, NeckId, PartKey } from "../model/types.ts";
+import type { FinishId, NeckId, PartKey, VariantPart } from "../model/types.ts";
 import { partLabel, tx } from "../i18n/copy.ts";
 import { useLab } from "../store/labStore.ts";
+import { Alternatives } from "./BudgetSuggestions.tsx";
 import { clampLabelText } from "../geometry/logos.ts";
 import { BrandTextField, labelVisibleAfterTextChange } from "./brandField.tsx";
+import { ExamplePriceMark, PartialMark, PartPriceEditor } from "./PriceTag.tsx";
+import { useBudgetModel } from "./useBudget.ts";
 
 export function Inspector() {
   const lang = useLab((s) => s.lang);
@@ -25,6 +29,8 @@ export function Inspector() {
   const suppliers = useLab((s) => s.suppliers);
   const brandHeadingId = useId();
   const part = selected;
+  const quantity = useLab((s) => s.brief.quantity);
+  const budget = useBudgetModel();
   const hidden = hiddenDesignPart(part, design, suppliers);
   const name = hidden ? (hidden.name || hidden.code || hidden.id) : variantName(part, design, lang);
   let fit: ReturnType<typeof computeFit>;
@@ -56,6 +62,17 @@ export function Inspector() {
       {part && (
         <>
           {badge && !hidden && <div className="badge is-fit" dir="ltr">{badge}</div>}
+          {!hidden && (
+            <p className="combo-total" data-combo-total>
+              <span>{t.totalPrice}</span>
+              <bdi dir="ltr">{formatMoney(budget.summary.totalIls, "ILS", lang)}</bdi>
+              <PartialMark count={budget.summary.unpricedCount} />
+              {!quantity && <em>{t.basePriceNote}</em>}
+              {budget.belowMoq && <em className="is-warn">{t.belowMoq}</em>}
+              <ExamplePriceMark count={budget.exampleCount} />
+              {budget.summary.over && <em className="is-over">{t.budgetOver}</em>}
+            </p>
+          )}
           {!hidden && <SpecCard part={part} />}
           <div className="part-title">
             <div>
@@ -69,6 +86,8 @@ export function Inspector() {
               </div>
             )}
           </div>
+          {!hidden && part !== "liquid" && <PartPriceEditor kind={part as VariantPart} partId={design[part].variantId} />}
+          {!hidden && <Alternatives />}
           <h3>{t.color}</h3>
           <div className="swatches">
             {(part === "liquid" ? LIQUID_PALETTE : PALETTE).map((color) => {
@@ -110,6 +129,22 @@ export function Inspector() {
                   </button>
                 ))}
               </div>
+              {part === "bottle" && (() => {
+                const glassOpacity = effectiveGlassOpacity(design.bottle.finish, design.bottle.opacity);
+                if (glassOpacity === null) return null;
+                return (
+                  <Slider
+                    label={lang === "he" ? "אטימות זכוכית" : "Glass Opacity"}
+                    value={glassOpacity * 100}
+                    min={0}
+                    max={100}
+                    suffix="%"
+                    onGesture={beginGesture}
+                    onGestureEnd={endGesture}
+                    onChange={(value) => patch("bottle", { opacity: value / 100 })}
+                  />
+                );
+              })()}
             </>
           )}
           {part === "bottle" && (

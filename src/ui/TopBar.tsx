@@ -9,7 +9,6 @@ import { useLab, type LabMode } from "../store/labStore.ts";
 import { pngDownloadName } from "./pngName.ts";
 import { clipToast } from "./toast.ts";
 import { downloadSpec } from "./specSheet.ts";
-import { VoiceSwitch } from "./VoiceSwitch.tsx";
 import { encodeShareDesign } from "../model/share.ts";
 
 const MODES: LabMode[] = ["assemble", "explode", "dimensions"];
@@ -170,7 +169,6 @@ export function TopBar() {
             else toggle();
           }}>{t.themeToDark}</button>
         </div>
-        <VoiceSwitch />
       </div>
       <div className="menu-wrap">
         <div className="voice-switch">
@@ -199,7 +197,19 @@ export function TopBar() {
       {shareUrl && createPortal(
         <form className="share-fallback" dir="ltr" onSubmit={(event) => event.preventDefault()}>
           <button type="button" className="share-fallback-close" aria-label={lang === "he" ? "סגור" : "Close"} onClick={dismissShare}>×</button>
-          <textarea readOnly rows={Math.max(4, Math.ceil(shareUrl.length / 84))} value={shareUrl} aria-label={t.share} onFocus={(event) => event.currentTarget.select()} />
+          <textarea
+            readOnly
+            rows={Math.max(4, Math.ceil(shareUrl.length / 84))}
+            value={shareUrl}
+            aria-label={t.share}
+            onFocus={(event) => event.currentTarget.select()}
+            onKeyDown={(event) => {
+              if (event.key !== "Escape") return;
+              event.preventDefault();
+              event.stopPropagation();
+              dismissShare();
+            }}
+          />
         </form>,
         document.body,
       )}

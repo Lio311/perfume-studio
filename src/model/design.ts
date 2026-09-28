@@ -21,30 +21,30 @@ export function createDefaultDesign(): Design {
     cap: {
       variantId: cap.id,
       finish: "gold",
-      color: "#D6B26A",
+      color: "#e6cc98",
       heightMm: 34.5,
       widthMm: 30,
-      visible: false,
+      visible: true,
     },
     label: {
       variantId: "lg-foil-diamond",
       finish: "gold",
-      color: "#D6B26A",
+      color: "#e6cc98",
       text: "",
       scale: 1,
-      visible: false,
+      visible: true,
     },
     pump: {
       variantId: "pump-crimp",
       finish: "gold",
-      color: "#D6B26A",
-      visible: false,
+      color: "#e6cc98",
+      visible: true,
     },
     collar: {
       variantId: "col-crimp",
       finish: "gold",
-      color: "#D6B26A",
-      visible: false,
+      color: "#e6cc98",
+      visible: true,
     },
     box: {
       variantId: box.id,
@@ -54,12 +54,12 @@ export function createDefaultDesign(): Design {
       widthMm: 78,
       depthMm: 68,
       linked: true,
-      visible: false,
+      visible: true,
     },
     liquid: {
       color: "#c98a2b",
       fill: 0.78,
-      visible: false,
+      visible: true,
     },
     step: 0,
   };
@@ -177,9 +177,9 @@ export interface Look {
 }
 
 export const LOOKS: Look[] = [
-  { id: "atelier", name: { he: "אטלייה", en: "Atelier" }, bottleFinish: "clear", bottleColor: "#f3efe6", capFinish: "matteBlack", capColor: "#141414", collarFinish: "gold", collarColor: "#d4b48a", pumpFinish: "silver", pumpColor: "#d5d8de", labelFinish: "gold", labelColor: "#d4b48a", boxFinish: "matteBlack", boxColor: "#1a1b1e", liquid: "#e2a24a" },
+  { id: "atelier", name: { he: "אטלייה", en: "Atelier" }, bottleFinish: "clear", bottleColor: "#f3efe6", capFinish: "matteBlack", capColor: "#141414", collarFinish: "gold", collarColor: "#e6cc98", pumpFinish: "silver", pumpColor: "#d5d8de", labelFinish: "gold", labelColor: "#e6cc98", boxFinish: "matteBlack", boxColor: "#1a1b1e", liquid: "#e2a24a" },
   { id: "blush", name: { he: "סומק", en: "Blush" }, bottleFinish: "frosted", bottleColor: "#f7e7ea", capFinish: "rose", capColor: "#e4b7ae", collarFinish: "rose", collarColor: "#e4b7ae", pumpFinish: "rose", pumpColor: "#e4b7ae", labelFinish: "rose", labelColor: "#e4b7ae", boxFinish: "leather", boxColor: "#6b3c32", liquid: "#f3c9d6" },
-  { id: "noir", name: { he: "נואר", en: "Noir" }, bottleFinish: "tinted", bottleColor: "#2a2c2b", capFinish: "gold", capColor: "#d4b48a", collarFinish: "gold", collarColor: "#d4b48a", pumpFinish: "gold", pumpColor: "#d4b48a", labelFinish: "gold", labelColor: "#d4b48a", boxFinish: "matteBlack", boxColor: "#101010", liquid: "#7a1f2c" },
+  { id: "noir", name: { he: "נואר", en: "Noir" }, bottleFinish: "tinted", bottleColor: "#2a2c2b", capFinish: "gold", capColor: "#e6cc98", collarFinish: "gold", collarColor: "#e6cc98", pumpFinish: "gold", pumpColor: "#e6cc98", labelFinish: "gold", labelColor: "#e6cc98", boxFinish: "matteBlack", boxColor: "#101010", liquid: "#7a1f2c" },
   { id: "sage", name: { he: "מרווה", en: "Sage" }, bottleFinish: "tinted", bottleColor: "#8d9a84", capFinish: "wood", capColor: "#8a5a3a", collarFinish: "gold", collarColor: "#c9a36a", pumpFinish: "gold", pumpColor: "#c9a36a", labelFinish: "gold", labelColor: "#c9a36a", boxFinish: "wood", boxColor: "#6d4c34", liquid: "#d8efe4" },
   { id: "ice", name: { he: "קרח", en: "Ice" }, bottleFinish: "clear", bottleColor: "#f7f8f8", capFinish: "silver", capColor: "#e6e8ec", collarFinish: "silver", collarColor: "#d5d8de", pumpFinish: "silver", pumpColor: "#d5d8de", labelFinish: "silver", labelColor: "#d5d8de", boxFinish: "silver", boxColor: "#c5c8ce", liquid: "#f7f1e4" },
   { id: "ink", name: { he: "דיו", en: "Ink" }, bottleFinish: "tinted", bottleColor: "#1d3344", capFinish: "matteBlack", capColor: "#121416", collarFinish: "silver", collarColor: "#c5c8ce", pumpFinish: "silver", pumpColor: "#c5c8ce", labelFinish: "silver", labelColor: "#d5d8de", boxFinish: "leather", boxColor: "#243044", liquid: "#1d3344" },

@@ -2,9 +2,11 @@ import { describe, expect, it } from "vitest";
 import { wizardTitle } from "./copy.ts";
 
 describe("wizardTitle", () => {
-  it("names step 2 after the bottle colour, opacity, and fill controls", () => {
-    expect(wizardTitle("he", 1)).toBe("שלב 2: צבע הבקבוק, שקיפות ומילוי");
-    expect(wizardTitle("en", 1)).toBe("Step 2: Bottle Color, Opacity & Fill");
+  it("names step 2 after the bottle colour and opacity controls", () => {
+    expect(wizardTitle("he", 1)).toBe("שלב 2: צבע הבקבוק ושקיפות");
+    expect(wizardTitle("en", 1)).toBe("Step 2: Bottle Color & Opacity");
+    expect(wizardTitle("he", 1)).not.toContain("מילוי");
+    expect(wizardTitle("en", 1)).not.toContain("Fill");
     expect(wizardTitle("en", 1)).toContain("Color");
   });
 

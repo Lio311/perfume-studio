@@ -38,7 +38,7 @@ const EPHEMERAL_KEYS = new Set([
   "selected", "hovered", "mode", "explode", "viewPreset", "gesturing", "autoRotate",
   "viewToken", "focusToken", "libraryOpen", "sideOpen", "modal", "units", "suppliers",
   "voice", "soundOn", "stage", "blueprint", "fullToken", "aimed", "solo", "present",
-  "exporting", "palette", "help", "boxOpen", "toast",
+  "exporting", "palette", "help", "boxOpen", "toast", "shareUrl", "briefEditing", "packNotices",
 ]);
 
 let storageWritesOpen = true;
@@ -451,10 +451,13 @@ export function mergePersistedLab<T extends HydratedSlice>(persisted: unknown, c
   try {
     if (!isRecord(persisted)) return current;
     const next: Record<string, unknown> = { ...(current as unknown as Record<string, unknown>) };
+    const live = current as unknown as Record<string, unknown>;
     for (const key of Object.keys(persisted)) {
       if (SANITIZED_KEYS.has(key) || EPHEMERAL_KEYS.has(key)) continue;
+      if (typeof live[key] === "function") continue;
       const value = own(persisted, key);
-      if (value !== undefined) next[key] = value;
+      if (value === undefined || typeof value === "function") continue;
+      next[key] = value;
     }
     if (Object.hasOwn(persisted, "design")) next.design = sanitizeDesign(own(persisted, "design"));
     if (Object.hasOwn(persisted, "theme")) next.theme = themeOf(own(persisted, "theme"), current.theme);
@@ -582,29 +585,41 @@ export function readStorageValue(raw: string | null): { state: unknown; version?
   }
 }
 
-/** Drop live UI fields and keep every other top-level value, including ones this version does not know yet. */
+/** Fields written to `perfume-lab-v1`. Live store fields outside this list are not stored. */
+const PERSISTED_FIELDS = ["design", "theme", "lang", "chat", "saved", "pending", "compareIds"] as const;
+
+/**
+ * passes all keys except EPHEMERAL_KEYS (not an allowlist)
+ */
 export function partializeLabState(state: object): Record<string, unknown> {
   const source = state as Record<string, unknown>;
   const out: Record<string, unknown> = {};
+  for (const key of PERSISTED_FIELDS) {
+    if (!Object.hasOwn(source, key)) continue;
+    const value = source[key];
+    if (typeof value === "function") continue;
+    out[key] = value;
+  }
   for (const key of Object.keys(source)) {
-    if (EPHEMERAL_KEYS.has(key) || key === "past" || key === "future") continue;
-    if (typeof source[key] === "function") continue;
-    out[key] = source[key];
+    if (Object.hasOwn(out, key) || SANITIZED_KEYS.has(key) || EPHEMERAL_KEYS.has(key)) continue;
+    const value = source[key];
+    if (value === undefined || typeof value === "function") continue;
+    out[key] = value;
   }
   return out;
 }
 
 /**
  * Design, UI defaults, and undo history are replaced. Saved sketches, chat, and
- * pending uploads stay. Further persist writes are paused so they cannot put the old blob back.
+ * pending uploads stay. The current language is kept. This does not pause writes;
+ * the reset caller does that around the storage write.
  */
-export function resetPersistedPayload(current: unknown): { state: Record<string, unknown>; version: number } {
-  pauseLabStorageWrites();
+export function resetPersistedPayload(current: unknown, lang?: Lang): { state: Record<string, unknown>; version: number } {
   const record = isRecord(current) ? current : {};
   const state: Record<string, unknown> = {
     design: createDefaultDesign(),
     theme: "dark",
-    lang: "he",
+    lang: langOf(lang, langOf(own(record, "lang"), "he")),
     chat: record.chat ?? [],
     saved: record.saved ?? [],
     pending: record.pending ?? [],
