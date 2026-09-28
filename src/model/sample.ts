@@ -12,21 +12,94 @@ export function smoothstep(edge0: number, edge1: number, x: number): number {
   return t * t * (3 - 2 * t);
 }
 
-export function sampleProfile(profile: Profile, t: number): number {
+/**
+ * Fritsch–Carlson monotone cubic tangents.
+ * Smoothstep on each segment forced a zero slope at every knot, which put a
+ * flat into round silhouettes. These tangents stay C1, match the secant where
+ * the data is monotone, and are scaled so a segment cannot leave the range of
+ * its two knots.
+ */
+function monotoneTangents(profile: Profile): number[] {
+  const n = profile.length;
+  const m = new Array<number>(n).fill(0);
+  if (n < 2) return m;
+  const secant: number[] = [];
+  for (let i = 0; i < n - 1; i += 1) {
+    const a = profile[i];
+    const b = profile[i + 1];
+    const h = (b?.[0] ?? 0) - (a?.[0] ?? 0);
+    secant.push(h === 0 ? 0 : ((b?.[1] ?? 0) - (a?.[1] ?? 0)) / h);
+  }
+  m[0] = secant[0] ?? 0;
+  m[n - 1] = secant[n - 2] ?? 0;
+  for (let i = 1; i < n - 1; i += 1) {
+    const prev = secant[i - 1] ?? 0;
+    const next = secant[i] ?? 0;
+    m[i] = prev * next <= 0 ? 0 : (prev + next) / 2;
+  }
+  for (let i = 0; i < n - 1; i += 1) {
+    const slope = secant[i] ?? 0;
+    if (slope === 0) {
+      m[i] = 0;
+      m[i + 1] = 0;
+      continue;
+    }
+    let alpha = (m[i] ?? 0) / slope;
+    let beta = (m[i + 1] ?? 0) / slope;
+    if (alpha < 0) {
+      m[i] = 0;
+      alpha = 0;
+    }
+    if (beta < 0) {
+      m[i + 1] = 0;
+      beta = 0;
+    }
+    const sum = alpha * alpha + beta * beta;
+    if (sum > 9) {
+      const tau = 3 / Math.sqrt(sum);
+      m[i] = tau * alpha * slope;
+      m[i + 1] = tau * beta * slope;
+    }
+  }
+  return m;
+}
+
+function hermite(y0: number, y1: number, m0: number, m1: number, h: number, u: number): number {
+  const u2 = u * u;
+  const u3 = u2 * u;
+  return (2 * u3 - 3 * u2 + 1) * y0 + (u3 - 2 * u2 + u) * h * m0 + (-2 * u3 + 3 * u2) * y1 + (u3 - u2) * h * m1;
+}
+
+/** Circle of `radius` centred at y = radius, so the sphere sits on the base. */
+function circleOnAxis(y: number, radius: number): number {
+  if (radius <= 0) return 0;
+  const inside = radius * radius - (y - radius) * (y - radius);
+  return Math.sqrt(Math.max(0, inside));
+}
+
+export function sampleProfile(profile: Profile, t: number, axis?: { y: number; radius: number }): number {
   const x = clamp(t, 0, 1);
   const first = profile[0];
   const last = profile[profile.length - 1];
   if (!first || !last) return 1;
+  // Sphere knots are only a coarse guide. The body is the circle of radius
+  // width/2 or depth/2, at the y bottleRadii already clamped to its shoulder.
+  if (profile === bodyProfiles.sphere && axis) return circleOnAxis(axis.y, axis.radius) / (axis.radius || 1);
   if (x <= first[0]) return first[1];
-  for (let i = 0; i < profile.length - 1; i++) {
+  if (x >= last[0]) return last[1];
+  const tangents = monotoneTangents(profile);
+  for (let i = 0; i < profile.length - 1; i += 1) {
     const a = profile[i];
     const b = profile[i + 1];
     if (!a || !b) continue;
-    if (x >= a[0] && x <= b[0]) {
-      const u = (x - a[0]) / (b[0] - a[0] || 1);
-      const s = u * u * (3 - 2 * u);
-      return a[1] + (b[1] - a[1]) * s;
-    }
+    if (x < a[0] || x > b[0]) continue;
+    const h = b[0] - a[0];
+    if (h <= 0) return a[1];
+    const u = (x - a[0]) / h;
+    const y = hermite(a[1], b[1], tangents[i] ?? 0, tangents[i + 1] ?? 0, h, u);
+    const lo = Math.max(0, Math.min(a[1], b[1]));
+    const hi = Math.max(a[1], b[1]);
+    return clamp(y, lo, hi);
   }
   return last[1];
 }
@@ -86,9 +159,21 @@ export function bottleRadii(
   const shoulderStart = Math.max(height * 0.35, straightStart - height * shoulder);
   if (y >= straightStart) return { rx: neckR, rz: neckR, morph: 1 };
   const bodyT = shoulderStart <= 0.001 ? 0 : clamp(y / shoulderStart, 0, 1);
-  const factor = sampleProfile(bodyProfiles[profile], Math.min(bodyT, y <= shoulderStart ? bodyT : 1));
-  const rxBody = halfW * factor;
-  const rzBody = halfD * factor;
+  const along = Math.min(bodyT, y <= shoulderStart ? bodyT : 1);
+  let rxBody: number;
+  let rzBody: number;
+  if (profile === "sphere") {
+    // Millimetres on the circle. shoulderStart already includes finishMm, so a
+    // longer neck (Orb 7.35 mm, shoulder 46.41) is not the classic 48.26 mm shoulder.
+    const circleY = Math.min(Math.max(y, 0), shoulderStart);
+    const shape = bodyProfiles.sphere;
+    rxBody = halfW * sampleProfile(shape, along, { y: circleY, radius: halfW });
+    rzBody = halfD * sampleProfile(shape, along, { y: circleY, radius: halfD });
+  } else {
+    const factor = sampleProfile(bodyProfiles[profile], along);
+    rxBody = halfW * factor;
+    rzBody = halfD * factor;
+  }
   if (y <= shoulderStart) {
     const heel = y < 2.2 ? 0.9 + 0.1 * (y / 2.2) : 1;
     return { rx: rxBody * heel, rz: rzBody * heel, morph: 0 };
