@@ -232,6 +232,10 @@ export default function App() {
       }
       if (params.get("shape") === "octagon") design.box.shape = { type: "polygon", sides: 8 };
       if (params.get("shape") === "cylinder") design.box.shape = { type: "cylinder" };
+      const insert = params.get("insert");
+      if (insert === "eva" || insert === "pulp" || insert === "card" || insert === "velvet-foam") {
+        design.box.insert = { ...design.box.insert, material: insert };
+      }
       if (params.get("sleeve") === "0") design.box.layers = design.box.layers.filter((layer) => layer.structure !== "sleeve");
       const brand = params.get("brand");
       if (brand) design.label.text = clampLabelText(brand);
@@ -243,6 +247,9 @@ export default function App() {
       const board = params.get("board");
       if (board === "carton" || board === "rigid") design.box.material = board;
       const tier = params.get("tier") === "fallback" ? "fallback" as const : "high" as const;
+      design.step = 7;
+      const wizardPicked = new Set(useLab.getState().wizardPicked);
+      wizardPicked.add("box");
       useLab.setState({
         design,
         stage: "box",
@@ -252,10 +259,12 @@ export default function App() {
         tierLock: true,
         theme: params.get("theme") === "dark" ? "dark" : "light",
         libraryOpen: false,
-        sideOpen: false,
+        sideOpen: true,
         explode: 0,
         blueprint: false,
+        aimed: false,
         selected: "box",
+        wizardPicked,
       });
     };
     if (useLab.persist.hasHydrated()) applyShot();
@@ -292,7 +301,8 @@ export default function App() {
 
   useEffect(() => {
     if (!useLab.persist.hasHydrated()) return;
-    if ((prevStep.current ?? 7) < 7 && step >= 7) setSavingsOpen(true);
+    const shot = isKnownPack(new URLSearchParams(location.search).get("closure") ?? new URLSearchParams(location.search).get("structure"));
+    if (!shot && (prevStep.current ?? 7) < 7 && step >= 7) setSavingsOpen(true);
     prevStep.current = step;
   }, [step]);
 

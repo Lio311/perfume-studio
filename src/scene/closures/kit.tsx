@@ -87,18 +87,20 @@ function useWell(width: number, depth: number, height: number, holeW: number, ho
   return geo;
 }
 
-export function InsertBlock({ fit }: { fit: Fit }) {
+export function InsertBlock({ fit, span }: { fit: Fit; span?: { w: number; d: number } }) {
   const material = useLab((s) => s.design.box.insert?.material ?? "eva");
   const orientation = useLab((s) => s.design.box.insert?.orientation ?? "standing");
   const cutaway = useLab((s) => s.cutaway);
   const color = INSERT_COLOR[material];
   const velvet = material === "velvet-foam";
   const wall = Math.max(fit.boardMm, 1.2);
-  const maxW = Math.max(12, fit.boxW - wall * 2 - 1.2);
-  const maxD = Math.max(12, fit.boxD - wall * 2 - 1.2);
+  const maxW = span ? Math.max(12, span.w) : Math.max(12, fit.boxW - wall * 2 - 1.2);
+  const maxD = span ? Math.max(12, span.d) : Math.max(12, fit.boxD - wall * 2 - 1.2);
   const width = Math.min(fit.insertW, maxW);
   const depth = Math.min(fit.insertD, maxD);
-  const wellH = Math.min(Math.max(12, fit.cavityH * 0.4), fit.boxH * 0.36);
+  const wellH = span
+    ? Math.min(22, Math.max(10, fit.cavityH * 0.22))
+    : Math.min(Math.max(12, fit.cavityH * 0.4), fit.boxH * 0.36);
   const well = useWell(width, depth, wellH, fit.cavityW, fit.cavityD);
   const planes = cutaway ? [sectionPlane] : undefined;
   const y0 = wall;

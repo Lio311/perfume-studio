@@ -1,4 +1,4 @@
-import { BrandMark, InsertBlock, PullRibbon, PullTab, Ribbon, Skin, ThumbNotch, Tub } from "../kit.tsx";
+import { BrandMark, InsertBlock, PullTab, Ribbon, Skin, ThumbNotch, Tub } from "../kit.tsx";
 import type { ClosureBuilder } from "../types.ts";
 
 const Drawer: ClosureBuilder = ({ fit, dims, bind, ribbon, pullTab, latch, drawerPull }) => {
@@ -21,10 +21,9 @@ const Drawer: ClosureBuilder = ({ fit, dims, bind, ribbon, pullTab, latch, drawe
         <group position={[0, 0.4, 0]}>
           <Tub w={trayW} h={trayH} d={trayD} wall={trayWall} front="full" />
         </group>
-        <InsertBlock fit={fit} />
+        <InsertBlock fit={fit} span={{ w: Math.max(16, trayW - trayWall * 2 - 3.2), d: Math.max(16, trayD - trayWall * 2 - 3.2) }} />
         {pullTab && <PullTab w={dims.w} z={trayD / 2 - trayWall} />}
-        {drawerPull === "ribbon" && <PullRibbon y={trayH * 0.45} z={trayD / 2 + 2} />}
-        <BrandMark w={trayW} y={trayH * 0.62} z={trayD / 2 - trayWall * 0.35} />
+        <BrandMark w={trayW * 0.72} y={trayH * 0.58} z={trayD / 2 - trayWall * 0.2} />
       </group>
     </group>
   );
