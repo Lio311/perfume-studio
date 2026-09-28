@@ -96,6 +96,7 @@ export function sanitizePersistedBrief(value: unknown, fallback: BudgetBrief = D
   if (!isRecord(value)) {
     const brief: BudgetBrief = { ceilingIls: ceilingFallback, volumeMl: volumeFallback, confirmed: confirmedFallback };
     if (typeof fallback.quantity === "number" && Number.isInteger(fallback.quantity) && fallback.quantity >= 1) brief.quantity = fallback.quantity;
+    if (typeof fallback.projectName === "string" && fallback.projectName.trim()) brief.projectName = fallback.projectName.trim();
     return brief;
   }
   const brief: BudgetBrief = {
@@ -105,6 +106,8 @@ export function sanitizePersistedBrief(value: unknown, fallback: BudgetBrief = D
   };
   const quantity = own(value, "quantity");
   if (typeof quantity === "number" && Number.isInteger(quantity) && quantity >= 1) brief.quantity = quantity;
+  const projectName = own(value, "projectName");
+  if (typeof projectName === "string" && projectName.trim()) brief.projectName = projectName.trim();
   return brief;
 }
 

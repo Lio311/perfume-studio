@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { formatMoney } from "../budget/money.ts";
 import { tx } from "../i18n/copy.ts";
 import { useLab } from "../store/labStore.ts";
@@ -17,6 +17,8 @@ export function BudgetBrief() {
   const closeBrief = useLab((s) => s.closeBrief);
   const { belowMoq } = useBudgetModel();
   const [hydrated, setHydrated] = useState(() => useLab.persist.hasHydrated());
+  const [nameError, setNameError] = useState(false);
+  const nameRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (hydrated) return undefined;
@@ -25,15 +27,23 @@ export function BudgetBrief() {
 
   if (!hydrated || (brief.confirmed && !editing)) return null;
 
+  const handleSubmit = (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!brief.projectName?.trim()) {
+      setNameError(true);
+      nameRef.current?.focus();
+      return;
+    }
+    setNameError(false);
+    confirmBrief();
+  };
+
   return (
     <div className="modal-back" data-budget-brief>
       <form
         className="modal budget-brief"
         dir={lang === "he" ? "rtl" : "ltr"}
-        onSubmit={(event) => {
-          event.preventDefault();
-          confirmBrief();
-        }}
+        onSubmit={handleSubmit}
       >
         <header>
           <h2>{t.briefTitle}</h2>
@@ -42,50 +52,82 @@ export function BudgetBrief() {
           )}
         </header>
         <p className="hint">{t.briefLead}</p>
+
+        {/* ── Project name (required) ── */}
         <label className="brief-field">
-          <span>{t.briefBudget}</span>
-          <span className="brief-unit" dir="ltr">₪</span>
+          <span>
+            {t.briefProjectName}
+            <abbr className="brief-required" title={t.briefProjectNameRequired}> *</abbr>
+          </span>
           <input
-            type="number"
-            dir="ltr"
-            min={1}
-            step={1}
-            value={brief.ceilingIls}
+            ref={nameRef}
+            type="text"
+            required
+            aria-required="true"
+            aria-invalid={nameError || undefined}
+            placeholder={t.briefProjectNamePh}
+            value={brief.projectName ?? ""}
             onChange={(event) => {
-              const next = Number(event.target.value);
-              if (Number.isFinite(next)) setBrief({ ceilingIls: next });
+              setNameError(false);
+              setBrief({ projectName: event.target.value });
             }}
           />
         </label>
-        <div className="brief-presets">
-          {BUDGETS.map((amount) => (
-            <button key={amount} type="button" className={brief.ceilingIls === amount ? "is-on" : ""} onClick={() => setBrief({ ceilingIls: amount })}>
-              <bdi dir="ltr">{formatMoney(amount, "ILS", lang)}</bdi>
-            </button>
-          ))}
-        </div>
-        <label className="brief-field">
-          <span>{t.briefVolume}</span>
-          <span className="brief-unit">{t.capacityShort}</span>
-          <input
-            type="number"
-            dir="ltr"
-            min={1}
-            step={1}
-            value={brief.volumeMl}
-            onChange={(event) => {
-              const next = Number(event.target.value);
-              if (Number.isFinite(next)) setBrief({ volumeMl: next });
-            }}
-          />
-        </label>
-        <div className="brief-presets">
-          {VOLUMES.map((amount) => (
-            <button key={amount} type="button" className={brief.volumeMl === amount ? "is-on" : ""} onClick={() => setBrief({ volumeMl: amount })}>
-              <bdi dir="ltr">{amount} {t.capacityShort}</bdi>
-            </button>
-          ))}
-        </div>
+        {nameError && <p className="hint is-warn">{t.briefProjectNameRequired}</p>}
+
+        {/* ── Budget ── */}
+        <fieldset className="brief-group">
+          <label className="brief-field">
+            <span>{t.briefBudget}</span>
+            <span className="brief-unit" dir="ltr">₪</span>
+            <input
+              type="number"
+              dir="ltr"
+              min={1}
+              step={1}
+              value={brief.ceilingIls}
+              onChange={(event) => {
+                const next = Number(event.target.value);
+                if (Number.isFinite(next)) setBrief({ ceilingIls: next });
+              }}
+            />
+          </label>
+          <div className="brief-presets">
+            {BUDGETS.map((amount) => (
+              <button key={amount} type="button" className={brief.ceilingIls === amount ? "is-on" : ""} onClick={() => setBrief({ ceilingIls: amount })}>
+                <bdi dir="ltr">{formatMoney(amount, "ILS", lang)}</bdi>
+              </button>
+            ))}
+          </div>
+        </fieldset>
+
+        {/* ── Volume ── */}
+        <fieldset className="brief-group">
+          <label className="brief-field">
+            <span>{t.briefVolume}</span>
+            <span className="brief-unit">{t.capacityShort}</span>
+            <input
+              type="number"
+              dir="ltr"
+              min={1}
+              step={1}
+              value={brief.volumeMl}
+              onChange={(event) => {
+                const next = Number(event.target.value);
+                if (Number.isFinite(next)) setBrief({ volumeMl: next });
+              }}
+            />
+          </label>
+          <div className="brief-presets">
+            {VOLUMES.map((amount) => (
+              <button key={amount} type="button" className={brief.volumeMl === amount ? "is-on" : ""} onClick={() => setBrief({ volumeMl: amount })}>
+                <bdi dir="ltr">{amount} {t.capacityShort}</bdi>
+              </button>
+            ))}
+          </div>
+        </fieldset>
+
+        {/* ── Quantity ── */}
         <label className="brief-field">
           <span>{t.briefQuantity}</span>
           <input

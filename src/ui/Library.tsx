@@ -81,7 +81,6 @@ export function Library() {
     if (useLab.getState().selected !== next) {
       useLab.setState({ selected: next });
     }
-
     if (!next || tabRef.current === next) return;
     setQuery("");
     setCat("all");
@@ -99,6 +98,7 @@ export function Library() {
     }
     setTab(next);
   }, [selected, focusToken, isWizard]);
+
 
   const activeId =
     visibleTab === "bottle" ? design.bottle.variantId :

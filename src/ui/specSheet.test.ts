@@ -6,7 +6,7 @@ import { createDefaultDesign } from "../model/design.ts";
 import { BOXES, COLLARS, PUMPS } from "../model/hardware.ts";
 import { LOGOS } from "../model/logos.ts";
 import type { FinishId, NeckId } from "../model/types.ts";
-import { effectiveGlassOpacity } from "../model/materials.ts";
+import { renderedGlassOpacity } from "../model/materials.ts";
 import { buildSpecHtml } from "./specSheet.ts";
 
 const empty: ImportedCatalog = { bottles: [], caps: [], labels: [], pumps: [], collars: [], boxes: [] };
@@ -112,8 +112,7 @@ describe("spec sheet HTML escaping", () => {
     const html = buildSpecHtml(design, "en", "data:image/png;base64,AAAA");
     const glass = html.match(/<th>Glass<\/th><td>(.*?)<\/td>/);
     const liquid = html.match(/<th>Liquid<\/th><td>(.*?)<\/td>/);
-    const rendered = effectiveGlassOpacity("tinted", 0.1);
-    expect(rendered).toBeCloseTo(0.1);
+    const rendered = renderedGlassOpacity("tinted", 0.1);
     expect(glass?.[1]).toBe(`Tinted · #112233 · ${Math.round((rendered ?? 0) * 100)}%`);
     expect(liquid?.[1]).toBe("50% · #abcdef");
   });
@@ -126,8 +125,7 @@ describe("spec sheet HTML escaping", () => {
         design.bottle.color = "#112233";
         design.bottle.opacity = opacity;
         const html = buildSpecHtml(design, "en", "data:image/png;base64,AAAA");
-        const rendered = effectiveGlassOpacity(finish, opacity);
-        expect(rendered).toBeCloseTo(opacity);
+        const rendered = renderedGlassOpacity(finish, opacity);
         const name = finish === "frosted" ? "Frosted" : "Tinted";
         expect(html.match(/<th>Glass<\/th><td>(.*?)<\/td>/)?.[1]).toBe(
           `${name} · #112233 · ${Math.round((rendered ?? 0) * 100)}%`,

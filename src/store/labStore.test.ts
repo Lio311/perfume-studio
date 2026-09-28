@@ -49,7 +49,7 @@ describe("labStore", () => {
 
     useLab.getState().applyCommands([{ type: "text", text: "" }]);
     expect(useLab.getState().design.label.text).toBe("");
-    expect(useLab.getState().design.label.visible).toBe(true);
+    expect(useLab.getState().design.label.visible).toBe(false);
 
     useLab.getState().applyCommands([{ type: "text", text: "בושם שלי" }]);
     expect(useLab.getState().design.label.text).toBe("בושם שלי");

@@ -497,14 +497,14 @@ describe("saved design hydration", () => {
 
     const partial = partializeLabState({
       ...slice(design),
-      brief: { title: "קופסה" },
+      brief: { projectName: "קופסה" },
       cutaway: true,
       quality: "high",
       tierLock: true,
       shareUrl: "https://example.test/#d=1",
       packNotices: [{ kind: "dropped", ref: "x" }],
     });
-    expect(partial.brief).toEqual({ title: "קופסה" });
+    expect(partial.brief).toEqual({ projectName: "קופסה" });
     expect("cutaway" in partial).toBe(false);
     expect("quality" in partial).toBe(false);
     expect("tierLock" in partial).toBe(false);
@@ -545,7 +545,7 @@ describe("saved design hydration", () => {
     expect(merged.design.box.drawerPull).toBe("notch");
     expect(merged.design.box.shape).toEqual({ type: "polygon", sides: 8 });
     expect(merged.design.box.layers.map((layer) => layer.structure)).toEqual(["sleeve", "drawer"]);
-    expect(merged.brief).toEqual({ title: "קופסה" });
+    expect(merged.brief).toEqual({ ...DEFAULT_BUDGET_BRIEF, projectName: "קופסה" });
     expect(merged.cutaway).toBe(false);
     expect(merged.quality).toBe("fallback");
     expect(merged.tierLock).toBe(false);

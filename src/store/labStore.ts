@@ -153,7 +153,7 @@ interface LabState {
   showPackNotices: (notices: PackNotice[]) => void;
   upsertSupplier: (pack: SupplierPack, notices?: PackNotice[]) => void;
   removeSupplier: (id: string) => void;
-  setBrief: (patch: Partial<Pick<BudgetBrief, "ceilingIls" | "volumeMl">> & { quantity?: number | null }) => void;
+  setBrief: (patch: Partial<Pick<BudgetBrief, "ceilingIls" | "volumeMl">> & { quantity?: number | null; projectName?: string }) => void;
   confirmBrief: () => void;
   openBrief: () => void;
   closeBrief: () => void;
@@ -663,6 +663,7 @@ export const useLab = create<LabState>()(
               : patch.quantity != null && Number.isInteger(patch.quantity) && patch.quantity >= 1
                 ? patch.quantity
                 : undefined,
+            projectName: patch.projectName === undefined ? state.brief.projectName : patch.projectName,
           },
         })),
       confirmBrief: () =>
