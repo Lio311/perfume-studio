@@ -217,11 +217,6 @@ const he = {
   noPrice: "אין מחיר",
   unknownCurrency: "מטבע לא ידוע",
   closure: "סגירה",
-  closureMagnetic: "מגנטית",
-  closureLift: "מכסה נשלף",
-  closureSleeve: "שרוול",
-  closureDrawer: "מגירה",
-  closureBook: "ספר",
   insert: "תושבת",
   insertEva: "EVA",
   insertPulp: "עיסת נייר",
@@ -240,6 +235,9 @@ const he = {
   unboxing: "פתיחה",
   hands: "ידיים",
   comingSoon: "בקרוב",
+  soundUnmute: "השמע פסקול",
+  soundMute: "השתק",
+  soundtrackHint: "שקט כברירת מחדל. מתנגן רק אחרי לחיצה, ורק אם הוגדר קישור לרצועה.",
   qualityFallback: "חיסכון",
 };
 
@@ -460,11 +458,6 @@ const en: typeof he = {
   noPrice: "No price",
   unknownCurrency: "Unknown currency",
   closure: "Closure",
-  closureMagnetic: "Magnetic",
-  closureLift: "Lift-off",
-  closureSleeve: "Sleeve",
-  closureDrawer: "Drawer",
-  closureBook: "Book",
   insert: "Insert",
   insertEva: "EVA",
   insertPulp: "Pulp",
@@ -483,6 +476,9 @@ const en: typeof he = {
   unboxing: "Unboxing",
   hands: "Hands",
   comingSoon: "Coming soon",
+  soundUnmute: "Play soundtrack",
+  soundMute: "Mute",
+  soundtrackHint: "Muted by default. Plays after a click, and only when a track URL is set.",
   qualityFallback: "Light",
 };
 

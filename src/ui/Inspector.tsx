@@ -3,8 +3,10 @@ import { bottleById, boxById, capById, collarById, logoById, pumpById } from "..
 import { computeFit } from "../model/fit.ts";
 import { FINISHES, PALETTE, LIQUID_PALETTE } from "../model/materials.ts";
 import { NECK_IDS } from "../model/necks.ts";
-import { BOX_CLOSURES, INSERT_MATERIALS, OUTER_WRAPS } from "../model/boxFields.ts";
-import type { BoxClosure, FinishId, InsertMaterial, InsertOrientation, NeckId, OuterWrap, PartKey } from "../model/types.ts";
+import { setUnboxingMuted, useUnboxingTrack } from "../audio/unboxingTrack.ts";
+import { listClosures } from "../model/closures/registry.ts";
+import { INSERT_MATERIALS, OUTER_WRAPS } from "../model/boxFields.ts";
+import type { FinishId, InsertMaterial, InsertOrientation, NeckId, OuterWrap, PartKey } from "../model/types.ts";
 import { partLabel, tx } from "../i18n/copy.ts";
 import { useLab } from "../store/labStore.ts";
 import { BrandTextField, labelVisibleAfterTextChange } from "./brandField.tsx";
@@ -268,13 +270,7 @@ function BoxPack() {
   const setCutaway = useLab((s) => s.setCutaway);
   const quality = useLab((s) => s.quality);
   const setQuality = useLab((s) => s.setQuality);
-  const closureLabel: Record<BoxClosure, string> = {
-    magnetic: t.closureMagnetic,
-    "lift-off": t.closureLift,
-    sleeve: t.closureSleeve,
-    drawer: t.closureDrawer,
-    book: t.closureBook,
-  };
+  const track = useUnboxingTrack();
   const insertLabel: Record<InsertMaterial, string> = {
     eva: t.insertEva,
     pulp: t.insertPulp,
@@ -292,9 +288,9 @@ function BoxPack() {
     <div className="box-pack" data-box-pack>
       <h3>{t.closure}</h3>
       <div className="chips">
-        {BOX_CLOSURES.map((id) => (
-          <button key={id} type="button" className={box.closure === id ? "chip is-on" : "chip"} onClick={() => patch("box", { closure: id })}>
-            {closureLabel[id]}
+        {listClosures().map((spec) => (
+          <button key={spec.id} type="button" className={box.closure === spec.id ? "chip is-on" : "chip"} onClick={() => patch("box", { closure: spec.id })}>
+            {lang === "he" ? spec.label.he : spec.label.en}
           </button>
         ))}
       </div>
@@ -354,6 +350,15 @@ function BoxPack() {
           <span>{t.hands}</span>
           <em>{t.comingSoon}</em>
         </label>
+        <button
+          type="button"
+          className={track.muted ? "chip" : "chip is-on"}
+          aria-pressed={!track.muted}
+          title={t.soundtrackHint}
+          onClick={() => setUnboxingMuted(!track.muted)}
+        >
+          {track.muted ? t.soundUnmute : t.soundMute}
+        </button>
         <div className="chips">
           <button type="button" className={quality === "high" ? "chip is-on" : "chip"} onClick={() => setQuality("high", true)}>
             {t.qualityHigh}

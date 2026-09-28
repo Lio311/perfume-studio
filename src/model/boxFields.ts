@@ -6,6 +6,8 @@
 import { bottleById, capById, collarById, pumpById } from "./catalog.ts";
 import { NECKS, neckRadius } from "./necks.ts";
 import { bottleRadii, capRadius } from "./sample.ts";
+import { closureById, listClosures, resolveClosure } from "./closures/registry.ts";
+import type { ClosureDimsRange } from "./closures/types.ts";
 import type {
   BoxBoard,
   BoxClosure,
@@ -21,7 +23,6 @@ import type {
   WrapFinish,
 } from "./types.ts";
 
-export const BOX_CLOSURES = ["magnetic", "lift-off", "sleeve", "drawer", "book"] as const;
 export const BOX_BOARDS = ["rigid", "carton"] as const;
 export const WRAP_FINISHES = ["matte", "gloss", "soft-touch", "velvet", "paper-texture"] as const;
 export const OUTER_WRAPS = ["none", "cellophane", "sleeve", "tissue"] as const;
@@ -110,15 +111,24 @@ export interface BoxEnvelope {
 }
 
 export function closureForForm(form: BoxForm): BoxClosure {
-  if (form === "magnetic") return "magnetic";
-  if (form === "sleeve") return "sleeve";
-  if (form === "drawer") return "drawer";
-  if (form === "coffret") return "book";
-  return "lift-off";
+  const match = listClosures().find((spec) => spec.forms.includes(form));
+  return match?.id ?? "lift-off";
 }
 
 export function isClosure(value: unknown): value is BoxClosure {
-  return typeof value === "string" && (BOX_CLOSURES as readonly string[]).includes(value);
+  return typeof value === "string" && Boolean(closureById(value));
+}
+
+function limitsFor(closure: unknown): ClosureDimsRange {
+  if (typeof closure === "string") {
+    const spec = closureById(closure);
+    if (spec) return spec.dims;
+  }
+  return {
+    widthMm: BOX_RANGES.widthMm,
+    depthMm: BOX_RANGES.depthMm,
+    heightMm: BOX_RANGES.heightMm,
+  };
 }
 
 function inEnum(list: readonly string[], value: unknown): boolean {
@@ -143,7 +153,7 @@ export function validateBoxFields(box: Partial<BoxState> | null | undefined): Fi
     issues.push({ path: "box", message: "missing" });
     return issues;
   }
-  if (!inEnum(BOX_CLOSURES, box.closure)) issues.push({ path: "closure", message: "enum" });
+  if (!isClosure(box.closure)) issues.push({ path: "closure", message: "enum" });
   if (!inRange(box.boardMm, BOX_RANGES.boardMm[0], BOX_RANGES.boardMm[1])) issues.push({ path: "boardMm", message: "range" });
   if (!inEnum(BOX_BOARDS, box.material)) issues.push({ path: "material", message: "enum" });
   if (!box.wrap || !HEX.test(box.wrap.color ?? "") || !inEnum(WRAP_FINISHES, box.wrap.finish)) {
@@ -161,13 +171,14 @@ export function validateBoxFields(box: Partial<BoxState> | null | undefined): Fi
   ) {
     issues.push({ path: "insert", message: "insert" });
   }
-  if (box.widthMm !== undefined && !inRange(box.widthMm, BOX_RANGES.widthMm[0], BOX_RANGES.widthMm[1])) {
+  const limits = limitsFor(box.closure);
+  if (box.widthMm !== undefined && !inRange(box.widthMm, limits.widthMm[0], limits.widthMm[1])) {
     issues.push({ path: "widthMm", message: "range" });
   }
-  if (box.depthMm !== undefined && !inRange(box.depthMm, BOX_RANGES.depthMm[0], BOX_RANGES.depthMm[1])) {
+  if (box.depthMm !== undefined && !inRange(box.depthMm, limits.depthMm[0], limits.depthMm[1])) {
     issues.push({ path: "depthMm", message: "range" });
   }
-  if (box.heightMm !== undefined && !inRange(box.heightMm, BOX_RANGES.heightMm[0], BOX_RANGES.heightMm[1])) {
+  if (box.heightMm !== undefined && !inRange(box.heightMm, limits.heightMm[0], limits.heightMm[1])) {
     issues.push({ path: "heightMm", message: "range" });
   }
   return issues;
@@ -190,7 +201,7 @@ export function hydrateBox(box: Partial<BoxState> | null | undefined): BoxState 
     heightMm: clamp(height, BOX_RANGES.heightMm[0], BOX_RANGES.heightMm[1]),
     linked: raw.linked !== false,
     visible: raw.visible === true,
-    closure: pickEnum(BOX_CLOSURES, raw.closure, "lift-off"),
+    closure: resolveClosure(raw.closure).id,
     boardMm:
       typeof raw.boardMm === "number" && Number.isFinite(raw.boardMm)
         ? clamp(raw.boardMm, BOX_RANGES.boardMm[0], BOX_RANGES.boardMm[1])
@@ -270,7 +281,10 @@ export function deriveCavity(input: CavityInput): CavitySpec {
   };
 }
 
-export function deriveEnvelope(cavity: CavitySpec, boardMm: number): BoxEnvelope {
+export function deriveEnvelope(cavity: CavitySpec, boardMm: number, limits?: ClosureDimsRange): BoxEnvelope {
+  const width = limits?.widthMm ?? BOX_RANGES.widthMm;
+  const depth = limits?.depthMm ?? BOX_RANGES.depthMm;
+  const height = limits?.heightMm ?? BOX_RANGES.heightMm;
   const margin = Math.max(8, cavity.clearanceMm * 2);
   const insertW = cavity.widthMm + margin * 2;
   const insertD = cavity.depthMm + margin * 2;
@@ -282,9 +296,9 @@ export function deriveEnvelope(cavity: CavitySpec, boardMm: number): BoxEnvelope
     innerW,
     innerD,
     innerH,
-    outerW: clamp(innerW + boardMm * 2, BOX_RANGES.widthMm[0], BOX_RANGES.widthMm[1]),
-    outerD: clamp(innerD + boardMm * 2, BOX_RANGES.depthMm[0], BOX_RANGES.depthMm[1]),
-    outerH: clamp(innerH + boardMm * 2, BOX_RANGES.heightMm[0], BOX_RANGES.heightMm[1]),
+    outerW: clamp(innerW + boardMm * 2, width[0], width[1]),
+    outerD: clamp(innerD + boardMm * 2, depth[0], depth[1]),
+    outerH: clamp(innerH + boardMm * 2, height[0], height[1]),
     insertW,
     insertD,
     insertH,
@@ -341,5 +355,6 @@ export function cavityFromDesign(design: Design, orientation?: InsertOrientation
 
 export function envelopeFromDesign(design: Design): BoxEnvelope {
   const pack = hydrateBox(design.box);
-  return deriveEnvelope(cavityFromDesign(design), pack.boardMm);
+  const spec = closureById(pack.closure) ?? closureById("lift-off");
+  return deriveEnvelope(cavityFromDesign(design), pack.boardMm, spec?.dims);
 }

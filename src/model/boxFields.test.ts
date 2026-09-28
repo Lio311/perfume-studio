@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { applyVariant, createDefaultDesign, hydrateDesign } from "./design.ts";
 import { computeFit } from "./fit.ts";
 import { decodeShare, encodeShare } from "./share.ts";
@@ -57,7 +57,10 @@ describe("box pack defaults and migration", () => {
       linked: true,
       visible: true,
     };
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     const box = hydrateBox(legacy);
+    expect(warn).not.toHaveBeenCalled();
+    warn.mockRestore();
     expect(box.closure).toBe("lift-off");
     expect(box.insert.orientation).toBe("standing");
     expect(box.insert.material).toBe("eva");
@@ -89,9 +92,12 @@ describe("box field validation", () => {
   });
 
   it("clamps an out-of-range board back into the legal range", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     const box = hydrateBox({ ...createDefaultDesign().box, boardMm: 20, closure: "nope" as BoxState["closure"] });
     expect(box.boardMm).toBe(4.5);
     expect(box.closure).toBe("lift-off");
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("nope"));
+    warn.mockRestore();
     expect(validateBoxFields(box)).toEqual([]);
   });
 });

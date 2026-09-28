@@ -262,7 +262,8 @@ export interface CollarState {
   visible: boolean;
 }
 
-export type BoxClosure = "magnetic" | "lift-off" | "sleeve" | "drawer" | "book";
+/** Closure id. The registry in `src/model/closures/` is the list, not a union in this file. */
+export type BoxClosure = string;
 
 export type BoxBoard = "rigid" | "carton";
 
