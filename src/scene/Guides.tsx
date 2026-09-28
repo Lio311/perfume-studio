@@ -46,6 +46,11 @@ export function posedFrame(part: PartKey, fit: ReturnType<typeof computeFit>, st
   return frame;
 }
 
+/** Puts a part's base on a turntable at the origin, for the solo view. */
+export function turntableHome(frame: Frame): [number, number, number] {
+  return [-frame.center[0], 2 - frame.center[1] + frame.size[1] / 2, -frame.center[2]];
+}
+
 export function PartGuides() {
   const selected = useLab((s) => s.selected);
   const mode = useLab((s) => s.mode);
@@ -53,15 +58,17 @@ export function PartGuides() {
   const explodeAmt = useLab((s) => s.explode);
   const stage = useLab((s) => s.stage);
   const blueprint = useLab((s) => s.blueprint);
+  const solo = useLab((s) => s.solo);
   const hero: PartKey = stage === "box" ? "box" : "bottle";
   const picked = selected && (stage === "box" ? selected === "box" : stage === "bottle" ? selected !== "box" : true) ? selected : null;
-  const part = picked ?? (blueprint ? hero : null);
+  const part = solo ?? picked ?? (blueprint ? hero : null);
   if (!part || mode === "compare" || !design[part].visible) return null;
-  if (stage === "bottle" && part === "box") return null;
-  if (stage === "box" && part !== "box") return null;
+  if (!solo && stage === "bottle" && part === "box") return null;
+  if (!solo && stage === "box" && part !== "box") return null;
   const fit = computeFit(design, explodeAmt > 0.45);
   const frame = posedFrame(part, fit, stage);
-  return <GuideFrame frame={frame} dims={mode === "dimensions" || mode === "explode" || blueprint} />;
+  const posed = solo ? { ...frame, home: turntableHome(frame), explode: [0, 0, 0] as [number, number, number] } : frame;
+  return <GuideFrame frame={posed} dims={Boolean(solo) || mode === "dimensions" || mode === "explode" || blueprint} />;
 }
 
 function GuideFrame({ frame, dims }: { frame: Frame; dims: boolean }) {

@@ -3,7 +3,7 @@ import { computeFit } from "../model/fit.ts";
 import type { Design, PartKey } from "../model/types.ts";
 import { explodeLocal } from "./explodeCurve.ts";
 import type { StageMode } from "../store/labStore.ts";
-import { frameFor, posedFrame } from "./Guides.tsx";
+import { frameFor, posedFrame, turntableHome } from "./Guides.tsx";
 
 const PARTS: PartKey[] = ["bottle", "liquid", "label", "collar", "pump", "cap", "box"];
 const scratch = new THREE.PerspectiveCamera(30, 1, 0.5, 5000);
@@ -76,9 +76,16 @@ export function assemblyBounds(design: Design, explode: number, stage: StageMode
   return box;
 }
 
-export function partBounds(design: Design, explode: number, part: PartKey, stage: StageMode): THREE.Box3 {
+export function partBounds(design: Design, explode: number, part: PartKey, stage: StageMode, solo = false): THREE.Box3 {
   const fit = computeFit(design, explode > 0.45);
   const frame = posedFrame(part, fit, stage);
+  if (solo) {
+    const home = turntableHome(frame);
+    const parked = { ...frame, home, explode: [0, 0, 0] as [number, number, number] };
+    const box = new THREE.Box3();
+    expandFrame(box, parked, 0, 6);
+    return box;
+  }
   const box = new THREE.Box3();
   expandFrame(box, frame, explode, 4);
   const minHalf = 18;

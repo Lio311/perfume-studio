@@ -37,6 +37,7 @@ export function Inspector() {
       {part && (
         <>
           {badge && <div className="badge is-fit" dir="ltr">{badge}</div>}
+          <SpecCard part={part} />
           <div className="part-title">
             <div>
               <span className="eyebrow">{partLabel[lang][part]}</span>
@@ -294,6 +295,55 @@ function Readout({ label, value }: { label: string; value: number }) {
       <bdi dir="ltr">{value.toFixed(1)} mm</bdi>
     </p>
   );
+}
+
+function SpecCard({ part }: { part: PartKey }) {
+  const lang = useLab((s) => s.lang);
+  const t = tx(lang);
+  const design = useLab((s) => s.design);
+  const fit = computeFit(design, false);
+  const finish = part === "liquid" ? null : FINISHES.find((item) => item.id === design[part].finish);
+  const dims = part === "bottle"
+    ? `${design.bottle.widthMm.toFixed(1)} × ${design.bottle.depthMm.toFixed(1)} × ${design.bottle.heightMm.toFixed(1)}`
+    : part === "cap"
+      ? `${fit.capW.toFixed(1)} × ${fit.capD.toFixed(1)} × ${fit.capH.toFixed(1)}`
+      : part === "box"
+        ? `${fit.boxW.toFixed(0)} × ${fit.boxD.toFixed(0)} × ${fit.boxH.toFixed(0)}`
+        : part === "collar"
+          ? `Ø${(fit.collarOuter * 2).toFixed(1)} × ${fit.collarHeight.toFixed(1)}`
+          : part === "pump"
+            ? `Ø${(fit.actuatorR * 2).toFixed(1)} × ${fit.actuatorH.toFixed(1)}`
+            : part === "label"
+              ? `${fit.labelW.toFixed(1)} × ${fit.labelH.toFixed(1)}`
+              : `${Math.round(design.liquid.fill * 100)}%`;
+  const neck = part === "box" || part === "label" || part === "liquid" ? "—" : design.bottle.neck;
+  const grams = estimateGrams(part, design, fit);
+  return (
+    <article className="spec-card">
+      <h3>{t.specTitle}</h3>
+      <dl>
+        <div><dt>{t.material}</dt><dd>{finish ? finish.name[lang] : partLabel[lang].liquid}</dd></div>
+        <div><dt>{t.dimensions}</dt><dd dir="ltr">{dims} mm</dd></div>
+        <div><dt>{t.neck}</dt><dd dir="ltr">{neck}</dd></div>
+        <div><dt>{t.weight}</dt><dd dir="ltr">{grams} g</dd></div>
+        <div><dt>{t.moq}</dt><dd dir="ltr">{t.moqValue}</dd></div>
+      </dl>
+    </article>
+  );
+}
+
+function estimateGrams(part: PartKey, design: ReturnType<typeof useLab.getState>["design"], fit: ReturnType<typeof computeFit>): number {
+  if (part === "bottle") return Math.round((fit.bottleW * fit.bottleD * fit.bottleH) / 1000 * 0.85);
+  if (part === "cap") {
+    const tags = capById(design.cap.variantId).tags;
+    const density = tags.includes("zamac") ? 5.4 : tags.includes("wood") ? 0.65 : tags.includes("acrylic") || tags.includes("crystal") ? 1.15 : tags.includes("surlyn") ? 0.95 : design.cap.finish === "gold" || design.cap.finish === "silver" || design.cap.finish === "rose" ? 4.8 : 1.05;
+    return Math.max(4, Math.round((fit.capW * fit.capD * fit.capH) / 1000 * 0.55 * density));
+  }
+  if (part === "box") return Math.round((fit.boxW * fit.boxD * fit.boxH) / 1000 * 0.18);
+  if (part === "collar") return Math.round(fit.collarOuter * fit.collarHeight * 0.35);
+  if (part === "pump") return 6;
+  if (part === "label") return 1;
+  return Math.round(design.liquid.fill * 48);
 }
 
 function ratio(current: number, base: number): number {

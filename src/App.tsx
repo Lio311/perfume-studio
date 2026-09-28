@@ -7,7 +7,9 @@ import { TopBar } from "./ui/TopBar.tsx";
 import { Library } from "./ui/Library.tsx";
 import { Inspector } from "./ui/Inspector.tsx";
 import { ChatPanel } from "./ui/ChatPanel.tsx";
-import { Dock } from "./ui/Dock.tsx";
+import { Crumb, Dock, Timeline } from "./ui/Dock.tsx";
+import { CommandPalette, Intro, ShortcutHelp } from "./ui/Palette.tsx";
+import { requestShot } from "./scene/capture.ts";
 import { CompareBoard } from "./ui/CompareBoard.tsx";
 import { Modals } from "./ui/Modals.tsx";
 import { stopSpeaking } from "./audio/speech.ts";
@@ -26,6 +28,15 @@ export default function App() {
   const redo = useLab((s) => s.redo);
   const resetView = useLab((s) => s.resetView);
   const showFull = useLab((s) => s.showFull);
+  const solo = useLab((s) => s.solo);
+  const exitSolo = useLab((s) => s.exitSolo);
+  const present = useLab((s) => s.present);
+  const setPresent = useLab((s) => s.setPresent);
+  const palette = useLab((s) => s.palette);
+  const setPalette = useLab((s) => s.setPalette);
+  const helpOpen = useLab((s) => s.help);
+  const setHelp = useLab((s) => s.setHelp);
+  const design = useLab((s) => s.design);
   const modal = useLab((s) => s.modal);
   const setModal = useLab((s) => s.setModal);
 
@@ -49,11 +60,32 @@ export default function App() {
       const target = event.target as HTMLElement | null;
       const typing = target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.tagName === "SELECT" || target.isContentEditable);
       if (event.key === "Escape") {
+        if (palette) {
+          setPalette(false);
+          return;
+        }
+        if (helpOpen) {
+          setHelp(false);
+          return;
+        }
+        if (present) {
+          setPresent(false);
+          return;
+        }
         if (modal) {
           setModal(null);
           return;
         }
+        if (!typing && solo) {
+          exitSolo();
+          return;
+        }
         if (!typing) showFull();
+        return;
+      }
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        setPalette(true);
         return;
       }
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "z") {
@@ -68,17 +100,24 @@ export default function App() {
         const dir = lang === "he" ? (event.key === "ArrowLeft" ? 1 : -1) : event.key === "ArrowRight" ? 1 : -1;
         cycle(dir);
       }
+      if (event.key === "?" ) {
+        setHelp(true);
+        return;
+      }
+      if (event.key === "p" || event.key === "P") setPresent(!present);
       if (event.key === "e" || event.key === "E") setMode(mode === "explode" ? "assemble" : "explode");
       if (event.key === "0") resetView();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [cycle, lang, modal, mode, redo, resetView, setModal, setMode, showFull, undo]);
+  }, [cycle, exitSolo, helpOpen, lang, modal, mode, palette, present, redo, resetView, setHelp, setModal, setMode, setPalette, setPresent, showFull, solo, undo]);
 
   return (
-    <div className="app" data-voice={voice}>
+    <div className={present ? "app is-present" : "app"} data-voice={voice}>
       <LabCanvas />
       <div className="vignette" />
+      <div className="grain" />
+      <Intro />
       <div className="chrome">
         <TopBar />
         <Library />
@@ -92,7 +131,22 @@ export default function App() {
             <span>·</span>
             {t.hintClick}
           </p>
+          <Crumb />
+          {present && (
+            <div className="present-bar" dir={lang === "he" ? "rtl" : "ltr"}>
+              <strong>{design.label.text}</strong>
+              <span>PERFUME LAB</span>
+              <button type="button" onClick={() => requestShot((url) => {
+                const link = document.createElement("a");
+                link.href = url;
+                link.download = "perfume-lab.png";
+                link.click();
+              })}>{t.export}</button>
+              <button type="button" onClick={() => setPresent(false)}>{t.presentExit}</button>
+            </div>
+          )}
           {mode === "compare" && <CompareBoard />}
+          <Timeline />
           <Dock />
         </div>
         <div className={`side-col ${sideOpen ? "is-open" : ""}`}>
@@ -105,6 +159,8 @@ export default function App() {
           {partLabel[lang][hovered.part]}
         </div>
       )}
+      <CommandPalette />
+      <ShortcutHelp />
       <Modals />
       <SwapFlash />
     </div>

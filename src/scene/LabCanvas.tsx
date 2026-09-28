@@ -47,6 +47,7 @@ function frameSignature(width: number, height: number): string {
     design.collar.visible ? 1 : 0,
     design.label.visible ? 1 : 0,
     state.stage,
+    state.solo ?? "-",
     design.box.visible ? 1 : 0,
     design.box.widthMm,
     design.box.heightMm,
@@ -120,15 +121,19 @@ function CameraRig() {
     mode.current = "anim";
   };
 
-  const poseFor = (dir: THREE.Vector3, bounds = assemblyBounds(useLab.getState().design, useLab.getState().explode, useLab.getState().stage)) => {
+  const poseFor = (dir: THREE.Vector3, bounds?: THREE.Box3) => {
+    const state = useLab.getState();
+    const box = bounds ?? (state.solo
+      ? partBounds(state.design, state.explode, state.solo, state.stage, true)
+      : assemblyBounds(state.design, state.explode, state.stage));
     const frame = readStageFrame(gl.domElement);
     const fov = camera instanceof THREE.PerspectiveCamera ? camera.fov : 30;
-    return fitPose(bounds, dir, fov, frame);
+    return fitPose(box, dir, fov, frame);
   };
 
   const aimPart = (part: PartKey) => {
     const state = useLab.getState();
-    const bounds = partBounds(state.design, state.explode, part, state.stage);
+    const bounds = partBounds(state.design, state.explode, part, state.stage, state.solo === part);
     const dir = camera.position.clone().sub(look.current);
     if (dir.length() < 10) dir.copy(direction.current);
     if (dir.y < 0.08) dir.y = 0.16;

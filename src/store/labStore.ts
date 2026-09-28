@@ -79,6 +79,10 @@ interface LabState {
   blueprint: boolean;
   fullToken: number;
   aimed: boolean;
+  solo: PartKey | null;
+  present: boolean;
+  palette: boolean;
+  help: boolean;
   select: (part: PartKey | null) => void;
   hover: (part: PartKey | null, x?: number, y?: number) => void;
   patch: (part: PartKey, partial: Record<string, unknown>) => void;
@@ -114,6 +118,11 @@ interface LabState {
   setStage: (stage: StageMode) => void;
   setBlueprint: (on: boolean) => void;
   showFull: () => void;
+  isolate: (part: PartKey) => void;
+  exitSolo: () => void;
+  setPresent: (on: boolean) => void;
+  setPalette: (on: boolean) => void;
+  setHelp: (on: boolean) => void;
   applyVoiceParam: (value: string | null) => void;
 }
 
@@ -270,6 +279,10 @@ export const useLab = create<LabState>()(
       blueprint: false,
       fullToken: 0,
       aimed: false,
+      solo: null,
+      present: false,
+      palette: false,
+      help: false,
       theme: "dark",
       lang: "he",
       libraryOpen: false,
@@ -409,6 +422,7 @@ export const useLab = create<LabState>()(
           stage,
           selected: stage === "box" ? "box" : null,
           aimed: false,
+          solo: null,
           fullToken: state.fullToken + 1,
           design:
             stage === "bottle"
@@ -416,7 +430,12 @@ export const useLab = create<LabState>()(
               : { ...state.design, box: { ...state.design.box, visible: true } },
         })),
       setBlueprint: (blueprint) => set({ blueprint }),
-      showFull: () => set((state) => ({ selected: null, aimed: false, fullToken: state.fullToken + 1 })),
+      showFull: () => set((state) => ({ selected: null, aimed: false, solo: null, fullToken: state.fullToken + 1 })),
+      isolate: (part) => set((state) => ({ solo: part, selected: part, aimed: true, sideOpen: true, focusToken: state.focusToken + 1 })),
+      exitSolo: () => set((state) => ({ solo: null, aimed: false, fullToken: state.fullToken + 1 })),
+      setPresent: (present) => set((state) => ({ present, autoRotate: present ? true : state.autoRotate })),
+      setPalette: (palette) => set({ palette, help: false }),
+      setHelp: (help) => set({ help, palette: false }),
       applyVoiceParam: (value: string | null) => set({ voice: parseVoiceParam(value) }),
     }),
     {

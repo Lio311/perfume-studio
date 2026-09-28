@@ -102,7 +102,8 @@ const CLEAR_FRAG = `
     float rim = pow(1.0 - max(dot(N, normalize(V + rimLight)), 0.0), 2.4);
     vec3 glass = vec3(0.96, 0.94, 0.90);
     vec3 gold = vec3(1.0, 0.86, 0.58);
-    vec3 color = mix(glass, gold, fres * 0.45) + gold * rim * 0.35 + vec3(1.0, 0.97, 0.9) * spec;
+    float band = pow(max(sin(vWorld.x * 0.16 + vWorld.y * 0.09) * sin(vWorld.z * 0.13 + vWorld.y * 0.06), 0.0), 2.0);
+    vec3 color = mix(glass, gold, fres * 0.45) + gold * rim * 0.35 + vec3(1.0, 0.97, 0.9) * spec + gold * band * fres * 0.28;
     float alpha = 0.045 + fres * 0.62 + spec * 0.35;
     gl_FragColor = vec4(color, clamp(alpha, 0.0, 0.92));
   }

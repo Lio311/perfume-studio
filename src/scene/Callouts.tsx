@@ -7,7 +7,7 @@ import type { Design, PartKey } from "../model/types.ts";
 import { useLab } from "../store/labStore.ts";
 import { Clock } from "./clock.ts";
 import { explodeLocal } from "./explodeCurve.ts";
-import { posedFrame } from "./Guides.tsx";
+import { posedFrame, turntableHome } from "./Guides.tsx";
 
 const SIDES: Record<PartKey, -1 | 1> = {
   cap: -1,
@@ -95,6 +95,7 @@ export function Callouts() {
     const items: Slot[] = [];
 
     for (const part of NAME_PARTS) {
+      if (state.solo && part !== state.solo) continue;
       if (state.stage === "bottle" && part === "box") continue;
       if (state.stage === "box" && part !== "box") continue;
       if (state.stage === "together" && part === "box" && !state.design.box.visible) continue;
@@ -104,13 +105,16 @@ export function Callouts() {
         /* carton is the product; visibility is forced by the stage */
       } else if (state.stage !== "bottle" && part !== "box" && state.stage === "box") continue;
       const frame = posedFrame(part, fit, state.stage);
-      const local = explodeLocal(frame.index, clock.current);
+      const parked = state.solo === part;
+      const local = parked ? 0 : explodeLocal(frame.index, clock.current);
+      const home = parked ? turntableHome(frame) : frame.home;
+      const burst = parked ? [0, 0, 0] : frame.explode;
       anchor.current.set(
-        frame.home[0] + frame.explode[0] * local + frame.center[0],
-        frame.home[1] + frame.explode[1] * local + frame.center[1],
-        frame.home[2] + frame.explode[2] * local + frame.center[2],
+        home[0] + burst[0] * local + frame.center[0],
+        home[1] + burst[1] * local + frame.center[1],
+        home[2] + burst[2] * local + frame.center[2],
       );
-      if (part === "liquid") anchor.current.y *= 0.62;
+      if (part === "liquid" && !parked) anchor.current.y *= 0.62;
       items.push({
         key: part,
         side: SIDES[part],
@@ -131,12 +135,15 @@ export function Callouts() {
         /* box stage only measures the carton */
       } else {
       const frame = posedFrame(part, fit, state.stage);
-      const local = explodeLocal(frame.index, clock.current);
+      const parked = state.solo === part;
+      const local = parked ? 0 : explodeLocal(frame.index, clock.current);
+      const home = parked ? turntableHome(frame) : frame.home;
+      const burst = parked ? [0, 0, 0] : frame.explode;
       const [w, h, d] = frame.size;
       anchor.current.set(
-        frame.home[0] + frame.explode[0] * local + frame.center[0],
-        frame.home[1] + frame.explode[1] * local + frame.center[1],
-        frame.home[2] + frame.explode[2] * local + frame.center[2],
+        home[0] + burst[0] * local + frame.center[0],
+        home[1] + burst[1] * local + frame.center[1],
+        home[2] + burst[2] * local + frame.center[2],
       );
       items.push({
         key: `dim-${part}`,

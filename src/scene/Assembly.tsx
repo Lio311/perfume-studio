@@ -12,7 +12,7 @@ import { useLab } from "../store/labStore.ts";
 import { FinishMaterial } from "./materials.tsx";
 import { Callouts } from "./Callouts.tsx";
 import { explodeLocal } from "./explodeCurve.ts";
-import { PartGuides } from "./Guides.tsx";
+import { PartGuides, posedFrame, turntableHome } from "./Guides.tsx";
 import { HoloShell } from "./voiceScenery.tsx";
 import { Clock } from "./clock.ts";
 
@@ -59,13 +59,36 @@ function PartShell({
   useFrame((_, dt) => {
     const group = ref.current;
     if (!group) return;
-    const local = explodeLocal(index, clock.current);
+    const state = useLab.getState();
+    const isolated = state.solo === part;
+    const faded = Boolean(state.solo) && state.solo !== part;
+    const local = isolated ? 0 : explodeLocal(index, clock.current);
     pop.current = THREE.MathUtils.damp(pop.current, 1, 4.2, dt);
-    const shown = visible ? pop.current : 0.001;
-    const scale = THREE.MathUtils.damp(group.scale.x || shown, shown, 8, dt);
+    const shown = visible && !faded ? pop.current : 0.001;
+    const scale = THREE.MathUtils.damp(group.scale.x || shown, shown, faded || isolated ? 4 : 8, dt);
     group.scale.setScalar(Math.max(0.001, scale));
     group.visible = scale > 0.02;
-    group.position.set(home[0] + explode[0] * local, home[1] + explode[1] * local, home[2] + explode[2] * local);
+    let tx = home[0] + explode[0] * local;
+    let ty = home[1] + explode[1] * local;
+    let tz = home[2] + explode[2] * local;
+    if (isolated) {
+      const fit = computeFit(state.design, false);
+      const frame = posedFrame(part, fit, state.stage);
+      const park = turntableHome(frame);
+      tx = park[0];
+      ty = park[1];
+      tz = park[2];
+    }
+    const yaw = isolated ? 0 : local * 0.14 * (index % 2 === 0 ? 1 : -1);
+    group.rotation.y = THREE.MathUtils.damp(group.rotation.y, yaw, 5, dt);
+    const gap = (group.position.x - tx) ** 2 + (group.position.y - ty) ** 2 + (group.position.z - tz) ** 2;
+    if (gap > 1) {
+      group.position.x = THREE.MathUtils.damp(group.position.x, tx, 5, dt);
+      group.position.y = THREE.MathUtils.damp(group.position.y, ty, 5, dt);
+      group.position.z = THREE.MathUtils.damp(group.position.z, tz, 5, dt);
+    } else {
+      group.position.set(tx, ty, tz);
+    }
     const positions = line.geometry.getAttribute("position");
     const array = positions.array as Float32Array;
     array[0] = -explode[0] * local;
@@ -109,7 +132,9 @@ function PartShell({
       }}
       onDoubleClick={(event) => {
         event.stopPropagation();
-        useLab.getState().showFull();
+        const lab = useLab.getState();
+        if (lab.solo === part) lab.exitSolo();
+        else lab.isolate(part);
       }}
     >
       <primitive object={line} />
@@ -168,7 +193,29 @@ export function Assembly() {
         <meshBasicMaterial color="#d4b48a" transparent opacity={0.08} />
       </mesh>
       <Shadow fitWidth={fit.bottleW} />
+      <Turntable />
     </Clock.Provider>
+  );
+}
+
+function Turntable() {
+  const solo = useLab((s) => s.solo);
+  const disc = useRef<THREE.Group>(null);
+  useFrame((_, dt) => {
+    if (disc.current) disc.current.rotation.y += dt * 0.35;
+  });
+  if (!solo) return null;
+  return (
+    <group ref={disc} position={[0, 0.6, 0]}>
+      <mesh rotation={[-Math.PI / 2, 0, 0]}>
+        <circleGeometry args={[52, 72]} />
+        <meshStandardMaterial color="#12161c" metalness={0.72} roughness={0.28} />
+      </mesh>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.2, 0]}>
+        <ringGeometry args={[34, 48, 80]} />
+        <meshBasicMaterial color="#e7d3ae" transparent opacity={0.45} />
+      </mesh>
+    </group>
   );
 }
 
