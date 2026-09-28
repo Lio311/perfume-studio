@@ -71,6 +71,10 @@ export function Library() {
   useEffect(() => {
     if (!isWizard) return;
     const next = WIZARD_ORDER[wizardStep];
+    if (useLab.getState().selected !== next) {
+      useLab.setState({ selected: next });
+    }
+
     if (!next || tabRef.current === next) return;
     setQuery("");
     setCat("all");
@@ -150,6 +154,7 @@ export function Library() {
           {activeTabs.map((key) => (
             <button key={key} type="button" role="tab" data-part={key} aria-selected={tab === key} className={tab === key ? "is-on" : ""} onClick={() => {
               setTab(key);
+              if (key !== "pending") useLab.getState().select(key);
               if (isWizard && key !== "pending") {
                 useLab.getState().setStage(key === "box" ? "box" : "bottle");
               }
