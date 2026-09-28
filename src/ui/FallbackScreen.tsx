@@ -1,5 +1,6 @@
-import { Component, useLayoutEffect, useState, type ReactNode } from "react";
+import { Component, useLayoutEffect, useState, type ErrorInfo, type ReactNode } from "react";
 import { createPortal } from "react-dom";
+import { SUPPLIER_DB_NAME } from "../import/supplierDb.ts";
 import { useLab } from "../store/labStore.ts";
 import { webglAvailable } from "../scene/webgl.ts";
 import type { Lang } from "../model/types.ts";
@@ -11,6 +12,9 @@ const COPY: Record<Lang, {
   designBody: string;
   appTitle: string;
   appBody: string;
+  reload: string;
+  resetDesign: string;
+  appConfirmBody: string;
   reset: string;
   retry: string;
   confirmTitle: string;
@@ -24,7 +28,10 @@ const COPY: Record<Lang, {
     designTitle: "לא הצלחנו להציג את העיצוב",
     designBody: "אפשר לנסות שוב עם העיצוב הנוכחי, או לאפס לבקבוק ההתחלתי.",
     appTitle: "לא הצלחנו להציג את המעבדה",
-    appBody: "אירעה שגיאה בטעינת העיצוב. אפשר לאפס ולחזור לבקבוק ההתחלתי.",
+    appBody: "אירעה שגיאה בטעינת העיצוב. רענון שומר את העיצוב. איפוס מוחק אותו ומתחיל מחדש.",
+    reload: "רענון",
+    resetDesign: "איפוס עיצוב",
+    appConfirmBody: "האיפוס מוחק את העיצוב השמור ומרענן. קטלוגי הספקים נשארים.",
     reset: "איפוס",
     retry: "נסו שוב",
     confirmTitle: "לאפס את העיצוב?",
@@ -38,7 +45,10 @@ const COPY: Record<Lang, {
     designTitle: "This design could not be shown",
     designBody: "Try the current design again, or reset to a fresh bottle.",
     appTitle: "The lab could not be shown",
-    appBody: "Something went wrong while loading the design. Reset to start from a fresh bottle.",
+    appBody: "Something went wrong while loading the design. Reload keeps it. Reset clears it and starts over.",
+    reload: "Reload",
+    resetDesign: "Reset design",
+    appConfirmBody: "Reset clears the saved design and reloads. Supplier catalogs stay.",
     reset: "Reset",
     retry: "Try again",
     confirmTitle: "Reset this design?",
@@ -222,6 +232,45 @@ export function DesignFallback({ onReset, onRetry }: { onReset: () => void; onRe
   );
 }
 
+/** Zustand persist key for the design and the rest of the lab UI state. */
+export const DESIGN_STORAGE_KEY = "perfume-lab-v1";
+
+/**
+ * localStorage keys removed by a confirmed design reset.
+ * `perfume-lab-v1` is the design. Other `perfume-lab-*` keys are UI state.
+ * `perfume-lab-suppliers` is the IndexedDB name for imported packs and is excluded
+ * if the same name is ever written to localStorage.
+ */
+export function isResetStorageKey(key: string): boolean {
+  if (!key.startsWith("perfume-lab-")) return false;
+  if (key === SUPPLIER_DB_NAME || key.startsWith(`${SUPPLIER_DB_NAME}-`)) return false;
+  return true;
+}
+
+export function clearPerfumeLabStorage(storage: Pick<Storage, "length" | "key" | "removeItem">): void {
+  const keys: string[] = [];
+  for (let i = 0; i < storage.length; i += 1) {
+    const key = storage.key(i);
+    if (key && isResetStorageKey(key)) keys.push(key);
+  }
+  for (const key of keys) storage.removeItem(key);
+}
+
+/** Reloads the page and leaves the saved design in place. */
+export function reloadKeepingDesign(reload: () => void = () => location.reload()): void {
+  reload();
+}
+
+/** Clears design and UI localStorage keys, then reloads. Does not open IndexedDB. */
+export function resetDesignAndReload(reload: () => void = () => location.reload()): void {
+  try {
+    if (typeof localStorage !== "undefined") clearPerfumeLabStorage(localStorage);
+  } catch {
+    // Private mode can throw. Reload still drops the broken session.
+  }
+  reload();
+}
+
 /** Fresh bottle, same history entry, no share hash left to replay. */
 export function resetToFreshDesign(): void {
   history.replaceState(history.state, "", `${location.pathname}${location.search}`);
@@ -244,7 +293,37 @@ interface BoundaryState {
   failed: boolean;
 }
 
-/** Catches a render error outside the stage and offers a reset back to the default bottle. */
+/** Reload keeps the saved design. Reset asks first, then clears design and UI keys and reloads. */
+function AppCrash({ onReload, onReset }: { onReload: () => void; onReset: () => void }) {
+  const text = COPY[useLang()];
+  const [confirming, setConfirming] = useState(false);
+  if (confirming) {
+    return (
+      <FallbackScreen
+        page
+        title={text.confirmTitle}
+        body={text.appConfirmBody}
+        actionLabel={text.confirmYes}
+        onAction={onReset}
+        cancelLabel={text.confirmNo}
+        onCancel={() => setConfirming(false)}
+      />
+    );
+  }
+  return (
+    <FallbackScreen
+      page
+      title={text.appTitle}
+      body={text.appBody}
+      actionLabel={text.reload}
+      onAction={onReload}
+      cancelLabel={text.resetDesign}
+      onCancel={() => setConfirming(true)}
+    />
+  );
+}
+
+/** The only app-level boundary. A throw inside the stage is caught first by WebglBoundary. */
 export class AppErrorBoundary extends Component<{ children: ReactNode }, BoundaryState> {
   state: BoundaryState = { failed: false };
 
@@ -252,15 +331,13 @@ export class AppErrorBoundary extends Component<{ children: ReactNode }, Boundar
     return { failed: true };
   }
 
-  reset = () => {
-    resetToFreshDesign();
-    this.setState({ failed: false });
-  };
+  componentDidCatch(error: Error, info: ErrorInfo): void {
+    console.error(error, info);
+  }
 
   render(): ReactNode {
     if (this.state.failed) {
-      const text = COPY[useLab.getState().lang];
-      return <ConfirmReset page title={text.appTitle} body={text.appBody} onReset={this.reset} />;
+      return <AppCrash onReload={() => reloadKeepingDesign()} onReset={() => resetDesignAndReload()} />;
     }
     return this.props.children;
   }

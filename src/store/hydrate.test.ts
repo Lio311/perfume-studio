@@ -1,7 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { createDefaultDesign } from "../model/design.ts";
 import type { Design } from "../model/types.ts";
 import { mergePersistedLab, migratePersisted, readStorageValue, sanitizeDesign, type HydratedSlice } from "./hydrate.ts";
+import { useLab } from "./labStore.ts";
 
 function slice(design: Design = createDefaultDesign()): HydratedSlice {
   return {
@@ -230,6 +231,56 @@ describe("saved design hydration", () => {
     expect(dropped.design.bottle.opacity).toBeUndefined();
   });
 
+  it("finishes hydration for a share link, including a partial or unreadable blob", async () => {
+    const memory = new Map<string, string>();
+    vi.stubGlobal("localStorage", {
+      getItem: (key: string) => memory.get(key) ?? null,
+      setItem: (key: string, value: string) => {
+        memory.set(key, value);
+      },
+      removeItem: (key: string) => {
+        memory.delete(key);
+      },
+      key: (index: number) => [...memory.keys()][index] ?? null,
+      get length() {
+        return memory.size;
+      },
+    });
+    memory.set("perfume-lab-v1", JSON.stringify({ design: { bottle: {}, cap: {} } }));
+
+    const finished: boolean[] = [];
+    const unsub = useLab.persist.onFinishHydration(() => {
+      finished.push(useLab.persist.hasHydrated());
+    });
+    const before = finished.length;
+    await useLab.persist.rehydrate();
+    expect(useLab.persist.hasHydrated()).toBe(true);
+    expect(finished.length).toBe(before + 1);
+    expect(finished.at(-1)).toBe(true);
+    expect(useLab.getState().design.pump.variantId).toBe("pump-crimp");
+    expect(useLab.getState().design.bottle.variantId).toBe("cara-50");
+
+    const waitForShare = () => new Promise<void>((resolve) => {
+      if (useLab.persist.hasHydrated()) {
+        resolve();
+        return;
+      }
+      const stop = useLab.persist.onFinishHydration(() => {
+        stop();
+        resolve();
+      });
+    });
+    await waitForShare();
+
+    memory.set("perfume-lab-v1", "{");
+    await useLab.persist.rehydrate();
+    expect(useLab.persist.hasHydrated()).toBe(true);
+    expect(finished.length).toBe(before + 2);
+    expect(finished.at(-1)).toBe(true);
+    expect(useLab.getState().design).toEqual(createDefaultDesign());
+    unsub();
+  });
+
   it("migrates a partial legacy blob without throwing", () => {
     expect(() => migratePersisted({ design: { bottle: {}, cap: {} } }, 0)).not.toThrow();
     const migrated = migratePersisted({ design: { bottle: {}, cap: {} } }, 1);
@@ -238,4 +289,8 @@ describe("saved design hydration", () => {
     expect(merged.design.pump.variantId).toBe("pump-crimp");
     expect(merged.design.bottle.visible).toBe(true);
   });
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
 });

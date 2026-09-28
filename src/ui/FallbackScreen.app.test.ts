@@ -1,29 +1,25 @@
 /** @vitest-environment happy-dom */
-import { act, Component, createElement, type ReactElement, type ReactNode } from "react";
+import { act, createElement, type ReactElement, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { SUPPLIER_DB_NAME } from "../import/supplierDb.ts";
 import { createDefaultDesign } from "../model/design.ts";
 import { useLab } from "../store/labStore.ts";
-import { AppErrorBoundary, clearPerfumeLabStorage, DESIGN_STORAGE_KEY, isResetStorageKey } from "./AppErrorBoundary.tsx";
+import {
+  AppErrorBoundary,
+  DESIGN_STORAGE_KEY,
+  WebglBoundary,
+  clearPerfumeLabStorage,
+  installSceneProbe,
+  isResetStorageKey,
+} from "./FallbackScreen.tsx";
 
 function Boom(): ReactElement {
   throw new Error("Cannot read properties of undefined (reading 'variantId')");
 }
 
-function SceneBoom(): ReactElement {
+function SceneBoom(): ReactNode {
   throw new Error("scene exploded");
-}
-
-class CanvasBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
-  state = { failed: false };
-  static getDerivedStateFromError(): { failed: boolean } {
-    return { failed: true };
-  }
-  render(): ReactNode {
-    if (this.state.failed) return createElement("p", null, "try again");
-    return this.props.children;
-  }
 }
 
 function Signature(): ReactElement {
@@ -49,24 +45,45 @@ function clickLabel(el: HTMLElement, label: string) {
   });
 }
 
-describe("AppErrorBoundary", () => {
-  it("renders the reset fallback when a child throws", () => {
-    const spy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+describe("app error boundary", () => {
+  afterEach(() => {
+    installSceneProbe(null);
+    useLab.setState({ lang: "he" });
+    vi.restoreAllMocks();
+  });
+
+  it("offers reload and a confirmed reset in the page language", () => {
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
     useLab.setState({ lang: "he" });
     const hebrew = mount(createElement(AppErrorBoundary, null, createElement(Boom)));
-    expect(hebrew.el.textContent).toContain("איפוס עיצוב ורענון");
-    expect(hebrew.el.querySelector("section")?.getAttribute("dir")).toBe("rtl");
-    expect(hebrew.el.textContent).toContain("לא הצלחנו להציג את המעבדה.");
+    expect(hebrew.el.textContent).toContain("רענון");
+    expect(hebrew.el.textContent).toContain("איפוס עיצוב");
+    expect(hebrew.el.textContent).toContain("לא הצלחנו להציג את המעבדה");
+    expect(hebrew.el.querySelector(".boot-fallback")?.getAttribute("dir")).toBe("rtl");
+    expect(hebrew.el.querySelector(".boot-fallback")?.className).toContain("is-page");
     hebrew.root.unmount();
 
     useLab.setState({ lang: "en" });
     const english = mount(createElement(AppErrorBoundary, null, createElement(Boom)));
-    expect(english.el.textContent).toContain("Reset design & reload");
-    expect(english.el.querySelector("section")?.getAttribute("dir")).toBe("ltr");
-    expect(spy.mock.calls.some((call) => call.some((arg) => arg instanceof Error && /variantId/.test(arg.message)))).toBe(true);
-    spy.mockRestore();
+    expect(english.el.textContent).toContain("Reload");
+    expect(english.el.textContent).toContain("Reset design");
+    expect(english.el.querySelector(".boot-fallback")?.getAttribute("dir")).toBe("ltr");
     english.root.unmount();
-    useLab.setState({ lang: "he" });
+  });
+
+  it("reloads without clearing the saved design", () => {
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const reload = vi.fn();
+    localStorage.setItem(DESIGN_STORAGE_KEY, "{\"design\":{}}");
+    const view = mount(createElement(AppErrorBoundary, null, createElement(Boom)));
+    const original = location.reload.bind(location);
+    Object.defineProperty(location, "reload", { configurable: true, value: reload });
+    clickLabel(view.el, "רענון");
+    Object.defineProperty(location, "reload", { configurable: true, value: original });
+    expect(reload).toHaveBeenCalledOnce();
+    expect(localStorage.getItem(DESIGN_STORAGE_KEY)).toBe("{\"design\":{}}");
+    view.root.unmount();
+    localStorage.removeItem(DESIGN_STORAGE_KEY);
   });
 
   it("asks before clearing design keys and leaves supplier storage alone", () => {
@@ -76,18 +93,18 @@ describe("AppErrorBoundary", () => {
     localStorage.setItem(SUPPLIER_DB_NAME, "{\"packs\":[1]}");
     localStorage.setItem("token", "keep-me");
     const view = mount(createElement(AppErrorBoundary, null, createElement(Boom)));
-    clickLabel(view.el, "איפוס עיצוב ורענון");
+    clickLabel(view.el, "איפוס עיצוב");
     expect(localStorage.getItem(DESIGN_STORAGE_KEY)).not.toBeNull();
     expect(localStorage.getItem(SUPPLIER_DB_NAME)).toBe("{\"packs\":[1]}");
     expect(reload).not.toHaveBeenCalled();
     expect(view.el.textContent).toContain("לאפס את העיצוב?");
-    expect(view.el.textContent).toContain("כן, אפס");
+    expect(view.el.textContent).toContain("קטלוגי הספקים נשארים");
 
     clickLabel(view.el, "ביטול");
-    expect(view.el.textContent).toContain("איפוס עיצוב ורענון");
+    expect(view.el.textContent).toContain("רענון");
     expect(localStorage.getItem(DESIGN_STORAGE_KEY)).not.toBeNull();
 
-    clickLabel(view.el, "איפוס עיצוב ורענון");
+    clickLabel(view.el, "איפוס עיצוב");
     const original = location.reload.bind(location);
     Object.defineProperty(location, "reload", { configurable: true, value: reload });
     clickLabel(view.el, "כן, אפס");
@@ -97,7 +114,6 @@ describe("AppErrorBoundary", () => {
     expect(localStorage.getItem(SUPPLIER_DB_NAME)).toBe("{\"packs\":[1]}");
     expect(localStorage.getItem("token")).toBe("keep-me");
     view.root.unmount();
-    vi.restoreAllMocks();
   });
 
   it("clears design keys and skips the supplier database name", () => {
@@ -115,17 +131,18 @@ describe("AppErrorBoundary", () => {
     expect(SUPPLIER_DB_NAME.startsWith("perfume-lab-")).toBe(true);
   });
 
-  it("lets an inner canvas boundary catch a scene throw", () => {
+  it("leaves a scene crash to the canvas boundary", () => {
     vi.spyOn(console, "error").mockImplementation(() => undefined);
-    const view = mount(createElement(
-      AppErrorBoundary,
-      null,
-      createElement(CanvasBoundary, null, createElement(SceneBoom)),
-    ));
-    expect(view.el.textContent).toContain("try again");
-    expect(view.el.textContent).not.toContain("איפוס עיצוב ורענון");
+    installSceneProbe(() => ({ webglOk: true, contextLost: false }));
+    const slot = document.createElement("div");
+    slot.className = "stage-slot";
+    document.body.append(slot);
+    const view = mount(createElement(AppErrorBoundary, null, createElement(WebglBoundary, null, createElement(SceneBoom))));
+    expect(slot.textContent).toContain("לא הצלחנו להציג את העיצוב");
+    expect(slot.textContent).toContain("נסו שוב");
+    expect(view.el.textContent).not.toContain("לא הצלחנו להציג את המעבדה");
     view.root.unmount();
-    vi.restoreAllMocks();
+    slot.remove();
   });
 
   it("loads the exact stale blob without the error screen", async () => {
@@ -137,7 +154,7 @@ describe("AppErrorBoundary", () => {
     expect(design).toEqual(createDefaultDesign());
     const view = mount(createElement(AppErrorBoundary, null, createElement(Signature)));
     expect(view.el.textContent).toContain("cara-50|cap-cube-tall|pump-crimp|col-crimp|lg-foil-diamond|box-rigid");
-    expect(view.el.textContent).not.toContain("איפוס עיצוב ורענון");
+    expect(view.el.textContent).not.toContain("איפוס עיצוב");
     expect(view.el.textContent).not.toContain("Reset design");
     view.root.unmount();
     localStorage.removeItem(DESIGN_STORAGE_KEY);

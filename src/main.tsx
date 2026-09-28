@@ -13,7 +13,6 @@ document.fonts?.load('400 48px "Great Vibes"');
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    {/* Outermost boundary. A throw inside the canvas is left for the canvas boundary (WebglBoundary) once that lands inside LabCanvas. */}
     <AppErrorBoundary>
       <App />
     </AppErrorBoundary>
