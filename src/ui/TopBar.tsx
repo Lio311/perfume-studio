@@ -149,7 +149,9 @@ export function TopBar() {
         <VoiceSwitch />
       </div>
       <div className="menu-wrap">
-        <button type="button" className={menu === "export" ? "text-btn is-on" : "text-btn"} onClick={() => setMenu(menu === "export" ? null : "export")}>{t.exportMenu}</button>
+        <div className="voice-switch">
+          <button type="button" className={menu === "export" ? "is-on" : ""} onClick={() => setMenu(menu === "export" ? null : "export")}>{t.exportMenu}</button>
+        </div>
         {menu === "export" && (
           <div className="menu-pop">
             <button type="button" className="text-btn" onClick={share}>{t.share}</button>
