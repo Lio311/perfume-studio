@@ -167,9 +167,14 @@ export function glassDrawTransmission(finish: FinishId, opacity?: number): numbe
   return Math.min(1, Math.max(0, (base * (1 - s)) / (1 - s0)));
 }
 
+/** Drawn opacity at which frosted and tinted glass becomes a solid occluder. */
+export const OPAQUE_GLASS_OPACITY = 0.99;
+
 /**
  * Params the frosted or tinted physical material draws.
- * `depthWrite` stays false so the front wall does not hide the liquid.
+ * Below {@link OPAQUE_GLASS_OPACITY} depth write stays off so the front wall
+ * does not hide the liquid. At slider 1 the glass is non-transparent and writes
+ * depth, so the liquid and the floor behind it are hidden.
  */
 export function effectiveGlassDraw(finish: FinishId, opacity?: number): {
   opacity: number;
@@ -178,13 +183,15 @@ export function effectiveGlassDraw(finish: FinishId, opacity?: number): {
   thickness: number;
   clearcoat: number;
   attenuationDistance: number;
-  depthWrite: false;
+  transparent: boolean;
+  depthWrite: boolean;
 } | null {
   const glass = glassFinish(finish);
   if (!glass || glass === "clear") return null;
   const alpha = renderedGlassOpacity(finish, opacity);
   if (alpha === null) return null;
   const surface = GLASS_SURFACE[glass];
+  const solid = alpha >= OPAQUE_GLASS_OPACITY;
   return {
     opacity: alpha,
     transmission: glassDrawTransmission(finish, opacity),
@@ -192,6 +199,7 @@ export function effectiveGlassDraw(finish: FinishId, opacity?: number): {
     thickness: surface.thickness,
     clearcoat: surface.clearcoat,
     attenuationDistance: 36,
-    depthWrite: false,
+    transparent: !solid,
+    depthWrite: solid,
   };
 }

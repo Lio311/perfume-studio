@@ -211,7 +211,7 @@ export function FinishMaterial({
       attenuationDistance={draw ? draw.attenuationDistance : clear ? 160 : 36}
       envMapIntensity={metal ? 1.65 : glassLike ? 1.7 : matte ? 0.35 : 0.7}
       specularIntensity={glassLike || metal ? 1 : matte ? 0.4 : 0.3}
-      transparent={glassLike}
+      transparent={draw ? draw.transparent : glassLike}
       opacity={materialOpacity}
       userData-glassBody={glassLike ? true : undefined}
       depthWrite={draw ? draw.depthWrite : !glassLike}

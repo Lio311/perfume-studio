@@ -59,6 +59,7 @@ describe("renderedGlassOpacity", () => {
       thickness: 2.8,
       clearcoat: 0.04,
       attenuationDistance: 36,
+      transparent: true,
       depthWrite: false,
     });
     expect(effectiveGlassDraw("tinted")).toEqual({
@@ -68,6 +69,7 @@ describe("renderedGlassOpacity", () => {
       thickness: 4.2,
       clearcoat: 1,
       attenuationDistance: 36,
+      transparent: true,
       depthWrite: false,
     });
     expect(effectiveGlassDraw("frosted", 0)).toMatchObject({ opacity: 0.15, depthWrite: false });
@@ -76,8 +78,26 @@ describe("renderedGlassOpacity", () => {
     expect(effectiveGlassDraw("tinted", 0)!.transmission).toBeGreaterThan(0.55);
     expect(effectiveGlassDraw("frosted", 0)!.transmission).toBeLessThanOrEqual(1);
     expect(effectiveGlassDraw("tinted", 0)!.transmission).toBeLessThanOrEqual(1);
-    expect(effectiveGlassDraw("frosted", 1)).toMatchObject({ opacity: 1, transmission: 0, depthWrite: false });
-    expect(effectiveGlassDraw("tinted", 1)).toMatchObject({ opacity: 1, transmission: 0, depthWrite: false });
+    expect(effectiveGlassDraw("frosted", 1)).toEqual({
+      opacity: 1,
+      transmission: 0,
+      roughness: 0.34,
+      thickness: 2.8,
+      clearcoat: 0.04,
+      attenuationDistance: 36,
+      transparent: false,
+      depthWrite: true,
+    });
+    expect(effectiveGlassDraw("tinted", 1)).toEqual({
+      opacity: 1,
+      transmission: 0,
+      roughness: 0.05,
+      thickness: 4.2,
+      clearcoat: 1,
+      attenuationDistance: 36,
+      transparent: false,
+      depthWrite: true,
+    });
     expect(effectiveGlassDraw("clear")).toBeNull();
   });
 
