@@ -43,6 +43,11 @@ export interface SupplierPack {
   source?: string;
   /** Supplier contact block. Stored and exported; the lab does not read it yet. */
   supplier?: Record<string, unknown>;
+  /**
+   * Parts the load view hid. Not part of the stored record and not written on export.
+   * Present only on the in-memory view returned by `loadPacks`.
+   */
+  hiddenParts?: Array<{ id: string; code: string; name: string; he: string; en: string }>;
 }
 
 export interface ImportedMeta {

@@ -270,9 +270,17 @@ describe("sanitizeSupplierPrice", () => {
     expect(sanitizeSupplierPrice({ value: 3, currency: "$" }).price?.currency).toBe("USD");
     expect(sanitizeSupplierPrice({ value: 3, currency: "usd" }).price?.currency).toBe("USD");
     const badCurrency = sanitizeSupplierPrice({ value: 1.5, currency: "US", moq: 2, tiers: [{ minQty: 10, value: 1 }] });
-    expect(badCurrency.price).toEqual({ value: 1.5, moq: 2, tiers: [{ minQty: 10, value: 1 }] });
+    expect(badCurrency.price).toEqual({ value: 1.5, moq: 2, tiers: [{ minQty: 10, value: 1 }], currencyText: "US" });
     expect(badCurrency.price).not.toHaveProperty("currency");
     expect(badCurrency.unpriced).toBe(true);
+    const foo = sanitizeSupplierPrice({ value: 2, currency: "FOO" });
+    expect(foo.unpriced).toBe(true);
+    expect(foo.price).toEqual({ value: 2, currencyText: "FOO" });
+    expect(foo.issues[0].en).toContain("FOO");
+    expect(foo.issues[0].he).toContain("מטבע לא ידוע");
+    const dollar = sanitizeSupplierPrice({ value: 3, currency: "dollar" });
+    expect(dollar.price?.currencyText).toBe("dollar");
+    expect(dollar.issues[0].en).toContain("dollar");
     expect(badCurrency.issues[0]).toMatchObject({ path: "currency", code: "price_currency", severity: "warning" });
     expect(badCurrency.issues[0].he).toContain("מטבע לא ידוע");
     expect(badCurrency.issues[0].en).toContain("Unknown currency");

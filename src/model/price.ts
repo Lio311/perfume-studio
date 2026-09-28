@@ -17,8 +17,13 @@ export interface SupplierPriceTier {
 
 export interface SupplierPrice {
   value: number;
-  /** Absent when the pack's currency could not be recognized. */
+  /** Uppercase ISO 4217 code. Absent when the pack's currency could not be recognized. */
   currency?: string;
+  /**
+   * The original currency text when it was not an allowed ISO code, such as "dollar" or "FOO".
+   * Kept so the warning can quote it and a later edit can correct it. Export strips this field.
+   */
+  currencyText?: string;
   moq?: number;
   tiers?: SupplierPriceTier[];
   quotedAt?: string;
@@ -66,7 +71,21 @@ export interface SupplierPriceResult {
 }
 
 /** Keys written back onto a supplier price. Anything else is ignored with a warning. */
-const PRICE_KEYS = new Set(["value", "currency", "moq", "tiers", "quotedAt"]);
+const PRICE_KEYS = new Set(["value", "currency", "currencyText", "moq", "tiers", "quotedAt"]);
+
+/**
+ * ISO 4217 codes the lab accepts. Three letters outside this set, such as FOO,
+ * follow the unknown-currency path. There is no published supplier schema in this
+ * repo; this is the importer's allowlist, not a claim that iOS lists the same codes.
+ */
+const ISO_4217 = new Set([
+  "ILS", "USD", "EUR", "GBP", "AED", "CNY", "JPY", "CHF",
+  "CAD", "AUD", "NZD",
+  "SAR", "QAR", "KWD", "BHD", "OMR", "EGP",
+  "INR", "KRW", "SGD", "HKD", "TWD", "THB",
+  "SEK", "NOK", "DKK", "PLN", "CZK", "HUF", "RON",
+  "TRY", "RUB", "BRL", "MXN", "ZAR",
+]);
 
 const ISO_8601 = /^\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:\d{2})?)?$/;
 
@@ -93,7 +112,7 @@ function isIso8601Date(value: string): boolean {
   return Number.isFinite(Date.parse(value));
 }
 
-/** Uppercase ISO 4217. Shekel spellings become ILS, and `$` becomes USD. */
+/** An allowed ISO 4217 code. Shekel spellings become ILS, and `$` becomes USD. */
 export function normalizeCurrency(raw: string): string | null {
   const trimmed = raw.trim();
   if (!trimmed) return null;
@@ -102,7 +121,7 @@ export function normalizeCurrency(raw: string): string | null {
   const upper = trimmed.toUpperCase();
   if (upper === "NIS" || upper === "ILS") return "ILS";
   if (upper === "USD") return "USD";
-  if (/^[A-Z]{3}$/.test(upper)) return upper;
+  if (ISO_4217.has(upper)) return upper;
   return null;
 }
 
@@ -155,18 +174,26 @@ export function sanitizeSupplierPrice(raw: unknown): SupplierPriceResult {
     ));
   }
 
-  const currency = typeof raw.currency === "string" ? normalizeCurrency(raw.currency) : null;
+  const rawCurrency = typeof raw.currency === "string"
+    ? raw.currency.trim()
+    : typeof raw.currencyText === "string"
+      ? raw.currencyText.trim()
+      : "";
+  const currency = rawCurrency ? normalizeCurrency(rawCurrency) : null;
   const moq = hasMoq ? raw.moq as number : undefined;
   const price: SupplierPrice = { value: raw.value as number };
   let unpriced: true | undefined;
   if (currency) price.currency = currency;
   else {
     unpriced = true;
+    if (rawCurrency) price.currencyText = rawCurrency;
+    const quoted = rawCurrency ? ` («${rawCurrency}»)` : "";
+    const quotedEn = rawCurrency ? ` ("${rawCurrency}")` : "";
     issues.push(issue(
       "currency",
       "price_currency",
-      "מטבע לא ידוע, ולכן המטבע לא נשמר. המחיר עצמו נשאר.",
-      "Unknown currency, so the currency was left unset. The price itself was kept.",
+      `מטבע לא ידוע${quoted}, ולכן המטבע לא נשמר. המחיר עצמו נשאר.`,
+      `Unknown currency${quotedEn}, so the currency was left unset. The price itself was kept.`,
     ));
   }
   if (moq !== undefined) price.moq = moq;
@@ -263,7 +290,10 @@ export function sanitizeSupplierPrice(raw: unknown): SupplierPriceResult {
   return unpriced ? { price, unpriced, issues } : { price, issues };
 }
 
-/** Same amount shape as the budget PriceTag: ₪ for ILS, otherwise a grouped number and the ISO code. */
+/**
+ * ILS uses `Intl` narrowSymbol: English is `₪12`, Hebrew (he-IL) is `12 ₪`.
+ * Any other allowed code is a grouped number plus the ISO code.
+ */
 export function formatSupplierAmount(value: number, currency: string | undefined, lang: "he" | "en"): string {
   const locale = lang === "he" ? "he-IL" : "en";
   const digits = Number.isInteger(value) ? 0 : 2;

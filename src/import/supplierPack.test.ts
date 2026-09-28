@@ -10,7 +10,8 @@ import invalidText from "./fixtures/c-invalid-pack.json?raw";
 import { capPackNotices, formatPackNotice, type PackNotice } from "./notices.ts";
 import { MAX_PACK_BYTES } from "./packValidate.ts";
 import { importedMeta, isVariantPart, syncRegistry, type SupplierPart } from "./registry.ts";
-import { adoptLoadedSuppliers, parsePackFile, reviveStoredPack, serializePack } from "./supplierDb.ts";
+import { adoptLoadedSuppliers, exportPackDocument, parsePackFile, reviveStoredPack, serializePack } from "./supplierDb.ts";
+import { issuesForDraft, KIND_DEFAULT_MM } from "./packValidate.ts";
 import { sanitizeSupplierPrice } from "../model/price.ts";
 import { applyVariant, createDefaultDesign } from "../model/design.ts";
 import { mergeShareDesign } from "../model/share.ts";
@@ -473,7 +474,7 @@ describe("reviveStoredPack", () => {
     expect(revived.pack?.version).toBeUndefined();
     expect(revived.pack?.source).toBe("scan");
     expect(revived.pack?.parts).toHaveLength(1);
-    expect((revived.pack?.parts[0] as { price?: { value: number; currency?: string; unpriced?: boolean } }).price).toEqual({ value: 1 });
+    expect((revived.pack?.parts[0] as { price?: { value: number; currency?: string; currencyText?: string } }).price).toEqual({ value: 1, currencyText: "usd1" });
     expect((revived.pack?.parts[0] as { price?: { unpriced?: boolean } }).price).not.toHaveProperty("unpriced");
     expect(revived.warnings).toEqual([
       { type: "droppedMeta", field: "version" },
@@ -485,10 +486,102 @@ describe("reviveStoredPack", () => {
       }),
     ]);
     expect(formatPackNotice("he", revived.warnings[1])).toContain("מטבע לא ידוע");
+    expect(formatPackNotice("he", revived.warnings[1])).toContain("usd1");
     expect(formatPackNotice("en", revived.warnings[1])).toContain("Unknown currency");
+    expect(formatPackNotice("en", revived.warnings[1])).toContain("usd1");
   });
 
-  it("removes a stored pack that is not a pack", () => {
+  it("builds a valid lab row, exports only schema fields, and imports that export", () => {
+    const built = {
+      id: "sup-lab",
+      name: "Lab Supplier",
+      createdAt: 20,
+      generator: { name: "not-in-schema" },
+      hiddenParts: [{ id: "hidden", code: "H", name: "Hidden", he: "מוסתר", en: "hidden" }],
+      parts: [{
+        ...base,
+        id: "sup-lab-cap",
+        code: "CAP-A",
+        name: "CAP-A · Lab Supplier",
+        widthMm: KIND_DEFAULT_MM.cap.widthMm,
+        heightMm: KIND_DEFAULT_MM.cap.heightMm,
+        depthMm: KIND_DEFAULT_MM.cap.depthMm,
+        note: "scratch",
+        price: { value: 1.25, currency: "usd", extra: true },
+      }],
+    };
+    expect(issuesForDraft({
+      id: "manual-1",
+      kind: "cap",
+      code: "CAP-A",
+      neck: "FEA15",
+      ...KIND_DEFAULT_MM.cap,
+      capacityMl: null,
+      profile: "cylinder",
+      page: 1,
+    })).toEqual([]);
+    const shortBottle = issuesForDraft({
+      id: "manual-2",
+      kind: "bottle",
+      code: "B",
+      neck: "FEA15",
+      widthMm: 30,
+      heightMm: 32,
+      depthMm: 30,
+      capacityMl: null,
+      profile: "bottle",
+      page: 1,
+    });
+    expect(shortBottle.some((item) => item.field === "heightMm")).toBe(true);
+    expect(issuesForDraft({
+      id: "manual-3",
+      kind: "cap",
+      code: "",
+      neck: "FEA15",
+      ...KIND_DEFAULT_MM.cap,
+      capacityMl: null,
+      profile: "cylinder",
+    }).some((item) => item.field === "code")).toBe(true);
+
+    const exported = exportPackDocument(built);
+    expect(exported.warnings).toEqual([]);
+    const document = JSON.parse(exported.text) as { generator?: unknown; hiddenParts?: unknown; parts: Array<{ note?: unknown; price?: unknown }> };
+    expect(document.generator).toBeUndefined();
+    expect(document.hiddenParts).toBeUndefined();
+    expect(document.parts[0].note).toBeUndefined();
+    expect(document.parts[0].price).toEqual({ value: 1.25, currency: "USD" });
+    const again = parsePackFile(exported.text);
+    expect(again.ok).toBe(true);
+    if (!again.ok) return;
+    expect(again.warnings).toEqual([]);
+    expect(again.pack.parts[0]).toMatchObject({ id: "sup-lab-cap", kind: "cap", widthMm: 30, heightMm: 32, depthMm: 30 });
+
+    const unpriced = exportPackDocument({
+      ...built,
+      parts: [{ ...built.parts[0], price: { value: 2, currency: "dollar" } }],
+    });
+    expect(JSON.parse(unpriced.text).parts[0].price).toBeUndefined();
+    expect(unpriced.warnings[0]).toMatchObject({
+      type: "priceIssue",
+      en: expect.stringContaining("dollar"),
+      he: expect.stringContaining("dollar"),
+    });
+    const reimported = parsePackFile(unpriced.text);
+    expect(reimported.ok).toBe(true);
+    if (!reimported.ok) return;
+    expect(reimported.pack.parts[0]).not.toHaveProperty("price");
+  });
+
+  it("does not mutate the record it reads", () => {
+    const raw = { id: "main-era", name: "Old", createdAt: 1, parts: [{ id: "only", kind: "cap" }] };
+    const before = structuredClone(raw);
+    const revived = reviveStoredPack(raw);
+    expect(raw).toEqual(before);
+    expect(revived.pack?.parts).toEqual([]);
+    expect(revived.pack?.hiddenParts?.[0].en).toContain("missing");
+  });
+
+  it("hides a stored value that is not a pack", () => {
     expect(reviveStoredPack(null).warnings).toEqual([{ type: "droppedPack" }]);
     expect(reviveStoredPack(null).pack).toBeNull();
   });

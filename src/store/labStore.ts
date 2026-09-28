@@ -13,8 +13,9 @@ import { type ThemeId, applyTheme } from "../theme/themes.ts";
 import type { Lang } from "../model/types.ts";
 import type { LabCommand } from "../parser/interpret.ts";
 import { parseVoiceParam, readVoiceParam, type VoiceVariant } from "../audio/wake.ts";
-import { deletePack, savePack } from "../import/supplierDb.ts";
-import { capPackNotices, type PackNotice } from "../import/notices.ts";
+import { deletePack, markPackWarningsSeen, savePack } from "../import/supplierDb.ts";
+import { formatPackNotice, type PackNotice } from "../import/notices.ts";
+import { tx } from "../i18n/copy.ts";
 import { isVariantPart, syncRegistry, type SupplierPack } from "../import/registry.ts";
 import { apiClient } from "../api/client.ts";
 
@@ -124,6 +125,8 @@ interface LabState {
   addPending: (part: PendingPart) => void;
   removePending: (id: string) => void;
   setSuppliers: (packs: SupplierPack[], notices?: PackNotice[]) => void;
+  dismissPackNotices: () => void;
+  showPackNotices: (notices: PackNotice[]) => void;
   upsertSupplier: (pack: SupplierPack, notices?: PackNotice[]) => void;
   removeSupplier: (id: string) => void;
   setVoice: (voice: VoiceVariant) => void;
@@ -334,6 +337,12 @@ function tweenExplode(to: number, ms: number) {
   explodeRaf = requestAnimationFrame(step);
 }
 
+function noticeToast(notices: PackNotice[], lang: Lang): string {
+  if (!notices.length) return "";
+  if (notices.length === 1) return formatPackNotice(lang, notices[0]);
+  return tx(lang).packWarningCount.replace("{n}", String(notices.length));
+}
+
 function commitSuppliers(
   set: (partial: Partial<LabState>) => void,
   get: () => LabState,
@@ -342,7 +351,7 @@ function commitSuppliers(
   closeModal: boolean,
 ) {
   const notices = [...extra, ...syncRegistry(packs)];
-  const toast = capPackNotices(notices, get().lang).join(" ");
+  const toast = noticeToast(notices, get().lang);
   set({
     suppliers: packs,
     packNotices: notices,
@@ -559,9 +568,15 @@ export const useLab = create<LabState>()(
       setSuppliers: (packs, notices = []) => {
         commitSuppliers(set, get, packs, notices, false);
       },
+      dismissPackNotices: () => set({ packNotices: [] }),
+      showPackNotices: (notices) => {
+        const toast = noticeToast(notices, get().lang);
+        set({ packNotices: notices, ...(toast ? { toast } : {}) });
+      },
       upsertSupplier: (pack, notices = []) => {
         const suppliers = [pack, ...get().suppliers.filter((item) => item.id !== pack.id)];
         commitSuppliers(set, get, suppliers, notices, notices.length === 0);
+        markPackWarningsSeen(pack);
         void savePack(pack);
       },
       removeSupplier: (id) => {

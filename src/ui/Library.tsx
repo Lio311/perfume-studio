@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { partLabel, tx } from "../i18n/copy.ts";
-import { capPackNotices, formatPackNotice } from "../import/notices.ts";
+import { capPackNotices } from "../import/notices.ts";
 import { downloadPack } from "../import/supplierDb.ts";
+import { normalizeCurrency } from "../model/price.ts";
 import { isVariantPart } from "../import/registry.ts";
 import { entryMatches, listFor } from "../model/catalog.ts";
 import { formatSupplierAmount } from "../model/price.ts";
@@ -105,18 +106,21 @@ export function Library() {
         <h2>
           {t.library}
           <span className="count" style={{ marginInlineStart: "8px", fontWeight: "normal" }}>
-            ({tab === "pending" ? pending.length + suppliers.reduce((sum, pack) => sum + pack.parts.length, 0) : tab === "liquid" ? LIQUID_PALETTE.length : items.length})
+            ({tab === "pending" ? pending.length + suppliers.reduce((sum, pack) => sum + pack.parts.length + (pack.hiddenParts?.length ?? 0), 0) : tab === "liquid" ? LIQUID_PALETTE.length : items.length})
           </span>
         </h2>
         <button type="button" className="library-close" onClick={() => useLab.getState().setLibraryOpen(false)} aria-label={t.close}>×</button>
         <button type="button" className="text-btn" onClick={() => randomize()}>{t.random}</button>
       </div>
       {packNotices.length > 0 && (
-        <ul className="pack-warnings" role="status">
-          {capPackNotices(packNotices, lang).map((line, index) => (
-            <li key={index}>{line}</li>
-          ))}
-        </ul>
+        <div className="pack-warnings-wrap">
+          <ul className="pack-warnings" role="status">
+            {capPackNotices(packNotices, lang).map((line, index) => (
+              <li key={index}>{line}</li>
+            ))}
+          </ul>
+          <button type="button" className="text-btn" onClick={() => useLab.getState().dismissPackNotices()}>{t.close}</button>
+        </div>
       )}
       {tab !== "liquid" && tab !== "pending" && (
         <input className="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t.search} />
@@ -150,7 +154,10 @@ export function Library() {
             <>
               <button type="button" onClick={() => {
                 const pack = suppliers.find((item) => item.id === supplier);
-                if (pack) downloadPack(pack);
+                if (pack) {
+                  const warnings = downloadPack(pack);
+                  if (warnings.length) useLab.getState().showPackNotices(warnings);
+                }
               }}>{t.exportPack}</button>
               <button type="button" onClick={() => { removeSupplier(supplier); setSupplier("all"); }}>{t.removeSupplier}</button>
             </>
@@ -206,23 +213,26 @@ export function Library() {
       ) : tab === "pending" ? (
         <div className="pending-list">
           <p className="hint">{t.pendingNote}</p>
-          {pending.length === 0 && suppliers.every((pack) => pack.parts.length === 0) && <p className="hint">{t.pendingEmpty}</p>}
+          {pending.length === 0 && suppliers.every((pack) => pack.parts.length === 0 && !(pack.hiddenParts?.length)) && <p className="hint">{t.pendingEmpty}</p>}
+          {suppliers.flatMap((pack) => (pack.hiddenParts ?? []).map((part) => {
+            const reason = lang === "he" ? part.he : part.en;
+            const q = query.trim().toLowerCase();
+            const hay = `${part.name} ${part.code} ${pack.name} ${reason}`.toLowerCase();
+            if (q && !hay.includes(q) && !hay.replace(/\s+/g, "").includes(q.replace(/\s+/g, ""))) return [];
+            return (
+              <article key={`${pack.id}-${part.id}`} className="pending-card" data-hidden-part>
+                <div>
+                  <strong>{part.name || part.code || part.id}</strong>
+                  <span>{reason}</span>
+                </div>
+              </article>
+            );
+          }))}
           {suppliers.flatMap((pack) => pack.parts.flatMap((part) => {
             const kind: unknown = part.kind;
             const q = query.trim().toLowerCase();
-            if (!isVariantPart(kind)) {
-              const note = formatPackNotice(lang, { type: "unknownKind", ref: part.code || part.id, kind: String(part.kind) });
-              const hay = `${part.name} ${part.code} ${pack.name} ${String(part.kind)} ${note}`.toLowerCase();
-              if (q && !hay.includes(q) && !hay.replace(/\s+/g, "").includes(q.replace(/\s+/g, ""))) return [];
-              return [(
-                <article key={part.id} className="pending-card">
-                  <div>
-                    <strong>{part.name || part.code || part.id}</strong>
-                    <span>{note}</span>
-                  </div>
-                </article>
-              )];
-            }
+            if (!isVariantPart(kind)) return [];
+            const priced = part.price?.currency ? normalizeCurrency(part.price.currency) : null;
             if (q) {
               const hay = `${part.name} ${part.code} ${pack.name} ${part.neck ?? ""} ${part.widthMm} ${part.heightMm}`.toLowerCase();
               if (!hay.includes(q) && !hay.replace(/\s+/g, "").includes(q.replace(/\s+/g, ""))) return [];
@@ -232,7 +242,7 @@ export function Library() {
                 {part.thumb && <img src={part.thumb} alt="" />}
                 <div>
                   <strong>{part.name}</strong>
-                  <span>{pack.name}{part.lathe ? "" : ` · ${t.tempShape}`} · {part.price ? <bdi dir="ltr">{formatSupplierAmount(part.price.value, part.price.currency, lang)}</bdi> : t.noPrice}</span>
+                  <span>{pack.name}{part.lathe ? "" : ` · ${t.tempShape}`} · {part.price ? <bdi dir="ltr">{formatSupplierAmount(part.price.value, priced ?? undefined, lang)}</bdi> : t.noPrice}</span>
                 </div>
                 <button type="button" onClick={() => {
                   applyCommands([{ type: "variant", part: kind, id: part.id }]);

@@ -10,7 +10,7 @@ export type PackNotice =
   | { type: "badNeck"; ref: string; neck: string }
   | { type: "priceIssue"; ref: string; path: string; code: PriceIssueCode; severity: PriceIssueSeverity; he: string; en: string }
   | { type: "droppedField"; ref: string; field: "mesh" | "scan" | "measurements" }
-  | { type: "droppedPart"; ref: string }
+  | { type: "droppedPart"; ref: string; he?: string; en?: string }
   | { type: "droppedPack" }
   | { type: "droppedMeta"; field: "version" | "source" | "supplier" | "createdAt" };
 
@@ -38,6 +38,7 @@ export function formatPackNotice(lang: Lang, notice: PackNotice): string {
     case "droppedField":
       return fill(t.noticeDroppedField, { ref: notice.ref, field: notice.field });
     case "droppedPart":
+      if (notice.he && notice.en) return lang === "he" ? notice.he : notice.en;
       return fill(t.noticeDroppedPart, { ref: notice.ref });
     case "droppedPack":
       return t.noticeDroppedPack;

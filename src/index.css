@@ -185,6 +185,10 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   line-height: 1.45;
 }
 .pack-warnings li + li { margin-top: 4px; }
+.pack-warnings-wrap { display: flex; align-items: flex-start; gap: 8px; }
+.pack-warnings-wrap .pack-warnings { flex: 1; }
+.field-error { display: block; margin-top: 4px; color: var(--warn); font-size: 11px; line-height: 1.35; white-space: normal; max-width: 11rem; }
+.review-table input[aria-invalid="true"], .review-table select[aria-invalid="true"] { border-color: var(--warn); }
 .search, .modal input, .modal select, .composer input {
   width: 100%;
   margin-top: 10px;

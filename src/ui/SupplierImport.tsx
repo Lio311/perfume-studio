@@ -3,7 +3,7 @@ import DOMPurify from "dompurify";
 import { partLabel, tx } from "../i18n/copy.ts";
 import { cropPage } from "../import/crop.ts";
 import { capPackNotices } from "../import/notices.ts";
-import { MAX_PACK_BYTES } from "../import/packValidate.ts";
+import { issuesForDraft, KIND_DEFAULT_MM, MAX_PACK_BYTES, type FieldIssue } from "../import/packValidate.ts";
 import { parsePackFile } from "../import/supplierDb.ts";
 import { readPdfCatalog, type CatalogPageImage } from "../import/pdfCatalog.ts";
 import { regexCatalogSource, type DraftItem, type ImportProfile, type NormRect } from "../import/parseCatalog.ts";
@@ -26,15 +26,16 @@ function profileFor(kind: VariantPart): ImportProfile {
 }
 
 function blankRow(page = 1): Row {
+  const size = KIND_DEFAULT_MM.cap;
   return {
     id: `manual-${Date.now().toString(36)}`,
     page,
     kind: "cap",
     code: "",
     neck: "FEA15",
-    widthMm: 30,
-    heightMm: 32,
-    depthMm: 30,
+    widthMm: size.widthMm,
+    heightMm: size.heightMm,
+    depthMm: size.depthMm,
     capacityMl: null,
     profile: "cylinder",
     crop: { x: 0.12, y: 0.12, w: 0.7, h: 0.7 },
@@ -43,6 +44,21 @@ function blankRow(page = 1): Row {
     thumb: "",
     color: "#c4a15a",
   };
+}
+
+function draftProblems(row: Row): FieldIssue[] {
+  return issuesForDraft({
+    id: row.id,
+    kind: row.kind,
+    code: row.code,
+    neck: row.neck,
+    widthMm: Number(row.widthMm),
+    heightMm: Number(row.heightMm),
+    depthMm: Number(row.depthMm),
+    capacityMl: row.capacityMl,
+    profile: row.profile,
+    page: row.page,
+  });
 }
 
 export function SupplierImport() {
@@ -85,7 +101,13 @@ export function SupplierImport() {
     setRows((current) => current.map((row) => {
       if (row.id !== id) return row;
       const next = { ...row, ...partial };
-      if (partial.kind) next.profile = profileFor(partial.kind);
+      if (partial.kind) {
+        next.profile = profileFor(partial.kind);
+        const size = KIND_DEFAULT_MM[partial.kind];
+        next.widthMm = size.widthMm;
+        next.heightMm = size.heightMm;
+        next.depthMm = size.depthMm;
+      }
       return next;
     }));
   }
@@ -133,6 +155,7 @@ export function SupplierImport() {
   }
 
   function commit() {
+    if (rows.some((row) => draftProblems(row).length > 0)) return;
     const rawName = name.trim() || (lang === "he" ? "ספק" : "Supplier");
     const supplier = DOMPurify.sanitize(rawName);
     const id = `sup-${Date.now().toString(36)}`;
@@ -160,7 +183,7 @@ export function SupplierImport() {
   const current = rows.find((row) => row.id === active) ?? null;
   const page = pages.find((item) => item.page === current?.page) ?? null;
   const blankPages = pages.filter((item) => item.text.trim().length < 4);
-  const ready = rows.some((row) => row.code.trim().length > 0);
+  const ready = rows.length > 0 && rows.every((row) => draftProblems(row).length === 0);
 
   return (
     <div className="modal-back" onClick={() => setModal(null)}>
@@ -238,27 +261,48 @@ export function SupplierImport() {
                 </tr>
               </thead>
               <tbody>
-                {rows.map((row) => (
+                {rows.map((row) => {
+                  const problems = draftProblems(row);
+                  const message = (field: string) => {
+                    const hit = problems.find((item) => item.field === field);
+                    return hit ? (lang === "he" ? hit.he : hit.en) : "";
+                  };
+                  return (
                   <tr key={row.id} className={row.id === active ? "is-on" : ""} onClick={() => setActive(row.id)}>
                     <td><img src={row.thumb} alt="" /> <bdi>{row.page}</bdi></td>
-                    <td><input value={row.code} onChange={(event) => patch(row.id, { code: event.target.value })} /></td>
                     <td>
-                      <select value={row.kind} onChange={(event) => patch(row.id, { kind: event.target.value as VariantPart })}>
+                      <input aria-invalid={message("code") ? true : undefined} value={row.code} onChange={(event) => patch(row.id, { code: event.target.value })} />
+                      {message("code") && <span className="field-error" data-field-error="code">{message("code")}</span>}
+                    </td>
+                    <td>
+                      <select aria-invalid={message("kind") ? true : undefined} value={row.kind} onChange={(event) => patch(row.id, { kind: event.target.value as VariantPart })}>
                         {KINDS.map((kind) => <option key={kind} value={kind}>{partLabel[lang][kind]}</option>)}
                       </select>
+                      {message("kind") && <span className="field-error" data-field-error="kind">{message("kind")}</span>}
                     </td>
-                    <td><input type="number" value={row.widthMm} onChange={(event) => patch(row.id, { widthMm: Number(event.target.value) })} /></td>
-                    <td><input type="number" value={row.heightMm} onChange={(event) => patch(row.id, { heightMm: Number(event.target.value) })} /></td>
-                    <td><input type="number" value={row.depthMm} onChange={(event) => patch(row.id, { depthMm: Number(event.target.value) })} /></td>
                     <td>
-                      <select value={row.neck ?? ""} onChange={(event) => patch(row.id, { neck: (event.target.value || null) as NeckId | null })}>
+                      <input aria-invalid={message("widthMm") ? true : undefined} type="number" value={row.widthMm} onChange={(event) => patch(row.id, { widthMm: Number(event.target.value) })} />
+                      {message("widthMm") && <span className="field-error" data-field-error="widthMm">{message("widthMm")}</span>}
+                    </td>
+                    <td>
+                      <input aria-invalid={message("heightMm") ? true : undefined} type="number" value={row.heightMm} onChange={(event) => patch(row.id, { heightMm: Number(event.target.value) })} />
+                      {message("heightMm") && <span className="field-error" data-field-error="heightMm">{message("heightMm")}</span>}
+                    </td>
+                    <td>
+                      <input aria-invalid={message("depthMm") ? true : undefined} type="number" value={row.depthMm} onChange={(event) => patch(row.id, { depthMm: Number(event.target.value) })} />
+                      {message("depthMm") && <span className="field-error" data-field-error="depthMm">{message("depthMm")}</span>}
+                    </td>
+                    <td>
+                      <select aria-invalid={message("neck") ? true : undefined} value={row.neck ?? ""} onChange={(event) => patch(row.id, { neck: (event.target.value || null) as NeckId | null })}>
                         {NECKS.map((neck) => <option key={neck || "none"} value={neck}>{neck || "—"}</option>)}
                       </select>
+                      {message("neck") && <span className="field-error" data-field-error="neck">{message("neck")}</span>}
                     </td>
                     <td><input type="number" value={row.capacityMl ?? ""} onChange={(event) => patch(row.id, { capacityMl: event.target.value ? Number(event.target.value) : null })} /></td>
                     <td><button type="button" onClick={(event) => { event.stopPropagation(); setRows((currentRows) => currentRows.filter((item) => item.id !== row.id)); }}>{t.delete}</button></td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>

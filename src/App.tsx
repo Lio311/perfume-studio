@@ -16,7 +16,7 @@ import { requestShot } from "./scene/capture.ts";
 import { CompareBoard } from "./ui/CompareBoard.tsx";
 import { Modals } from "./ui/Modals.tsx";
 import { stopSpeaking } from "./audio/speech.ts";
-import { adoptLoadedSuppliers, loadPacks } from "./import/supplierDb.ts";
+import { acknowledgePackLoads, adoptLoadedSuppliers, loadPacks } from "./import/supplierDb.ts";
 
 function applyBackAction(action: Exclude<BackAction, "leave">) {
   const lab = useLab.getState();
@@ -95,6 +95,7 @@ export default function App() {
       if (cancelled) return;
       if (adoptLoadedSuppliers(loaded, useLab.getState().suppliers.length)) {
         useLab.getState().setSuppliers(loaded.packs, loaded.warnings);
+        acknowledgePackLoads(loaded.unseenKeys);
       }
     }).catch(() => undefined);
     const hydrated = new Promise<void>((resolve) => {
