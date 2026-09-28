@@ -98,7 +98,7 @@ describe("saved design hydration", () => {
     expect(merged.design.label.scale).toBe(1.6);
     expect(merged.design.liquid.color).toBe(defaults.liquid.color);
     expect(merged.design.liquid.fill).toBe(0);
-    expect(merged.design.liquid.visible).toBe(false);
+    expect(merged.design.liquid.visible).toBe(defaults.liquid.visible);
     expect(merged.theme).toBe("dark");
     expect(merged.lang).toBe("he");
     expect(merged.chat).toEqual([

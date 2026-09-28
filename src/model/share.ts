@@ -3,7 +3,8 @@ import { listFor } from "./catalog.ts";
 import { logoApplication } from "./catalog.ts";
 import { legacyLabelInk } from "../geometry/logos.ts";
 import { LAB_PERSIST_VERSION } from "../store/hydrate.ts";
-import { createDefaultDesign } from "./design.ts";
+import { hydrateBox } from "./boxFields.ts";
+import { createDefaultDesign, hydrateDesign } from "./design.ts";
 import { FINISHES } from "./materials.ts";
 import { NECKS } from "./necks.ts";
 import type { Design, FinishId, NeckId, VariantPart } from "./types.ts";
@@ -126,7 +127,9 @@ export function mergeShareDesign(input: unknown): Design | null {
       color: collar ? pickColor(collar, "color", base.collar.color) : base.collar.color,
       visible: collar ? pickBool(collar, "visible", base.collar.visible) : base.collar.visible,
     },
-    box: {
+    box: hydrateBox({
+      ...base.box,
+      ...(box ?? {}),
       variantId: box ? pickVariant(box, "box", base.box.variantId) : base.box.variantId,
       finish: box ? pickFinish(box, "finish", base.box.finish) : base.box.finish,
       color: box ? pickColor(box, "color", base.box.color) : base.box.color,
@@ -135,7 +138,7 @@ export function mergeShareDesign(input: unknown): Design | null {
       depthMm: box ? pickNumber(box, "depthMm", base.box.depthMm, 30, 140) : base.box.depthMm,
       linked: box ? pickBool(box, "linked", base.box.linked) : base.box.linked,
       visible: box ? pickBool(box, "visible", base.box.visible) : base.box.visible,
-    },
+    }),
     liquid: {
       color: liquid ? pickColor(liquid, "color", base.liquid.color) : base.liquid.color,
       fill: liquid ? pickNumber(liquid, "fill", base.liquid.fill, 0, 1) : base.liquid.fill,
@@ -201,6 +204,16 @@ function readSharePayload(payload: string): { raw: unknown; design: Design } | n
 
 export function decodeShareDesign(hash: string): Design | null {
   return readSharePayload(hash)?.design ?? null;
+}
+
+/** Names the unboxing tests already use. Same bytes as `encodeShareDesign`. */
+export function encodeShare(design: Design): string {
+  return encodeShareDesign(design);
+}
+
+export function decodeShare(hash: string): Design | null {
+  const design = decodeShareDesign(hash);
+  return design ? hydrateDesign(design) : null;
 }
 
 /** Isolate each id so a Hebrew sentence does not reorder the Latin text. */
