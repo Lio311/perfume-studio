@@ -119,12 +119,16 @@ export function computeFit(design: Design, exploded = false): Fit {
     box: [boxX, boxH * 0.45, boxZ],
   };
 
+  const gap = (height: number) => Math.max(6, height * 0.35);
+  const collarLift = gap(collarHeight);
+  const pumpLift = collarLift + gap(Math.max(8, actuatorH));
+  const capLift = pumpLift + gap(capH);
   const explode: Record<PartKey, [number, number, number]> = {
-    box: [-22, 0, -42],
-    cap: [0, 168, 0],
-    pump: [0, 102, 0],
-    collar: [0, 52, 0],
-    label: [-22, 16, 52],
+    box: [-10, 0, -16],
+    cap: [0, capLift, 0],
+    pump: [0, pumpLift, 0],
+    collar: [0, collarLift, 0],
+    label: [0, 4, gap(labelH)],
     bottle: [0, 0, 0],
     liquid: [0, 0, 0],
   };

@@ -14,7 +14,10 @@ export function CompareBoard() {
   const chosen = saved.filter((item) => compareIds.includes(item.id)).slice(0, 3);
   return (
     <section className="panel compare-stage" dir={lang === "he" ? "rtl" : "ltr"}>
-      <h2>{t.compareTitle}</h2>
+      <header>
+        <h2>{t.compareTitle}</h2>
+        <button type="button" onClick={() => setMode("assemble")} aria-label={t.close}>×</button>
+      </header>
       <p className="hint">{t.compareHint}</p>
       <div className="compare-picks">
         {saved.map((item) => (

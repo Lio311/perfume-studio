@@ -5,6 +5,7 @@ import type { VariantPart } from "../model/types.ts";
 import { requestShot } from "../scene/capture.ts";
 import { useLab } from "../store/labStore.ts";
 import { thumbFor } from "../thumbnails/thumbs.ts";
+import { PhotoTo3D } from "./PhotoTo3D.tsx";
 import { SupplierImport } from "./SupplierImport.tsx";
 
 export function Modals() {
@@ -13,6 +14,7 @@ export function Modals() {
   if (modal === "compare") return <CompareModal />;
   if (modal === "upload") return <UploadModal />;
   if (modal === "supplier") return <SupplierImport />;
+  if (modal === "photo") return <PhotoTo3D />;
   return null;
 }
 
@@ -75,7 +77,7 @@ function CompareModal() {
   return (
     <div className="modal-back" onClick={() => setModal(null)}>
       <div className="modal wide" dir={lang === "he" ? "rtl" : "ltr"} onClick={(event) => event.stopPropagation()}>
-        <header><h2>{t.compareTitle}</h2><button type="button" onClick={() => setModal(null)}>{t.close}</button></header>
+        <header><h2>{t.compareTitle}</h2><button type="button" onClick={() => setModal(null)} aria-label={t.close}>×</button></header>
         <p className="hint">{t.compareHint}</p>
         <div className="compare-picks">
           {saved.map((item) => (
@@ -126,11 +128,19 @@ function UploadModal() {
         <p className="hint">{t.uploadHint}</p>
         <input value={name} placeholder={t.saveName} onChange={(event) => setName(event.target.value)} />
         <select value={category} onChange={(event) => setCategory(event.target.value as VariantPart | "unassigned")}>
-          {(["bottle", "cap", "label", "pump", "collar", "box", "unassigned"] as const).map((key) => (
-            <option key={key} value={key}>{key}</option>
-          ))}
+          <option value="bottle">{lang === "he" ? "בקבוק" : "Bottle"}</option>
+          <option value="cap">{lang === "he" ? "פקק" : "Cap"}</option>
+          <option value="label">{t.kindLabel}</option>
+          <option value="pump">{t.kindPump}</option>
+          <option value="collar">{lang === "he" ? "צווארון" : "Collar"}</option>
+          <option value="box">{lang === "he" ? "קופסה" : "Box"}</option>
+          <option value="unassigned">{t.unassigned}</option>
         </select>
-        <input type="file" accept="image/*,application/pdf" multiple onChange={(event) => setFiles(Array.from(event.target.files ?? []))} />
+        <label className="text-btn file-btn">
+          {t.chooseFiles}
+          <input type="file" accept="image/*,application/pdf" multiple hidden onChange={(event) => setFiles(Array.from(event.target.files ?? []))} />
+        </label>
+        {files.length > 0 && <p className="hint">{files.map((file) => file.name).join(" · ")}</p>}
         <div className="modal-actions">
           <button type="button" onClick={() => setModal(null)}>{t.cancel}</button>
           <button

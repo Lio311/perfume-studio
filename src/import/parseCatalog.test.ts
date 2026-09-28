@@ -45,7 +45,8 @@ describe("parseCatalogPages", () => {
     expect(byCode.get("CAP-4412")).toMatchObject({ kind: "cap", widthMm: 30, heightMm: 34, neck: "FEA15" });
     expect(byCode.get("ZM-3301")).toMatchObject({ kind: "cap", widthMm: 30, heightMm: 35, neck: "FEA15" });
     expect(byCode.get("CAP-2208")).toMatchObject({ kind: "cap", widthMm: 28, heightMm: 22, neck: "FEA15" });
-    expect(byCode.get("GB-100")).toMatchObject({ kind: "box", widthMm: 80, heightMm: 120, depthMm: 70 });
+    expect(byCode.get("BOX-100")).toMatchObject({ kind: "box", widthMm: 80, heightMm: 120, depthMm: 70 });
+    expect(byCode.has("GB-100")).toBe(false);
     expect(byCode.get("BOX-200")).toMatchObject({ kind: "box", widthMm: 90, heightMm: 140, depthMm: 80 });
     expect(byCode.get("LBL-12")).toMatchObject({ kind: "label", widthMm: 40, heightMm: 25 });
     expect(byCode.get("BTL-50")).toMatchObject({ kind: "bottle", widthMm: 51, depthMm: 43, heightMm: 67.6, neck: "FEA15", capacityMl: 50 });
@@ -71,13 +72,13 @@ describe("parseCatalogPages", () => {
     expect(items.map((item) => item.code)).toEqual(["CAP-4412"]);
   });
 
-  it("converts centimetres and offers a manual row when a page has no text", () => {
+  it("converts centimetres and skips a page that has no text", () => {
     const items = parseCatalogPages([
       { page: 1, text: "Wooden cap\nDiameter 2.8 cm Height 3.2 cm FEA 13" },
       { page: 2, text: "   " },
     ]);
+    expect(items).toHaveLength(1);
     expect(items[0]).toMatchObject({ kind: "cap", widthMm: 28, heightMm: 32, neck: "FEA13" });
-    expect(items[1]).toMatchObject({ manual: true, page: 2 });
   });
 
   it("registers a parsed cap so the lab can build it at those millimetres", () => {

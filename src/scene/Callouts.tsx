@@ -7,6 +7,7 @@ import type { Design, PartKey } from "../model/types.ts";
 import { useLab } from "../store/labStore.ts";
 import { clickPart } from "./focusClick.ts";
 import { Clock } from "./clock.ts";
+import { sceneSpan } from "./limits.ts";
 import { explodeLocal } from "./explodeCurve.ts";
 import { posedFrame, turntableHome } from "./Guides.tsx";
 
@@ -85,7 +86,7 @@ export function Callouts() {
     const state = useLab.getState();
     const svg = root.querySelector("svg");
     if (!svg) return;
-    if (state.mode === "compare") {
+    if (state.mode === "compare" || state.present || state.aimed || state.explode >= 0.5 || sceneSpan.flying) {
       root.hidden = true;
       return;
     }

@@ -11,6 +11,15 @@ export function partClickAction(
 
 let timer = 0;
 let partPointer = false;
+let swapFlash: { part: PartKey; until: number } | null = null;
+
+export function markSwap(part: PartKey) {
+  swapFlash = { part, until: performance.now() + 280 };
+}
+
+export function swapFlashOn(part: PartKey): boolean {
+  return Boolean(swapFlash && swapFlash.part === part && performance.now() < swapFlash.until);
+}
 
 export function clearPartPointer() {
   partPointer = false;

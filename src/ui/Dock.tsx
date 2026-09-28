@@ -28,6 +28,9 @@ export function Dock() {
   const showFull = useLab((s) => s.showFull);
   const isolate = useLab((s) => s.isolate);
   const setPresent = useLab((s) => s.setPresent);
+  const mode = useLab((s) => s.mode);
+  const units = useLab((s) => s.units);
+  const setUnits = useLab((s) => s.setUnits);
   return (
     <div className="dock" dir={lang === "he" ? "rtl" : "ltr"}>
       <span className="dock-label">{t.explode}</span>
@@ -41,6 +44,15 @@ export function Dock() {
         aria-label={t.explode}
         onChange={(event) => setExplode(Number(event.target.value))}
       />
+      {mode === "dimensions" && (
+        <div className="presets" dir="ltr">
+          {(["mm", "cm", "in"] as const).map((unit) => (
+            <button key={unit} type="button" className={units === unit ? "is-on" : ""} onClick={() => setUnits(unit)}>
+              {unit === "mm" ? t.unitMm : unit === "cm" ? t.unitCm : t.unitIn}
+            </button>
+          ))}
+        </div>
+      )}
       <div className="presets" dir="ltr">
         {PRESETS.map((item) => (
           <button key={item.id} type="button" className={preset === item.id ? "is-on" : ""} onClick={() => setView(item.id)}>

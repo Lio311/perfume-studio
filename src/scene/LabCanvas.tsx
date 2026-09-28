@@ -9,9 +9,10 @@ import type { PartKey } from "../model/types.ts";
 import type { ViewPreset } from "../store/labStore.ts";
 import { Assembly } from "./Assembly.tsx";
 import { clearPartPointer, consumePartPointer, releaseFocus } from "./focusClick.ts";
-import { assemblyBounds, fitPose, FOCUS_FILL, partBounds, readStageFrame } from "./framing.ts";
+import { assemblyBounds, fitPose, FOCUS_FILL, orbitLimits, partBounds, readStageFrame } from "./framing.ts";
+import { sceneSpan } from "./limits.ts";
 import { Exposure, PixelRatio, StageFloor, StudioEnv, StudioLights } from "./studio.tsx";
-import { CinematicFloor, EnergyRings, MinimalRing, ParticleField, VoiceGrade } from "./voiceScenery.tsx";
+import { CinematicFloor, EnergyRings, ParticleField, VoiceGrade } from "./voiceScenery.tsx";
 
 const VIEW_DIR: Record<ViewPreset | "three", THREE.Vector3> = {
   home: new THREE.Vector3(0.78, 0.22, 1).normalize(),
@@ -28,13 +29,35 @@ const YAW_Q = new THREE.Quaternion();
 const PITCH_Q = new THREE.Quaternion();
 const ORBIT_TARGET = new THREE.Vector3(0, 48, 0);
 
-function tuneNear(camera: THREE.Camera, dist: number) {
+const MAX_POLAR = 1.5;
+
+function tuneNear(camera: THREE.Camera, dist: number, radius: number) {
   if (!(camera instanceof THREE.PerspectiveCamera)) return;
-  const near = THREE.MathUtils.clamp(dist * 0.012, 0.12, 4);
-  if (Math.abs(camera.near - near) < near * 0.22) return;
+  const limits = orbitLimits(radius, camera.fov);
+  const near = THREE.MathUtils.clamp(limits.near, 0.2, Math.max(0.4, dist * 0.08));
+  const far = Math.max(limits.far, dist * 8);
+  if (Math.abs(camera.near - near) < near * 0.2 && Math.abs(camera.far - far) < 20) return;
   camera.near = near;
-  camera.far = Math.max(5000, dist * 24);
+  camera.far = far;
   camera.updateProjectionMatrix();
+}
+
+function clampOrbit(camera: THREE.Camera, target: THREE.Vector3, radius: number) {
+  if (!(camera instanceof THREE.PerspectiveCamera)) return;
+  const limits = orbitLimits(radius, camera.fov);
+  target.y = Math.max(6, target.y);
+  OFFSET.copy(camera.position).sub(target);
+  const len = THREE.MathUtils.clamp(OFFSET.length() || 1, limits.min, limits.max);
+  const polar = Math.acos(THREE.MathUtils.clamp(OFFSET.y / (OFFSET.length() || 1), -1, 1));
+  if (polar > MAX_POLAR) {
+    const horiz = Math.hypot(OFFSET.x, OFFSET.z) || 1;
+    OFFSET.x = (OFFSET.x / horiz) * Math.sin(MAX_POLAR) * len;
+    OFFSET.z = (OFFSET.z / horiz) * Math.sin(MAX_POLAR) * len;
+    OFFSET.y = Math.cos(MAX_POLAR) * len;
+  } else {
+    OFFSET.setLength(len);
+  }
+  camera.position.copy(target).add(OFFSET);
 }
 
 function frameSignature(width: number, height: number): string {
@@ -127,12 +150,35 @@ function CameraRig() {
   const fromPos = useRef(new THREE.Vector3());
   const fromLook = useRef(new THREE.Vector3());
   const animStart = useRef(0);
+  const radius = useRef(48);
+
+  const measureRadius = () => {
+    const state = useLab.getState();
+    const box = state.solo
+      ? partBounds(state.design, state.explode, state.solo, state.stage, true)
+      : state.aimed && state.selected
+        ? partBounds(state.design, state.explode, state.selected, state.stage, false)
+        : assemblyBounds(state.design, state.explode, state.stage);
+    const sphere = new THREE.Sphere();
+    box.getBoundingSphere(sphere);
+    radius.current = Math.max(18, sphere.radius);
+    sceneSpan.radius = radius.current;
+    const fov = camera instanceof THREE.PerspectiveCamera ? camera.fov : 30;
+    const limits = orbitLimits(radius.current, fov);
+    const rig = controls as { minDistance?: number; maxDistance?: number } | null;
+    if (rig) {
+      rig.minDistance = limits.min;
+      rig.maxDistance = limits.max;
+    }
+    return limits;
+  };
 
   const begin = () => {
     fromPos.current.copy(camera.position);
     fromLook.current.copy(look.current);
     animStart.current = performance.now();
     mode.current = "anim";
+    sceneSpan.flying = true;
   };
 
   const poseFor = (dir: THREE.Vector3, bounds?: THREE.Box3, fill?: number) => {
@@ -209,7 +255,9 @@ function CameraRig() {
       glide.current.yaw = THREE.MathUtils.clamp(glide.current.yaw + dx * 0.0034, -0.22, 0.22);
       glide.current.pitch = THREE.MathUtils.clamp(glide.current.pitch + dy * 0.0022, -0.16, 0.16);
     };
-    const onDown = (event: PointerEvent) => {
+      const onDown = (event: PointerEvent) => {
+      const lab = useLab.getState();
+      if (lab.present && lab.autoRotate) useLab.setState({ autoRotate: false });
       const rig = controlsRef.current as { mouseButtons?: { LEFT: number } } | null;
       if (!rig?.mouseButtons) return;
       rig.mouseButtons.LEFT = event.button === 0 && event.shiftKey ? THREE.MOUSE.PAN : THREE.MOUSE.ROTATE;
@@ -218,12 +266,18 @@ function CameraRig() {
       const rig = controlsRef.current as { mouseButtons?: { LEFT: number } } | null;
       if (rig?.mouseButtons) rig.mouseButtons.LEFT = THREE.MOUSE.ROTATE;
     };
+    const stopSpin = () => {
+      const lab = useLab.getState();
+      if (lab.present && lab.autoRotate) useLab.setState({ autoRotate: false });
+    };
     el.addEventListener("wheel", onWheel, { passive: false, capture: true });
     el.addEventListener("pointerdown", onDown, { capture: true });
+    window.addEventListener("pointerdown", stopSpin, true);
     window.addEventListener("pointerup", onUp);
     return () => {
       el.removeEventListener("wheel", onWheel, { capture: true });
       el.removeEventListener("pointerdown", onDown, { capture: true });
+      window.removeEventListener("pointerdown", stopSpin, true);
       window.removeEventListener("pointerup", onUp);
     };
   }, [gl]);
@@ -271,13 +325,14 @@ function CameraRig() {
 
     if (mode.current === "anim") {
       if (controls) controls.enabled = false;
-      const t = Math.min(1, (performance.now() - animStart.current) / 720);
-      const eased = t * t * (3 - 2 * t);
+      const t = Math.min(1, (performance.now() - animStart.current) / 1350);
+      const eased = t < 0.5 ? 4 * t * t * t : 1 - ((-2 * t + 2) ** 3) / 2;
       camera.position.lerpVectors(fromPos.current, goalPos.current, eased);
       look.current.lerpVectors(fromLook.current, goalTarget.current, eased);
       camera.lookAt(look.current);
-      if (t >= 1) {
+        if (t >= 1) {
         mode.current = "idle";
+        sceneSpan.flying = false;
         camera.position.copy(goalPos.current);
         look.current.copy(goalTarget.current);
         camera.lookAt(look.current);
@@ -293,11 +348,13 @@ function CameraRig() {
           seenSig.current = "";
         }
       }
-      tuneNear(camera, camera.position.distanceTo(look.current));
+      measureRadius();
+      tuneNear(camera, camera.position.distanceTo(look.current), radius.current);
       const shot = takeShot();
       if (shot) shot(gl.domElement.toDataURL("image/png"));
       return;
     }
+    const limits = measureRadius();
     const glideNow = glide.current;
     const coasting = Math.abs(glideNow.yaw) + Math.abs(glideNow.pitch) + Math.abs(glideNow.zoom) + Math.abs(glideNow.panX) + Math.abs(glideNow.panY) > 0.0004;
     if (coasting && controls && !dragging.current) {
@@ -314,11 +371,11 @@ function CameraRig() {
         }
       }
       if (Math.abs(glideNow.zoom) > 0.00004) {
-        GLIDE_OFFSET.setLength(THREE.MathUtils.clamp(GLIDE_OFFSET.length() * Math.exp(glideNow.zoom), 48, 2200));
+        GLIDE_OFFSET.setLength(THREE.MathUtils.clamp(GLIDE_OFFSET.length() * Math.exp(glideNow.zoom), limits.min, limits.max));
       }
       camera.position.copy(target).add(GLIDE_OFFSET);
       if (Math.abs(glideNow.panX) + Math.abs(glideNow.panY) > 0.02) {
-        const dist = Math.max(48, GLIDE_OFFSET.length());
+        const dist = Math.max(limits.min, GLIDE_OFFSET.length());
         GLIDE_RIGHT.setFromMatrixColumn(camera.matrixWorld, 0).multiplyScalar(-glideNow.panX * dist * 0.0011);
         camera.position.add(GLIDE_RIGHT);
         target.add(GLIDE_RIGHT);
@@ -337,8 +394,8 @@ function CameraRig() {
     glideNow.zoom *= decay;
     glideNow.panX *= decay;
     glideNow.panY *= decay;
-    tuneNear(camera, camera.position.distanceTo(look.current));
-    if (state.autoRotate && controls && !dragging.current) {
+    tuneNear(camera, camera.position.distanceTo(look.current), radius.current);
+    if (state.autoRotate && state.present && controls && !dragging.current) {
       OFFSET.copy(camera.position).sub(controls.target);
       OFFSET.applyAxisAngle(UP, delta * 0.28);
       camera.position.copy(controls.target).add(OFFSET);
@@ -348,6 +405,12 @@ function CameraRig() {
     const shot = takeShot();
     if (shot) shot(gl.domElement.toDataURL("image/png"));
   }, 1);
+
+  useFrame(() => {
+    const target = controls?.target ?? look.current;
+    clampOrbit(camera, target, radius.current);
+    if (controls) ORBIT_TARGET.copy(controls.target);
+  }, -1);
 
   return (
     <TrackballControls
@@ -407,6 +470,24 @@ function StageBlank() {
   return null;
 }
 
+function StageFog() {
+  const scene = useThree((s) => s.scene);
+  const camera = useThree((s) => s.camera);
+  const theme = useLab((s) => s.theme);
+  const voice = useLab((s) => s.voice);
+  useFrame(() => {
+    const color = theme === "light" ? "#e6e1d8" : voice === 2 ? "#05060a" : "#07080d";
+    const dist = Math.max(80, camera.position.distanceTo(ORBIT_TARGET));
+    const near = dist * 1.45;
+    const far = dist * 3.6;
+    if (!(scene.fog instanceof THREE.Fog)) scene.fog = new THREE.Fog(color, near, far);
+    scene.fog.color.set(color);
+    scene.fog.near = near;
+    scene.fog.far = far;
+  });
+  return null;
+}
+
 function Stage() {
   const theme = useLab((s) => themes[s.theme]);
   const voice = useLab((s) => s.voice);
@@ -425,13 +506,14 @@ function Stage() {
   return (
     <>
       <color attach="background" args={[theme.scene.bottom]} />
+      <StageFog />
       <Exposure />
       <PixelRatio />
       <Backdrop />
       <StudioEnv />
       <StudioLights />
       <StageFloor />
-      {(voice !== 3 || !dark || blueprint) && (
+      {dark && voice === 2 ? null : (voice !== 3 || !dark || blueprint) && (
         <Grid
           args={[400, 400]}
           position={[0, 0, 0]}
@@ -446,7 +528,7 @@ function Stage() {
           infiniteGrid
         />
       )}
-      {stage !== "together" && (
+      {stage !== "together" && !(dark && voice === 2) && (
         <Grid
           args={[340, 220]}
           position={[0, 100, stage === "box" ? -150 : -190]}
@@ -461,7 +543,6 @@ function Stage() {
           fadeStrength={1.7}
         />
       )}
-      {dark && voice === 1 && <MinimalRing />}
       {dark && voice === 2 && (
         <>
           <ParticleField />

@@ -1,6 +1,6 @@
 import { useContext, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
-import { Line } from "@react-three/drei";
+import { Html, Line } from "@react-three/drei";
 import * as THREE from "three";
 import { computeFit } from "../model/fit.ts";
 import type { PartKey } from "../model/types.ts";
@@ -59,19 +59,21 @@ export function PartGuides() {
   const stage = useLab((s) => s.stage);
   const blueprint = useLab((s) => s.blueprint);
   const solo = useLab((s) => s.solo);
+  const units = useLab((s) => s.units);
   const hero: PartKey = stage === "box" ? "box" : "bottle";
   const picked = selected && (stage === "box" ? selected === "box" : stage === "bottle" ? selected !== "box" : true) ? selected : null;
-  const part = solo ?? picked ?? (blueprint ? hero : null);
+  const part = solo ?? picked ?? (blueprint || mode === "dimensions" ? hero : null);
   if (!part || mode === "compare" || !design[part].visible) return null;
   if (!solo && stage === "bottle" && part === "box") return null;
   if (!solo && stage === "box" && part !== "box") return null;
   const fit = computeFit(design, explodeAmt > 0.45);
   const frame = posedFrame(part, fit, stage);
   const posed = solo ? { ...frame, home: turntableHome(frame), explode: [0, 0, 0] as [number, number, number] } : frame;
-  return <GuideFrame frame={posed} dims={Boolean(solo) || mode === "dimensions" || mode === "explode" || blueprint} />;
+  const neck = part === "bottle" ? fit.neckR * 2 : 0;
+  return <GuideFrame frame={posed} dims={Boolean(solo) || mode === "dimensions" || mode === "explode" || blueprint} neck={neck} unit={units} />;
 }
 
-function GuideFrame({ frame, dims }: { frame: Frame; dims: boolean }) {
+function GuideFrame({ frame, dims, neck, unit }: { frame: Frame; dims: boolean; neck: number; unit: "mm" | "cm" | "in" }) {
   const ref = useRef<THREE.Group>(null);
   const clock = useContext(Clock);
   useFrame(() => {
@@ -89,7 +91,7 @@ function GuideFrame({ frame, dims }: { frame: Frame; dims: boolean }) {
     <group ref={ref} position={frame.home}>
       <group position={frame.center}>
         <Brackets w={w} h={h} d={d} />
-        {dims && <Dimensions w={w} h={h} d={d} />}
+        {dims && <Dimensions w={w} h={h} d={d} neck={neck} unit={unit} />}
       </group>
     </group>
   );
@@ -124,7 +126,21 @@ function Brackets({ w, h, d }: { w: number; h: number; d: number }) {
   );
 }
 
-function Dimensions({ w, h, d }: { w: number; h: number; d: number }) {
+function formatLen(mm: number, unit: "mm" | "cm" | "in"): string {
+  if (unit === "cm") return `${(mm / 10).toFixed(1)} cm`;
+  if (unit === "in") return `${(mm / 25.4).toFixed(2)} in`;
+  return `${mm.toFixed(1)} mm`;
+}
+
+function DimLabel({ position, text }: { position: [number, number, number]; text: string }) {
+  return (
+    <Html position={position} center distanceFactor={280} zIndexRange={[2, 0]} style={{ pointerEvents: "none" }}>
+      <span className="dim-readout">{text}</span>
+    </Html>
+  );
+}
+
+function Dimensions({ w, h, d, neck, unit }: { w: number; h: number; d: number; neck: number; unit: "mm" | "cm" | "in" }) {
   const x = w / 2;
   const y = h / 2;
   const z = d / 2;
@@ -132,8 +148,21 @@ function Dimensions({ w, h, d }: { w: number; h: number; d: number }) {
   return (
     <>
       <Line points={[[-x, -y - gap, z + 2], [x, -y - gap, z + 2]]} color={GOLD} lineWidth={1} />
+      <Line points={[[-x, -y - gap, z + 2], [-x, -y - 4, z + 2]]} color={GOLD} lineWidth={1} />
+      <Line points={[[x, -y - gap, z + 2], [x, -y - 4, z + 2]]} color={GOLD} lineWidth={1} />
+      <DimLabel position={[0, -y - gap - 6, z + 2]} text={formatLen(w, unit)} />
       <Line points={[[x + gap, -y, z], [x + gap, y, z]]} color={GOLD} lineWidth={1} />
+      <Line points={[[x + 4, -y, z], [x + gap, -y, z]]} color={GOLD} lineWidth={1} />
+      <Line points={[[x + 4, y, z], [x + gap, y, z]]} color={GOLD} lineWidth={1} />
+      <DimLabel position={[x + gap + 8, 0, z]} text={formatLen(h, unit)} />
       <Line points={[[-x - gap, -y, -z], [-x - gap, -y, z]]} color={GOLD} lineWidth={1} />
+      <DimLabel position={[-x - gap, -y, 0]} text={formatLen(d, unit)} />
+      {neck > 1 && (
+        <>
+          <Line points={[[-neck / 2, y + 6, 0], [neck / 2, y + 6, 0]]} color={GOLD} lineWidth={1} />
+          <DimLabel position={[0, y + 12, 0]} text={`Ø ${formatLen(neck, unit)}`} />
+        </>
+      )}
     </>
   );
 }

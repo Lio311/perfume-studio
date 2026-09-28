@@ -255,7 +255,7 @@ function GradePasses() {
   }
   return (
     <EffectComposer enableNormalPass={false} multisampling={0}>
-      <Bloom intensity={0.16} luminanceThreshold={0.82} luminanceSmoothing={0.2} mipmapBlur radius={0.28} />
+      <Bloom intensity={0.35} luminanceThreshold={0.78} luminanceSmoothing={0.2} mipmapBlur radius={0.32} />
       <Vignette eskil={false} offset={0.35} darkness={0.42} />
     </EffectComposer>
   );

@@ -32,6 +32,8 @@ export interface CatalogEntry {
   tags: string[];
   /** Compact millimetre line for the library card. */
   mm: string;
+  /** Lowercase index: names, codes, FEA, millimetres, supplier. */
+  hay: string;
 }
 
 export function bottleById(id: string): BottleSpec {
@@ -67,13 +69,17 @@ function mm(n: number): string {
 }
 
 function toEntry(kind: VariantPart) {
-  return (item: { id: string; name: { he: string; en: string }; tags: string[]; heightMm?: number; widthMm?: number; depthMm?: number; actuatorHeightMm?: number; padMm?: number }): CatalogEntry => {
+  return (item: { id: string; name: { he: string; en: string }; tags: string[]; heightMm?: number; widthMm?: number; depthMm?: number; actuatorHeightMm?: number; padMm?: number; neck?: string }): CatalogEntry => {
     let size = "";
     if (kind === "bottle" && item.heightMm && item.widthMm && item.depthMm) size = `${mm(item.heightMm)} × ${mm(item.widthMm)} × ${mm(item.depthMm)}`;
     else if (kind === "cap" && item.heightMm && item.widthMm) size = `${mm(item.heightMm)} × ${mm(item.widthMm)}`;
     else if (kind === "collar" && item.heightMm) size = `${mm(item.heightMm)} mm`;
     else if (kind === "pump" && item.actuatorHeightMm) size = `${mm(item.actuatorHeightMm)} mm`;
     else if (kind === "box" && item.padMm) size = `+${mm(item.padMm)} mm`;
+    const neck = item.neck || (kind === "cap" || kind === "pump" || kind === "collar" ? "FEA15" : "");
+    const spaced = neck.startsWith("FEA") ? neck.replace("FEA", "FEA ") : neck;
+    const nums = [item.heightMm, item.widthMm, item.depthMm, item.actuatorHeightMm].filter((value) => typeof value === "number").join(" ");
+    const hay = `${item.name.he} ${item.name.en} ${item.id} ${item.tags.join(" ")} ${neck} ${spaced} ${nums} ${size}`.toLowerCase();
     return {
       id: item.id,
       kind,
@@ -81,8 +87,16 @@ function toEntry(kind: VariantPart) {
       en: item.name.en,
       tags: item.tags,
       mm: size,
+      hay,
     };
   };
+}
+
+export function entryMatches(entry: CatalogEntry, query: string): boolean {
+  const q = query.trim().toLowerCase();
+  if (!q) return true;
+  const tight = q.replace(/\s+/g, "");
+  return entry.hay.includes(q) || entry.hay.replace(/\s+/g, "").includes(tight);
 }
 
 export function cycleId(kind: VariantPart, id: string, dir: number): string {

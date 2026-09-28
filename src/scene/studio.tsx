@@ -1,16 +1,18 @@
-import { Component, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { useFrame, useThree } from "@react-three/fiber";
-import { ContactShadows, Environment, Lightformer, MeshReflectorMaterial } from "@react-three/drei";
+import { useLayoutEffect, useMemo } from "react";
+import { useThree } from "@react-three/fiber";
+import { ContactShadows, Environment, Lightformer } from "@react-three/drei";
 import * as THREE from "three";
 import { useLab } from "../store/labStore.ts";
 
 export function Exposure() {
   const theme = useLab((s) => s.theme);
+  const voice = useLab((s) => s.voice);
   const gl = useThree((s) => s.gl);
   useLayoutEffect(() => {
     gl.toneMapping = THREE.ACESFilmicToneMapping;
-    gl.toneMappingExposure = theme === "dark" ? 1.18 : 1.05;
-  }, [gl, theme]);
+    const exposure = theme === "light" ? 1.05 : voice === 2 ? 1.3 : voice === 3 ? 1.08 : 1.12;
+    gl.toneMappingExposure = exposure;
+  }, [gl, theme, voice]);
   return null;
 }
 
@@ -56,8 +58,8 @@ export function StudioLights() {
   return (
     <>
       <ambientLight color="#f7f1e6" intensity={voice === 2 ? 0.38 : 0.48} />
-      <directionalLight position={[28, 90, 54]} color="#fffaf3" intensity={voice === 3 ? 2.5 : 2.05} />
-      <directionalLight position={[-48, 42, -36]} color="#f0d29a" intensity={voice === 3 ? 1.7 : 1.25} />
+      <directionalLight position={[28, 90, 54]} color="#fffaf3" intensity={voice === 3 ? 3.3 : 2.05} />
+      <directionalLight position={[-48, 42, -36]} color="#f0d29a" intensity={voice === 3 ? 2.1 : 1.25} />
       <directionalLight position={[18, 24, 70]} color="#fff1dc" intensity={0.72} />
       <directionalLight position={[60, 18, 10]} color="#d5e4f4" intensity={0.38} />
       <pointLight position={[8, 36, 42]} color="#ffd7a2" intensity={6} distance={260} decay={2} />
@@ -65,134 +67,70 @@ export function StudioLights() {
   );
 }
 
-class FloorBoundary extends Component<{ children: ReactNode; onFail: () => void }, { dead: boolean }> {
-  state = { dead: false };
-  static getDerivedStateFromError(): { dead: boolean } {
-    return { dead: true };
+const FLOOR_VERT = `
+  varying vec2 vUv;
+  void main() {
+    vUv = uv;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
   }
-  componentDidCatch(): void {
-    this.props.onFail();
-  }
-  render(): ReactNode {
-    return this.state.dead ? null : this.props.children;
-  }
-}
+`;
 
-function MirrorWatch({ onFail }: { onFail: () => void }) {
-  const gl = useThree((s) => s.gl);
-  const frames = useRef(0);
-  const done = useRef(false);
-  useFrame(() => {
-    if (done.current) return;
-    frames.current += 1;
-    if (frames.current < 36) return;
-    done.current = true;
-    const ctx = gl.getContext();
-    const width = ctx.drawingBufferWidth;
-    const height = ctx.drawingBufferHeight;
-    if (width < 2 || height < 2) return;
-    const pixel = new Uint8Array(4);
-    let brightest = 0;
-    try {
-      for (const [fx, fy] of [
-        [0.5, 0.55],
-        [0.46, 0.48],
-        [0.56, 0.62],
-        [0.5, 0.4],
-      ] as const) {
-        ctx.readPixels(Math.floor(width * fx), Math.floor(height * fy), 1, 1, ctx.RGBA, ctx.UNSIGNED_BYTE, pixel);
-        brightest = Math.max(brightest, pixel[0] + pixel[1] + pixel[2]);
-      }
-    } catch {
-      onFail();
-      return;
-    }
-    if (brightest < 36) onFail();
-  });
-  return null;
-}
-
-function radialFade(): THREE.CanvasTexture {
-  const canvas = document.createElement("canvas");
-  canvas.width = 256;
-  canvas.height = 256;
-  const ctx = canvas.getContext("2d");
-  if (ctx) {
-    const fade = ctx.createRadialGradient(128, 128, 48, 128, 128, 128);
-    fade.addColorStop(0, "rgba(255,255,255,1)");
-    fade.addColorStop(0.42, "rgba(255,255,255,0.92)");
-    fade.addColorStop(0.72, "rgba(255,255,255,0.28)");
-    fade.addColorStop(1, "rgba(255,255,255,0)");
-    ctx.fillStyle = fade;
-    ctx.fillRect(0, 0, 256, 256);
+const FLOOR_FRAG = `
+  varying vec2 vUv;
+  uniform vec3 uMirror;
+  uniform vec3 uGold;
+  uniform float uLight;
+  void main() {
+    vec2 p = vUv * 2.0 - 1.0;
+    float r = length(p);
+    float fade = smoothstep(1.0, 0.18, r);
+    float pool = exp(-r * r * 4.4);
+    float sheen = smoothstep(0.75, 0.05, r) * (0.035 + uLight * 0.04);
+    vec3 color = uMirror * (0.72 + sheen * 2.0);
+    color += uGold * pool * (0.16 + uLight * 0.05);
+    float alpha = fade * (0.94 - uLight * 0.08);
+    gl_FragColor = vec4(color, alpha);
   }
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.colorSpace = THREE.NoColorSpace;
-  return texture;
-}
-
-function PlainFloor({ light, fade }: { light: boolean; fade: THREE.CanvasTexture }) {
-  return (
-    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]}>
-      <circleGeometry args={[260, 80]} />
-      <meshPhysicalMaterial
-        color={light ? "#d8d0c4" : "#1c212c"}
-        metalness={0.78}
-        roughness={0.26}
-        envMapIntensity={1.25}
-        transparent
-        depthWrite={false}
-        alphaMap={fade}
-      />
-    </mesh>
-  );
-}
+`;
 
 export function StageFloor() {
   const quality = useLab((s) => s.quality);
   const theme = useLab((s) => s.theme);
+  const voice = useLab((s) => s.voice);
   const explode = useLab((s) => s.explode);
-  const [off, setOff] = useState(false);
   const light = theme === "light";
-  const mirror = quality === "high" && !off;
   const bucket = Math.round(explode * 6);
-  const fade = useMemo(() => radialFade(), []);
+  const uniforms = useMemo(() => ({
+    uMirror: { value: new THREE.Color(light ? "#9a958e" : "#12141a") },
+    uGold: { value: new THREE.Color("#D6B26A") },
+    uLight: { value: light ? 1 : 0 },
+  }), [light]);
+  if (!light && voice === 2) return null;
   return (
     <>
-      {mirror ? (
-        <FloorBoundary onFail={() => setOff(true)}>
-          <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, 0]}>
-            <circleGeometry args={[260, 80]} />
-            <MeshReflectorMaterial
-              resolution={512}
-              mixBlur={0.85}
-              mixStrength={0.65}
-              roughness={0.7}
-              mirror={0.38}
-              blur={[220, 70]}
-              minDepthThreshold={0.35}
-              maxDepthThreshold={1.25}
-              depthScale={0.45}
-              color={light ? "#cfc6ba" : "#1c2430"}
-              metalness={0.55}
-              transparent
-              depthWrite={false}
-              alphaMap={fade}
-            />
-          </mesh>
-          <MirrorWatch onFail={() => setOff(true)} />
-        </FloorBoundary>
-      ) : (
-        <PlainFloor light={light} fade={fade} />
-      )}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]} frustumCulled={false}>
+        <circleGeometry args={[720, 72]} />
+        <shaderMaterial
+          transparent
+          depthWrite={false}
+          toneMapped={false}
+          uniforms={uniforms}
+          vertexShader={FLOOR_VERT}
+          fragmentShader={FLOOR_FRAG}
+        />
+      </mesh>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.06, 0]}>
+        <ringGeometry args={[38, 39.2, 96]} />
+        <meshBasicMaterial color="#D6B26A" transparent opacity={light ? 0.28 : 0.45} depthWrite={false} />
+      </mesh>
       {quality === "high" && (
         <ContactShadows
           key={bucket}
           position={[0, 0.08, 0]}
-          opacity={light ? 0.28 : 0.48}
-          scale={150}
-          blur={2.4}
-          far={70}
+          opacity={light ? 0.22 : 0.45}
+          scale={120}
+          blur={2.6}
+          far={80}
           resolution={256}
           frames={1}
           color="#000000"

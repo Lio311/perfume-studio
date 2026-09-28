@@ -149,7 +149,8 @@ export function SupplierImport() {
 
   const current = rows.find((row) => row.id === active) ?? null;
   const page = pages.find((item) => item.page === current?.page) ?? null;
-  const noText = pages.some((item) => item.text.trim().length < 4);
+  const blankPages = pages.filter((item) => item.text.trim().length < 4);
+  const ready = rows.some((row) => row.code.trim().length > 0);
 
   return (
     <div className="modal-back" onClick={() => setModal(null)}>
@@ -190,7 +191,7 @@ export function SupplierImport() {
         </div>
         {busy && <p className="hint">{lang === "he" ? "קורא עמודים…" : "Reading pages…"}</p>}
         {error && <p className="hint">{error}</p>}
-        {noText && <p className="hint">{t.noText}</p>}
+        {blankPages.map((item) => <p key={item.page} className="hint">{t.noText} · {t.pages} {item.page}</p>)}
         <div className="supplier-body">
           <div className="supplier-table">
         {rows.length > 0 && (
@@ -241,7 +242,7 @@ export function SupplierImport() {
           <div className="crop-block">
             <p className="hint">{t.cropHint}</p>
             <div
-              className="crop-stage"
+              className="crop-frame"
               onPointerDown={(event) => onPointer(event, "down")}
               onPointerMove={(event) => onPointer(event, "move")}
               onPointerUp={(event) => onPointer(event, "up")}
@@ -270,7 +271,7 @@ export function SupplierImport() {
           </div>
         </div>
         <div className="modal-actions">
-          <button type="button" className="spec-export" data-add-library disabled={!rows.length} onClick={commit}>{t.addToLibrary}</button>
+          <button type="button" className="spec-export" data-add-library disabled={!ready} onClick={commit}>{t.addToLibrary}</button>
         </div>
       </div>
     </div>

@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { partLabel, tx } from "../i18n/copy.ts";
 import { downloadPack } from "../import/supplierDb.ts";
-import { listFor } from "../model/catalog.ts";
+import { entryMatches, listFor } from "../model/catalog.ts";
+import { markSwap } from "../scene/focusClick.ts";
 import { LIQUID_PALETTE } from "../model/materials.ts";
 import type { VariantPart } from "../model/types.ts";
 import { useLab } from "../store/labStore.ts";
@@ -26,7 +27,6 @@ export function Library() {
   const open = useLab((s) => s.libraryOpen);
   const design = useLab((s) => s.design);
   const pending = useLab((s) => s.pending);
-  const select = useLab((s) => s.select);
   const applyCommands = useLab((s) => s.applyCommands);
   const patch = useLab((s) => s.patch);
   const setModal = useLab((s) => s.setModal);
@@ -61,8 +61,8 @@ export function Library() {
     const family = CAP_CATS.find((entry) => entry.id === cat);
     return listFor(tab).filter((item) => {
       if (supplier !== "all" && !item.tags.includes(`supplier:${supplier}`)) return false;
-      if (q && !`${item.he} ${item.en} ${item.id} ${item.tags.join(" ")}`.toLowerCase().includes(q)) return false;
-      if (tab !== "cap" || !family || family.tags.length === 0) return true;
+      if (q && !entryMatches(item, q)) return false;
+      if (q || tab !== "cap" || !family || family.tags.length === 0) return true;
       return family.tags.some((tag) => item.tags.includes(tag));
     });
   }, [tab, query, cat, supplier, suppliers]);
@@ -86,7 +86,7 @@ export function Library() {
     <aside className={`panel library ${open ? "is-open" : ""}`} dir={lang === "he" ? "rtl" : "ltr"}>
       <div className="panel-head">
         <h2>{t.library}</h2>
-        <span className="count">{tab === "pending" ? pending.length : tab === "liquid" ? LIQUID_PALETTE.length : items.length}</span>
+        <span className="count">{tab === "pending" ? pending.length + suppliers.reduce((sum, pack) => sum + pack.parts.length, 0) : tab === "liquid" ? LIQUID_PALETTE.length : items.length}</span>
         <button type="button" className="text-btn" onClick={() => randomize()}>{t.random}</button>
       </div>
       <input className="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t.search} />
@@ -133,22 +133,32 @@ export function Library() {
               type="button"
               className={design.liquid.color.toLowerCase() === color ? "swatch is-on" : "swatch"}
               style={{ background: color }}
-              onClick={() => {
-                const lab = useLab.getState();
-                if (lab.aimed && lab.selected === "liquid" && design.liquid.color.toLowerCase() === color) {
-                  lab.showFull();
-                  return;
-                }
-                patch("liquid", { color, visible: true });
-                select("liquid");
-              }}
+              onClick={() => patch("liquid", { color, visible: true })}
             />
           ))}
         </div>
       ) : tab === "pending" ? (
         <div className="pending-list">
           <p className="hint">{t.pendingNote}</p>
-          {pending.length === 0 && <p className="hint">{t.pendingEmpty}</p>}
+          {pending.length === 0 && suppliers.every((pack) => pack.parts.length === 0) && <p className="hint">{t.pendingEmpty}</p>}
+          {suppliers.flatMap((pack) => pack.parts.filter((part) => {
+            const q = query.trim().toLowerCase();
+            if (!q) return true;
+            const hay = `${part.name} ${part.code} ${pack.name} ${part.neck ?? ""} ${part.widthMm} ${part.heightMm}`.toLowerCase();
+            return hay.includes(q) || hay.replace(/\s+/g, "").includes(q.replace(/\s+/g, ""));
+          }).map((part) => (
+            <article key={part.id} className="pending-card">
+              {part.thumb && <img src={part.thumb} alt="" />}
+              <div>
+                <strong>{part.name}</strong>
+                <span>{pack.name}{part.lathe ? "" : ` · ${t.tempShape}`}</span>
+              </div>
+              <button type="button" onClick={() => {
+                applyCommands([{ type: "variant", part: part.kind, id: part.id }]);
+                markSwap(part.kind);
+              }}>{t.replace}</button>
+            </article>
+          )))}
           {pending.map((item) => (
             <article key={item.id} className="pending-card">
               {item.files[0]?.thumb && <img src={item.files[0].thumb} alt="" />}
@@ -169,21 +179,21 @@ export function Library() {
               type="button"
               className={item.id === activeId ? "thumb is-on" : "thumb"}
               onClick={() => {
-                const lab = useLab.getState();
-                if (lab.aimed && !lab.solo && lab.selected === tab && item.id === activeId) {
-                  lab.showFull();
-                  return;
-                }
-                applyCommands([{ type: "variant", part: tab, id: item.id }, { type: "select", part: tab }]);
+                applyCommands([{ type: "variant", part: tab, id: item.id }]);
+                markSwap(tab);
               }}
             >
               <img src={thumbFor(tab, item.id, design.label.text)} alt="" />
               <span>{lang === "he" ? item.he : item.en}</span>
+              {item.tags.includes("placeholder") && <em className="temp-badge">{t.tempShape}</em>}
               {item.mm && <bdi className="mm" dir="ltr">{item.mm}</bdi>}
             </button>
           ))}
         </div>
       )}
+      <button type="button" className="upload-btn" data-photo3d onClick={() => setModal("photo")}>
+        {t.photo3d}
+      </button>
       <button type="button" className="upload-btn" data-import-catalog onClick={() => setModal("supplier")}>
         {t.importCatalog}
       </button>

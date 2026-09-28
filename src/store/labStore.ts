@@ -69,7 +69,8 @@ interface LabState {
   lang: Lang;
   libraryOpen: boolean;
   sideOpen: boolean;
-  modal: "save" | "compare" | "upload" | "supplier" | null;
+  modal: "save" | "compare" | "upload" | "supplier" | "photo" | null;
+  units: "mm" | "cm" | "in";
   suppliers: SupplierPack[];
   chat: ChatMessage[];
   saved: SavedDesign[];
@@ -129,6 +130,7 @@ interface LabState {
   setPresent: (on: boolean) => void;
   setPalette: (on: boolean) => void;
   setHelp: (on: boolean) => void;
+  setUnits: (unit: "mm" | "cm" | "in") => void;
   applyVoiceParam: (value: string | null) => void;
 }
 
@@ -294,6 +296,7 @@ export const useLab = create<LabState>()(
       libraryOpen: false,
       sideOpen: false,
       modal: null,
+      units: "mm",
       chat: [],
       saved: seeds(),
       pending: [],
@@ -351,7 +354,6 @@ export const useLab = create<LabState>()(
       setMode: (mode) =>
         set(() => {
           if (mode === "assemble") return { mode, explode: 0 };
-          if (mode === "explode") return { mode, explode: 1 };
           return { mode };
         }),
       setExplode: (amount) =>
@@ -456,7 +458,8 @@ export const useLab = create<LabState>()(
       showFull: () => set((state) => ({ selected: null, aimed: false, solo: null, fullToken: state.fullToken + 1 })),
       isolate: (part) => set((state) => ({ solo: part, selected: part, aimed: true, sideOpen: true, focusToken: state.focusToken + 1 })),
       exitSolo: () => set((state) => ({ solo: null, selected: null, aimed: false, fullToken: state.fullToken + 1 })),
-      setPresent: (present) => set((state) => ({ present, autoRotate: present ? true : state.autoRotate })),
+      setPresent: (present) => set({ present, autoRotate: present }),
+      setUnits: (units) => set({ units }),
       setPalette: (palette) => set({ palette, help: false }),
       setHelp: (help) => set({ help, palette: false }),
       applyVoiceParam: (value: string | null) => set({ voice: parseVoiceParam(value) }),

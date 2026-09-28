@@ -22,6 +22,7 @@ const BLUE_FRAG = `
   varying vec3 vNormal;
   varying vec3 vView;
   varying vec3 vPos;
+  uniform float uFade;
   void main() {
     vec3 n = normalize(vNormal);
     vec3 view = normalize(vView);
@@ -34,7 +35,7 @@ const BLUE_FRAG = `
     float cage = max(spokeLine, ringLine * 0.85);
     vec3 color = vec3(0.965, 0.90, 0.78);
     float alpha = clamp(0.07 + fres * 0.78 + cage * 0.42, 0.0, 0.95);
-    gl_FragColor = vec4(color, alpha);
+    gl_FragColor = vec4(color, alpha * uFade);
   }
 `;
 
@@ -91,6 +92,7 @@ const CLEAR_VERT = `
 const CLEAR_FRAG = `
   varying vec3 vNormal;
   varying vec3 vWorld;
+  uniform float uFade;
   void main() {
     vec3 N = normalize(vNormal);
     vec3 V = normalize(cameraPosition - vWorld);
@@ -105,11 +107,12 @@ const CLEAR_FRAG = `
     float band = pow(max(sin(vWorld.x * 0.16 + vWorld.y * 0.09) * sin(vWorld.z * 0.13 + vWorld.y * 0.06), 0.0), 2.0);
     vec3 color = mix(glass, gold, fres * 0.45) + gold * rim * 0.35 + vec3(1.0, 0.97, 0.9) * spec + gold * band * fres * 0.28;
     float alpha = 0.045 + fres * 0.62 + spec * 0.35;
-    gl_FragColor = vec4(color, clamp(alpha, 0.0, 0.92));
+    gl_FragColor = vec4(color, clamp(alpha, 0.0, 0.92) * uFade);
   }
 `;
 
 function ClearGlass() {
+  const uniforms = useMemo(() => ({ uFade: { value: 1 } }), []);
   return (
     <shaderMaterial
       transparent
@@ -119,6 +122,7 @@ function ClearGlass() {
       polygonOffset
       polygonOffsetFactor={-1}
       polygonOffsetUnits={-1}
+      uniforms={uniforms}
       vertexShader={CLEAR_VERT}
       fragmentShader={CLEAR_FRAG}
     />
@@ -143,8 +147,9 @@ export function FinishMaterial({
   const glassLike = glass && isGlass(finish);
   const metal = finish === "gold" || finish === "silver" || finish === "rose";
   const clear = finish === "clear";
+  const fade = useMemo(() => ({ uFade: { value: 1 } }), []);
   if (blueprint) {
-    return <shaderMaterial transparent depthWrite toneMapped={false} vertexShader={BLUE_VERT} fragmentShader={BLUE_FRAG} />;
+    return <shaderMaterial transparent depthWrite toneMapped={false} uniforms={fade} vertexShader={BLUE_VERT} fragmentShader={BLUE_FRAG} />;
   }
   if (clear && glass) return <ClearGlass />;
   return (

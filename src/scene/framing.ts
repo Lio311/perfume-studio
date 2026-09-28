@@ -28,6 +28,18 @@ export function gutterFor(slotWidth: number): number {
   return 112;
 }
 
+/** Distance clamps from the current framing sphere. Angles are unitless, so R stays in millimetres. */
+export function orbitLimits(radius: number, fovDeg: number): { min: number; max: number; near: number; far: number } {
+  const span = Math.max(12, radius);
+  const sin = Math.max(0.08, Math.sin((fovDeg * Math.PI) / 360));
+  return {
+    min: ((1.25 * span) / sin) * 0.55,
+    max: (2.2 * span) / sin,
+    near: span * 0.02,
+    far: span * 60,
+  };
+}
+
 export function readStageFrame(canvas: HTMLCanvasElement): StageFrame {
   const canvasRect = canvas.getBoundingClientRect();
   const width = canvasRect.width || canvas.clientWidth || 1;

@@ -80,6 +80,7 @@ function readCode(text: string): string {
   const labeled = text.match(/(?:^|\s)(?:ref(?:erence)?|item(?:\s*no\.?)?|code|sku)\b\s*[:#.]?\s*([A-Za-z0-9][A-Za-z0-9./-]{1,})/i)
     ?? text.match(/(?:קוד|كود|מק["״']?ט)\s*[:#.]?\s*([A-Za-z0-9][A-Za-z0-9./-]{1,})/);
   const leading = text.trim().match(/^([A-Z]{1,6}-\d{2,}[A-Z0-9-]*)/im);
+  if (leading && /[A-Z]/i.test(leading[1])) return leading[1].toUpperCase();
   if (leading && labeled && /^\d+$/.test(labeled[1])) return leading[1].toUpperCase();
   if (labeled) return labeled[1].toUpperCase();
   return leading ? leading[1].toUpperCase() : "";
@@ -242,33 +243,12 @@ function inferKind(measures: Measures, text: string): VariantPart | null {
   return null;
 }
 
-function manualRow(page: number): DraftItem {
-  return {
-    id: `p${page}-manual`,
-    page,
-    kind: "cap",
-    code: "",
-    neck: "FEA15",
-    widthMm: 30,
-    heightMm: 32,
-    depthMm: 30,
-    capacityMl: null,
-    profile: "cylinder",
-    crop: { x: 0.12, y: 0.12, w: 0.76, h: 0.76 },
-    confidence: 0.2,
-    manual: true,
-  };
-}
-
 /** Regex extractor. Replace `regexCatalogSource` with a vision client that returns the same drafts. */
 export function parseCatalogPages(pages: CatalogPageInput[]): DraftItem[] {
   const drafts: DraftItem[] = [];
   for (const page of pages) {
     const text = page.text.replace(/\u00a0/g, " ").trim();
-    if (text.length < 4) {
-      drafts.push(manualRow(page.page));
-      continue;
-    }
+    if (text.length < 4) continue;
     const blocks = blocksOf(text);
     const made: DraftItem[] = [];
     blocks.forEach((block, index) => {
@@ -279,7 +259,6 @@ export function parseCatalogPages(pages: CatalogPageInput[]): DraftItem[] {
       item.crop = cropFor(index, made.length);
       drafts.push(item);
     });
-    if (!made.length) drafts.push(manualRow(page.page));
   }
   return drafts;
 }

@@ -7,7 +7,7 @@ import { useLab, type LabMode } from "../store/labStore.ts";
 import { downloadSpec } from "./specSheet.ts";
 import { VoiceSwitch } from "./VoiceSwitch.tsx";
 
-const MODES: LabMode[] = ["assemble", "explode", "dimensions", "compare"];
+const MODES: LabMode[] = ["assemble", "explode", "dimensions"];
 
 export function TopBar() {
   const lang = useLab((s) => s.lang);
@@ -32,6 +32,7 @@ export function TopBar() {
   const setLibraryOpen = useLab((s) => s.setLibraryOpen);
   const setSideOpen = useLab((s) => s.setSideOpen);
   const [notice, setNotice] = useState("");
+  const [menu, setMenu] = useState<null | "view" | "export">(null);
   const t = tx(lang);
   const ml = estimateMl(design);
   const spec = bottleById(design.bottle.variantId);
@@ -60,7 +61,17 @@ export function TopBar() {
       link.href = url;
       link.download = "perfume-lab.png";
       link.click();
+      setNotice(t.pngSaved);
+      window.setTimeout(() => setNotice(""), 1600);
     });
+    setMenu(null);
+  }
+
+  function exportSpec() {
+    downloadSpec(design, lang);
+    setNotice(t.specSaved);
+    window.setTimeout(() => setNotice(""), 1600);
+    setMenu(null);
   }
 
   return (
@@ -88,24 +99,39 @@ export function TopBar() {
         <button type="button" className={stage === "box" ? "is-on" : ""} onClick={() => setStage("box")}>{t.stageBox}</button>
         <button type="button" className={stage === "together" ? "is-on" : ""} onClick={() => setStage("together")}>{t.stageTogether}</button>
       </div>
-      <button type="button" className={`text-btn blueprint-btn ${blueprint ? "is-on" : ""}`} aria-pressed={blueprint} onClick={() => setBlueprint(!blueprint)}>{t.blueprint}</button>
-      <VoiceSwitch />
-      <div className="voice-switch" role="group" aria-label={t.quality}>
-        <button type="button" className={quality === "high" ? "is-on" : ""} onClick={() => setQuality("high")}>{t.qualityHigh}</button>
-        <button type="button" className={quality === "medium" ? "is-on" : ""} onClick={() => setQuality("medium")}>{t.qualityMed}</button>
+      <div className="menu-wrap">
+        <button type="button" className={menu === "view" ? "text-btn is-on" : "text-btn"} onClick={() => setMenu(menu === "view" ? null : "view")}>{t.viewMenu}</button>
+        {menu === "view" && (
+          <div className="menu-pop">
+            <VoiceSwitch />
+            <div className="voice-switch" role="group" aria-label={t.quality}>
+              <button type="button" className={quality === "high" ? "is-on" : ""} onClick={() => setQuality("high")}>{t.qualityHigh}</button>
+              <button type="button" className={quality === "medium" ? "is-on" : ""} onClick={() => setQuality("medium")}>{t.qualityMed}</button>
+            </div>
+            <button type="button" className={`text-btn blueprint-btn ${blueprint ? "is-on" : ""}`} aria-pressed={blueprint} onClick={() => setBlueprint(!blueprint)}>{t.blueprint}</button>
+            <button type="button" className="text-btn" onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>
+              {theme === "dark" ? t.themeToLight : t.themeToDark}
+            </button>
+            <button type="button" className="text-btn lang" onClick={() => setLang(lang === "he" ? "en" : "he")}>{t.lang}</button>
+          </div>
+        )}
+      </div>
+      <div className="menu-wrap">
+        <button type="button" className={menu === "export" ? "text-btn is-on" : "text-btn"} onClick={() => setMenu(menu === "export" ? null : "export")}>{t.exportMenu}</button>
+        {menu === "export" && (
+          <div className="menu-pop">
+            <button type="button" className="text-btn" onClick={share}>{t.share}</button>
+            <button type="button" className="text-btn" onClick={exportPng}>{t.export}</button>
+            <button type="button" className="text-btn spec-export" onClick={exportSpec}>{t.exportSpec}</button>
+            <button type="button" className="text-btn" onClick={() => { setMode("compare"); setMenu(null); }}>{t.compare}</button>
+          </div>
+        )}
       </div>
       <div className="top-cluster">
         <button type="button" className="icon-btn" onClick={() => undo()} disabled={past === 0}>{t.undo}</button>
         <button type="button" className="icon-btn" onClick={() => redo()} disabled={future === 0}>{t.redo}</button>
-        <button type="button" className="icon-btn" onClick={share}>{t.share}</button>
-        <button type="button" className="icon-btn" onClick={exportPng}>{t.export}</button>
-        <button type="button" className="text-btn spec-export" onClick={() => downloadSpec(design, lang)}>{t.exportSpec}</button>
         <button type="button" className="text-btn panel-toggle" onClick={() => setLibraryOpen(!libraryOpen)}>{t.library}</button>
         <button type="button" className="text-btn panel-toggle" onClick={() => setSideOpen(!sideOpen)}>{t.properties}</button>
-        <button type="button" className="text-btn" onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>
-          {theme === "dark" ? t.themeToLight : t.themeToDark}
-        </button>
-        <button type="button" className="text-btn lang" onClick={() => setLang(lang === "he" ? "en" : "he")}>{t.lang}</button>
       </div>
       {notice && <div className="toast">{notice}</div>}
     </header>

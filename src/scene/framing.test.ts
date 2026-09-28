@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import * as THREE from "three";
 import { applyVariant, createDefaultDesign } from "../model/design.ts";
 import type { PartKey } from "../model/types.ts";
-import { FOCUS_FILL, fitPose, partBounds, safeRect, type StageFrame } from "./framing.ts";
+import { FOCUS_FILL, fitPose, orbitLimits, partBounds, safeRect, type StageFrame } from "./framing.ts";
 
 function macbook(): StageFrame {
   const stageLeft = 338;
@@ -71,5 +71,13 @@ describe("focus framing on a MacBook stage", () => {
       const radius = bounds.getBoundingSphere(new THREE.Sphere()).radius;
       expect(dist, part).toBeGreaterThan(radius * 1.1);
     }
+  });
+
+  it("keeps the camera outside the bottle and short of the world edge", () => {
+    const limits = orbitLimits(48, 30);
+    expect(limits.min).toBeGreaterThan(48 * 2);
+    expect(limits.max).toBeGreaterThan(limits.min);
+    expect(limits.max).toBeLessThan(48 * 20);
+    expect(limits.near).toBeLessThan(limits.min);
   });
 });

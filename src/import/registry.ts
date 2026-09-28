@@ -1,3 +1,4 @@
+import { clearLatheProfiles, setLatheProfile } from "./lathe.ts";
 import { setImportedCatalog } from "../model/catalog.ts";
 import type { BottleSpec, BoxSpec, CapProfileName, CapSpec, CollarSpec, FinishId, LogoSpec, NeckId, PumpSpec, SectionKind, VariantPart } from "../model/types.ts";
 import type { DraftItem, ImportProfile } from "./parseCatalog.ts";
@@ -16,6 +17,8 @@ export interface SupplierPart {
   color: string;
   thumb: string;
   page: number;
+  /** Normalised half-profile. Present for photo-revolved parts. */
+  lathe?: number[];
 }
 
 export interface SupplierPack {
@@ -63,7 +66,10 @@ export function partFromDraft(draft: DraftItem, supplier: { id: string; name: st
 }
 
 function tags(part: SupplierPart, supplier: SupplierPack): string[] {
-  return ["imported", `supplier:${supplier.id}`, supplier.name, part.code, part.kind];
+  const base = ["imported", `supplier:${supplier.id}`, supplier.name, part.code, part.kind];
+  if (!part.lathe) base.push("placeholder");
+  if (part.neck) base.push(part.neck, part.neck.replace("FEA", "FEA "));
+  return base;
 }
 
 function capProfile(profile: ImportProfile): CapProfileName {
@@ -80,6 +86,7 @@ function capSection(profile: ImportProfile): SectionKind {
 
 export function syncRegistry(packs: SupplierPack[]): void {
   meta.clear();
+  clearLatheProfiles();
   const bottles: BottleSpec[] = [];
   const caps: CapSpec[] = [];
   const labels: LogoSpec[] = [];
@@ -98,6 +105,7 @@ export function syncRegistry(packs: SupplierPack[]): void {
         supplierId: pack.id,
         supplierName: pack.name,
       });
+      if (part.lathe) setLatheProfile(part.id, { radii: part.lathe });
       const name = { he: part.name, en: part.name };
       const shared = tags(part, pack);
       if (part.kind === "bottle") {
