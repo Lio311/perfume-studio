@@ -191,8 +191,14 @@ function applyOne(design: Design, command: LabCommand, ui: { explode: number; mo
       break;
     }
     case "color":
-      if (command.part === "liquid") design.liquid.color = command.color;
-      else Object.assign(design[command.part], { color: command.color });
+      if (command.part === "liquid") {
+        design.liquid.color = command.color;
+      } else {
+        Object.assign(design[command.part], { color: command.color });
+        if (command.part === "bottle" && design.bottle.finish === "clear") {
+          design.bottle.finish = "tinted";
+        }
+      }
       break;
     case "variant":
       applyVariant(design, command.part, command.id);
