@@ -31,7 +31,7 @@ export function frameFor(part: PartKey, fit: ReturnType<typeof computeFit>): Fra
     return { home: [0, fit.collarBottom, 0], explode: fit.explode.collar, index: 3, center: [0, fit.collarHeight / 2, 0], size: [d, fit.collarHeight, d] };
   }
   if (part === "label") {
-    return { home: [0, fit.labelY, fit.labelZ], explode: fit.explode.label, index: 4, center: [0, 0, 0], size: [fit.labelW, fit.labelH, 1.2] };
+    return { home: [0, fit.labelY, fit.labelZ], explode: fit.explode.label, index: 4, center: [0, 0, 0], size: [fit.labelW, fit.labelH, 8] };
   }
   if (part === "box") {
     return { home: [fit.boxX, 0, fit.boxZ], explode: fit.explode.box, index: 0, center: [0, fit.boxH / 2, 0], size: [fit.boxW, fit.boxH, fit.boxD] };

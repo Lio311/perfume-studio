@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { partLabel, tx } from "../i18n/copy.ts";
 import { downloadPack } from "../import/supplierDb.ts";
 import { listFor } from "../model/catalog.ts";
@@ -34,10 +34,26 @@ export function Library() {
   const removePending = useLab((s) => s.removePending);
   const suppliers = useLab((s) => s.suppliers);
   const removeSupplier = useLab((s) => s.removeSupplier);
+  const selected = useLab((s) => s.selected);
+  const focusToken = useLab((s) => s.focusToken);
   const [tab, setTab] = useState<(typeof TABS)[number]>("cap");
   const [query, setQuery] = useState("");
   const [cat, setCat] = useState("all");
   const [supplier, setSupplier] = useState("all");
+  const gridRef = useRef<HTMLDivElement>(null);
+  const tabRef = useRef(tab);
+  tabRef.current = tab;
+
+  useEffect(() => {
+    if (!selected) return;
+    const next = selected === "liquid" ? "liquid" : selected;
+    if (tabRef.current !== next) {
+      setQuery("");
+      setCat("all");
+      setSupplier("all");
+    }
+    setTab(next);
+  }, [selected, focusToken]);
 
   const items = useMemo(() => {
     if (tab === "liquid" || tab === "pending") return [];
@@ -60,6 +76,12 @@ export function Library() {
     tab === "box" ? design.box.variantId :
     "";
 
+  useEffect(() => {
+    const on = gridRef.current?.querySelector(".thumb.is-on, .swatch.is-on");
+    on?.scrollIntoView({ block: "nearest", inline: "nearest" });
+    document.querySelector(`.library [data-part="${tab}"]`)?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }, [tab, activeId, items, focusToken]);
+
   return (
     <aside className={`panel library ${open ? "is-open" : ""}`} dir={lang === "he" ? "rtl" : "ltr"}>
       <div className="panel-head">
@@ -70,7 +92,7 @@ export function Library() {
       <input className="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t.search} />
       <div className="tabs" role="tablist">
         {TABS.map((key) => (
-          <button key={key} type="button" role="tab" aria-selected={tab === key} className={tab === key ? "is-on" : ""} onClick={() => setTab(key)}>
+          <button key={key} type="button" role="tab" data-part={key} aria-selected={tab === key} className={tab === key ? "is-on" : ""} onClick={() => setTab(key)}>
             {key === "pending" ? t.pending : key === "liquid" ? partLabel[lang].liquid : partLabel[lang][key]}
           </button>
         ))}
@@ -104,7 +126,7 @@ export function Library() {
         </div>
       )}
       {tab === "liquid" ? (
-        <div className="swatches liquid-swatches">
+        <div className="swatches liquid-swatches" ref={gridRef}>
           {LIQUID_PALETTE.map((color) => (
             <button
               key={color}
@@ -139,7 +161,7 @@ export function Library() {
           ))}
         </div>
       ) : (
-        <div className={tab !== "cap" && items.length <= 16 ? "thumb-row" : "thumb-grid"}>
+        <div ref={gridRef} className={tab !== "cap" && items.length <= 16 ? "thumb-row" : "thumb-grid"}>
           {items.length === 0 && supplier !== "all" && <p className="hint">{t.importedEmpty}</p>}
           {items.map((item) => (
             <button

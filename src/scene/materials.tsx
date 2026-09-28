@@ -114,6 +114,11 @@ function ClearGlass() {
     <shaderMaterial
       transparent
       depthWrite={false}
+      depthTest
+      side={THREE.FrontSide}
+      polygonOffset
+      polygonOffsetFactor={-1}
+      polygonOffsetUnits={-1}
       vertexShader={CLEAR_VERT}
       fragmentShader={CLEAR_FRAG}
     />

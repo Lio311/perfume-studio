@@ -114,6 +114,16 @@ function cornersOf(box: THREE.Box3): THREE.Vector3[] {
 }
 
 const FILL = 0.63;
+export const FOCUS_FILL = 0.64;
+
+export function safeRect(frame: StageFrame): { left: number; right: number; top: number; bottom: number; width: number; height: number } {
+  const gutter = Math.min(frame.gutter, 88) * 0.42;
+  const left = frame.stageLeft + gutter;
+  const right = frame.stageLeft + frame.stageWidth - gutter;
+  const top = frame.openTop + 4;
+  const bottom = frame.openTop + frame.openHeight - 4;
+  return { left, right, top, bottom, width: Math.max(80, right - left), height: Math.max(80, bottom - top) };
+}
 
 function projectBox(corners: THREE.Vector3[], canvasW: number, canvasH: number): { w: number; h: number; cx: number; cy: number } {
   let minX = Infinity;
@@ -137,6 +147,7 @@ export function fitPose(
   direction: THREE.Vector3,
   fov: number,
   frame: StageFrame,
+  fill = FILL,
 ): { position: THREE.Vector3; target: THREE.Vector3 } {
   bounds.getCenter(center);
   const corners = cornersOf(bounds);
@@ -144,7 +155,7 @@ export function fitPose(
   const aspect = frame.width / Math.max(1, frame.height);
   scratch.fov = fov;
   scratch.aspect = aspect;
-  scratch.near = 0.5;
+  scratch.near = 0.4;
   scratch.far = 5000;
   scratch.updateProjectionMatrix();
 
@@ -155,22 +166,27 @@ export function fitPose(
     scratch.updateMatrixWorld();
   };
 
-  const targetPx = Math.min(frame.stageHeight * FILL, frame.openHeight * 0.92);
-  const allowedW = Math.max(80, frame.stageWidth - Math.min(frame.gutter, 72) * 2);
-  let best = 480;
+  const safe = safeRect(frame);
+  const targetPx = safe.height * fill;
+  const allowedW = safe.width * 0.9;
+  let best = 520;
   const target = center.clone();
-  for (let pass = 0; pass < 4; pass += 1) {
+  for (let pass = 0; pass < 5; pass += 1) {
     place(best, target);
     const box = projectBox(corners, frame.width, frame.height);
-    best *= box.h / targetPx;
+    if (!Number.isFinite(box.h) || box.h < 2) {
+      best *= 1.35;
+      continue;
+    }
+    best *= THREE.MathUtils.clamp(box.h / targetPx, 0.55, 2.4);
   }
   place(best, target);
   const wide = projectBox(corners, frame.width, frame.height);
   if (wide.w > allowedW) best *= wide.w / allowedW;
 
-  const aimX = frame.stageLeft + frame.stageWidth / 2;
-  const aimY = frame.openTop + frame.openHeight / 2;
-  for (let pass = 0; pass < 3; pass += 1) {
+  const aimX = (safe.left + safe.right) / 2;
+  const aimY = (safe.top + safe.bottom) / 2;
+  for (let pass = 0; pass < 4; pass += 1) {
     place(best, target);
     const box = projectBox(corners, frame.width, frame.height);
     const dx = box.cx - aimX;
@@ -184,6 +200,24 @@ export function fitPose(
     target.addScaledVector(up, -dy * worldPerPixelY);
   }
 
-  const position = target.clone().addScaledVector(dir, Math.max(90, best));
+  const marginX = safe.width * 0.04;
+  const marginY = safe.height * 0.05;
+  for (let pass = 0; pass < 6; pass += 1) {
+    place(best, target);
+    const box = projectBox(corners, frame.width, frame.height);
+    const left = box.cx - box.w / 2;
+    const rightEdge = box.cx + box.w / 2;
+    const top = box.cy - box.h / 2;
+    const bottom = box.cy + box.h / 2;
+    const inside = left >= safe.left + marginX && rightEdge <= safe.right - marginX && top >= safe.top + marginY && bottom <= safe.bottom - marginY;
+    if (inside && box.h <= safe.height * 0.7 && box.w <= safe.width * 0.92) break;
+    const hScale = box.h / Math.max(1, safe.height * fill);
+    const wScale = box.w / Math.max(1, allowedW);
+    best *= Math.max(1.06, hScale, wScale);
+  }
+
+  const radius = bounds.getBoundingSphere(new THREE.Sphere()).radius;
+  best = Math.max(best, radius * 1.15);
+  const position = target.clone().addScaledVector(dir, best);
   return { position, target };
 }

@@ -6,7 +6,7 @@ import { bottleById, boxById, capById, collarById, logoById, pumpById } from "..
 import { computeFit } from "../model/fit.ts";
 import { isGlass } from "../model/materials.ts";
 import type { BoxForm, PartKey, PumpStyle } from "../model/types.ts";
-import { buildBottleGeometry, buildCapGeometry, curvedPlate } from "../geometry/sweep.ts";
+import { buildBottleGeometry, buildCapGeometry, buildLabelPatch } from "../geometry/sweep.ts";
 import { logoTexture } from "../geometry/logos.ts";
 import { useLab } from "../store/labStore.ts";
 import { clickPart, doubleClickPart, markPartPointer } from "./focusClick.ts";
@@ -268,7 +268,7 @@ function BottlePart() {
     <PartShell part="bottle" index={5} home={[0, 0, 0]} explode={[0, 0, 0]} visible={design.bottle.visible && onStage} variantKey={spec.id}>
       <mesh geometry={geo} renderOrder={2}>
         <FinishMaterial finish={design.bottle.finish} color={design.bottle.color} flat={spec.faceted} glass />
-        <HotOutline part="bottle" />
+        {design.bottle.finish !== "clear" && <HotOutline part="bottle" />}
       </mesh>
     </PartShell>
   );
@@ -279,6 +279,10 @@ function LiquidPart() {
   const onStage = useLab((s) => s.stage) !== "box";
   const spec = bottleById(design.bottle.variantId);
   const fit = computeFit(design, false);
+  const surface = Math.min(
+    design.bottle.heightMm - 6,
+    Math.max(8, 4 + design.liquid.fill * design.bottle.heightMm * 0.7),
+  );
   const geo = useDisposable(
     () =>
       buildBottleGeometry({
@@ -291,57 +295,30 @@ function LiquidPart() {
         neckR: Math.max(3, fit.neckR - 1.2),
         profile: spec.profile,
         shoulder: spec.shoulder,
-        inset: 2.3,
+        inset: 1.5,
         closedTop: true,
+        limitY: surface,
       }),
-    [design.bottle.heightMm, design.bottle.widthMm, design.bottle.depthMm, design.bottle.neck, spec],
+    [design.bottle.heightMm, design.bottle.widthMm, design.bottle.depthMm, design.bottle.neck, spec, surface],
   );
-  const plane = useMemo(() => new THREE.Plane(new THREE.Vector3(0, -1, 0), 0), []);
-  const surface = 3 + design.liquid.fill * Math.max(10, design.bottle.heightMm * (0.78 - spec.shoulder * 0.25));
-  useFrame(() => {
-    plane.constant = surface;
-  });
-  const rx = Math.max(4, design.bottle.widthMm / 2 - 4);
-  const rz = Math.max(4, design.bottle.depthMm / 2 - 4);
   return (
-    <PartShell part="liquid" index={5} home={[0, 0, 0]} explode={[0, 0, 0]} visible={design.liquid.visible && design.bottle.visible && onStage} variantKey={spec.id + design.liquid.color}>
+    <PartShell part="liquid" index={5} home={[0, 0, 0]} explode={[0, 0, 0]} visible={design.liquid.visible && design.bottle.visible && onStage} variantKey={spec.id + design.liquid.color + surface.toFixed(1)}>
       <mesh geometry={geo} renderOrder={1}>
-        <meshPhysicalMaterial
+        <meshStandardMaterial
           color={design.liquid.color}
           emissive={design.liquid.color}
-          emissiveIntensity={0.7}
-          transmission={0.08}
-          thickness={6}
-          roughness={0.08}
-          metalness={0}
-          ior={1.4}
-          attenuationColor={design.liquid.color}
-          attenuationDistance={2.4}
-          envMapIntensity={0.55}
-          specularIntensity={0.8}
+          emissiveIntensity={0.42}
+          roughness={0.22}
+          metalness={0.02}
           transparent
-          clippingPlanes={[plane]}
-          clipShadows
+          opacity={0.96}
+          depthWrite
+          polygonOffset
+          polygonOffsetFactor={1}
+          polygonOffsetUnits={1}
         />
       </mesh>
-      <mesh position={[0, surface, 0]} rotation={[-Math.PI / 2, 0, 0]} scale={[1, rz / rx, 1]} renderOrder={1}>
-        <circleGeometry args={[rx, 40]} />
-        <meshPhysicalMaterial
-          color={design.liquid.color}
-          emissive={design.liquid.color}
-          emissiveIntensity={1.15}
-          roughness={0.04}
-          metalness={0.08}
-          transmission={0.12}
-          transparent
-          opacity={0.98}
-        />
-      </mesh>
-      <mesh position={[0, Math.max(6, surface) / 2, 0]} renderOrder={1}>
-        <cylinderGeometry args={[rx * 0.78, rx * 0.86, Math.max(8, surface - 3), 32]} />
-        <meshStandardMaterial color={design.liquid.color} emissive={design.liquid.color} emissiveIntensity={0.72} roughness={0.45} />
-      </mesh>
-      <pointLight position={[0, Math.max(8, surface * 0.55), 0]} color={design.liquid.color} intensity={4} distance={90} decay={2} />
+      <pointLight position={[0, Math.max(8, surface * 0.55), 0]} color={design.liquid.color} intensity={3.2} distance={70} decay={2} />
     </PartShell>
   );
 }
@@ -360,7 +337,7 @@ function CapPart() {
     <PartShell part="cap" index={1} home={[0, fit.capBottom, 0]} explode={fit.explode.cap} visible={design.cap.visible && onStage} variantKey={spec.id}>
       <mesh geometry={geo}>
         <FinishMaterial finish={design.cap.finish} color={design.cap.color} flat={spec.faceted} glass={glass} />
-        <HotOutline part="cap" />
+        {design.cap.finish !== "clear" && <HotOutline part="cap" />}
       </mesh>
     </PartShell>
   );
@@ -487,24 +464,22 @@ function LabelPart() {
     return map;
   }, [canvas]);
   useEffect(() => () => texture.dispose(), [texture]);
-  const round = bottle.section === "circle" || bottle.section === "pebble";
-  const plate = useDisposable(() => {
-    if (spec.plate === "band" && round) return curvedPlate(fit.labelW, fit.labelH, design.bottle.depthMm / 2);
-    if (spec.plate === "circle") return new THREE.CircleGeometry(Math.min(fit.labelW, fit.labelH) / 2, 40);
-    if (spec.plate === "diamond") {
-      const shape = new THREE.Shape();
-      shape.moveTo(0, fit.labelH / 2);
-      shape.lineTo(fit.labelW / 2, 0);
-      shape.lineTo(0, -fit.labelH / 2);
-      shape.lineTo(-fit.labelW / 2, 0);
-      shape.closePath();
-      return new THREE.ShapeGeometry(shape);
-    }
-    return new THREE.PlaneGeometry(fit.labelW, fit.labelH);
-  }, [spec.plate, fit.labelW, fit.labelH, round, design.bottle.depthMm]);
-  const z = spec.plate === "band" && round ? design.bottle.depthMm / 2 + 0.4 : fit.labelZ;
+  const plate = useDisposable(() => buildLabelPatch({
+    height: design.bottle.heightMm,
+    width: design.bottle.widthMm,
+    depth: design.bottle.depthMm,
+    section: bottle.section,
+    softness: bottle.softness,
+    faceted: bottle.faceted,
+    neckR: fit.neckR,
+    profile: bottle.profile,
+    shoulder: bottle.shoulder,
+    yCenter: fit.labelY,
+    patchH: fit.labelH,
+    patchW: fit.labelW,
+  }), [fit.labelW, fit.labelH, fit.labelY, fit.neckR, design.bottle.heightMm, design.bottle.widthMm, design.bottle.depthMm, bottle]);
   return (
-    <PartShell part="label" index={4} home={[0, fit.labelY, z]} explode={fit.explode.label} visible={design.label.visible && onStage} variantKey={spec.id + design.label.text}>
+    <PartShell part="label" index={4} home={[0, fit.labelY, fit.labelZ]} explode={fit.explode.label} visible={design.label.visible && onStage} variantKey={spec.id + design.label.text + bottle.id}>
       <mesh geometry={plate} renderOrder={3}>
         <meshPhysicalMaterial
           color={design.label.color}
@@ -513,11 +488,14 @@ function LabelPart() {
           envMapIntensity={0.55}
           clearcoat={spec.application === "foil" ? 0.4 : 0.08}
           clearcoatRoughness={0.35}
+          polygonOffset
+          polygonOffsetFactor={-2}
+          polygonOffsetUnits={-2}
         />
         <HotOutline part="label" />
       </mesh>
-      <mesh geometry={plate} position={[0, 0, 0.35]} renderOrder={4}>
-        <meshBasicMaterial map={texture} transparent depthWrite={false} toneMapped />
+      <mesh geometry={plate} renderOrder={4}>
+        <meshBasicMaterial map={texture} transparent depthWrite={false} toneMapped polygonOffset polygonOffsetFactor={-4} polygonOffsetUnits={-4} />
       </mesh>
     </PartShell>
   );

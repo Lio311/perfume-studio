@@ -15,6 +15,8 @@ export interface SweepArgs {
   shoulder: number;
   inset?: number;
   closedTop?: boolean;
+  /** Stop the sweep here, still using `height` for the profile. Keeps liquid inside the glass. */
+  limitY?: number;
 }
 
 function sectionPoint(
@@ -122,9 +124,10 @@ export function buildBottleGeometry(args: SweepArgs): THREE.BufferGeometry {
     }
   };
 
+  const topY = Math.min(height, Math.max(1.2, args.limitY ?? height));
   let prev = ringAt(0);
   for (let i = 1; i <= ySteps; i++) {
-    const y = (i / ySteps) * height;
+    const y = (i / ySteps) * topY;
     const ring = ringAt(y);
     connect(prev, ring);
     prev = ring;
@@ -138,7 +141,7 @@ export function buildBottleGeometry(args: SweepArgs): THREE.BufferGeometry {
 
   if (args.closedTop) {
     const topCenter = positions.length / 3;
-    positions.push(0, height, 0);
+    positions.push(0, topY, 0);
     uvs.push(0.5, 1);
     for (let a = 0; a < aSteps; a++) indices.push(topCenter, prev + a, prev + a + 1);
   } else {
@@ -220,6 +223,57 @@ export function buildCapGeometry(
   geo.setAttribute("uv", new THREE.Float32BufferAttribute(uvs, 2));
   geo.setIndex(indices);
   return orientOutward(geo);
+}
+
+/** A decal on the +Z face of the same sweep the glass uses, in label-local space. */
+export function buildLabelPatch(args: SweepArgs & { yCenter: number; patchH: number; patchW: number }): THREE.BufferGeometry {
+  const height = Math.max(12, args.height);
+  const width = Math.max(10, args.width);
+  const depth = Math.max(10, args.depth);
+  const neckR = Math.max(3, args.neckR);
+  const y0 = Math.max(2.5, args.yCenter - args.patchH / 2);
+  const y1 = Math.min(height - 2, Math.max(y0 + 4, args.yCenter + args.patchH / 2));
+  const mid = (y0 + y1) / 2;
+  const midSample = bottleRadii(mid, height, width, depth, args.profile, args.shoulder, neckR);
+  const half = Math.min(Math.max(6, args.patchW / 2), midSample.rx * 0.86);
+  let lo = 0.08;
+  let hi = Math.PI * 0.46;
+  for (let i = 0; i < 14; i += 1) {
+    const span = (lo + hi) / 2;
+    const [x] = sectionPoint(args.section, Math.PI / 2 - span, midSample.rx, midSample.rz, args.softness, midSample.morph, mid);
+    if (Math.abs(x) < half) lo = span;
+    else hi = span;
+  }
+  const span = lo;
+  const anchor = bottleRadii(args.yCenter, height, width, depth, args.profile, args.shoulder, neckR);
+  const ySteps = 12;
+  const aSteps = 20;
+  const positions: number[] = [];
+  const uvs: number[] = [];
+  const indices: number[] = [];
+  for (let yi = 0; yi <= ySteps; yi += 1) {
+    const y = y0 + ((y1 - y0) * yi) / ySteps;
+    const sample = bottleRadii(y, height, width, depth, args.profile, args.shoulder, neckR);
+    for (let ai = 0; ai <= aSteps; ai += 1) {
+      const ang = Math.PI / 2 - span + ((ai / aSteps) * span * 2);
+      const [x, z] = sectionPoint(args.section, ang, sample.rx, sample.rz, args.softness, sample.morph, y);
+      positions.push(x, y - args.yCenter, z - anchor.rz);
+      uvs.push(ai / aSteps, yi / ySteps);
+    }
+  }
+  const stride = aSteps + 1;
+  for (let yi = 0; yi < ySteps; yi += 1) {
+    for (let ai = 0; ai < aSteps; ai += 1) {
+      const i0 = yi * stride + ai;
+      indices.push(i0, i0 + stride, i0 + 1, i0 + 1, i0 + stride, i0 + stride + 1);
+    }
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+  geo.setAttribute("uv", new THREE.Float32BufferAttribute(uvs, 2));
+  geo.setIndex(indices);
+  geo.computeVertexNormals();
+  return geo;
 }
 
 export function curvedPlate(width: number, height: number, radius: number): THREE.BufferGeometry {

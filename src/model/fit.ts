@@ -1,5 +1,6 @@
 import { bottleById, boxById, capById, collarById, logoById, pumpById } from "./catalog.ts";
 import { NECKS, neckRadius } from "./necks.ts";
+import { bottleRadii } from "./sample.ts";
 import type { Design, PartKey } from "./types.ts";
 
 export interface Fit {
@@ -83,10 +84,17 @@ export function computeFit(design: Design, exploded = false): Fit {
     slim: [0.78, 0.16],
   };
   const [fw, fh] = fractions[logo.plate];
-  const labelW = logo.widthMm ? Math.min(bottleW - 2, logo.widthMm) : Math.min(bottleW - 6, bottleW * fw * design.label.scale);
-  const labelH = logo.heightMm ? Math.min(shoulderY * 0.9, logo.heightMm) : Math.min(shoulderY * 0.8, shoulderY * fh * design.label.scale);
-  const labelY = Math.max(labelH / 2 + 4, shoulderY * 0.46);
-  const labelZ = bottleD / 2 + 0.55;
+  const labelY = Math.max(12, shoulderY * 0.46);
+  const face = bottleRadii(labelY, bottleH, bottleW, bottleD, bottle.profile, bottle.shoulder, neckR);
+  const labelW = Math.min(
+    face.rx * 1.7,
+    logo.widthMm ? Math.min(bottleW - 2, logo.widthMm) : Math.min(bottleW - 6, bottleW * fw * design.label.scale),
+  );
+  const labelH = Math.min(
+    Math.max(8, shoulderY * 0.72),
+    logo.heightMm ? logo.heightMm : shoulderY * fh * design.label.scale,
+  );
+  const labelZ = face.rz + 0.7;
 
   const contentH = bottleH + Math.max(0, capBottom + capH - bottleH);
   const contentW = Math.max(bottleW, capW);

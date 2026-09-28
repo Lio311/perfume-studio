@@ -191,6 +191,8 @@ export function SupplierImport() {
         {busy && <p className="hint">{lang === "he" ? "קורא עמודים…" : "Reading pages…"}</p>}
         {error && <p className="hint">{error}</p>}
         {noText && <p className="hint">{t.noText}</p>}
+        <div className="supplier-body">
+          <div className="supplier-table">
         {rows.length > 0 && (
           <div className="review-wrap" data-review>
             <table className="review-table">
@@ -233,6 +235,8 @@ export function SupplierImport() {
             </table>
           </div>
         )}
+          </div>
+          <div className="supplier-preview">
         {page && current && (
           <div className="crop-block">
             <p className="hint">{t.cropHint}</p>
@@ -260,9 +264,11 @@ export function SupplierImport() {
             <input type="file" accept="image/*" hidden onChange={(event) => {
               const file = event.target.files?.[0];
               if (file) addPhoto(file, current.id);
-            }} />
+            }}             />
           </label>
         )}
+          </div>
+        </div>
         <div className="modal-actions">
           <button type="button" className="spec-export" data-add-library disabled={!rows.length} onClick={commit}>{t.addToLibrary}</button>
         </div>
