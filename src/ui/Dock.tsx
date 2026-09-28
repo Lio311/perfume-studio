@@ -31,6 +31,10 @@ export function Dock() {
   const mode = useLab((s) => s.mode);
   const units = useLab((s) => s.units);
   const setUnits = useLab((s) => s.setUnits);
+  const stage = useLab((s) => s.stage);
+  const boxOpen = useLab((s) => s.boxOpen);
+  const setBoxOpen = useLab((s) => s.setBoxOpen);
+  const resetView = useLab((s) => s.resetView);
   return (
     <div className="dock" dir={lang === "he" ? "rtl" : "ltr"}>
       <span className="dock-label">{t.explode}</span>
@@ -68,6 +72,14 @@ export function Dock() {
       {(aimed || solo) && (
         <button type="button" data-back onClick={() => showFull()}>
           {t.back}
+        </button>
+      )}
+      <button type="button" data-reset-view onClick={() => resetView()}>
+        {t.resetViewBtn}
+      </button>
+      {stage !== "bottle" && (
+        <button type="button" data-open-box className={boxOpen ? "is-on" : ""} onClick={() => setBoxOpen(!boxOpen)}>
+          {boxOpen ? t.closeBox : t.openBox}
         </button>
       )}
       <button type="button" className={present ? "is-on" : ""} onClick={() => setPresent(!present)} title={t.kPresent}>

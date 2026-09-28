@@ -67,13 +67,17 @@ function expandFrame(box: THREE.Box3, frame: ReturnType<typeof frameFor>, explod
   box.expandByPoint(new THREE.Vector3(cx + hx, cy + hy, cz + hz));
 }
 
-export function assemblyBounds(design: Design, explode: number, stage: StageMode = "bottle"): THREE.Box3 {
+export function assemblyBounds(design: Design, explode: number, stage: StageMode = "bottle", lidOpen = false): THREE.Box3 {
   const fit = computeFit(design, explode > 0.45);
   const box = new THREE.Box3();
   if (stage === "box") {
     const frame = posedFrame("box", fit, "box");
     expandFrame(box, frame, explode, 4);
     box.max.y += explode * fit.boxH * 0.42;
+    if (lidOpen) {
+      box.max.y += fit.boxH * 0.85;
+      box.min.z -= fit.boxD * 0.55;
+    }
     return box;
   }
   for (const part of PARTS) {
@@ -88,7 +92,7 @@ export function assemblyBounds(design: Design, explode: number, stage: StageMode
   return box;
 }
 
-export function partBounds(design: Design, explode: number, part: PartKey, stage: StageMode, solo = false): THREE.Box3 {
+export function partBounds(design: Design, explode: number, part: PartKey, stage: StageMode, solo = false, lidOpen = false): THREE.Box3 {
   const fit = computeFit(design, explode > 0.45);
   const frame = posedFrame(part, fit, stage);
   if (solo) {
@@ -111,6 +115,10 @@ export function partBounds(design: Design, explode: number, part: PartKey, stage
   box.min.z = Math.min(box.min.z, cz - minHalf);
   box.max.z = Math.max(box.max.z, cz + minHalf);
   if (stage === "box" && part === "box") box.max.y += explode * fit.boxH * 0.28;
+  if (lidOpen && part === "box") {
+    box.max.y += fit.boxH * 0.85;
+    box.min.z -= fit.boxD * 0.55;
+  }
   return box;
 }
 

@@ -189,6 +189,9 @@ const he = {
   unitMm: "מ״מ",
   unitCm: "ס״מ",
   unitIn: "אינץ׳",
+  resetViewBtn: "איפוס מבט",
+  openBox: "פתח קופסה",
+  closeBox: "סגור קופסה",
 };
 
 const en: typeof he = {
@@ -380,6 +383,9 @@ const en: typeof he = {
   unitMm: "mm",
   unitCm: "cm",
   unitIn: "in",
+  resetViewBtn: "Reset view",
+  openBox: "Open box",
+  closeBox: "Close box",
 };
 
 export const copy = { he, en };

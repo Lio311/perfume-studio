@@ -96,18 +96,17 @@ const CLEAR_FRAG = `
   void main() {
     vec3 N = normalize(vNormal);
     vec3 V = normalize(cameraPosition - vWorld);
-    float fres = pow(1.0 - max(dot(N, V), 0.0), 2.15);
-    vec3 L = normalize(vec3(0.35, 0.82, 0.55));
-    vec3 R = reflect(-L, N);
-    float spec = pow(max(dot(R, V), 0.0), 56.0);
-    vec3 rimLight = normalize(vec3(-0.7, 0.35, -0.4));
-    float rim = pow(1.0 - max(dot(N, normalize(V + rimLight)), 0.0), 2.4);
-    vec3 glass = vec3(0.96, 0.94, 0.90);
-    vec3 gold = vec3(1.0, 0.86, 0.58);
-    float band = pow(max(sin(vWorld.x * 0.16 + vWorld.y * 0.09) * sin(vWorld.z * 0.13 + vWorld.y * 0.06), 0.0), 2.0);
-    vec3 color = mix(glass, gold, fres * 0.45) + gold * rim * 0.35 + vec3(1.0, 0.97, 0.9) * spec + gold * band * fres * 0.28;
-    float alpha = 0.045 + fres * 0.62 + spec * 0.35;
-    gl_FragColor = vec4(color, clamp(alpha, 0.0, 0.92) * uFade);
+    float ndv = max(dot(N, V), 0.0);
+    float fres = pow(1.0 - ndv, 2.45);
+    vec3 R = reflect(-V, N);
+    float envH = clamp(R.y * 0.5 + 0.58, 0.0, 1.0);
+    vec3 env = mix(vec3(0.74, 0.77, 0.81), vec3(0.98, 0.985, 0.99), envH);
+    vec3 L = normalize(vec3(0.22, 0.92, 0.34));
+    float spec = pow(max(dot(reflect(-L, N), V), 0.0), 70.0);
+    vec3 color = mix(env * 0.42, vec3(0.97, 0.98, 0.99), fres);
+    color += vec3(1.0) * spec * 0.9;
+    float alpha = 0.02 + fres * 0.78 + spec * 0.42;
+    gl_FragColor = vec4(color, clamp(alpha, 0.0, 0.86) * uFade);
   }
 `;
 

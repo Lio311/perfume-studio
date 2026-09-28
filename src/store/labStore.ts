@@ -87,6 +87,7 @@ interface LabState {
   present: boolean;
   palette: boolean;
   help: boolean;
+  boxOpen: boolean;
   select: (part: PartKey | null) => void;
   hover: (part: PartKey | null, x?: number, y?: number) => void;
   patch: (part: PartKey, partial: Record<string, unknown>) => void;
@@ -130,6 +131,7 @@ interface LabState {
   setPresent: (on: boolean) => void;
   setPalette: (on: boolean) => void;
   setHelp: (on: boolean) => void;
+  setBoxOpen: (open: boolean) => void;
   setUnits: (unit: "mm" | "cm" | "in") => void;
   applyVoiceParam: (value: string | null) => void;
 }
@@ -291,7 +293,8 @@ export const useLab = create<LabState>()(
       present: false,
       palette: false,
       help: false,
-      theme: "dark",
+      boxOpen: false,
+      theme: "light",
       lang: "he",
       libraryOpen: false,
       sideOpen: false,
@@ -390,7 +393,14 @@ export const useLab = create<LabState>()(
           saved: [{ id: uid("cfg"), name: state.lang === "he" ? "עותק" : "Copy", design: structuredClone(state.design), thumb: "", createdAt: Date.now() }, ...state.saved].slice(0, 24),
         })),
       toggleRotate: () => set((state) => ({ autoRotate: !state.autoRotate })),
-      resetView: () => set((state) => ({ viewPreset: "home", viewToken: state.viewToken + 1 })),
+      resetView: () =>
+        set((state) => ({
+          viewPreset: "home",
+          viewToken: state.viewToken + 1,
+          selected: null,
+          aimed: false,
+          solo: null,
+        })),
       setTheme: (theme) => set({ theme }),
       setLang: (lang) => set({ lang }),
       setLibraryOpen: (libraryOpen) => set({ libraryOpen }),
@@ -462,16 +472,18 @@ export const useLab = create<LabState>()(
       setUnits: (units) => set({ units }),
       setPalette: (palette) => set({ palette, help: false }),
       setHelp: (help) => set({ help, palette: false }),
+      setBoxOpen: (boxOpen) => set({ boxOpen }),
       applyVoiceParam: (value: string | null) => set({ voice: parseVoiceParam(value) }),
     }),
     {
       name: "perfume-lab-v1",
-      version: 2,
+      version: 3,
       migrate: (persisted, version) => {
-        const state = persisted as { design?: Design };
+        const state = persisted as { design?: Design; theme?: ThemeId };
         if (version < 2 && state.design?.cap.variantId === "cap-cyl-32" && state.design.label.text === "Nº 01") {
           state.design = createDefaultDesign();
         }
+        if (version < 3) state.theme = "light";
         return state;
       },
       partialize: (state) => ({

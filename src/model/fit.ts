@@ -94,7 +94,7 @@ export function computeFit(design: Design, exploded = false): Fit {
     Math.max(8, shoulderY * 0.72),
     logo.heightMm ? logo.heightMm : shoulderY * fh * design.label.scale,
   );
-  const labelZ = face.rz + 0.7;
+  const labelZ = face.rz + 1.15;
 
   const contentH = bottleH + Math.max(0, capBottom + capH - bottleH);
   const contentW = Math.max(bottleW, capW);

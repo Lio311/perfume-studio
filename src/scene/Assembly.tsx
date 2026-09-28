@@ -564,6 +564,23 @@ function LabelPart() {
     patchH: fit.labelH,
     patchW: fit.labelW,
   }), [fit.labelW, fit.labelH, fit.labelY, fit.neckR, design.bottle.heightMm, design.bottle.widthMm, design.bottle.depthMm, bottle]);
+  const inkGeo = useDisposable(() => {
+    const geometry = plate.clone();
+    const pos = geometry.attributes.position;
+    const nor = geometry.attributes.normal;
+    if (nor) {
+      for (let i = 0; i < pos.count; i += 1) {
+        pos.setXYZ(
+          i,
+          pos.getX(i) + nor.getX(i) * 0.28,
+          pos.getY(i) + nor.getY(i) * 0.28,
+          pos.getZ(i) + nor.getZ(i) * 0.28,
+        );
+      }
+      pos.needsUpdate = true;
+    }
+    return geometry;
+  }, [plate]);
   return (
     <PartShell part="label" index={4} home={[0, fit.labelY, fit.labelZ]} explode={fit.explode.label} visible={design.label.visible && onStage} variantKey={spec.id + design.label.text + bottle.id}>
       <mesh geometry={plate} renderOrder={3}>
@@ -580,7 +597,7 @@ function LabelPart() {
         />
         <GoldRim part="label" stamp={spec.id + design.label.text} />
       </mesh>
-      <mesh geometry={plate} renderOrder={4}>
+      <mesh geometry={inkGeo} renderOrder={4}>
         <meshBasicMaterial map={texture} transparent depthWrite={false} toneMapped polygonOffset polygonOffsetFactor={-4} polygonOffsetUnits={-4} />
       </mesh>
     </PartShell>
@@ -637,6 +654,104 @@ function BrandPlate({ w, y, z }: { w: number; y: number; z: number }) {
   );
 }
 
+const LINING = "#e7e4df";
+
+function liningMaterial() {
+  return <meshStandardMaterial color={LINING} roughness={0.92} metalness={0} />;
+}
+
+function CartonShell({
+  w,
+  h,
+  d,
+  wall,
+  finish,
+  color,
+}: {
+  w: number;
+  h: number;
+  d: number;
+  wall: number;
+  finish: Parameters<typeof FinishMaterial>[0]["finish"];
+  color: string;
+}) {
+  const y = h / 2;
+  return (
+    <group>
+      <mesh position={[0, wall / 2, 0]}>
+        <boxGeometry args={[w, wall, d]} />
+        <FinishMaterial finish={finish} color={color} />
+        <GoldRim part="box" stamp="box" />
+      </mesh>
+      <mesh position={[0, y, -d / 2 + wall / 2]}>
+        <boxGeometry args={[w, h, wall]} />
+        <FinishMaterial finish={finish} color={color} />
+      </mesh>
+      <mesh position={[0, y, d / 2 - wall / 2]}>
+        <boxGeometry args={[w, h, wall]} />
+        <FinishMaterial finish={finish} color={color} />
+      </mesh>
+      <mesh position={[-w / 2 + wall / 2, y, 0]}>
+        <boxGeometry args={[wall, h, d - wall * 2]} />
+        <FinishMaterial finish={finish} color={color} />
+      </mesh>
+      <mesh position={[w / 2 - wall / 2, y, 0]}>
+        <boxGeometry args={[wall, h, d - wall * 2]} />
+        <FinishMaterial finish={finish} color={color} />
+      </mesh>
+      <mesh position={[0, wall + 0.35, 0]}>
+        <boxGeometry args={[w - wall * 2 - 0.8, 0.5, d - wall * 2 - 0.8]} />
+        {liningMaterial()}
+      </mesh>
+      <mesh position={[0, h * 0.5, -d / 2 + wall + 0.3]}>
+        <boxGeometry args={[w - wall * 2 - 1.2, h - wall - 1, 0.45]} />
+        {liningMaterial()}
+      </mesh>
+      <mesh position={[-w / 2 + wall + 0.25, h * 0.5, 0]}>
+        <boxGeometry args={[0.45, h - wall - 1, d - wall * 2 - 1.4]} />
+        {liningMaterial()}
+      </mesh>
+      <mesh position={[w / 2 - wall - 0.25, h * 0.5, 0]}>
+        <boxGeometry args={[0.45, h - wall - 1, d - wall * 2 - 1.4]} />
+        {liningMaterial()}
+      </mesh>
+    </group>
+  );
+}
+
+function BottleTray({ w, d, holeW, holeD, y }: { w: number; d: number; holeW: number; holeD: number; y: number }) {
+  const geo = useMemo(() => {
+    const shape = new THREE.Shape();
+    const hw = w / 2;
+    const hd = d / 2;
+    shape.moveTo(-hw, -hd);
+    shape.lineTo(hw, -hd);
+    shape.lineTo(hw, hd);
+    shape.lineTo(-hw, hd);
+    shape.closePath();
+    const hole = new THREE.Path();
+    const rx = Math.min(hw * 0.78, Math.max(8, holeW / 2));
+    const ry = Math.min(hd * 0.78, Math.max(8, holeD / 2));
+    hole.absellipse(0, 0, rx, ry, 0, Math.PI * 2, true, 0);
+    shape.holes.push(hole);
+    const extruded = new THREE.ExtrudeGeometry(shape, { depth: 5.2, bevelEnabled: false, curveSegments: 28 });
+    extruded.rotateX(-Math.PI / 2);
+    extruded.computeVertexNormals();
+    return extruded;
+  }, [w, d, holeW, holeD]);
+  useEffect(() => () => geo.dispose(), [geo]);
+  return (
+    <mesh geometry={geo} position={[0, y, 0]} castShadow={false}>
+      <meshStandardMaterial color="#efeae4" roughness={0.84} metalness={0} />
+    </mesh>
+  );
+}
+
+function stopLid(event: { stopPropagation: () => void }) {
+  event.stopPropagation();
+  markPartPointer();
+}
+
 function BoxFormMesh({
   form,
   w,
@@ -652,33 +767,54 @@ function BoxFormMesh({
   finish: Parameters<typeof FinishMaterial>[0]["finish"];
   color: string;
 }) {
-  const wall = 1.6;
+  const wall = Math.max(1.8, Math.min(w, d) * 0.04);
   const stage = useLab((s) => s.stage);
+  const open = useLab((s) => s.boxOpen);
   const blueprint = useLab((s) => s.blueprint);
-  const clock = useContext(Clock);
+  const bottleW = useLab((s) => s.design.bottle.widthMm);
+  const bottleD = useLab((s) => s.design.bottle.depthMm);
   const lid = useRef<THREE.Group>(null);
-  const insert = useRef<THREE.Group>(null);
-  const drawer = useRef<THREE.Group>(null);
-  const hasLid = form === "rigid" || form === "magnetic" || form === "coffret";
+  const mover = useRef<THREE.Group>(null);
+  const amount = useRef(0);
+  const hasLid = form === "rigid" || form === "magnetic" || form === "coffret" || form === "window";
+  const slides = form === "drawer";
+  const lifts = form === "sleeve" || form === "tube";
   const lidH = form === "coffret" ? h * 0.34 : h * 0.28;
-  useFrame(() => {
-    const amount = stage === "box" ? clock.current : 0;
-    if (lid.current) {
-      const rest = stage === "together" && (form === "magnetic" || form === "coffret") ? 0.22 : 0;
-      lid.current.rotation.x = hasLid ? rest + (stage === "box" ? amount * 1.05 : 0) : 0;
+  useFrame((_, dt) => {
+    const live = stage !== "bottle" && open ? 1 : 0;
+    amount.current = THREE.MathUtils.damp(amount.current, live, 5.5, dt);
+    const a = amount.current;
+    if (lid.current) lid.current.rotation.x = hasLid ? -1.2 * a : 0;
+    if (mover.current) {
+      const restY = form === "sleeve" ? h / 2 : 0;
+      mover.current.position.z = slides ? a * d * 0.62 : 0;
+      mover.current.position.y = restY + (lifts ? a * h * 0.55 : 0);
     }
-    if (insert.current) insert.current.position.y = 3 + amount * Math.min(26, h * 0.2);
-    if (drawer.current) drawer.current.position.x = (stage === "box" ? amount : 0.16) * w * 0.48;
   });
+  const toggleLid = (event: { stopPropagation: () => void }) => {
+    event.stopPropagation();
+    const state = useLab.getState();
+    state.setBoxOpen(!state.boxOpen);
+  };
   if (form === "tube") {
     return (
       <group>
-        <mesh position={[0, h / 2, 0]}>
-          <cylinderGeometry args={[Math.min(w, d) / 2, Math.min(w, d) / 2, h, 48, 1, true]} />
-          <FinishMaterial finish={finish} color={color} />
-          <GoldRim part="box" stamp="box" />
+        <group ref={mover}>
+          <mesh
+            position={[0, h / 2, 0]}
+            onPointerDown={stopLid}
+            onClick={toggleLid}
+          >
+            <cylinderGeometry args={[Math.min(w, d) / 2, Math.min(w, d) / 2, h, 48, 1, true]} />
+            <FinishMaterial finish={finish} color={color} />
+            <GoldRim part="box" stamp="box" />
+          </mesh>
+          <BrandPlate w={w} y={h * 0.62} z={Math.min(w, d) / 2 + 0.4} />
+        </group>
+        <mesh position={[0, wall / 2, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+          <circleGeometry args={[Math.min(w, d) / 2 - 1.2, 40]} />
+          {liningMaterial()}
         </mesh>
-        <BrandPlate w={w} y={h * 0.62} z={Math.min(w, d) / 2 + 0.4} />
       </group>
     );
   }
@@ -689,61 +825,79 @@ function BoxFormMesh({
           <FinishMaterial finish={finish} color={color} />
           <GoldRim part="box" stamp="box" />
         </RoundedBox>
+        <BottleTray w={w * 0.86} d={d * 0.86} holeW={bottleW} holeD={bottleD} y={Math.max(16, h * 0.18) + 1} />
         <BrandPlate w={w} y={Math.max(18, h * 0.18) + 1} z={d / 2 + 0.4} />
       </group>
     );
   }
   if (form === "sleeve") {
     return (
-      <group position={[0, h / 2, 0]}>
-        <mesh position={[0, 0, -d / 2 + wall / 2]}><boxGeometry args={[w, h, wall]} /><FinishMaterial finish={finish} color={color} /><GoldRim part="box" stamp="box" /></mesh>
-        <mesh position={[-w / 2 + wall / 2, 0, 0]}><boxGeometry args={[wall, h, d]} /><FinishMaterial finish={finish} color={color} /></mesh>
-        <mesh position={[w / 2 - wall / 2, 0, 0]}><boxGeometry args={[wall, h, d]} /><FinishMaterial finish={finish} color={color} /></mesh>
-        <BrandPlate w={w} y={h * 0.12} z={0.4} />
+      <group>
+        <mesh position={[0, wall / 2, 0]}>
+          <boxGeometry args={[w * 0.92, wall, d * 0.92]} />
+          {liningMaterial()}
+        </mesh>
+        <BottleTray w={w * 0.78} d={d * 0.78} holeW={bottleW} holeD={bottleD} y={wall + 0.4} />
+        <group ref={mover} position={[0, h / 2, 0]}>
+          <mesh position={[0, 0, -d / 2 + wall / 2]} onPointerDown={stopLid} onClick={toggleLid}>
+            <boxGeometry args={[w, h, wall]} />
+            <FinishMaterial finish={finish} color={color} />
+            <GoldRim part="box" stamp="box" />
+          </mesh>
+          <mesh position={[-w / 2 + wall / 2, 0, 0]}><boxGeometry args={[wall, h, d]} /><FinishMaterial finish={finish} color={color} /></mesh>
+          <mesh position={[w / 2 - wall / 2, 0, 0]}><boxGeometry args={[wall, h, d]} /><FinishMaterial finish={finish} color={color} /></mesh>
+          <BrandPlate w={w} y={h * 0.12} z={0.4} />
+        </group>
       </group>
     );
   }
-  const baseH = form === "drawer" ? h * 0.78 : h * (form === "window" ? 1 : 0.72);
+  const baseH = form === "drawer" ? h * 0.78 : h * (form === "window" ? 0.86 : 0.72);
+  const trayY = wall + 1.1;
   return (
     <group>
-      <RoundedBox args={[w, baseH, d]} radius={1.4} smoothness={3} position={[0, baseH / 2, 0]}>
-        <FinishMaterial finish={finish} color={color} />
-        <GoldRim part="box" stamp="box" />
-      </RoundedBox>
+      <CartonShell w={w} h={baseH} d={d} wall={wall} finish={finish} color={color} />
       {form === "rigid" && !blueprint && (
-        <mesh position={[0, baseH * 0.62, 0]}>
-          <boxGeometry args={[w + 1.4, 4.4, d + 1.4]} />
-          <meshStandardMaterial color="#ffe3a4" metalness={1} roughness={0.16} emissive="#c4923a" emissiveIntensity={0.7} />
+        <mesh position={[0, baseH * 0.62, d / 2 + 0.35]}>
+          <boxGeometry args={[w * 0.72, 3.2, 0.7]} />
+          <meshStandardMaterial color="#c4a15a" metalness={1} roughness={0.22} emissive="#8a6a32" emissiveIntensity={0.25} />
         </mesh>
       )}
       {form === "window" && !blueprint && (
-        <mesh position={[0, baseH * 0.55, d / 2 + 0.2]}>
-          <planeGeometry args={[w * 0.62, baseH * 0.48]} />
-          <meshPhysicalMaterial color="#d4b48a" metalness={0.8} roughness={0.3} transparent opacity={0.35} />
+        <mesh position={[0, baseH * 0.55, d / 2 + 0.15]}>
+          <planeGeometry args={[w * 0.62, baseH * 0.42]} />
+          <meshPhysicalMaterial color="#d5dde6" metalness={0} roughness={0.08} transparent opacity={0.28} />
         </mesh>
       )}
       {form !== "drawer" && (
-        <group ref={insert}>
-          <RoundedBox args={[w * 0.82, Math.max(8, baseH * 0.16), d * 0.82]} radius={0.6} smoothness={2} position={[0, 0, 0]}>
-            <FinishMaterial finish={finish} color={color} />
-          </RoundedBox>
-        </group>
+        <BottleTray w={(w - wall * 2) * 0.92} d={(d - wall * 2) * 0.92} holeW={bottleW * 0.92} holeD={bottleD * 0.92} y={trayY} />
       )}
       {form === "drawer" && (
-        <group ref={drawer}>
-          <RoundedBox args={[w * 0.9, baseH * 0.42, d * 0.92]} radius={0.8} smoothness={2} position={[0, baseH * 0.28, 0]}>
+        <group ref={mover}>
+          <mesh position={[0, baseH * 0.22, 0]} onPointerDown={stopLid} onClick={toggleLid}>
+            <boxGeometry args={[w * 0.9, baseH * 0.28, d * 0.9]} />
             <FinishMaterial finish={finish} color={color} />
-          </RoundedBox>
+          </mesh>
+          <BottleTray w={w * 0.72} d={d * 0.72} holeW={bottleW * 0.9} holeD={bottleD * 0.9} y={baseH * 0.36} />
         </group>
       )}
       {hasLid && (
-        <group ref={lid} position={[0, baseH, -d / 2]}>
+        <group
+          ref={lid}
+          position={[0, baseH, -d / 2]}
+          onPointerDown={stopLid}
+          onClick={toggleLid}
+          onDoubleClick={(event) => event.stopPropagation()}
+        >
           <RoundedBox args={[w, lidH, d]} radius={1.2} smoothness={3} position={[0, lidH / 2, d / 2]}>
             <FinishMaterial finish={finish} color={color} />
           </RoundedBox>
+          <mesh position={[0, 0.55, d / 2]}>
+            <boxGeometry args={[w - wall * 2, 0.45, d - wall * 2]} />
+            {liningMaterial()}
+          </mesh>
         </group>
       )}
-      <BrandPlate w={w} y={baseH * 0.58} z={d / 2 + 0.6} />
+      <BrandPlate w={w} y={baseH * 0.42} z={d / 2 + 0.6} />
     </group>
   );
 }

@@ -10,7 +10,8 @@ import type { ViewPreset } from "../store/labStore.ts";
 import { Assembly } from "./Assembly.tsx";
 import { clearPartPointer, consumePartPointer, releaseFocus } from "./focusClick.ts";
 import { assemblyBounds, fitPose, FOCUS_FILL, orbitLimits, partBounds, readStageFrame } from "./framing.ts";
-import { sceneSpan } from "./limits.ts";
+import { cameraProbe, sceneSpan } from "./limits.ts";
+import { decayGlide, emptyGlide, poseBroken, pushGlide, takeStep, type Glide } from "./orbitGlide.ts";
 import { Exposure, PixelRatio, StageFloor, StudioEnv, StudioLights } from "./studio.tsx";
 import { CinematicFloor, EnergyRings, ParticleField, VoiceGrade } from "./voiceScenery.tsx";
 
@@ -28,6 +29,7 @@ const GLIDE_RIGHT = new THREE.Vector3();
 const YAW_Q = new THREE.Quaternion();
 const PITCH_Q = new THREE.Quaternion();
 const ORBIT_TARGET = new THREE.Vector3(0, 48, 0);
+const HOME_FOCUS = new THREE.Vector3(0, 48, 0);
 
 const MAX_POLAR = 1.5;
 
@@ -91,6 +93,7 @@ function frameSignature(width: number, height: number): string {
     design.box.depthMm,
     design.box.variantId,
     design.liquid.visible ? 1 : 0,
+    state.boxOpen ? 1 : 0,
   ].join("|");
 }
 
@@ -154,11 +157,12 @@ function CameraRig() {
 
   const measureRadius = () => {
     const state = useLab.getState();
+    const lid = state.boxOpen && state.stage !== "bottle";
     const box = state.solo
-      ? partBounds(state.design, state.explode, state.solo, state.stage, true)
+      ? partBounds(state.design, state.explode, state.solo, state.stage, true, lid)
       : state.aimed && state.selected
-        ? partBounds(state.design, state.explode, state.selected, state.stage, false)
-        : assemblyBounds(state.design, state.explode, state.stage);
+        ? partBounds(state.design, state.explode, state.selected, state.stage, false, lid)
+        : assemblyBounds(state.design, state.explode, state.stage, lid);
     const sphere = new THREE.Sphere();
     box.getBoundingSphere(sphere);
     radius.current = Math.max(18, sphere.radius);
@@ -183,9 +187,10 @@ function CameraRig() {
 
   const poseFor = (dir: THREE.Vector3, bounds?: THREE.Box3, fill?: number) => {
     const state = useLab.getState();
+    const lid = state.boxOpen && state.stage !== "bottle";
     const box = bounds ?? (state.solo
-      ? partBounds(state.design, state.explode, state.solo, state.stage, true)
-      : assemblyBounds(state.design, state.explode, state.stage));
+      ? partBounds(state.design, state.explode, state.solo, state.stage, true, lid)
+      : assemblyBounds(state.design, state.explode, state.stage, lid));
     const frame = readStageFrame(gl.domElement);
     const fov = camera instanceof THREE.PerspectiveCamera ? camera.fov : 30;
     return fitPose(box, dir, fov, frame, fill);
@@ -193,10 +198,11 @@ function CameraRig() {
 
   const aimPart = (part: PartKey) => {
     const state = useLab.getState();
-    const bounds = partBounds(state.design, state.explode, part, state.stage, state.solo === part);
+    const bounds = partBounds(state.design, state.explode, part, state.stage, state.solo === part, state.boxOpen && state.stage !== "bottle");
     const dir = camera.position.clone().sub(look.current);
     if (dir.length() < 10) dir.copy(direction.current);
     if (dir.y < 0.08) dir.y = 0.16;
+    if (part === "box" && state.boxOpen) dir.y = Math.max(dir.y, 0.72);
     dir.normalize();
     direction.current.copy(dir);
     const pose = poseFor(dir, bounds, FOCUS_FILL);
@@ -207,7 +213,13 @@ function CameraRig() {
 
   const aim = (dir: THREE.Vector3, pullBack = 1) => {
     direction.current.copy(dir);
-    const pose = poseFor(dir);
+    const state = useLab.getState();
+    const framed = dir.clone();
+    if (state.stage !== "bottle" && state.boxOpen && !state.solo) {
+      framed.y = Math.max(framed.y, 0.72);
+      framed.normalize();
+    }
+    const pose = poseFor(framed);
     goalPos.current.copy(pose.position);
     goalTarget.current.copy(pose.target);
     if (pullBack > 1) {
@@ -230,7 +242,56 @@ function CameraRig() {
 
   const controlsRef = useRef(controls);
   controlsRef.current = controls;
-  const glide = useRef({ yaw: 0, pitch: 0, zoom: 0, panX: 0, panY: 0 });
+  const glide = useRef<Glide>(emptyGlide());
+
+  const recoverHome = () => {
+    camera.position.copy(VIEW_DIR.home).multiplyScalar(260).add(HOME_FOCUS);
+    look.current.copy(HOME_FOCUS);
+    camera.up.copy(UP);
+    camera.lookAt(look.current);
+    direction.current.copy(VIEW_DIR.home);
+    fromPos.current.copy(camera.position);
+    fromLook.current.copy(look.current);
+    goalPos.current.copy(camera.position);
+    goalTarget.current.copy(look.current);
+    ORBIT_TARGET.copy(look.current);
+    mode.current = "idle";
+    sceneSpan.flying = false;
+    focused.current = false;
+    const fresh = emptyGlide();
+    glide.current.yaw = fresh.yaw;
+    glide.current.pitch = fresh.pitch;
+    glide.current.zoom = fresh.zoom;
+    glide.current.panX = fresh.panX;
+    glide.current.panY = fresh.panY;
+    const rig = controlsRef.current as { enabled: boolean; target: THREE.Vector3; _lastAngle?: number } | null;
+    if (rig) {
+      rig.target.copy(look.current);
+      rig.enabled = true;
+      rig._lastAngle = 0;
+    }
+  };
+
+  const releaseTween = () => {
+    if (mode.current !== "anim") return;
+    mode.current = "idle";
+    sceneSpan.flying = false;
+    pendingFit.current = false;
+    camera.up.copy(UP);
+    if (!Number.isFinite(look.current.x)) look.current.copy(HOME_FOCUS);
+    camera.lookAt(look.current);
+    const rig = controlsRef.current as { enabled: boolean; target: THREE.Vector3; _lastAngle?: number } | null;
+    if (rig) {
+      rig.target.copy(look.current);
+      rig.enabled = true;
+      rig._lastAngle = 0;
+    }
+    glide.current.yaw = 0;
+    glide.current.pitch = 0;
+    glide.current.zoom = 0;
+    glide.current.panX = 0;
+    glide.current.panY = 0;
+  };
 
   useEffect(() => {
     const el = gl.domElement;
@@ -238,24 +299,23 @@ function CameraRig() {
     const onWheel = (event: WheelEvent) => {
       event.preventDefault();
       event.stopPropagation();
-      if (mode.current === "anim") return;
+      releaseTween();
       const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? 40 : 1;
       const dx = event.deltaX * unit;
       const dy = event.deltaY * unit;
       const pinch = event.ctrlKey || event.metaKey;
       if (event.shiftKey && !pinch) {
-        glide.current.panX = THREE.MathUtils.clamp(glide.current.panX + dx * 0.35, -90, 90);
-        glide.current.panY = THREE.MathUtils.clamp(glide.current.panY + dy * 0.35, -90, 90);
+        pushGlide(glide.current, dx, dy, "pan");
         return;
       }
       if (pinch) {
-        glide.current.zoom = THREE.MathUtils.clamp(glide.current.zoom + dy * 0.0015, -0.14, 0.14);
+        pushGlide(glide.current, dx, dy, "pinch");
         return;
       }
-      glide.current.yaw = THREE.MathUtils.clamp(glide.current.yaw + dx * 0.0034, -0.22, 0.22);
-      glide.current.pitch = THREE.MathUtils.clamp(glide.current.pitch + dy * 0.0022, -0.16, 0.16);
+      pushGlide(glide.current, dx, dy, "orbit");
     };
-      const onDown = (event: PointerEvent) => {
+    const onDown = (event: PointerEvent) => {
+      releaseTween();
       const lab = useLab.getState();
       if (lab.present && lab.autoRotate) useLab.setState({ autoRotate: false });
       const rig = controlsRef.current as { mouseButtons?: { LEFT: number } } | null;
@@ -283,6 +343,7 @@ function CameraRig() {
   }, [gl]);
 
   useFrame((_, delta) => {
+    if (poseBroken(camera.position, look.current, camera.up)) recoverHome();
     const state = useLab.getState();
     const signature = frameSignature(size.width, size.height);
     if (state.fullToken !== seenFull.current) {
@@ -356,44 +417,51 @@ function CameraRig() {
     }
     const limits = measureRadius();
     const glideNow = glide.current;
-    const coasting = Math.abs(glideNow.yaw) + Math.abs(glideNow.pitch) + Math.abs(glideNow.zoom) + Math.abs(glideNow.panX) + Math.abs(glideNow.panY) > 0.0004;
+    const yaw = takeStep(glideNow.yaw, 0.008);
+    const pitch = takeStep(glideNow.pitch, 0.005);
+    const zoom = takeStep(glideNow.zoom, 0.01);
+    const panX = takeStep(glideNow.panX, 1.1);
+    const panY = takeStep(glideNow.panY, 1.1);
+    glideNow.yaw = yaw.rest;
+    glideNow.pitch = pitch.rest;
+    glideNow.zoom = zoom.rest;
+    glideNow.panX = panX.rest;
+    glideNow.panY = panY.rest;
+    const coasting = Math.abs(yaw.step) + Math.abs(pitch.step) + Math.abs(zoom.step) + Math.abs(panX.step) + Math.abs(panY.step) > 0.00002;
     if (coasting && controls && !dragging.current) {
       const target = controls.target;
       GLIDE_OFFSET.copy(camera.position).sub(target);
-      if (Math.abs(glideNow.yaw) + Math.abs(glideNow.pitch) > 0.00004) {
-        YAW_Q.setFromAxisAngle(UP, -glideNow.yaw);
+      if (GLIDE_OFFSET.lengthSq() < 1) GLIDE_OFFSET.set(0, 40, 180);
+      if (Math.abs(yaw.step) + Math.abs(pitch.step) > 0.00002) {
+        YAW_Q.setFromAxisAngle(UP, -yaw.step);
         GLIDE_OFFSET.applyQuaternion(YAW_Q);
         GLIDE_RIGHT.crossVectors(GLIDE_OFFSET, UP);
         if (GLIDE_RIGHT.lengthSq() > 1e-6) {
           GLIDE_RIGHT.normalize();
-          PITCH_Q.setFromAxisAngle(GLIDE_RIGHT, -glideNow.pitch);
+          PITCH_Q.setFromAxisAngle(GLIDE_RIGHT, -pitch.step);
           GLIDE_OFFSET.applyQuaternion(PITCH_Q);
         }
       }
-      if (Math.abs(glideNow.zoom) > 0.00004) {
-        GLIDE_OFFSET.setLength(THREE.MathUtils.clamp(GLIDE_OFFSET.length() * Math.exp(glideNow.zoom), limits.min, limits.max));
+      if (Math.abs(zoom.step) > 0.00002) {
+        const next = GLIDE_OFFSET.length() * Math.exp(zoom.step);
+        GLIDE_OFFSET.setLength(THREE.MathUtils.clamp(Number.isFinite(next) ? next : limits.min, limits.min, limits.max));
       }
       camera.position.copy(target).add(GLIDE_OFFSET);
-      if (Math.abs(glideNow.panX) + Math.abs(glideNow.panY) > 0.02) {
+      if (Math.abs(panX.step) + Math.abs(panY.step) > 0.02) {
         const dist = Math.max(limits.min, GLIDE_OFFSET.length());
-        GLIDE_RIGHT.setFromMatrixColumn(camera.matrixWorld, 0).multiplyScalar(-glideNow.panX * dist * 0.0011);
+        GLIDE_RIGHT.setFromMatrixColumn(camera.matrixWorld, 0).multiplyScalar(-panX.step * dist * 0.0011);
         camera.position.add(GLIDE_RIGHT);
         target.add(GLIDE_RIGHT);
-        OFFSET.setFromMatrixColumn(camera.matrixWorld, 1).multiplyScalar(glideNow.panY * dist * 0.0011);
+        OFFSET.setFromMatrixColumn(camera.matrixWorld, 1).multiplyScalar(panY.step * dist * 0.0011);
         camera.position.add(OFFSET);
         target.add(OFFSET);
       }
       look.current.copy(target);
       ORBIT_TARGET.copy(target);
-      camera.up.lerp(UP, 0.25).normalize();
+      camera.up.copy(UP);
       camera.lookAt(target);
     }
-    const decay = Math.exp(-delta * 7);
-    glideNow.yaw *= decay;
-    glideNow.pitch *= decay;
-    glideNow.zoom *= decay;
-    glideNow.panX *= decay;
-    glideNow.panY *= decay;
+    decayGlide(glideNow, delta);
     tuneNear(camera, camera.position.distanceTo(look.current), radius.current);
     if (state.autoRotate && state.present && controls && !dragging.current) {
       OFFSET.copy(camera.position).sub(controls.target);
@@ -407,26 +475,60 @@ function CameraRig() {
   }, 1);
 
   useFrame(() => {
-    const target = controls?.target ?? look.current;
-    clampOrbit(camera, target, radius.current);
-    if (controls) ORBIT_TARGET.copy(controls.target);
+    const rig = controls as { target: THREE.Vector3; _lastAngle?: number } | null;
+    const target = mode.current === "anim" ? look.current : (rig?.target ?? look.current);
+    if (mode.current !== "anim" && poseBroken(camera.position, target, camera.up)) recoverHome();
+    const live = mode.current === "anim" ? look.current : (rig?.target ?? look.current);
+    clampOrbit(camera, live, radius.current);
+    if (mode.current !== "anim") {
+      if (rig && typeof rig._lastAngle === "number") {
+        rig._lastAngle = THREE.MathUtils.clamp(rig._lastAngle, -0.01, 0.01);
+        if (camera.up.dot(UP) < 0.9) rig._lastAngle = 0;
+      }
+      camera.up.copy(UP);
+      if (camera.position.distanceTo(live) > 1) camera.lookAt(live);
+      look.current.copy(live);
+      if (rig) ORBIT_TARGET.copy(rig.target);
+    }
+    cameraProbe.x = camera.position.x;
+    cameraProbe.y = camera.position.y;
+    cameraProbe.z = camera.position.z;
+    cameraProbe.tx = look.current.x;
+    cameraProbe.ty = look.current.y;
+    cameraProbe.tz = look.current.z;
+    cameraProbe.finite = Number.isFinite(camera.position.x) && Number.isFinite(look.current.x);
+    cameraProbe.flying = sceneSpan.flying;
+    cameraProbe.sig = frameSignature(Math.round(size.width), Math.round(size.height));
   }, -1);
+
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    (window as Window & { __labCam?: typeof cameraProbe }).__labCam = cameraProbe;
+  }, []);
 
   return (
     <TrackballControls
       makeDefault
       target={ORBIT_TARGET}
       staticMoving={false}
-      dynamicDampingFactor={0.12}
-      rotateSpeed={1.15}
-      zoomSpeed={0.42}
-      panSpeed={0.62}
+      dynamicDampingFactor={0.72}
+      rotateSpeed={0.38}
+      zoomSpeed={0.26}
+      panSpeed={0.42}
       minDistance={48}
       maxDistance={2200}
       cursorZoom
       onStart={() => {
         dragging.current = true;
-        mode.current = "idle";
+        if (mode.current === "anim") {
+          mode.current = "idle";
+          sceneSpan.flying = false;
+        }
+        glide.current.yaw = 0;
+        glide.current.pitch = 0;
+        glide.current.zoom = 0;
+        glide.current.panX = 0;
+        glide.current.panY = 0;
       }}
       onEnd={() => {
         dragging.current = false;
@@ -476,10 +578,14 @@ function StageFog() {
   const theme = useLab((s) => s.theme);
   const voice = useLab((s) => s.voice);
   useFrame(() => {
-    const color = theme === "light" ? "#e6e1d8" : voice === 2 ? "#05060a" : "#07080d";
+    if (theme === "light") {
+      scene.fog = null;
+      return;
+    }
+    const color = voice === 2 ? "#05060a" : "#0c0e14";
     const dist = Math.max(80, camera.position.distanceTo(ORBIT_TARGET));
-    const near = dist * 1.45;
-    const far = dist * 3.6;
+    const near = dist * 2.4;
+    const far = dist * 5.2;
     if (!(scene.fog instanceof THREE.Fog)) scene.fog = new THREE.Fog(color, near, far);
     scene.fog.color.set(color);
     scene.fog.near = near;
@@ -494,6 +600,7 @@ function Stage() {
   const blueprint = useLab((s) => s.blueprint);
   const stage = useLab((s) => s.stage);
   const dark = theme.id === "dark";
+  const showGrid = blueprint || (dark && voice !== 2);
   const grid = !dark
     ? { cell: theme.scene.gridCell, section: theme.scene.gridSection }
     : blueprint
@@ -513,7 +620,7 @@ function Stage() {
       <StudioEnv />
       <StudioLights />
       <StageFloor />
-      {dark && voice === 2 ? null : (voice !== 3 || !dark || blueprint) && (
+      {showGrid && (
         <Grid
           args={[400, 400]}
           position={[0, 0, 0]}
@@ -528,7 +635,7 @@ function Stage() {
           infiniteGrid
         />
       )}
-      {stage !== "together" && !(dark && voice === 2) && (
+      {blueprint && stage !== "together" && !(dark && voice === 2) && (
         <Grid
           args={[340, 220]}
           position={[0, 100, stage === "box" ? -150 : -190]}
@@ -550,13 +657,6 @@ function Stage() {
         </>
       )}
       {dark && voice === 3 && <CinematicFloor />}
-      {!dark &&
-        [48, 78].map((radius) => (
-          <mesh key={radius} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.12, 0]}>
-            <ringGeometry args={[radius - 0.4, radius, 96]} />
-            <meshBasicMaterial color="#c4b49a" transparent opacity={0.28} depthWrite={false} />
-          </mesh>
-        ))}
       <Assembly />
       <StageBlank />
       <CameraRig />
