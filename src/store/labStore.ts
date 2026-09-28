@@ -576,7 +576,7 @@ export const useLab = create<LabState>()(
           aimed: false,
           solo: null,
           mode: "assemble",
-          stage: "studio",
+          stage: "bottle",
           present: false,
           explode: 0,
           fullToken: state.fullToken + 1,
