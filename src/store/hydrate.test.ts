@@ -3,7 +3,7 @@ import { hydrateBox } from "../model/boxFields.ts";
 import { setImportedCatalog } from "../model/catalog.ts";
 import { createDefaultDesign } from "../model/design.ts";
 import type { Design, LogoSpec } from "../model/types.ts";
-import { createLabStorage, DEFAULT_BUDGET_BRIEF, mergePersistedLab, migratePersisted, partializeLabState, readStorageValue, resetPersistedPayload, resumeLabStorageWrites, sanitizeDesign, type HydratedSlice } from "./hydrate.ts";
+import { createLabStorage, DEFAULT_BUDGET_BRIEF, LAB_PERSIST_VERSION, mergePersistedLab, migratePersisted, partializeLabState, readStorageValue, resetPersistedPayload, resumeLabStorageWrites, sanitizeDesign, type HydratedSlice } from "./hydrate.ts";
 import { useLab } from "./labStore.ts";
 
 function slice(design: Design = createDefaultDesign()): HydratedSlice {
@@ -98,7 +98,7 @@ describe("saved design hydration", () => {
     expect(merged.design.label.scale).toBe(1.6);
     expect(merged.design.liquid.color).toBe(defaults.liquid.color);
     expect(merged.design.liquid.fill).toBe(0);
-    expect(merged.design.liquid.visible).toBe(true);
+    expect(merged.design.liquid.visible).toBe(defaults.liquid.visible);
     expect(merged.theme).toBe("dark");
     expect(merged.lang).toBe("he");
     expect(merged.chat).toEqual([
@@ -255,6 +255,42 @@ describe("saved design hydration", () => {
     );
     expect(dropped.design.bottle).toEqual(createDefaultDesign().bottle);
     expect(dropped.design.bottle.opacity).toBeUndefined();
+  });
+
+  it("round-trips glass opacity through partialize and hydrate", () => {
+    const memory = new Map<string, string>();
+    vi.stubGlobal("localStorage", {
+      getItem: (key: string) => memory.get(key) ?? null,
+      setItem: (key: string, value: string) => {
+        memory.set(key, value);
+      },
+      removeItem: (key: string) => {
+        memory.delete(key);
+      },
+    });
+    const storage = createLabStorage();
+    const reload = (opacity: number | null) => {
+      const design = createDefaultDesign();
+      design.bottle = { ...design.bottle, finish: "frosted", opacity };
+      const state = partializeLabState({ ...slice(design), selected: "bottle", past: [design] });
+      expect("selected" in state).toBe(false);
+      expect("past" in state).toBe(false);
+      storage.setItem("perfume-lab-v1", { state, version: LAB_PERSIST_VERSION });
+      const loaded = readStorageValue(memory.get("perfume-lab-v1") ?? null);
+      return mergePersistedLab(loaded?.state, slice()).design.bottle.opacity;
+    };
+    expect(reload(0.7)).toBe(0.7);
+    expect(reload(0)).toBe(0);
+    expect(reload(1)).toBe(1);
+    expect(reload(1.8)).toBe(1);
+    expect(reload(-0.4)).toBe(0);
+    expect(reload(null)).toBeNull();
+
+    const bare = createDefaultDesign();
+    const state = partializeLabState(slice(bare));
+    storage.setItem("perfume-lab-v1", { state, version: LAB_PERSIST_VERSION });
+    const loaded = readStorageValue(memory.get("perfume-lab-v1") ?? null);
+    expect(mergePersistedLab(loaded?.state, slice()).design.bottle.opacity).toBeUndefined();
   });
 
   it("finishes hydration for a share link, including a partial or unreadable blob", async () => {
@@ -497,14 +533,14 @@ describe("saved design hydration", () => {
 
     const partial = partializeLabState({
       ...slice(design),
-      brief: { title: "קופסה" },
+      brief: { projectName: "קופסה" },
       cutaway: true,
       quality: "high",
       tierLock: true,
       shareUrl: "https://example.test/#d=1",
       packNotices: [{ kind: "dropped", ref: "x" }],
     });
-    expect(partial.brief).toEqual({ title: "קופסה" });
+    expect(partial.brief).toEqual({ projectName: "קופסה" });
     expect("cutaway" in partial).toBe(false);
     expect("quality" in partial).toBe(false);
     expect("tierLock" in partial).toBe(false);
@@ -545,7 +581,7 @@ describe("saved design hydration", () => {
     expect(merged.design.box.drawerPull).toBe("notch");
     expect(merged.design.box.shape).toEqual({ type: "polygon", sides: 8 });
     expect(merged.design.box.layers.map((layer) => layer.structure)).toEqual(["sleeve", "drawer"]);
-    expect(merged.brief).toEqual(DEFAULT_BUDGET_BRIEF);
+    expect(merged.brief).toEqual({ ...DEFAULT_BUDGET_BRIEF, projectName: "קופסה" });
     expect(merged.cutaway).toBe(false);
     expect(merged.quality).toBe("fallback");
     expect(merged.tierLock).toBe(false);

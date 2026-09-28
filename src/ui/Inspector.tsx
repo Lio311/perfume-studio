@@ -47,10 +47,15 @@ export function Inspector() {
       </section>
     );
   }
+  const wizardPicked = useLab((s) => s.wizardPicked);
+  
   const neckLabel = design.bottle.neck.replace("FEA", "FEA ");
   const badge = !part || part === "liquid" || part === "label" || part === "box"
     ? ""
     : `✓ ${t.fitOk} ${neckLabel}`;
+
+  const isWizard = (design.step ?? 7) < 7;
+  const isPendingWizardPick = isWizard && part && part !== "liquid" && !wizardPicked.has(part);
 
   return (
     <section className={`panel props ${open ? "is-open" : ""}`} dir={lang === "he" ? "rtl" : "ltr"}>
@@ -59,10 +64,11 @@ export function Inspector() {
         <span className="hint">{t.arrows}</span>
       </div>
       {!part && <p className="empty">{t.emptySelect}</p>}
-      {part && hidden && (
+      {isPendingWizardPick && <p className="empty">{lang === "he" ? "אנא בחרו קודם רכיב מהספרייה" : "Please select a part from the library first"}</p>}
+      {part && !isPendingWizardPick && hidden && (
         <p className="hint" data-hidden-design>{lang === "he" ? hidden.he : hidden.en}</p>
       )}
-      {part && (
+      {part && !isPendingWizardPick && (
         <>
           {badge && !hidden && <div className="badge is-fit" dir="ltr">{badge}</div>}
           {!hidden && (

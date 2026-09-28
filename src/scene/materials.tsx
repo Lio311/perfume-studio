@@ -42,7 +42,14 @@ const BLUE_FRAG = `
   }
 `;
 
-function mattePaper(hex: string): { map: THREE.CanvasTexture; bump: THREE.CanvasTexture } {
+/**
+ * Neutral fibre albedo, multiplied by the finish colour.
+ * A white map leaves cream (#f4efe6) no headroom under the studio key, so the face
+ * tone-maps flat. This gray stays a tint, and the fibres are large enough to read.
+ */
+export const MATTE_PAPER_ALBEDO = "#8f887c";
+
+function mattePaper(): { map: THREE.CanvasTexture; bump: THREE.CanvasTexture } {
   const canvas = document.createElement("canvas");
   canvas.width = 256;
   canvas.height = 256;
@@ -51,22 +58,23 @@ function mattePaper(hex: string): { map: THREE.CanvasTexture; bump: THREE.Canvas
   bumpCanvas.width = 256;
   bumpCanvas.height = 256;
   const bumpCtx = bumpCanvas.getContext("2d");
-  const base = new THREE.Color(hex);
   if (ctx && bumpCtx) {
-    ctx.fillStyle = "#ffffff";
+    ctx.fillStyle = MATTE_PAPER_ALBEDO;
     ctx.fillRect(0, 0, 256, 256);
     bumpCtx.fillStyle = "#808080";
     bumpCtx.fillRect(0, 0, 256, 256);
-    const ink = `rgba(${Math.round(base.r * 40)},${Math.round(base.g * 40)},${Math.round(base.b * 40)},0.22)`;
-    ctx.fillStyle = ink;
-    for (let i = 0; i < 1600; i += 1) {
+    for (let i = 0; i < 220; i += 1) {
       const x = Math.random() * 256;
       const y = Math.random() * 256;
-      const w = 1 + Math.random() * 2.2;
-      ctx.globalAlpha = 0.15 + Math.random() * 0.45;
-      ctx.fillRect(x, y, w, 1);
-      bumpCtx.fillStyle = `rgb(${90 + Math.random() * 90},${90 + Math.random() * 90},${90 + Math.random() * 90})`;
-      bumpCtx.fillRect(x, y, w, 1);
+      const len = 16 + Math.random() * 36;
+      const thick = 1.3 + Math.random() * 1.6;
+      const n = Math.random() > 0.5 ? 108 + Math.random() * 18 : 156 + Math.random() * 22;
+      ctx.globalAlpha = 0.32 + Math.random() * 0.28;
+      ctx.fillStyle = `rgb(${n | 0},${Math.max(0, n - 10) | 0},${Math.max(0, n - 18) | 0})`;
+      ctx.fillRect(x, y, len, thick);
+      const bump = n > 140 ? 158 : 96;
+      bumpCtx.fillStyle = `rgb(${bump},${bump},${bump})`;
+      bumpCtx.fillRect(x, y, len, thick);
     }
     ctx.globalAlpha = 1;
   }
@@ -75,9 +83,15 @@ function mattePaper(hex: string): { map: THREE.CanvasTexture; bump: THREE.Canvas
   for (const texture of [map, bump]) {
     texture.wrapS = THREE.RepeatWrapping;
     texture.wrapT = THREE.RepeatWrapping;
-    texture.repeat.set(2.2, 2.2);
+    texture.repeat.set(1.35, 1.35);
   }
   map.colorSpace = THREE.SRGBColorSpace;
+  map.generateMipmaps = false;
+  map.minFilter = THREE.LinearFilter;
+  map.magFilter = THREE.LinearFilter;
+  bump.generateMipmaps = false;
+  bump.minFilter = THREE.LinearFilter;
+  bump.magFilter = THREE.LinearFilter;
   return { map, bump };
 }
 
@@ -165,14 +179,14 @@ export function FinishMaterial({
 }: {
   finish: FinishId;
   color: string;
-  opacity?: number;
+  opacity?: number | null;
   flat?: boolean;
   glass?: boolean;
   section?: boolean;
 }) {
   const wood = useMemo(() => (finish === "wood" ? woodMap() : null), [finish]);
   const leather = useMemo(() => (finish === "leather" ? leatherBump() : null), [finish]);
-  const paper = useMemo(() => (finish === "matteBlack" ? mattePaper(color) : null), [finish, color]);
+  const paper = useMemo(() => (finish === "matteBlack" ? mattePaper() : null), [finish]);
 
   useEffect(() => {
     return () => {
@@ -186,7 +200,7 @@ export function FinishMaterial({
   }, [wood, leather, paper]);
   const glassLike = glass && isGlass(finish);
   const gp = useMemo(
-    () => (glassLike ? computeGlassProps(finish, opacity) : null),
+    () => (glassLike ? computeGlassProps(finish, opacity ?? undefined) : null),
     [glassLike, finish, opacity],
   );
   const metal = finish === "gold" || finish === "silver" || finish === "rose";
@@ -213,7 +227,7 @@ export function FinishMaterial({
   if (blueprint) {
     return <shaderMaterial transparent depthWrite toneMapped={false} uniforms={fade} vertexShader={BLUE_VERT} fragmentShader={BLUE_FRAG} clippingPlanes={planes} />;
   }
-  if (clear && glass && !clearHigh) return <ClearGlass opacity={opacity !== undefined ? opacity : 0.14} color={color} clippingPlanes={planes} />;
+  if (clear && glass && !clearHigh) return <ClearGlass opacity={typeof opacity === "number" ? opacity : 0.14} color={color} clippingPlanes={planes} />;
 
   return (
     <meshPhysicalMaterial
@@ -222,7 +236,7 @@ export function FinishMaterial({
       flatShading={flat}
       map={wood ?? paper?.map ?? undefined}
       bumpMap={leather ?? paper?.bump ?? undefined}
-      bumpScale={leather ? 0.35 : paper ? 0.35 : 0}
+      bumpScale={leather ? 0.35 : paper ? 0.55 : 0}
       emissive="#000000"
       emissiveIntensity={0}
       metalness={metal ? 1 : 0}
@@ -237,7 +251,7 @@ export function FinishMaterial({
       clearcoatRoughness={metal ? 0.12 : 0.04}
       attenuationColor={gp ? color : "#fff8ee"}
       attenuationDistance={gp ? 36 : 160}
-      envMapIntensity={metal ? 1.65 : gp ? 1.7 : matte ? 0.35 : 0.7}
+      envMapIntensity={metal ? 1.65 : gp ? 1.7 : matte ? 0.08 : 0.7}
       clippingPlanes={planes}
       specularIntensity={gp || metal ? 1 : matte ? 0.4 : 0.3}
       transparent={!!gp}

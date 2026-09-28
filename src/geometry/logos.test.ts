@@ -13,6 +13,9 @@ import {
   labelInk,
   labelTypeface,
   layoutLabelLines,
+  cartonMarkSize,
+  cartonTextAspect,
+  paintCartonMark,
   cartonMarkPlate,
   paintLabel,
   paintLabelEmissive,
@@ -254,24 +257,39 @@ describe("label text layout", () => {
     expect(cartonMarkPlate("print", "")).toBe("clear");
     expect(cartonMarkPlate("print", "#f4efe6")).toBe("#f4efe6");
     expect(cartonMarkPlate("decal", "#f4efe6")).toBe("#f4efe6");
+  });
 
-    const word = { mark: "word" as const, font: "cinzel" as const, frame: "none" as const };
-    const empty = fakeCtx();
-    paintLabel(empty, word, "", "#f6f1e6", 640, 180, cartonMarkPlate("foil"));
-    expect(empty.plate).toBe("");
-    expect(empty.cleared).toBe(true);
-    expect(empty.texts).toHaveLength(0);
-
+  it("paints carton foil and engrave on a clear ground, and keeps a plate only for print", () => {
     const foil = fakeCtx();
-    paintLabel(foil, word, "ATELIER", "#e6cc98", 640, 180, cartonMarkPlate("foil", "#16130f"));
+    paintCartonMark(foil as unknown as CanvasRenderingContext2D, { font: "cinzel" }, "ATELIER", "#c9a36a", 640, 180, "foil");
     expect(foil.plate).toBe("");
-    expect(foil.texts.some((call) => call.text === "ATELIER")).toBe(true);
-    expect(foil.texts.some((call) => call.fill === "#16130f")).toBe(false);
+    expect(foil.cleared).toBe(true);
+    expect(foil.texts.filter((call) => call.text === "ATELIER")).toHaveLength(1);
+    expect(foil.texts[0]?.fill).toBe("#c9a36a");
+    const engrave = fakeCtx();
+    paintCartonMark(engrave as unknown as CanvasRenderingContext2D, { font: "cormorant" }, "ATELIER", "#c9a36a", 640, 180, "engrave");
+    expect(engrave.plate).toBe("");
+    const emboss = fakeCtx();
+    paintCartonMark(emboss as unknown as CanvasRenderingContext2D, { font: "cinzel" }, "ATELIER", "#c9a36a", 640, 180, "emboss");
+    expect(emboss.plate).toBe("");
+    const print = fakeCtx();
+    paintCartonMark(print as unknown as CanvasRenderingContext2D, { font: "cinzel" }, "ATELIER", "#c9a36a", 640, 180, "decal");
+    expect(print.plate).toBe("#16130f");
+    expect(print.texts.some((call) => call.text === "ATELIER")).toBe(true);
+  });
 
-    const printed = fakeCtx();
-    paintLabel(printed, word, "ATELIER", "#16130f", 640, 180, cartonMarkPlate("print", "#f4efe6"));
-    expect(printed.plate).toBe("#f4efe6");
-    expect(printed.plate).not.toBe("#16130f");
+  it("sizes a wide brand line to most of 52 mm and keeps a tall mark within 18 mm", () => {
+    const aspect = cartonTextAspect("ATELIER", measure);
+    expect(aspect).toBeGreaterThan(2.4);
+    const wide = cartonMarkSize(90, aspect);
+    expect(wide.width).toBeGreaterThan(48);
+    expect(wide.height).toBeLessThanOrEqual(18);
+    expect(wide.width / wide.height).toBeCloseTo(aspect, 5);
+    const hebrew = cartonTextAspect("אטלייה", measure);
+    expect(hebrew).toBeGreaterThan(2);
+    const tall = cartonMarkSize(90, 0.5);
+    expect(tall.height).toBe(18);
+    expect(tall.width).toBeCloseTo(9, 5);
   });
 
   it("draws nothing when the brand text is empty", () => {

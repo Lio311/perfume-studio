@@ -213,7 +213,6 @@ export function decodeShare(hash: string): Design | null {
   const design = decodeShareDesign(hash);
   return design ? hydrateDesign(design) : null;
 }
-
 /** Isolate each id so a Hebrew sentence does not reorder the Latin text. */
 export function missingPartsMessage(lang: "he" | "en", ids: string[]): string {
   const list = ids.map((id) => `\u2068${id}\u2069`).join(", ");

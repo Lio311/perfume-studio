@@ -1,6 +1,6 @@
 import { createContext, createElement, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import * as THREE from "three";
-import { labelEmissiveCanvas, labelFinish, labelFontSpec, labelInk, labelSurfaceCanvas, logoTexture, shouldRepaintLabel } from "../geometry/logos.ts";
+import { cartonMarkCanvas, labelEmissiveCanvas, labelFinish, labelFontSpec, labelInk, labelSurfaceCanvas, logoTexture, shouldRepaintLabel } from "../geometry/logos.ts";
 import { logoById } from "../model/catalog.ts";
 import { computeFit } from "../model/fit.ts";
 import type { LogoApplication, LogoFont } from "../model/types.ts";
@@ -29,20 +29,6 @@ const LabelPaintContext = createContext<HTMLCanvasElement | null>(null);
 
 export function useSharedLabelCanvas(): HTMLCanvasElement | null {
   return useContext(LabelPaintContext);
-}
-
-/** Copy one painted plate. The box face does not lay the glyphs out again. */
-export function copyLabelCanvas(source: HTMLCanvasElement, width: number, height: number): HTMLCanvasElement {
-  const canvas = document.createElement("canvas");
-  canvas.width = Math.max(1, width);
-  canvas.height = Math.max(1, height);
-  const ctx = canvas.getContext("2d");
-  if (!ctx) return canvas;
-  const scale = Math.min(canvas.width / source.width, canvas.height / source.height);
-  const dw = source.width * scale;
-  const dh = source.height * scale;
-  ctx.drawImage(source, (canvas.width - dw) / 2, (canvas.height - dh) / 2, dw, dh);
-  return canvas;
 }
 
 function useLabelFontTick(font: LogoFont, text: string): number {
@@ -98,7 +84,7 @@ export function useDebouncedLabelCanvas(
   return canvas;
 }
 
-/** One label painting shared by the bottle plate and the carton face. */
+/** Bottle plate. The carton paints its own line so foil is not a copy of this plate. */
 export function LabelPaintProvider({ children }: { children: ReactNode }) {
   const design = useLab((s) => s.design);
   const spec = logoById(design.label.variantId);
@@ -117,6 +103,21 @@ export function LabelPaintProvider({ children }: { children: ReactNode }) {
     return drawn;
   });
   return createElement(LabelPaintContext.Provider, { value: canvas }, children);
+}
+
+/** Carton face: the brand line at its own aspect, with a plate only for print. */
+export function useCartonLabelCanvas(): HTMLCanvasElement {
+  const design = useLab((s) => s.design);
+  const spec = logoById(design.label.variantId);
+  const ink = labelInk(design.label.color, spec.application);
+  const fontTick = useLabelFontTick(spec.font, design.label.text);
+  const immediate = [spec.id, spec.application, spec.font, fontTick].join("\u0000");
+  const deferred = [design.label.text, ink].join("\u0000");
+  return useDebouncedLabelCanvas(immediate, deferred, () => {
+    const drawn = cartonMarkCanvas(spec, design.label.text, ink, spec.application);
+    drawn.dataset.fonts = String(fontTick);
+    return drawn;
+  });
 }
 
 export function useLabelMaps(canvas: HTMLCanvasElement, ink: string, application: LogoApplication) {

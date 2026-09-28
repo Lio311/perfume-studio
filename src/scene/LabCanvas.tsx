@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ComponentProps } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { AdaptiveDpr, Grid, OrbitControls, PerformanceMonitor } from "@react-three/drei";
 import * as THREE from "three";
@@ -582,6 +582,24 @@ function StageFog() {
   return null;
 }
 
+function StageGrid(props: ComponentProps<typeof Grid>) {
+  const ref = useRef<THREE.Mesh>(null);
+  useLayoutEffect(() => {
+    const material = ref.current?.material;
+    if (!material || Array.isArray(material)) return;
+    // drei's grid material is transparent, so it is drawn after transmissive
+    // glass and the lines composite on top of the liquid. Drawing it opaque
+    // puts the lines in the transmission buffer, behind the bottle. Alpha to
+    // coverage keeps the distance fade. Depth write stays off so a line can
+    // never hide the liquid.
+    material.transparent = false;
+    material.depthWrite = false;
+    material.alphaToCoverage = true;
+    material.needsUpdate = true;
+  }, []);
+  return <Grid ref={ref} renderOrder={-1} {...props} />;
+}
+
 function Stage() {
   const theme = useLab((s) => themes[s.theme]);
   const voice = useLab((s) => s.voice);
@@ -607,10 +625,8 @@ function Stage() {
       <StudioLights />
       <StageFloor />
       {showGrid && (
-        <Grid
+        <StageGrid
           args={[400, 400]}
-          renderOrder={-1}
-          material-depthWrite={false}
           position={[0, 0.15, 0]}
           cellSize={16}
           cellThickness={blueprint ? 1.15 : 0.9}
@@ -624,10 +640,8 @@ function Stage() {
         />
       )}
       {blueprint && stage !== "together" && voice !== 2 && (
-        <Grid
+        <StageGrid
           args={[340, 220]}
-          renderOrder={-1}
-          material-depthWrite={false}
           position={[0, 100, stage === "box" ? -150 : -190]}
           rotation={[Math.PI / 2, 0, 0]}
           cellSize={16}

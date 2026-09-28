@@ -1,12 +1,10 @@
 import { useEffect, useMemo, useRef, type MutableRefObject } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
-import { logoById } from "../../model/catalog.ts";
-import type { InsertMaterial, LogoApplication } from "../../model/types.ts";
+import type { InsertMaterial } from "../../model/types.ts";
 import type { Fit } from "../../model/fit.ts";
-import { cartonMarkPlate, labelEmissive, labelFinish, labelInk, paintLabel } from "../../geometry/logos.ts";
 import { useLab } from "../../store/labStore.ts";
-import { useLabelMaps } from "../labelPaint.ts";
+import { CartonMark } from "../cartonMark.tsx";
 import { FinishMaterial, WrapMaterial } from "../materials.tsx";
 import { prismShell } from "./prism.ts";
 import { sectionPlane } from "../sectionPlane.ts";
@@ -31,88 +29,9 @@ export function Skin({ section = true }: { section?: boolean }) {
   return <WrapMaterial color={wrap?.color || color} finish={wrap?.finish || "soft-touch"} board={board || "rigid"} section={section} />;
 }
 
-function CartonInk({
-  map,
-  mask,
-  emissiveMap,
-  ink,
-  application,
-}: {
-  map: THREE.Texture;
-  mask: THREE.Texture | null;
-  emissiveMap: THREE.Texture | null;
-  ink: string;
-  application: LogoApplication;
-}) {
-  const finish = labelFinish(application);
-  const flat = finish.metalness === 0 && finish.bumpScale === 0;
-  // Foil on a lit carton mirrors the studio and disappears. Keep the ink colour unlit so it reads as print.
-  if (flat || !mask || application === "foil") {
-    return (
-      <meshBasicMaterial
-        map={map}
-        transparent
-        depthWrite={false}
-        toneMapped={false}
-        alphaTest={0.04}
-        polygonOffset
-        polygonOffsetFactor={-4}
-        polygonOffsetUnits={-8}
-      />
-    );
-  }
-  return (
-    <meshStandardMaterial
-      map={map}
-      transparent
-      depthWrite={false}
-      alphaTest={0.04}
-      polygonOffset
-      polygonOffsetFactor={-4}
-      polygonOffsetUnits={-8}
-      metalness={finish.metalness}
-      metalnessMap={mask}
-      roughness={finish.roughness}
-      bumpMap={finish.bumpScale !== 0 ? mask : undefined}
-      bumpScale={finish.bumpScale}
-      envMapIntensity={finish.envMapIntensity}
-      emissive={labelEmissive(ink, application)}
-      emissiveIntensity={finish.emissive}
-      emissiveMap={finish.emissive > 0 ? emissiveMap ?? undefined : undefined}
-      toneMapped
-    />
-  );
-}
-
 /** Foil or print on the board. No dark plate unless print is given a plate colour. */
 export function BrandMark({ w, y, z }: { w: number; y: number; z: number }) {
-  const blueprint = useLab((s) => s.blueprint);
-  const text = useLab((s) => s.design.label.text);
-  const variantId = useLab((s) => s.design.label.variantId);
-  const inkColor = useLab((s) => s.design.label.color);
-  const spec = logoById(variantId);
-  const ink = labelInk(inkColor, spec.application);
-  const plate = cartonMarkPlate(spec.application);
-  const show = !blueprint && (text.trim().length > 0 || plate !== "clear");
-  const planeW = Math.min(w * 0.62, 64);
-  const canvas = useMemo(() => {
-    const width = 1024;
-    const height = Math.max(96, Math.round((width * 18) / Math.max(8, planeW)));
-    const el = document.createElement("canvas");
-    el.width = width;
-    el.height = height;
-    const ctx = el.getContext("2d");
-    if (ctx) paintLabel(ctx, spec, text, ink, width, height, plate);
-    return el;
-  }, [text, spec, ink, plate, planeW]);
-  const maps = useLabelMaps(canvas, ink, spec.application);
-  if (!show) return null;
-  return (
-    <mesh position={[0, y, z + 0.85]} renderOrder={6}>
-      <planeGeometry args={[planeW, 22]} />
-      <CartonInk map={maps.color} mask={maps.mask} emissiveMap={maps.emissive} ink={ink} application={spec.application} />
-    </mesh>
-  );
+  return <CartonMark w={w} y={y} z={z + 0.85} />;
 }
 
 export function PrismMesh({

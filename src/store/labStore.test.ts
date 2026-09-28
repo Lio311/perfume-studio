@@ -42,11 +42,14 @@ describe("labStore", () => {
   });
 
   it("shows the label when brand text is typed and keeps the previous visibility when the text is cleared", () => {
-    expect(useLab.getState().design.label.visible).toBe(true);
+    const hidden = createDefaultDesign();
+    hidden.label.visible = false;
+    useLab.setState({ design: hidden, past: [], future: [] });
+    expect(useLab.getState().design.label.visible).toBe(false);
 
     useLab.getState().applyCommands([{ type: "text", text: "" }]);
     expect(useLab.getState().design.label.text).toBe("");
-    expect(useLab.getState().design.label.visible).toBe(true);
+    expect(useLab.getState().design.label.visible).toBe(false);
 
     useLab.getState().applyCommands([{ type: "text", text: "בושם שלי" }]);
     expect(useLab.getState().design.label.text).toBe("בושם שלי");
@@ -71,6 +74,13 @@ describe("labStore", () => {
     expect(useLab.getState().design.label.text).toBe(text);
     expect(useLab.getState().design.label.text).toBe(clampLabelText(text));
     expect(text.slice(0, 32)).not.toBe(text);
+  });
+  it("saves a design and reports success", () => {
+    const before = useLab.getState().saved.length;
+    const result = useLab.getState().saveDesign("בדיקה", "");
+    expect(result.ok).toBe(true);
+    expect(useLab.getState().saved[0]?.name).toBe("בדיקה");
+    expect(useLab.getState().saved).toHaveLength(before + 1);
   });
 
   it("uses a count when a single warning is longer than 120 characters", () => {

@@ -114,6 +114,8 @@ interface LabState {
   cutaway: boolean;
   quality: RenderTier;
   tierLock: boolean;
+  /** Parts the user has explicitly picked during the wizard. Not persisted. */
+  wizardPicked: ReadonlySet<PartKey>;
   select: (part: PartKey | null) => void;
   hover: (part: PartKey | null, x?: number, y?: number) => void;
   patch: (part: PartKey, partial: Record<string, unknown>) => void;
@@ -153,7 +155,7 @@ interface LabState {
   showPackNotices: (notices: PackNotice[]) => void;
   upsertSupplier: (pack: SupplierPack, notices?: PackNotice[]) => void;
   removeSupplier: (id: string) => void;
-  setBrief: (patch: Partial<Pick<BudgetBrief, "ceilingIls" | "volumeMl">> & { quantity?: number | null }) => void;
+  setBrief: (patch: Partial<Pick<BudgetBrief, "ceilingIls" | "volumeMl">> & { quantity?: number | null; projectName?: string }) => void;
   confirmBrief: () => void;
   openBrief: () => void;
   closeBrief: () => void;
@@ -429,6 +431,7 @@ export const useLab = create<LabState>()(
       cutaway: false,
       quality: initialQuality(),
       tierLock: false,
+      wizardPicked: new Set<PartKey>(),
       theme: "dark",
       lang: "he",
       libraryOpen: false,
@@ -480,6 +483,18 @@ export const useLab = create<LabState>()(
           
           const quiet = options?.quiet;
           const designChanged = design !== state.design;
+          // Track which parts the user explicitly picked during the wizard.
+          const isWizard = (design.step ?? 7) < 7;
+          let wizardPicked = state.wizardPicked;
+          if (isWizard) {
+            for (const command of commands) {
+              if (command.type === "variant" || command.type === "cycle") {
+                const next = new Set(wizardPicked);
+                next.add(command.part);
+                wizardPicked = next;
+              }
+            }
+          }
           
           return {
             design,
@@ -493,6 +508,7 @@ export const useLab = create<LabState>()(
             aimed: quiet ? state.aimed : ui.focusToken !== state.focusToken ? true : state.aimed,
             past: designChanged ? [...state.past, state.design].slice(-30) : state.past,
             future: designChanged ? [] : state.future,
+            wizardPicked,
           };
         }),
       cycle: (dir, part) => {
@@ -593,7 +609,7 @@ export const useLab = create<LabState>()(
         design.pump.visible = false;
         design.collar.visible = false;
         design.box.visible = false;
-        design.liquid.visible = false;
+        design.liquid.visible = true;
 
         set((state) => ({
           design,
@@ -672,6 +688,7 @@ export const useLab = create<LabState>()(
               : patch.quantity != null && Number.isInteger(patch.quantity) && patch.quantity >= 1
                 ? patch.quantity
                 : undefined,
+            projectName: patch.projectName === undefined ? state.brief.projectName : patch.projectName,
           },
         })),
       confirmBrief: () =>

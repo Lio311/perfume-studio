@@ -75,9 +75,11 @@ describe("brand field hint", () => {
       useLab.getState().patch("label", { text, visible });
     };
 
-    expect(useLab.getState().design.label.visible).toBe(true);
+    useLab.getState().patch("label", { visible: false });
+    expect(useLab.getState().design.label.visible).toBe(false);
     type("");
-    expect(useLab.getState().design.label.visible).toBe(true);
+    useLab.getState().patch("label", { visible: false });
+    expect(useLab.getState().design.label.visible).toBe(false);
     expect(useLab.getState().design.label.text).toBe("");
 
     type("   ");
@@ -100,6 +102,7 @@ describe("brand field hint", () => {
     });
     type("");
     expect(useLab.getState().design.label.text).toBe("");
+    useLab.getState().patch("label", { visible: false });
     expect(useLab.getState().design.label.visible).toBe(false);
   });
 

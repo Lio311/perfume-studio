@@ -36,7 +36,7 @@ targets:
         CFBundleDevelopmentRegion: he
         UILaunchScreen: {}
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
-        UIRequiredDeviceCapabilities: [arkit]
+        UIRequiredDeviceCapabilities: [arkit]   # world tracking; LiDAR is not required and must not be added here
         NSCameraUsageDescription: "המצלמה משמשת לצילום ומדידה של רכיבי אריזה (בקבוקים, פקקים, משאבות וקופסאות)."
         NSPhotoLibraryAddUsageDescription: "שמירת צילומי הסריקה בספריית התמונות, לפי בחירתך."
     settings:
