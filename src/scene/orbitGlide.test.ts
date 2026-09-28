@@ -1,8 +1,35 @@
 import { describe, expect, it } from "vitest";
 import * as THREE from "three";
-import { clampPolarOffset, decayGlide, emptyGlide, MAX_POLAR, MIN_POLAR, polarAngle, poseBroken, pushGlide, takeStep } from "./orbitGlide.ts";
+import { clampPolarOffset, decayGlide, emptyGlide, GESTURE_SPEED, MAX_POLAR, MIN_POLAR, PAN_SPEED, polarAngle, poseBroken, pushGlide, ROTATE_SPEED, takeStep, TRACKPAD_PAN_GAIN, TRACKPAD_PITCH_GAIN, TRACKPAD_YAW_GAIN } from "./orbitGlide.ts";
 
 describe("trackpad glide", () => {
+  it("raises orbit and pan gains by about 18% and leaves the caps", () => {
+    expect(GESTURE_SPEED).toBeGreaterThanOrEqual(1.15);
+    expect(GESTURE_SPEED).toBeLessThanOrEqual(1.2);
+    expect(ROTATE_SPEED).toBeCloseTo(0.38 * GESTURE_SPEED, 8);
+    expect(PAN_SPEED).toBeCloseTo(0.42 * GESTURE_SPEED, 8);
+    expect(TRACKPAD_YAW_GAIN).toBeCloseTo(0.00028 * GESTURE_SPEED, 10);
+    expect(TRACKPAD_PITCH_GAIN).toBeCloseTo(0.00018 * GESTURE_SPEED, 10);
+    expect(TRACKPAD_PAN_GAIN).toBeCloseTo(0.06 * GESTURE_SPEED, 8);
+
+    const orbit = emptyGlide();
+    pushGlide(orbit, 20, -16, "orbit");
+    expect(orbit.yaw).toBeCloseTo(20 * TRACKPAD_YAW_GAIN, 10);
+    expect(orbit.pitch).toBeCloseTo(-16 * TRACKPAD_PITCH_GAIN, 10);
+    expect(orbit.yaw).toBeGreaterThan(20 * 0.00028);
+    expect(orbit.pitch).toBeLessThan(-16 * 0.00018);
+
+    const pan = emptyGlide();
+    pushGlide(pan, 12, 8, "pan");
+    expect(pan.panX).toBeCloseTo(12 * TRACKPAD_PAN_GAIN, 8);
+    expect(pan.panY).toBeCloseTo(8 * TRACKPAD_PAN_GAIN, 8);
+    expect(pan.panX).toBeGreaterThan(12 * 0.06);
+
+    const pinch = emptyGlide();
+    pushGlide(pinch, 0, 20, "pinch");
+    expect(pinch.zoom).toBeCloseTo(20 * 0.0004, 8);
+  });
+
   it("caps a burst of wheel deltas", () => {
     const glide = emptyGlide();
     for (let i = 0; i < 80; i += 1) pushGlide(glide, 400, -240, "orbit");
@@ -11,6 +38,11 @@ describe("trackpad glide", () => {
     expect(glide.pitch).toBeGreaterThanOrEqual(-0.01);
     expect(Number.isFinite(glide.yaw)).toBe(true);
     expect(Number.isFinite(glide.pitch)).toBe(true);
+    const pan = emptyGlide();
+    for (let i = 0; i < 80; i += 1) pushGlide(pan, 400, -240, "pan");
+    expect(pan.panX).toBeLessThanOrEqual(6);
+    expect(pan.panY).toBeGreaterThanOrEqual(-6);
+    expect(pan.panX).toBeGreaterThan(0);
   });
 
   it("applies only a small step per frame", () => {

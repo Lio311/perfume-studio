@@ -11,7 +11,7 @@ import { Assembly } from "./Assembly.tsx";
 import { releaseFocus } from "./focusClick.ts";
 import { assemblyBounds, fitPose, FOCUS_FILL, orbitLimits, partBounds, readStageFrame } from "./framing.ts";
 import { cameraProbe, sceneSpan } from "./limits.ts";
-import { clampPolarOffset, decayGlide, emptyGlide, polarAngle, poseBroken, pushGlide, takeStep, type Glide } from "./orbitGlide.ts";
+import { clampPolarOffset, decayGlide, emptyGlide, PAN_SPEED, polarAngle, poseBroken, pushGlide, ROTATE_SPEED, takeStep, type Glide } from "./orbitGlide.ts";
 import { Exposure, PixelRatio, StageFloor, StudioEnv, StudioLights } from "./studio.tsx";
 import { CinematicFloor, EnergyRings, ParticleField, VoiceGrade } from "./voiceScenery.tsx";
 
@@ -516,9 +516,9 @@ function CameraRig() {
       target={ORBIT_TARGET}
       enableDamping
       dampingFactor={0.05}
-      rotateSpeed={0.38}
+      rotateSpeed={ROTATE_SPEED}
       zoomSpeed={0.26}
-      panSpeed={0.42}
+      panSpeed={PAN_SPEED}
       minDistance={48}
       maxDistance={2200}
       onStart={() => {
