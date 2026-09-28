@@ -1,56 +1,150 @@
+import { listFor } from "./catalog.ts";
 import { createDefaultDesign } from "./design.ts";
-import type { Design } from "./types.ts";
+import { FINISHES } from "./materials.ts";
+import { NECKS } from "./necks.ts";
+import type { Design, FinishId, NeckId, VariantPart } from "./types.ts";
 
 const PART_KEYS = ["bottle", "cap", "label", "pump", "collar", "box", "liquid"] as const;
+const BLOCKED_KEYS = new Set(["__proto__", "constructor", "prototype"]);
+const HEX_COLOR = /^#[0-9a-f]{6}$/i;
+const FINISH_IDS = new Set(FINISHES.map((finish) => finish.id));
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === "object" && !Array.isArray(value);
 }
 
-/** Copy known fields when the types match, and keep extra scalar fields from newer links. */
-function mergePart<T extends object>(fallback: T, value: unknown): T {
-  const next: Record<string, unknown> = { ...(fallback as Record<string, unknown>) };
-  if (!isRecord(value)) return next as T;
-  for (const [key, fallbackValue] of Object.entries(fallback)) {
-    const incoming = value[key];
-    if (incoming == null) continue;
-    if (typeof fallbackValue === "number") {
-      if (typeof incoming === "number" && Number.isFinite(incoming)) next[key] = incoming;
-    } else if (typeof fallbackValue === "string") {
-      if (typeof incoming === "string") next[key] = incoming;
-    } else if (typeof fallbackValue === "boolean") {
-      if (typeof incoming === "boolean") next[key] = incoming;
-    }
+/** Own data keys only. Skips prototype keys so a link cannot pollute Object. */
+function safeRecord(value: object): Record<string, unknown> {
+  const out = Object.create(null) as Record<string, unknown>;
+  for (const key of Object.keys(value)) {
+    if (BLOCKED_KEYS.has(key)) continue;
+    out[key] = (value as Record<string, unknown>)[key];
   }
-  for (const [key, incoming] of Object.entries(value)) {
-    if (key in next || incoming == null) continue;
-    const kind = typeof incoming;
-    if (kind === "string" || kind === "boolean" || (kind === "number" && Number.isFinite(incoming))) next[key] = incoming;
-  }
-  return next as T;
+  return out;
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
+}
+
+function pickNumber(source: Record<string, unknown>, key: string, fallback: number, min: number, max: number): number {
+  const value = source[key];
+  if (typeof value !== "number" || !Number.isFinite(value)) return fallback;
+  return clamp(value, min, max);
+}
+
+function pickBool(source: Record<string, unknown>, key: string, fallback: boolean): boolean {
+  const value = source[key];
+  return typeof value === "boolean" ? value : fallback;
+}
+
+function pickColor(source: Record<string, unknown>, key: string, fallback: string): string {
+  const value = source[key];
+  return typeof value === "string" && HEX_COLOR.test(value) ? value : fallback;
+}
+
+function pickFinish(source: Record<string, unknown>, key: string, fallback: FinishId): FinishId {
+  const value = source[key];
+  return typeof value === "string" && FINISH_IDS.has(value as FinishId) ? (value as FinishId) : fallback;
+}
+
+function pickVariant(source: Record<string, unknown>, kind: VariantPart, fallback: string): string {
+  const value = source.variantId;
+  return typeof value === "string" && listFor(kind).some((item) => item.id === value) ? value : fallback;
+}
+
+function pickNeck(source: Record<string, unknown>, fallback: NeckId): NeckId {
+  const value = source.neck;
+  return typeof value === "string" && value in NECKS ? (value as NeckId) : fallback;
+}
+
+function partRecord(value: unknown): Record<string, unknown> | null {
+  return isRecord(value) ? safeRecord(value) : null;
 }
 
 /**
  * Build a full design from a share payload.
- * Missing or mistyped parts keep the current defaults.
- * Returns null when the payload is not a design object.
- * A missing `step` stays unset so an older link does not reopen the wizard.
+ * Missing parts, unknown keys, and invalid values keep the current defaults.
+ * Numbers use the same ranges as the chat commands. A missing `step` stays unset
+ * so an older link does not reopen the wizard.
  */
 export function mergeShareDesign(input: unknown): Design | null {
   if (!isRecord(input)) return null;
-  const hasPart = PART_KEYS.some((key) => key in input);
-  if (!hasPart && !("step" in input)) return null;
+  const source = safeRecord(input);
+  const hasPart = PART_KEYS.some((key) => key in source);
+  if (!hasPart && !("step" in source)) return null;
   const base = createDefaultDesign();
+  const bottle = partRecord(source.bottle);
+  const cap = partRecord(source.cap);
+  const label = partRecord(source.label);
+  const pump = partRecord(source.pump);
+  const collar = partRecord(source.collar);
+  const box = partRecord(source.box);
+  const liquid = partRecord(source.liquid);
+
   const design: Design = {
-    bottle: mergePart(base.bottle, input.bottle),
-    cap: mergePart(base.cap, input.cap),
-    label: mergePart(base.label, input.label),
-    pump: mergePart(base.pump, input.pump),
-    collar: mergePart(base.collar, input.collar),
-    box: mergePart(base.box, input.box),
-    liquid: mergePart(base.liquid, input.liquid),
+    bottle: {
+      variantId: bottle ? pickVariant(bottle, "bottle", base.bottle.variantId) : base.bottle.variantId,
+      neck: bottle ? pickNeck(bottle, base.bottle.neck) : base.bottle.neck,
+      finish: bottle ? pickFinish(bottle, "finish", base.bottle.finish) : base.bottle.finish,
+      color: bottle ? pickColor(bottle, "color", base.bottle.color) : base.bottle.color,
+      heightMm: bottle ? pickNumber(bottle, "heightMm", base.bottle.heightMm, 48, 180) : base.bottle.heightMm,
+      widthMm: bottle ? pickNumber(bottle, "widthMm", base.bottle.widthMm, 26, 96) : base.bottle.widthMm,
+      depthMm: bottle ? pickNumber(bottle, "depthMm", base.bottle.depthMm, 20, 90) : base.bottle.depthMm,
+      visible: bottle ? pickBool(bottle, "visible", base.bottle.visible) : base.bottle.visible,
+    },
+    cap: {
+      variantId: cap ? pickVariant(cap, "cap", base.cap.variantId) : base.cap.variantId,
+      finish: cap ? pickFinish(cap, "finish", base.cap.finish) : base.cap.finish,
+      color: cap ? pickColor(cap, "color", base.cap.color) : base.cap.color,
+      heightMm: cap ? pickNumber(cap, "heightMm", base.cap.heightMm, 10, 78) : base.cap.heightMm,
+      widthMm: cap ? pickNumber(cap, "widthMm", base.cap.widthMm, 16, 48) : base.cap.widthMm,
+      visible: cap ? pickBool(cap, "visible", base.cap.visible) : base.cap.visible,
+    },
+    label: {
+      variantId: label ? pickVariant(label, "label", base.label.variantId) : base.label.variantId,
+      finish: label ? pickFinish(label, "finish", base.label.finish) : base.label.finish,
+      color: label ? pickColor(label, "color", base.label.color) : base.label.color,
+      text: label && typeof label.text === "string" ? label.text.slice(0, 32) : base.label.text,
+      scale: label ? pickNumber(label, "scale", base.label.scale, 0.55, 1.6) : base.label.scale,
+      visible: label ? pickBool(label, "visible", base.label.visible) : base.label.visible,
+    },
+    pump: {
+      variantId: pump ? pickVariant(pump, "pump", base.pump.variantId) : base.pump.variantId,
+      finish: pump ? pickFinish(pump, "finish", base.pump.finish) : base.pump.finish,
+      color: pump ? pickColor(pump, "color", base.pump.color) : base.pump.color,
+      visible: pump ? pickBool(pump, "visible", base.pump.visible) : base.pump.visible,
+    },
+    collar: {
+      variantId: collar ? pickVariant(collar, "collar", base.collar.variantId) : base.collar.variantId,
+      finish: collar ? pickFinish(collar, "finish", base.collar.finish) : base.collar.finish,
+      color: collar ? pickColor(collar, "color", base.collar.color) : base.collar.color,
+      visible: collar ? pickBool(collar, "visible", base.collar.visible) : base.collar.visible,
+    },
+    box: {
+      variantId: box ? pickVariant(box, "box", base.box.variantId) : base.box.variantId,
+      finish: box ? pickFinish(box, "finish", base.box.finish) : base.box.finish,
+      color: box ? pickColor(box, "color", base.box.color) : base.box.color,
+      heightMm: box ? pickNumber(box, "heightMm", base.box.heightMm, 70, 240) : base.box.heightMm,
+      widthMm: box ? pickNumber(box, "widthMm", base.box.widthMm, 40, 160) : base.box.widthMm,
+      depthMm: box ? pickNumber(box, "depthMm", base.box.depthMm, 30, 140) : base.box.depthMm,
+      linked: box ? pickBool(box, "linked", base.box.linked) : base.box.linked,
+      visible: box ? pickBool(box, "visible", base.box.visible) : base.box.visible,
+    },
+    liquid: {
+      color: liquid ? pickColor(liquid, "color", base.liquid.color) : base.liquid.color,
+      fill: liquid ? pickNumber(liquid, "fill", base.liquid.fill, 0.05, 0.95) : base.liquid.fill,
+      visible: liquid ? pickBool(liquid, "visible", base.liquid.visible) : base.liquid.visible,
+    },
   };
-  if (typeof input.step === "number" && Number.isFinite(input.step)) design.step = input.step;
+
+  const opacity = bottle?.opacity;
+  if (typeof opacity === "number" && Number.isFinite(opacity)) design.bottle.opacity = clamp(opacity, 0, 1);
+
+  if ("step" in source) {
+    const step = source.step;
+    design.step = typeof step === "number" && Number.isInteger(step) && step >= 0 && step <= 7 ? step : base.step;
+  }
   return design;
 }
 
@@ -68,4 +162,20 @@ export function decodeShareDesign(hash: string): Design | null {
   } catch {
     return null;
   }
+}
+
+/** Apply a `#d=` hash, then strip it without pushing a history entry. */
+export function applyShareHash(options: {
+  hash: string;
+  pathname: string;
+  search: string;
+  state: unknown;
+  apply: (design: Design) => void;
+  replaceState: (state: unknown, title: string, url: string) => void;
+}): void {
+  if (!options.hash.startsWith("#d=")) return;
+  const design = decodeShareDesign(options.hash.slice(3));
+  if (!design) return;
+  options.apply(design);
+  options.replaceState(options.state, "", `${options.pathname}${options.search}`);
 }

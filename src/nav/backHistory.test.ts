@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
   backAction,
   handleHistoryPop,
-  isLabHistory,
   syncHistoryTrap,
   type BackSurface,
   type HistoryLike,
@@ -20,7 +19,6 @@ function idle(over: Partial<BackSurface> = {}): BackSurface {
     stage: "bottle",
     mode: "assemble",
     explode: 0,
-    wizardStep: 0,
     ...over,
   };
 }
@@ -70,14 +68,12 @@ function createHistory() {
 describe("browser back", () => {
   it("orders in-app layers and leaves when the lab is idle", () => {
     expect(backAction(idle())).toBe("leave");
-    expect(backAction(idle({ wizardStep: 7 }))).toBe("leave");
-    expect(backAction(idle({ wizardStep: 0 }))).toBe("leave");
-    expect(backAction(idle({ modal: true, wizardStep: 4, aimed: true }))).toBe("modal");
-    expect(backAction(idle({ present: true, wizardStep: 4 }))).toBe("present");
+    expect(backAction(idle({ modal: true, aimed: true }))).toBe("modal");
+    expect(backAction(idle({ present: true }))).toBe("present");
     expect(backAction(idle({ help: true, aimed: true }))).toBe("overlays");
-    expect(backAction(idle({ aimed: true, wizardStep: 3 }))).toBe("selection");
+    expect(backAction(idle({ aimed: true }))).toBe("selection");
     expect(backAction(idle({ solo: true }))).toBe("selection");
-    expect(backAction(idle({ wizardStep: 2, stage: "box" }))).toBe("wizard");
+    expect(backAction(idle({ stage: "box" }))).toBe("stage");
     expect(backAction(idle({ stage: "together" }))).toBe("stage");
     expect(backAction(idle({ mode: "explode", explode: 0.6 }))).toBe("mode");
     expect(backAction(idle({ explode: 0.4 }))).toBe("mode");
@@ -94,52 +90,26 @@ describe("browser back", () => {
     expect(history.pushCount).toBe(0);
   });
 
-  it("steps the wizard, then lets the next back leave without pushing again", () => {
+  it("does not treat a wizard step as a back layer", () => {
     const { history, popWith } = createHistory();
     const trap: Trap = { armed: false };
-    let surface = idle({ wizardStep: 3, stage: "bottle" });
+    const surface = idle();
     syncHistoryTrap(history, surface, trap);
-    expect(history.length).toBe(2);
-    expect(isLabHistory(history.state)).toBe(true);
-
+    expect(history.pushCount).toBe(0);
     const applied: string[] = [];
     popWith(() => {
-      handleHistoryPop(
-        history,
-        surface,
-        (action) => {
-          applied.push(action);
-          if (action === "wizard") surface = { ...surface, wizardStep: surface.wizardStep - 1 };
-          if (action === "selection") surface = { ...surface, aimed: false, solo: false };
-        },
-        () => surface,
-        trap,
-      );
+      handleHistoryPop(history, surface, (action) => applied.push(action), () => surface, trap);
     });
-
     history.back();
-    expect(applied).toEqual(["wizard"]);
-    expect(surface.wizardStep).toBe(2);
-    expect(history.pushCount).toBe(2);
-    expect(history.left).toBe(false);
-
-    history.back();
-    history.back();
-    expect(applied).toEqual(["wizard", "wizard", "wizard"]);
-    expect(surface.wizardStep).toBe(0);
-    expect(history.left).toBe(false);
-    expect(trap.armed).toBe(false);
-
-    const pushes = history.pushCount;
-    history.back();
+    expect(applied).toEqual([]);
     expect(history.left).toBe(true);
-    expect(history.pushCount).toBe(pushes);
+    expect(history.pushCount).toBe(0);
   });
 
-  it("clears a selection before it steps the wizard", () => {
+  it("clears a selection without walking any further in-app step", () => {
     const { history, popWith } = createHistory();
     const trap: Trap = { armed: false };
-    let surface = idle({ wizardStep: 2, aimed: true });
+    let surface = idle({ aimed: true });
     syncHistoryTrap(history, surface, trap);
     const applied: string[] = [];
     popWith(() => {
@@ -149,7 +119,6 @@ describe("browser back", () => {
         (action) => {
           applied.push(action);
           if (action === "selection") surface = { ...surface, aimed: false, solo: false };
-          if (action === "wizard") surface = { ...surface, wizardStep: surface.wizardStep - 1 };
         },
         () => surface,
         trap,
@@ -157,11 +126,11 @@ describe("browser back", () => {
     });
     history.back();
     expect(applied).toEqual(["selection"]);
-    expect(surface.wizardStep).toBe(2);
     expect(history.left).toBe(false);
+    expect(history.pushCount).toBe(1);
     history.back();
-    expect(applied).toEqual(["selection", "wizard"]);
-    expect(surface.wizardStep).toBe(1);
+    expect(applied).toEqual(["selection"]);
+    expect(history.left).toBe(true);
   });
 
   it("does not push another entry when a back finds nothing left to close", () => {

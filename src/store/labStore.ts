@@ -557,7 +557,7 @@ export const useLab = create<LabState>()(
         if (typeof location !== "undefined" && typeof history !== "undefined") {
           const url = new URL(location.href);
           url.searchParams.set("voice", String(voice));
-          history.replaceState(null, "", url);
+          history.replaceState(history.state, "", url);
         }
         set({ voice });
       },

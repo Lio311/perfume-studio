@@ -15,7 +15,7 @@ import { clampPolarOffset, decayGlide, emptyGlide, PAN_SPEED, PAN_STEP, PITCH_ST
 import { Exposure, PixelRatio, StageFloor, StudioEnv, StudioLights } from "./studio.tsx";
 import { CinematicFloor, EnergyRings, ParticleField, VoiceGrade } from "./voiceScenery.tsx";
 import { webglAvailable } from "./webgl.ts";
-import { WebglBoundary, WebglFallback } from "../ui/FallbackScreen.tsx";
+import { contextLostSuppressed, StageFallback, WebglBoundary, WebglFallback } from "../ui/FallbackScreen.tsx";
 
 const VIEW_DIR: Record<ViewPreset | "three", THREE.Vector3> = {
   home: new THREE.Vector3(0.78, 0.22, 1).normalize(),
@@ -637,7 +637,13 @@ export function LabCanvas() {
     return () => observer.disconnect();
   }, []);
 
-  if (!supported || lost) return <WebglFallback />;
+  if (!supported || lost) {
+    return (
+      <StageFallback>
+        <WebglFallback />
+      </StageFallback>
+    );
+  }
 
   return (
     <WebglBoundary>
@@ -650,6 +656,7 @@ export function LabCanvas() {
         onCreated={({ gl }) => {
           gl.domElement.addEventListener("webglcontextlost", (event) => {
             event.preventDefault();
+            if (contextLostSuppressed()) return;
             setLost(true);
           });
         }}

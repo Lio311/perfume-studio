@@ -4,7 +4,7 @@ import { applyTheme } from "./theme/themes.ts";
 import { partLabel, tx, wizardTitle } from "./i18n/copy.ts";
 import { pngDownloadName } from "./ui/pngName.ts";
 import { useLab } from "./store/labStore.ts";
-import { decodeShareDesign } from "./model/share.ts";
+import { applyShareHash } from "./model/share.ts";
 import { backSurface, handleHistoryPop, syncHistoryTrap, type BackAction, type Trap } from "./nav/backHistory.ts";
 import { TopBar } from "./ui/TopBar.tsx";
 import { Library } from "./ui/Library.tsx";
@@ -26,12 +26,7 @@ function applyBackAction(action: Exclude<BackAction, "leave">) {
     lab.setPalette(false);
     lab.setHelp(false);
   } else if (action === "selection") lab.showFull();
-  else if (action === "wizard") {
-    const step = lab.design.step ?? 7;
-    const prev = Math.max(0, step - 1);
-    lab.applyCommands([{ type: "wizard_step", step: prev }]);
-    lab.setStage(prev >= 6 ? "box" : "bottle");
-  } else if (action === "stage") lab.setStage("bottle");
+  else if (action === "stage") lab.setStage("bottle");
   else if (action === "mode") {
     // Zero before setMode so the assemble tween does not leave explode open and re-arm history.
     useLab.setState({ explode: 0 });
@@ -70,7 +65,6 @@ export default function App() {
   const toast = useLab((s) => s.toast);
   const stage = useLab((s) => s.stage);
   const explode = useLab((s) => s.explode);
-  const wizardStep = useLab((s) => s.design.step);
   const trapRef = useRef<Trap>({ armed: false });
   const [hintOn, setHintOn] = useState(true);
   const [swapping, setSwapping] = useState(false);
@@ -100,11 +94,14 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    const hash = location.hash.startsWith("#d=") ? location.hash.slice(3) : "";
-    if (hash) {
-      const shared = decodeShareDesign(hash);
-      if (shared) useLab.setState({ design: shared });
-    }
+    applyShareHash({
+      hash: location.hash,
+      pathname: location.pathname,
+      search: location.search,
+      state: history.state,
+      apply: (design) => useLab.setState({ design }),
+      replaceState: (state, title, url) => history.replaceState(state, title, url),
+    });
     const trap = trapRef.current;
     const surface = () => backSurface(useLab.getState());
     syncHistoryTrap(history, surface(), trap);
@@ -118,7 +115,7 @@ export default function App() {
 
   useEffect(() => {
     syncHistoryTrap(history, backSurface(useLab.getState()), trapRef.current);
-  }, [aimed, explode, helpOpen, modal, mode, palette, present, solo, stage, wizardStep]);
+  }, [aimed, explode, helpOpen, modal, mode, palette, present, solo, stage]);
 
   useEffect(() => {
     const fade = () => setHintOn(false);

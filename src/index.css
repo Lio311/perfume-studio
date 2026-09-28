@@ -1155,17 +1155,22 @@ html[data-theme="light"] .crumb {
 .app.is-present .stage-slot { grid-column: 1; grid-row: 1 / -1; }
 
 .boot-fallback {
-  position: fixed;
+  position: absolute;
   inset: 0;
-  z-index: 40;
+  z-index: 6;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 32px;
+  pointer-events: auto;
   background:
     radial-gradient(ellipse at center, rgba(22, 27, 36, 0.2), rgba(6, 7, 11, 0.94) 68%),
     #06070b;
   color: var(--text);
+}
+.boot-fallback.is-page {
+  position: fixed;
+  z-index: 40;
 }
 .boot-fallback-card {
   width: min(440px, 100%);

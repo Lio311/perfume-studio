@@ -18,8 +18,6 @@ export interface BackSurface {
   stage: "bottle" | "box" | "together";
   mode: string;
   explode: number;
-  /** `design.step`, or 7 when the wizard is finished or the field is absent. */
-  wizardStep: number;
 }
 
 export type BackAction =
@@ -27,7 +25,6 @@ export type BackAction =
   | "present"
   | "overlays"
   | "selection"
-  | "wizard"
   | "stage"
   | "mode"
   | "leave";
@@ -44,7 +41,6 @@ export function backAction(surface: BackSurface): BackAction {
   if (surface.present) return "present";
   if (surface.palette || surface.help) return "overlays";
   if (surface.solo || surface.aimed) return "selection";
-  if (surface.wizardStep > 0 && surface.wizardStep < 7) return "wizard";
   if (surface.stage !== "bottle") return "stage";
   if (surface.mode !== "assemble" || surface.explode > 0.02) return "mode";
   return "leave";
@@ -60,9 +56,7 @@ export function backSurface(state: {
   stage: "bottle" | "box" | "together";
   mode: string;
   explode: number;
-  design: { step?: number };
 }): BackSurface {
-  const step = state.design.step;
   return {
     modal: Boolean(state.modal),
     present: state.present,
@@ -73,7 +67,6 @@ export function backSurface(state: {
     stage: state.stage,
     mode: state.mode,
     explode: state.explode,
-    wizardStep: typeof step === "number" && Number.isFinite(step) ? step : 7,
   };
 }
 
