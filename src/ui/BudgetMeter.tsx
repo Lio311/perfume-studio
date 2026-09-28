@@ -1,7 +1,7 @@
 import { formatCount, formatMoney } from "../budget/money.ts";
 import { tx } from "../i18n/copy.ts";
 import { useLab } from "../store/labStore.ts";
-import { PartialMark } from "./PriceTag.tsx";
+import { ExamplePriceMark, PartialMark } from "./PriceTag.tsx";
 import { useBudgetModel } from "./useBudget.ts";
 
 export function BudgetMeter({ onSavings }: { onSavings: () => void }) {
@@ -11,7 +11,7 @@ export function BudgetMeter({ onSavings }: { onSavings: () => void }) {
   const openBrief = useLab((s) => s.openBrief);
   const rates = useLab((s) => s.exchangeRates);
   const setExchangeRate = useLab((s) => s.setExchangeRate);
-  const { summary, foreign, includesExample } = useBudgetModel();
+  const { summary, foreign, exampleCount } = useBudgetModel();
   if (!brief.confirmed) return null;
   const ratio = brief.ceilingIls > 0 ? Math.min(1, summary.totalIls / brief.ceilingIls) : 0;
   const over = summary.over;
@@ -35,7 +35,7 @@ export function BudgetMeter({ onSavings }: { onSavings: () => void }) {
       <p className="hint">
         {t.budgetUsed} · {brief.volumeMl} {t.capacityShort}
         {brief.quantity ? <> · {t.briefQuantity} <bdi dir="ltr">{formatCount(brief.quantity, lang)}</bdi></> : ` · ${t.basePriceNote}`}
-        {includesExample ? ` · ${t.exampleTotal}` : ""}
+        {exampleCount > 0 && <> · <ExamplePriceMark count={exampleCount} /></>}
         {summary.incomplete ? ` · ${t.budgetPartial}` : ""}
       </p>
       {foreign.map((code) => (

@@ -219,7 +219,9 @@ const he = {
   examplePrice: "מחיר לדוגמה",
   importedPrice: "מחיר ספק",
   userPrice: "מחיר שהוזן",
-  exampleTotal: "הסה״כ כולל מחיר לדוגמה",
+  exampleIncludes: "כולל",
+  exampleTotalOne: "כולל מחיר לדוגמה אחד",
+  exampleTotalMany: "מחירים לדוגמה",
   partPrice: "מחיר",
   resetPrice: "חזרה למחיר המקור",
   currency: "מטבע",
@@ -482,7 +484,9 @@ const en: typeof he = {
   examplePrice: "Example price",
   importedPrice: "Supplier price",
   userPrice: "Entered price",
-  exampleTotal: "Total includes an example price",
+  exampleIncludes: "includes",
+  exampleTotalOne: "includes 1 example price",
+  exampleTotalMany: "example prices",
   partPrice: "Price",
   resetPrice: "Restore original price",
   currency: "Currency",
@@ -530,6 +534,14 @@ export const copy = { he, en };
 
 export function tx(lang: Lang): typeof he {
   return copy[lang];
+}
+
+/** Summary phrase for how many built-in example prices are in the total. */
+export function examplePriceNote(lang: Lang, count: number, formattedCount: string): string {
+  if (count <= 0) return "";
+  const t = tx(lang);
+  if (count === 1) return t.exampleTotalOne;
+  return `${t.exampleIncludes} ${formattedCount} ${t.exampleTotalMany}`;
 }
 
 const WIZARD_STEPS = ["wizard1", "wizard2", "wizard3", "wizard4", "wizard5", "wizard6", "wizard7"] as const;

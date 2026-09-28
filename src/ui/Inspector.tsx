@@ -7,7 +7,7 @@ import type { FinishId, NeckId, PartKey, VariantPart } from "../model/types.ts";
 import { partLabel, tx } from "../i18n/copy.ts";
 import { useLab } from "../store/labStore.ts";
 import { Alternatives } from "./BudgetSuggestions.tsx";
-import { PartialMark, PartPriceEditor } from "./PriceTag.tsx";
+import { ExamplePriceMark, PartialMark, PartPriceEditor } from "./PriceTag.tsx";
 import { useBudgetModel } from "./useBudget.ts";
 
 export function Inspector() {
@@ -58,7 +58,7 @@ export function Inspector() {
             <bdi dir="ltr">{formatMoney(budget.summary.totalIls, "ILS", lang)}</bdi>
             <PartialMark count={budget.summary.unpricedCount} />
             {!quantity && <em>{t.basePriceNote}</em>}
-            {budget.includesExample && <em>{t.examplePrice}</em>}
+            <ExamplePriceMark count={budget.exampleCount} />
             {budget.summary.over && <em className="is-over">{t.budgetOver}</em>}
           </p>
           <div className="part-title">

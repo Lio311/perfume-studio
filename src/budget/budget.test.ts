@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { FinishId, VariantPart } from "../model/types.ts";
+import { examplePriceNote } from "../i18n/copy.ts";
 import { allFacts, factsById } from "./descriptors.ts";
 import { exampleIls, formatCount, formatMoney, formatQuoteDate, priceAtQuantity, resolvePartPrice, summarizeBudget, toIls, unitValue } from "./money.ts";
 import { rankAssemblySavings, rankCostReductions, suggestAlternatives } from "./similar.ts";
@@ -360,6 +361,27 @@ describe("resolved prices", () => {
     const summary = summarizeBudget(["unpriced", "unpriced"], 40);
     expect(summary.unpricedCount).toBe(2);
     expect(summary.totalIls).toBe(0);
+  });
+
+  it("counts example prices in the summary and leaves unpriced supplier parts out", () => {
+    const studio = resolvePartPrice(facts({ id: "square-50", kind: "bottle" }), undefined, undefined, {});
+    const house = resolvePartPrice(facts({ id: "cara-50", kind: "bottle", namedSupplier: true, supplierName: "House" }), undefined, undefined, {});
+    const missing = resolvePartPrice(facts({ id: "pack-missing", kind: "cap", fromPack: true, namedSupplier: true, supplierName: "Aurora" }), undefined, undefined, {});
+    const dropped = resolvePartPrice(facts({ id: "pack-dropped", kind: "cap", fromPack: true, namedSupplier: true, supplierName: "Aurora" }), undefined, undefined, {});
+    expect(studio?.source).toBe("example");
+    expect(house?.source).toBe("example");
+    expect(missing).toBeNull();
+    expect(dropped).toBeNull();
+    const prices = [studio, house, missing, dropped];
+    const exampleCount = prices.filter((price) => price?.source === "example").length;
+    expect(exampleCount).toBe(2);
+    const summary = summarizeBudget(prices.map((price) => (price ? price.ils : "unpriced")), 200);
+    expect(summary.unpricedCount).toBe(2);
+    expect(summary.totalIls).toBe((studio?.ils ?? 0) + (house?.ils ?? 0));
+    expect(examplePriceNote("he", exampleCount, "2")).toBe("כולל 2 מחירים לדוגמה");
+    expect(examplePriceNote("en", exampleCount, "2")).toBe("includes 2 example prices");
+    expect(examplePriceNote("he", 1, "1")).toBe("כולל מחיר לדוגמה אחד");
+    expect(examplePriceNote("en", 1, "1")).toBe("includes 1 example price");
   });
 
   it("charges a named house bottle more than a similar studio bottle", () => {

@@ -6,6 +6,18 @@ import { useBudgetModel } from "./useBudget.ts";
 
 const CURRENCIES = ["ILS", "USD", "EUR", "CNY", "GBP"];
 
+export function ExamplePriceMark({ count }: { count: number }) {
+  const lang = useLab((s) => s.lang);
+  const t = tx(lang);
+  if (count <= 0) return null;
+  if (count === 1) return <em className="is-example">{t.exampleTotalOne}</em>;
+  return (
+    <em className="is-example">
+      {t.exampleIncludes} <bdi dir="ltr">{formatCount(count, lang)}</bdi> {t.exampleTotalMany}
+    </em>
+  );
+}
+
 export function PartialMark({ count }: { count: number }) {
   const lang = useLab((s) => s.lang);
   const t = tx(lang);

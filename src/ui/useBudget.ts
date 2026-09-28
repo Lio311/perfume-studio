@@ -22,7 +22,7 @@ export interface BudgetModel {
   alternatives: Alternative[];
   savings: SavingSwap[];
   foreign: string[];
-  includesExample: boolean;
+  exampleCount: number;
 }
 
 export function useBudgetModel(): BudgetModel {
@@ -106,7 +106,7 @@ export function useBudgetModel(): BudgetModel {
       alternatives,
       savings,
       foreign,
-      includesExample: lines.some((line) => line.price.source === "example"),
+      exampleCount: lines.filter((line) => line.price.source === "example").length,
     };
     // suppliers refreshes imported prices and facts after a pack sync.
   }, [brief.ceilingIls, brief.quantity, brief.volumeMl, design, overrides, rates, selected, suppliers]);
