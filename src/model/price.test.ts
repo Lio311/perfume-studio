@@ -29,7 +29,7 @@ describe("sanitizeSupplierPrice", () => {
     });
   });
 
-  it("drops a tier at or below moq and keeps the rest of the price", () => {
+  it("drops a tier whose minQty equals moq and keeps the rest of the price", () => {
     const result = sanitizeSupplierPrice({
       value: 0.48,
       currency: "USD",
@@ -53,6 +53,7 @@ describe("sanitizeSupplierPrice", () => {
       expect.objectContaining({
         path: "tiers[0].minQty",
         code: "tier_not_above_moq",
+        severity: "warning",
       }),
     ]);
     expect(result.issues[0].he).toContain("moq");
@@ -162,6 +163,26 @@ describe("sanitizeSupplierPrice", () => {
   });
 
   it("drops an invalid tier and keeps the price", () => {
+    const zeroQty = sanitizeSupplierPrice({
+      value: 1,
+      currency: "USD",
+      moq: 5,
+      tiers: [
+        { minQty: 0, value: 0.9 },
+        { minQty: 1.5, value: 0.8 },
+        { minQty: 10, value: 0 },
+        { minQty: 20, value: 0.4 },
+      ],
+    });
+    expect(zeroQty.price).toEqual({
+      value: 1,
+      currency: "USD",
+      moq: 5,
+      tiers: [{ minQty: 20, value: 0.4 }],
+    });
+    expect(codes(zeroQty.issues)).toEqual(["tier_not_above_moq", "tier_min_qty", "tier_value"]);
+    expect(zeroQty.issues.every((item) => item.severity === "warning")).toBe(true);
+
     const result = sanitizeSupplierPrice({
       value: 1,
       currency: "USD",
@@ -245,9 +266,15 @@ describe("sanitizeSupplierPrice", () => {
     expect(sanitizeSupplierPrice({ value: 2, currency: " NIS " }).price?.currency).toBe("ILS");
     expect(sanitizeSupplierPrice({ value: 2, currency: "ש\"ח" }).price?.currency).toBe("ILS");
     expect(sanitizeSupplierPrice({ value: 2, currency: "ש״ח" }).price?.currency).toBe("ILS");
-    const badCurrency = sanitizeSupplierPrice({ value: 1, currency: "US" });
-    expect(badCurrency.price).toBeUndefined();
+    expect(sanitizeSupplierPrice({ value: 2, currency: "ils" }).price?.currency).toBe("ILS");
+    expect(sanitizeSupplierPrice({ value: 3, currency: "$" }).price?.currency).toBe("USD");
+    expect(sanitizeSupplierPrice({ value: 3, currency: "usd" }).price?.currency).toBe("USD");
+    const badCurrency = sanitizeSupplierPrice({ value: 1.5, currency: "US", moq: 2, tiers: [{ minQty: 10, value: 1 }] });
+    expect(badCurrency.price).toEqual({ value: 1.5, moq: 2, tiers: [{ minQty: 10, value: 1 }] });
+    expect(badCurrency.price).not.toHaveProperty("currency");
     expect(badCurrency.issues[0]).toMatchObject({ path: "currency", code: "price_currency", severity: "warning" });
+    expect(badCurrency.issues[0].he).toContain("מטבע לא ידוע");
+    expect(badCurrency.issues[0].en).toContain("Unknown currency");
     expect(sanitizeSupplierPrice({ value: 1, currency: "USD", note: "cash" })).toEqual({
       price: { value: 1, currency: "USD" },
       issues: [],
@@ -297,11 +324,18 @@ describe("sanitizeSupplierPrice", () => {
       currency: "USD",
     });
     expect(sanitizeSupplierPrice({ value: 1, currency: "USD", quotedAt: "2026-10-06" }).price?.quotedAt).toBe("2026-10-06");
-    expect(sanitizeSupplierPrice({
+    const dated = sanitizeSupplierPrice({
       value: 1,
       currency: "USD",
       quotedAt: "2026-10-06T11:42:00+04:00",
-    }).price?.quotedAt).toBe("2026-10-06T11:42:00+04:00");
+    });
+    expect(dated.issues).toEqual([]);
+    expect(dated.price?.quotedAt).toBe("2026-10-06");
+    expect(sanitizeSupplierPrice({
+      value: 1,
+      currency: "USD",
+      quotedAt: "2026-10-06T11:42:00.000Z",
+    }).price?.quotedAt).toBe("2026-10-06");
   });
 
   it("drops a malformed tiers value and keeps the base price", () => {
@@ -317,6 +351,10 @@ describe("sanitizeSupplierPrice", () => {
     expect(formatSupplierAmount(12, "ILS", "en")).toContain("12");
     expect(formatSupplierAmount(12, "ils", "he")).toMatch(/12/);
     expect(formatSupplierAmount(0.48, "USD", "he")).toContain("USD");
+    expect(formatSupplierAmount(1.5, undefined, "he")).toContain("מטבע לא ידוע");
+    expect(formatSupplierAmount(1.5, undefined, "en")).toContain("Unknown currency");
+    expect(tx("he").unknownCurrency).toBe("מטבע לא ידוע");
+    expect(tx("en").unknownCurrency).toBe("Unknown currency");
   });
 
   it("treats a missing price as absent copy, not zero", () => {

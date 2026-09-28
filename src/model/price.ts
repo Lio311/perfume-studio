@@ -1,10 +1,13 @@
+import { tx } from "../i18n/copy.ts";
+
 /**
  * Canonical supplier price. The budget tools should call `sanitizeSupplierPrice`
  * instead of keeping a second checker.
  *
- * A bad base value, currency, or moq comes back without `price`. Each tier is judged
- * in the order it was written and is not sorted. A failing tier is removed and the
- * rest of the price is kept. A tier that costs more than the previous price is kept.
+ * A bad base value or moq comes back without `price`. An unrecognized currency is left
+ * unset and the price stays. Each tier is judged in the order it was written and is not
+ * sorted. A failing tier is removed and the base price stays. A tier that costs more
+ * than the previous price is kept.
  * Issues are returned on the result. They are not stored in module state.
  */
 export interface SupplierPriceTier {
@@ -14,7 +17,8 @@ export interface SupplierPriceTier {
 
 export interface SupplierPrice {
   value: number;
-  currency: string;
+  /** Absent when the pack's currency could not be recognized. */
+  currency?: string;
   moq?: number;
   tiers?: SupplierPriceTier[];
   quotedAt?: string;
@@ -75,13 +79,15 @@ function isIso8601Date(value: string): boolean {
   return Number.isFinite(Date.parse(value));
 }
 
-/** ISO 4217, plus the shekel spellings the budget tools already accept. */
+/** Uppercase ISO 4217. Shekel spellings become ILS, and `$` becomes USD. */
 export function normalizeCurrency(raw: string): string | null {
   const trimmed = raw.trim();
   if (!trimmed) return null;
+  if (trimmed === "$") return "USD";
   if (trimmed === "₪" || trimmed === "ש״ח" || trimmed === "ש\"ח" || trimmed === "שח") return "ILS";
   const upper = trimmed.toUpperCase();
   if (upper === "NIS" || upper === "ILS") return "ILS";
+  if (upper === "USD") return "USD";
   if (/^[A-Z]{3}$/.test(upper)) return upper;
   return null;
 }
@@ -104,8 +110,10 @@ function issue(path: string, code: PriceIssueCode, he: string, en: string): Pric
 
 /**
  * Rebuild a supplier price into the canonical shape.
- * Currency is stored as an ISO 4217 code. A tier may use legacy `qty` when `minQty` is absent;
- * the result always stores `minQty`. Tiers stay in the written order.
+ * Currency is stored as an uppercase ISO code, or left unset when it cannot be recognized.
+ * A bad currency never drops the price. A tier may use legacy `qty` when `minQty` is absent;
+ * the result always stores `minQty`. Tiers stay in the written order. A bad tier is removed
+ * and the base price stays.
  */
 export function sanitizeSupplierPrice(raw: unknown): SupplierPriceResult {
   if (!isDataObject(raw)) {
@@ -116,18 +124,24 @@ export function sanitizeSupplierPrice(raw: unknown): SupplierPriceResult {
   if (!Object.hasOwn(raw, "value") || !isPositive(raw.value)) {
     issues.push(issue("value", "price_value", "ערך המחיר חייב להיות מספר גדול מ־0.", "The price value must be a number greater than 0."));
   }
-  const currency = typeof raw.currency === "string" ? normalizeCurrency(raw.currency) : null;
-  if (!currency) {
-    issues.push(issue("currency", "price_currency", "מטבע המחיר חייב להיות קוד ISO 4217.", "The price currency must be an ISO 4217 code."));
-  }
   const hasMoq = Object.hasOwn(raw, "moq") && raw.moq !== undefined;
   if (hasMoq && (typeof raw.moq !== "number" || !Number.isInteger(raw.moq) || raw.moq < 1)) {
     issues.push(issue("moq", "price_moq", "moq חייב להיות מספר שלם מ־1 ומעלה.", "moq must be an integer of 1 or more."));
   }
   if (issues.length) return { issues };
 
+  const currency = typeof raw.currency === "string" ? normalizeCurrency(raw.currency) : null;
   const moq = hasMoq ? raw.moq as number : undefined;
-  const price: SupplierPrice = { value: raw.value as number, currency: currency as string };
+  const price: SupplierPrice = { value: raw.value as number };
+  if (currency) price.currency = currency;
+  else {
+    issues.push(issue(
+      "currency",
+      "price_currency",
+      "מטבע לא ידוע, ולכן המטבע לא נשמר. המחיר עצמו נשאר.",
+      "Unknown currency, so the currency was left unset. The price itself was kept.",
+    ));
+  }
   if (moq !== undefined) price.moq = moq;
 
   if (Object.hasOwn(raw, "tiers") && raw.tiers !== undefined) {
@@ -215,7 +229,7 @@ export function sanitizeSupplierPrice(raw: unknown): SupplierPriceResult {
         "quotedAt must be an ISO 8601 date or date-time, so it was removed.",
       ));
     } else {
-      price.quotedAt = quotedAt;
+      price.quotedAt = quotedAt.slice(0, 10);
     }
   }
 
@@ -223,9 +237,13 @@ export function sanitizeSupplierPrice(raw: unknown): SupplierPriceResult {
 }
 
 /** Same amount shape as the budget PriceTag: ₪ for ILS, otherwise a grouped number and the ISO code. */
-export function formatSupplierAmount(value: number, currency: string, lang: "he" | "en"): string {
+export function formatSupplierAmount(value: number, currency: string | undefined, lang: "he" | "en"): string {
   const locale = lang === "he" ? "he-IL" : "en";
   const digits = Number.isInteger(value) ? 0 : 2;
+  if (!currency) {
+    const amount = new Intl.NumberFormat(locale, { minimumFractionDigits: digits, maximumFractionDigits: 2 }).format(value);
+    return `${amount} ${tx(lang).unknownCurrency}`;
+  }
   const code = normalizeCurrency(currency) ?? currency;
   if (code === "ILS") {
     return new Intl.NumberFormat(locale, {

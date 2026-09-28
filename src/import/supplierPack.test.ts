@@ -68,6 +68,8 @@ describe("parsePackFile", () => {
     if (!result.ok) return;
     expect(result.pack).toEqual(raw);
     expect(result.warnings).toEqual([]);
+    const capPrice = raw.parts[1]?.price as { moq: number; tiers: Array<{ minQty: number }> };
+    expect(capPrice.tiers.every((tier) => tier.minQty > capPrice.moq)).toBe(true);
     expect(result.pack.version).toBe(2);
     expect(result.pack.source).toBe("scan");
     expect(result.pack.supplier).toEqual(raw.supplier);
@@ -131,8 +133,11 @@ describe("parsePackFile", () => {
         ref: "CAP-1",
         path: "tiers[0].minQty",
         code: "tier_not_above_moq",
+        severity: "warning",
       }),
     ]);
+    expect(formatPackNotice("he", result.warnings[0])).toContain("moq");
+    expect(formatPackNotice("en", result.warnings[0])).toContain("moq");
   });
 
   it("rejects the invalid sample pack with a Hebrew error", () => {
@@ -453,7 +458,7 @@ describe("reviveStoredPack", () => {
     expect(() => computeFit(createDefaultDesign())).not.toThrow();
   });
 
-  it("drops only an invalid stored price and a bad version field", () => {
+  it("keeps a stored price when only the currency is unrecognized", () => {
     const revived = reviveStoredPack({
       id: "sup-old",
       name: "Stored",
@@ -465,7 +470,7 @@ describe("reviveStoredPack", () => {
     expect(revived.pack?.version).toBeUndefined();
     expect(revived.pack?.source).toBe("scan");
     expect(revived.pack?.parts).toHaveLength(1);
-    expect(revived.pack?.parts[0]).not.toHaveProperty("price");
+    expect((revived.pack?.parts[0] as { price?: { value: number; currency?: string } }).price).toEqual({ value: 1 });
     expect(revived.warnings).toEqual([
       { type: "droppedMeta", field: "version" },
       expect.objectContaining({
@@ -475,6 +480,8 @@ describe("reviveStoredPack", () => {
         code: "price_currency",
       }),
     ]);
+    expect(formatPackNotice("he", revived.warnings[1])).toContain("מטבע לא ידוע");
+    expect(formatPackNotice("en", revived.warnings[1])).toContain("Unknown currency");
   });
 
   it("removes a stored pack that is not a pack", () => {
