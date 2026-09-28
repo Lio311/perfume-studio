@@ -1,5 +1,6 @@
 import { bottleById, boxById, capById, collarById, logoById, pumpById } from "../model/catalog.ts";
-import { computeFit } from "../model/fit.ts";
+import { computeFit, type Fit } from "../model/fit.ts";
+import { FINISHES } from "../model/materials.ts";
 import { NECKS } from "../model/necks.ts";
 import type { Design, Lang } from "../model/types.ts";
 import { requestShot } from "../scene/capture.ts";
@@ -9,7 +10,19 @@ function row(label: string, value: string): string {
 }
 
 export function esc(value: string): string {
-  return value.replace(/[&<>"]/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[char] ?? char);
+  return value.replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char] ?? char);
+}
+
+function glassOpacity(design: Design): number {
+  if (design.bottle.opacity !== undefined) return design.bottle.opacity;
+  if (design.bottle.finish === "clear") return 0.14;
+  if (design.bottle.finish === "frosted") return 0.45;
+  if (design.bottle.finish === "tinted") return 0.32;
+  return 1;
+}
+
+function sized(name: string, fit: Fit | null, size: (fit: Fit) => string): string {
+  return `${name} · ${fit ? size(fit) : "—"}`;
 }
 
 export function buildSpecHtml(design: Design, lang: Lang, render: string): string {
@@ -27,6 +40,8 @@ export function buildSpecHtml(design: Design, lang: Lang, render: string): strin
   const ferrule = neck
     ? `${neck.ferrule.innerMm} / ${neck.ferrule.outerMm} / ${neck.ferrule.heightMinMm}–${neck.ferrule.heightMaxMm} mm`
     : "—";
+  const glassFinish = FINISHES.find((item) => item.id === design.bottle.finish);
+  const glass = `${glassFinish ? glassFinish.name[lang] : design.bottle.finish} · ${design.bottle.color} · ${Math.round(glassOpacity(design) * 100)}%`;
   return `<!doctype html>
 <html lang="${esc(lang)}">
 <head>
@@ -50,14 +65,15 @@ export function buildSpecHtml(design: Design, lang: Lang, render: string): strin
   <img alt="" src="${esc(render)}" />
   <table>
     ${row(lang === "he" ? "בקבוק" : "Bottle", `${bottle.name[lang]} · ${design.bottle.heightMm.toFixed(1)} × ${design.bottle.widthMm.toFixed(1)} × ${design.bottle.depthMm.toFixed(1)} mm`)}
+    ${row(lang === "he" ? "זכוכית" : "Glass", glass)}
     ${row(lang === "he" ? "ספק" : "Supplier", supplierLine)}
     ${row(lang === "he" ? "צוואר" : "Neck", `${design.bottle.neck} · EN 14849`)}
     ${row(lang === "he" ? "חבק פנימי / חיצוני / גובה" : "Ferrule ID / OD / height", ferrule)}
-    ${row(lang === "he" ? "פקק" : "Cap", `${cap.name[lang]} · ${(fit?.capW ?? 0).toFixed(1)} × ${(fit?.capD ?? 0).toFixed(1)} × ${(fit?.capH ?? 0).toFixed(1)} mm · ${design.cap.finish}`)}
-    ${row(lang === "he" ? "משאבה" : "Pump", `${pump.name[lang]} · Ø${((fit?.actuatorR ?? 0) * 2).toFixed(1)} mm`)}
-    ${row(lang === "he" ? "צווארון" : "Collar", `${collar.name[lang]} · Ø${((fit?.collarOuter ?? 0) * 2).toFixed(1)} / Ø${((fit?.collarInner ?? 0) * 2).toFixed(1)} × ${(fit?.collarHeight ?? 0).toFixed(1)} mm`)}
+    ${row(lang === "he" ? "פקק" : "Cap", `${sized(cap.name[lang], fit, (part) => `${part.capW.toFixed(1)} × ${part.capD.toFixed(1)} × ${part.capH.toFixed(1)} mm`)} · ${design.cap.finish}`)}
+    ${row(lang === "he" ? "משאבה" : "Pump", sized(pump.name[lang], fit, (part) => `Ø${(part.actuatorR * 2).toFixed(1)} mm`))}
+    ${row(lang === "he" ? "צווארון" : "Collar", sized(collar.name[lang], fit, (part) => `Ø${(part.collarOuter * 2).toFixed(1)} / Ø${(part.collarInner * 2).toFixed(1)} × ${part.collarHeight.toFixed(1)} mm`))}
     ${row(lang === "he" ? "סימון" : "Mark", `${logo.name[lang]} · ${design.label.text}`)}
-    ${row(lang === "he" ? "קופסה" : "Box", `${box.name[lang]} · ${(fit?.boxW ?? 0).toFixed(1)} × ${(fit?.boxD ?? 0).toFixed(1)} × ${(fit?.boxH ?? 0).toFixed(1)} mm`)}
+    ${row(lang === "he" ? "קופסה" : "Box", sized(box.name[lang], fit, (part) => `${part.boxW.toFixed(1)} × ${part.boxD.toFixed(1)} × ${part.boxH.toFixed(1)} mm`))}
     ${row(lang === "he" ? "נוזל" : "Liquid", `${Math.round(design.liquid.fill * 100)}% · ${design.liquid.color}`)}
   </table>
 </main>

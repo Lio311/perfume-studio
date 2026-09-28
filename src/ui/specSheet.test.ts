@@ -21,7 +21,7 @@ describe("spec sheet HTML escaping", () => {
         ...BOTTLES[0],
         id: "xss-bottle",
         name: { he: `קארה <b>x</b>`, en: `Cara <b>x</b>` },
-        supplier: { name: `Ver<e>scence`, ref: `A&B "1"` },
+        supplier: { name: `O'Brien <e>`, ref: `A&B "1"` },
       }],
       caps: [{ ...CAPS[0], id: "xss-cap", name: { he: `פקק <i>`, en: `Cap <i>` } }],
       labels: [{ ...LOGOS[0], id: "xss-logo", name: { he: `לוגו <img>`, en: `Logo <img>` } }],
@@ -50,8 +50,9 @@ describe("spec sheet HTML escaping", () => {
     expect(html).not.toContain("<i>");
     expect(html).not.toContain("<q>");
     expect(html.match(/<img/g)).toEqual(["<img"]);
-    expect(html).toContain("Ver&lt;e&gt;scence");
+    expect(html).toContain("O&#39;Brien &lt;e&gt;");
     expect(html).toContain("A&amp;B &quot;1&quot;");
+    expect(html).not.toContain("&amp;#39;");
     expect(html).toContain("FEA15&quot;&gt;&lt;svg/onload=alert(1)&gt;");
     expect(html).toContain("#fff&quot; onload=&quot;alert(1)");
     expect(html).toContain("קארה &lt;b&gt;x&lt;/b&gt;");
@@ -72,6 +73,31 @@ describe("spec sheet HTML escaping", () => {
     expect(html).toContain("FEA15");
     expect(html).toContain("#c98a2b");
     expect(html).toContain("Supplier specification");
-    expect(html).not.toContain("&amp;");
+  });
+
+  it("prints an em dash instead of zero sizes when the neck is unknown", () => {
+    const design = createDefaultDesign();
+    design.bottle.neck = "FEA15<img>" as NeckId;
+    const html = buildSpecHtml(design, "en", "data:image/png;base64,AAAA");
+    for (const label of ["Cap", "Pump", "Collar", "Box", "Ferrule ID / OD / height"]) {
+      const cell = html.match(new RegExp(`<th>${label}</th><td>(.*?)</td>`));
+      expect(cell?.[1], label).toContain("—");
+      expect(cell?.[1], label).not.toContain("0.0");
+    }
+    expect(html).toContain("67.6");
+  });
+
+  it("lists bottle glass colour, finish, and opacity separately from the liquid", () => {
+    const design = createDefaultDesign();
+    design.bottle.finish = "tinted";
+    design.bottle.color = "#112233";
+    design.bottle.opacity = 0.4;
+    design.liquid.color = "#abcdef";
+    design.liquid.fill = 0.5;
+    const html = buildSpecHtml(design, "en", "data:image/png;base64,AAAA");
+    const glass = html.match(/<th>Glass<\/th><td>(.*?)<\/td>/);
+    const liquid = html.match(/<th>Liquid<\/th><td>(.*?)<\/td>/);
+    expect(glass?.[1]).toBe("Tinted · #112233 · 40%");
+    expect(liquid?.[1]).toBe("50% · #abcdef");
   });
 });

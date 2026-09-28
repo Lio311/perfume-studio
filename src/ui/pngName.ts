@@ -1,6 +1,13 @@
-/** Keep letters (including Hebrew), digits, underscore, and hyphen. Drop path separators and the rest. */
+const MAX_PART = 60;
+
+/** Keep Unicode letters and digits, plus `_` and `-`. Spaces become `_`. */
 export function sanitizeFilenamePart(value: string): string {
-  return value.replace(/[^\w\u0590-\u05FF-]+/g, "");
+  return value
+    .trim()
+    .replace(/\s+/g, "_")
+    .replace(/[^\p{L}\p{N}_-]+/gu, "")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, MAX_PART);
 }
 
 export function pngDownloadName(label: string, bottle: string, day: string): string {
