@@ -560,7 +560,7 @@ function Stage() {
   const dark = theme.id === "dark";
   const present = useLab((s) => s.present);
   const exporting = useLab((s) => s.exporting);
-  const showGrid = !present && !exporting && (blueprint || (dark && voice !== 2));
+  const showGrid = !present && !exporting && voice !== 2;
   const grid = !dark
     ? { cell: theme.scene.gridCell, section: theme.scene.gridSection }
     : blueprint
@@ -591,17 +591,17 @@ function Stage() {
           infiniteGrid
         />
       )}
-      {blueprint && stage !== "together" && !(dark && voice === 2) && (
+      {blueprint && stage !== "together" && voice !== 2 && (
         <Grid
           args={[340, 220]}
           position={[0, 100, stage === "box" ? -150 : -190]}
           rotation={[Math.PI / 2, 0, 0]}
           cellSize={16}
           cellThickness={0.4}
-          cellColor={blueprint ? "#3a4656" : "#1c2a34"}
+          cellColor={!dark ? theme.scene.gridCell : blueprint ? "#3a4656" : "#1c2a34"}
           sectionSize={80}
           sectionThickness={0.55}
-          sectionColor={blueprint ? "#9a8458" : "#2a3c48"}
+          sectionColor={!dark ? theme.scene.gridSection : blueprint ? "#9a8458" : "#2a3c48"}
           fadeDistance={240}
           fadeStrength={1.7}
         />

@@ -88,8 +88,8 @@ export const themes: Record<ThemeId, Theme> = {
     scene: {
       top: "#f7f8fa",
       bottom: "#dfe3e8",
-      gridCell: "#c5ccd4",
-      gridSection: "#9aa3ae",
+      gridCell: "#888888",
+      gridSection: "#555555",
       ambient: "#f4f6f8",
       ambientIntensity: 0.62,
       key: "#ffffff",

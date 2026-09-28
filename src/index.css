@@ -444,7 +444,7 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 .dim-tag {
   padding: 2px 6px;
   border-radius: 999px;
-  border: 1px solid rgba(214, 178, 106, 0.45);
+  border: 1px solid var(--line-strong);
   background: var(--panel);
   color: var(--text);
   font-family: var(--num);
@@ -498,7 +498,7 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   align-items: baseline;
   padding: 3px 8px;
   border-radius: 999px;
-  border: 1px solid rgba(214, 178, 106, 0.45);
+  border: 1px solid var(--line-strong);
   background: var(--panel);
   color: var(--accent-2);
   font-size: 12px;
@@ -621,7 +621,7 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   font-size: 12px;
   white-space: nowrap;
   background: var(--panel);
-  border: 1px solid rgba(214, 178, 106, 0.45);
+  border: 1px solid var(--line-strong);
   border-radius: 999px;
   padding: 2px 6px;
 }
@@ -777,8 +777,8 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   height: 100%;
   overflow: visible;
 }
-.callout-svg line { stroke: rgba(214, 178, 106, 0.8); stroke-width: 1; }
-.callout-svg circle { fill: #f3e6cc; }
+.callout-svg line { stroke: var(--accent); stroke-width: 1; }
+.callout-svg circle { fill: var(--text); }
 .callout-tag {
   position: absolute;
   transform: translateY(-50%);
@@ -1070,6 +1070,27 @@ html[data-theme="dark"] .app[data-voice="3"] .sonic-bar {
 .intro i { width: 72px; height: 1px; background: #d6b26a; transform-origin: center; animation: intro-line 0.8s ease; }
 @keyframes intro-out { to { opacity: 0; visibility: hidden; } }
 @keyframes intro-line { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+html[data-theme="light"] {
+  --bg: #e8ebf0;
+  --panel: rgba(255, 255, 255, 0.84);
+  --panel-2: rgba(255, 255, 255, 0.94);
+  --line: rgba(26, 29, 34, 0.12);
+  --line-strong: rgba(26, 29, 34, 0.28);
+  --text: #1a1d22;
+  --muted: #5c6370;
+  --faint: #7b828e;
+  --accent: #9a7b4a;
+  --accent-2: #1a1d22;
+  --on-accent: #1a140c;
+  --danger: #a33d3d;
+  --good: #2f6b4f;
+  --shadow: 0 16px 40px rgba(22, 26, 34, 0.08);
+  --inset: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  --thumb: rgba(255, 255, 255, 0.7);
+  --fill: rgba(154, 123, 74, 0.1);
+  --vignette: rgba(30, 36, 48, 0.05);
+}
+
 html[data-theme="light"] .panel::before {
   background: linear-gradient(160deg, rgba(255, 255, 255, 0.95), rgba(26, 29, 34, 0.05) 42%, transparent 64%);
 }

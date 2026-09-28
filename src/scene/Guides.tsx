@@ -8,8 +8,6 @@ import { useLab, type StageMode } from "../store/labStore.ts";
 import { Clock } from "./clock.ts";
 import { explodeLocal } from "./explodeCurve.ts";
 
-const GOLD = "#f3e6cc";
-
 export interface Frame {
   home: [number, number, number];
   explode: [number, number, number];
@@ -49,6 +47,11 @@ export function posedFrame(part: PartKey, fit: ReturnType<typeof computeFit>, st
 /** Puts a part's base on a turntable at the origin, for the solo view. */
 export function turntableHome(frame: Frame): [number, number, number] {
   return [-frame.center[0], 2 - frame.center[1] + frame.size[1] / 2, -frame.center[2]];
+}
+
+function useGuideColor() {
+  const theme = useLab((s) => s.theme);
+  return theme === "light" ? "#9a7b4a" : "#f3e6cc";
 }
 
 export function PartGuides() {
@@ -99,6 +102,7 @@ function GuideFrame({ frame, dims, neck, unit }: { frame: Frame; dims: boolean; 
 
 function Brackets({ w, h, d }: { w: number; h: number; d: number }) {
   const pad = 3.5;
+  const color = useGuideColor();
   const x = w / 2 + pad;
   const y = h / 2 + pad;
   const z = d / 2 + pad;
@@ -116,9 +120,9 @@ function Brackets({ w, h, d }: { w: number; h: number; d: number }) {
         const origin: [number, number, number] = [cx, cy, cz];
         return (
           <group key={`${cx}${cy}${cz}`}>
-            <Line points={[origin, [cx + sx * arm, cy, cz]]} color={GOLD} lineWidth={1} />
-            <Line points={[origin, [cx, cy + sy * arm, cz]]} color={GOLD} lineWidth={1} />
-            <Line points={[origin, [cx, cy, cz + sz * arm]]} color={GOLD} lineWidth={1} />
+            <Line points={[origin, [cx + sx * arm, cy, cz]]} color={color} lineWidth={1} />
+            <Line points={[origin, [cx, cy + sy * arm, cz]]} color={color} lineWidth={1} />
+            <Line points={[origin, [cx, cy, cz + sz * arm]]} color={color} lineWidth={1} />
           </group>
         );
       })}
@@ -141,25 +145,26 @@ function DimLabel({ position, text }: { position: [number, number, number]; text
 }
 
 function Dimensions({ w, h, d, neck, unit }: { w: number; h: number; d: number; neck: number; unit: "mm" | "cm" | "in" }) {
+  const color = useGuideColor();
   const x = w / 2;
   const y = h / 2;
   const z = d / 2;
   const gap = 14;
   return (
     <>
-      <Line points={[[-x, -y - gap, z + 2], [x, -y - gap, z + 2]]} color={GOLD} lineWidth={1} />
-      <Line points={[[-x, -y - gap, z + 2], [-x, -y - 4, z + 2]]} color={GOLD} lineWidth={1} />
-      <Line points={[[x, -y - gap, z + 2], [x, -y - 4, z + 2]]} color={GOLD} lineWidth={1} />
+      <Line points={[[-x, -y - gap, z + 2], [x, -y - gap, z + 2]]} color={color} lineWidth={1} />
+      <Line points={[[-x, -y - gap, z + 2], [-x, -y - 4, z + 2]]} color={color} lineWidth={1} />
+      <Line points={[[x, -y - gap, z + 2], [x, -y - 4, z + 2]]} color={color} lineWidth={1} />
       <DimLabel position={[0, -y - gap - 6, z + 2]} text={formatLen(w, unit)} />
-      <Line points={[[x + gap, -y, z], [x + gap, y, z]]} color={GOLD} lineWidth={1} />
-      <Line points={[[x + 4, -y, z], [x + gap, -y, z]]} color={GOLD} lineWidth={1} />
-      <Line points={[[x + 4, y, z], [x + gap, y, z]]} color={GOLD} lineWidth={1} />
+      <Line points={[[x + gap, -y, z], [x + gap, y, z]]} color={color} lineWidth={1} />
+      <Line points={[[x + 4, -y, z], [x + gap, -y, z]]} color={color} lineWidth={1} />
+      <Line points={[[x + 4, y, z], [x + gap, y, z]]} color={color} lineWidth={1} />
       <DimLabel position={[x + gap + 8, 0, z]} text={formatLen(h, unit)} />
-      <Line points={[[-x - gap, -y, -z], [-x - gap, -y, z]]} color={GOLD} lineWidth={1} />
+      <Line points={[[-x - gap, -y, -z], [-x - gap, -y, z]]} color={color} lineWidth={1} />
       <DimLabel position={[-x - gap, -y, 0]} text={formatLen(d, unit)} />
       {neck > 1 && (
         <>
-          <Line points={[[-neck / 2, y + 6, 0], [neck / 2, y + 6, 0]]} color={GOLD} lineWidth={1} />
+          <Line points={[[-neck / 2, y + 6, 0], [neck / 2, y + 6, 0]]} color={color} lineWidth={1} />
           <DimLabel position={[0, y + 12, 0]} text={`Ø ${formatLen(neck, unit)}`} />
         </>
       )}

@@ -138,21 +138,20 @@ export function TopBar() {
               <button type="button" className={quality === "medium" ? "is-on" : ""} onClick={() => { setQuality("medium"); setMenu(null); }}>{t.qualityMed}</button>
             </div>
             <button type="button" className={`text-btn blueprint-btn ${blueprint ? "is-on" : ""}`} aria-pressed={blueprint} onClick={() => { setBlueprint(!blueprint); setMenu(null); }}>{t.blueprint}</button>
-            <button type="button" className="text-btn" onClick={() => {
-              const toggle = () => {
-                setTheme(theme === "dark" ? "light" : "dark");
-                setMenu(null);
-              };
-              if (document.startViewTransition) {
-                document.startViewTransition(() => {
-                  flushSync(toggle);
-                });
-              } else {
-                toggle();
-              }
-            }}>
-              {theme === "dark" ? t.themeToLight : t.themeToDark}
-            </button>
+            <div className="voice-switch" role="group">
+              <button type="button" className={theme === "light" ? "is-on" : ""} onClick={() => {
+                if (theme === "light") return;
+                const toggle = () => { setTheme("light"); setMenu(null); };
+                if (document.startViewTransition) document.startViewTransition(() => flushSync(toggle));
+                else toggle();
+              }}>{t.themeToLight}</button>
+              <button type="button" className={theme === "dark" ? "is-on" : ""} onClick={() => {
+                if (theme === "dark") return;
+                const toggle = () => { setTheme("dark"); setMenu(null); };
+                if (document.startViewTransition) document.startViewTransition(() => flushSync(toggle));
+                else toggle();
+              }}>{t.themeToDark}</button>
+            </div>
           </div>
         )}
       </div>
