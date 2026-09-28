@@ -4,11 +4,14 @@ import {
   contrastingPlate,
   contrastRatio,
   labelDirection,
+  labelFinish,
   labelFontFamily,
   labelFontWeight,
+  labelInk,
   labelTypeface,
   layoutLabelLines,
   paintLabel,
+  paintLabelSurface,
   relativeLuminance,
   shouldRepaintLabel,
 } from "./logos.ts";
@@ -73,6 +76,64 @@ describe("label text layout", () => {
     expect(clampLabelText(boundary)).toBe(boundary);
     expect(boundary.slice(0, 32)).not.toBe(boundary);
     expect(Array.from(clampLabelText(boundary))).toHaveLength(32);
+  });
+
+  it("keeps the chosen ink and finishes each application differently", () => {
+    expect(labelInk("#D6B26A", "foil")).toBe("#D6B26A");
+    expect(labelInk("#D6B26A", "emboss")).toBe("#D6B26A");
+    expect(labelInk("#D6B26A", "engrave")).toBe("#D6B26A");
+    expect(labelInk("#D6B26A", "decal")).toBe("#D6B26A");
+    expect(labelFinish("decal")).toEqual({ metalness: 0, roughness: 1, bumpScale: 0 });
+    const foil = labelFinish("foil");
+    const emboss = labelFinish("emboss");
+    const engrave = labelFinish("engrave");
+    expect(foil.metalness).toBeGreaterThan(0.8);
+    expect(foil.roughness).toBeLessThan(0.35);
+    expect(foil.bumpScale).toBe(0);
+    expect(emboss.bumpScale).toBeGreaterThan(0);
+    expect(engrave.bumpScale).toBeLessThan(0);
+    expect(emboss.bumpScale).toBe(-engrave.bumpScale);
+    expect(emboss.metalness).toBeLessThan(0.2);
+    expect(engrave.metalness).toBe(emboss.metalness);
+    expect(foil.roughness).toBeLessThan(emboss.roughness);
+    expect(emboss.roughness).toBeLessThan(1);
+  });
+
+  it("masks metal and height to the ink so the plate stays matte", () => {
+    const width = 48;
+    const height = 48;
+    const source = new Uint8ClampedArray(width * height * 4);
+    const plate: [number, number, number] = [0x16, 0x13, 0x0f];
+    const ink: [number, number, number] = [0xd6, 0xb2, 0x6a];
+    for (let y = 0; y < height; y += 1) {
+      for (let x = 0; x < width; x += 1) {
+        const index = (y * width + x) * 4;
+        const on = x >= 16 && x < 32 && y >= 16 && y < 32;
+        const rgb = on ? ink : plate;
+        source[index] = rgb[0];
+        source[index + 1] = rgb[1];
+        source[index + 2] = rgb[2];
+        source[index + 3] = 255;
+      }
+    }
+    const target = new Uint8ClampedArray(source.length);
+    const at = (x: number, y: number) => {
+      const index = (y * width + x) * 4;
+      return [target[index], target[index + 1], target[index + 2]] as const;
+    };
+    paintLabelSurface(source, "#D6B26A", "foil", target, width, height);
+    const platePixel = at(2, 2);
+    const inkPixel = at(24, 24);
+    expect(platePixel[0]).toBe(0);
+    expect(platePixel[1]).toBe(255);
+    expect(platePixel[2]).toBe(0);
+    expect(inkPixel[0]).toBe(255);
+    expect(inkPixel[1]).toBe(Math.round(labelFinish("foil").roughness * 255));
+    expect(inkPixel[2]).toBe(255);
+    paintLabelSurface(source, "#D6B26A", "emboss", target, width, height);
+    expect(at(24, 24)[0]).toBeGreaterThan(200);
+    expect(at(2, 2)[0]).toBe(0);
+    expect(contrastingPlate("#D6B26A")).toBe("#16130f");
   });
 
   it("repaints only when a new face loads", () => {

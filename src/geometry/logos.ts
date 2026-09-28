@@ -52,12 +52,136 @@ export function shouldRepaintLabel(alreadyLoaded: boolean): boolean {
   return !alreadyLoaded;
 }
 
-/**
- * Ink painted on the plate. Today this is the label colour.
- * Foil, emboss, and engrave used to derive a different ink here; that choice is waiting on a product decision.
- */
+/** The colour the user chose. Application changes how that ink is finished, not the colour itself. */
 export function labelInk(color: string, _application?: LogoApplication): string {
   return color;
+}
+
+export interface LabelFinish {
+  /** Metalness of the ink. The plate stays non-metallic via the ink mask. */
+  metalness: number;
+  /** Roughness of the ink. The plate stays rough (1) via the same mask. */
+  roughness: number;
+  /** Bump height of the glyph mask. Positive raises the ink, negative recesses it, zero stays flat. */
+  bumpScale: number;
+}
+
+/**
+ * Finish of the ink region. Print is flat. Foil is glossy metal.
+ * Emboss is raised and engrave is recessed, from the same glyph mask with opposite bump.
+ */
+export function labelFinish(application: LogoApplication = "decal"): LabelFinish {
+  switch (application) {
+    case "foil":
+      return { metalness: 1, roughness: 0.16, bumpScale: 0 };
+    case "emboss":
+      return { metalness: 0.04, roughness: 0.62, bumpScale: 2.4 };
+    case "engrave":
+      return { metalness: 0.04, roughness: 0.62, bumpScale: -2.4 };
+    default:
+      return { metalness: 0, roughness: 1, bumpScale: 0 };
+  }
+}
+
+/** 0 on the contrasting plate, 1 on solid ink. Edges in between stay partial so anti-aliasing survives. */
+export function inkCoverage(plate: readonly [number, number, number], rgb: readonly [number, number, number]): number {
+  const dist = Math.hypot(rgb[0] - plate[0], rgb[1] - plate[1], rgb[2] - plate[2]);
+  return Math.min(1, Math.max(0, (dist - 8) / 36));
+}
+
+function plateRgb(ink: string): [number, number, number] {
+  const hex = contrastingPlate(ink);
+  return [
+    Number.parseInt(hex.slice(1, 3), 16),
+    Number.parseInt(hex.slice(3, 5), 16),
+    Number.parseInt(hex.slice(5, 7), 16),
+  ];
+}
+
+function blurCoverage(coverage: Float32Array, width: number, height: number, radius: number): Float32Array {
+  const horizontal = new Float32Array(coverage.length);
+  const vertical = new Float32Array(coverage.length);
+  const denom = radius * 2 + 1;
+  const clamp = (value: number, max: number) => (value < 0 ? 0 : value > max ? max : value);
+  for (let y = 0; y < height; y += 1) {
+    const row = y * width;
+    let sum = 0;
+    for (let k = -radius; k <= radius; k += 1) sum += coverage[row + clamp(k, width - 1)];
+    for (let x = 0; x < width; x += 1) {
+      horizontal[row + x] = sum / denom;
+      sum -= coverage[row + clamp(x - radius, width - 1)];
+      sum += coverage[row + clamp(x + radius + 1, width - 1)];
+    }
+  }
+  for (let x = 0; x < width; x += 1) {
+    let sum = 0;
+    for (let k = -radius; k <= radius; k += 1) sum += horizontal[clamp(k, height - 1) * width + x];
+    for (let y = 0; y < height; y += 1) {
+      vertical[y * width + x] = sum / denom;
+      sum -= horizontal[clamp(y - radius, height - 1) * width + x];
+      sum += horizontal[clamp(y + radius + 1, height - 1) * width + x];
+    }
+  }
+  return vertical;
+}
+
+/**
+ * Packs the ink mask into one canvas for a lit finish.
+ * R is glyph height (bump), G is roughness, B is the metalness mask.
+ * Plate pixels stay rough and non-metallic so the ground stays readable.
+ */
+export function paintLabelSurface(
+  source: Uint8ClampedArray,
+  ink: string,
+  application: LogoApplication,
+  target: Uint8ClampedArray,
+  width = 0,
+  height = 0,
+): void {
+  const finish = labelFinish(application);
+  const plate = plateRgb(ink);
+  const count = Math.floor(source.length / 4);
+  const coverage = new Float32Array(count);
+  for (let pixel = 0; pixel < count; pixel += 1) {
+    const index = pixel * 4;
+    coverage[pixel] = inkCoverage(plate, [source[index], source[index + 1], source[index + 2]]);
+  }
+  const bevel = finish.bumpScale !== 0 && width >= 8 && height >= 8 && width * height === count;
+  const radius = bevel ? Math.min(18, Math.max(1, Math.round(Math.min(width, height) * 0.018))) : 0;
+  const heightMap = radius > 0 ? blurCoverage(coverage, width, height, radius) : coverage;
+  const inkRough = Math.round(Math.min(1, Math.max(0, finish.roughness)) * 255);
+  for (let pixel = 0; pixel < count; pixel += 1) {
+    const index = pixel * 4;
+    const cover = coverage[pixel];
+    target[index] = Math.round(Math.min(1, Math.max(0, heightMap[pixel])) * 255);
+    target[index + 1] = Math.round(255 + (inkRough - 255) * cover);
+    target[index + 2] = Math.round(cover * 255);
+    target[index + 3] = 255;
+  }
+}
+
+/** Mask derived from the painted plate. Same pixels as the colour canvas, so the ink lines up. */
+export function labelSurfaceCanvas(source: HTMLCanvasElement, ink: string, application: LogoApplication): HTMLCanvasElement {
+  const limit = 1024;
+  const scale = Math.min(1, limit / Math.max(source.width, source.height, 1));
+  const width = Math.max(1, Math.round(source.width * scale));
+  const height = Math.max(1, Math.round(source.height * scale));
+  const sample = document.createElement("canvas");
+  sample.width = width;
+  sample.height = height;
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const sampleCtx = sample.getContext("2d", { willReadFrequently: true });
+  const dst = canvas.getContext("2d");
+  if (!sampleCtx || !dst) return canvas;
+  sampleCtx.imageSmoothingEnabled = true;
+  sampleCtx.drawImage(source, 0, 0, width, height);
+  const image = sampleCtx.getImageData(0, 0, width, height);
+  const out = dst.createImageData(width, height);
+  paintLabelSurface(image.data, ink, application, out.data, width, height);
+  dst.putImageData(out, 0, 0);
+  return canvas;
 }
 
 /** Display faces have no Hebrew glyphs. A right-to-left paragraph uses Heebo, which also covers Latin and digits. */

@@ -7,8 +7,8 @@ import { computeFit } from "../model/fit.ts";
 import { isGlass } from "../model/materials.ts";
 import type { BoxForm, PartKey, PumpStyle } from "../model/types.ts";
 import { buildBottleGeometry, buildCapGeometry, buildLabelPatch } from "../geometry/sweep.ts";
-import { labelFontSpec, labelInk, logoTexture, shouldRepaintLabel } from "../geometry/logos.ts";
-import type { LogoFont } from "../model/types.ts";
+import { labelFinish, labelFontSpec, labelInk, labelSurfaceCanvas, logoTexture, shouldRepaintLabel } from "../geometry/logos.ts";
+import type { LogoApplication, LogoFont } from "../model/types.ts";
 import { useLab } from "../store/labStore.ts";
 import { latheGeometry, latheProfile } from "../import/lathe.ts";
 import { clickPart, doubleClickPart, markPartPointer, swapFlashOn } from "./focusClick.ts";
@@ -597,6 +597,81 @@ function useLabelFontTick(font: LogoFont, text: string): number {
   return fontTick;
 }
 
+function useLabelMaps(canvas: HTMLCanvasElement, ink: string, application: LogoApplication) {
+  const finish = labelFinish(application);
+  const color = useMemo(() => {
+    const map = new THREE.CanvasTexture(canvas);
+    map.colorSpace = THREE.SRGBColorSpace;
+    map.anisotropy = 16;
+    map.flipY = true;
+    map.generateMipmaps = true;
+    map.needsUpdate = true;
+    return map;
+  }, [canvas]);
+  const mask = useMemo(() => {
+    if (finish.metalness === 0 && finish.bumpScale === 0) return null;
+    const surface = labelSurfaceCanvas(canvas, ink, application);
+    const map = new THREE.CanvasTexture(surface);
+    map.colorSpace = THREE.NoColorSpace;
+    map.anisotropy = 8;
+    map.flipY = true;
+    map.generateMipmaps = true;
+    map.needsUpdate = true;
+    return map;
+  }, [canvas, ink, application, finish.metalness, finish.bumpScale]);
+  useEffect(() => () => {
+    color.dispose();
+    mask?.dispose();
+  }, [color, mask]);
+  return { color, mask };
+}
+
+function LabelFinishMaterial({
+  map,
+  mask,
+  application,
+  overlay = false,
+}: {
+  map: THREE.Texture;
+  mask: THREE.Texture | null;
+  application: LogoApplication;
+  overlay?: boolean;
+}) {
+  const finish = labelFinish(application);
+  const flat = finish.metalness === 0 && finish.bumpScale === 0;
+  if (flat || !mask) {
+    return (
+      <meshBasicMaterial
+        map={map}
+        toneMapped={false}
+        transparent={overlay}
+        depthWrite={!overlay}
+        polygonOffset={!overlay}
+        polygonOffsetFactor={-4}
+        polygonOffsetUnits={-4}
+      />
+    );
+  }
+  // Roughness is multiplied by the map. The uniform stays 1 so the plate (green = 1) stays matte
+  // and the ink uses labelFinish().roughness, stored in that channel. Metalness uses the blue channel.
+  return (
+    <meshStandardMaterial
+      map={map}
+      metalness={finish.metalness}
+      metalnessMap={mask}
+      roughness={1}
+      roughnessMap={mask}
+      bumpMap={finish.bumpScale !== 0 ? mask : undefined}
+      bumpScale={finish.bumpScale}
+      envMapIntensity={finish.metalness >= 0.5 ? 1.5 : 1}
+      depthWrite={!overlay}
+      polygonOffset={!overlay}
+      polygonOffsetFactor={-4}
+      polygonOffsetUnits={-4}
+    />
+  );
+}
+
 function LabelPart() {
   const design = useLab((s) => s.design);
   const stage = useLab((s) => s.stage);
@@ -617,16 +692,7 @@ function LabelPart() {
     drawn.dataset.fonts = String(fontTick);
     return drawn;
   }, [spec, design.label.text, ink, fontTick, fit.labelW, fit.labelH]);
-  const texture = useMemo(() => {
-    const map = new THREE.CanvasTexture(canvas);
-    map.colorSpace = THREE.SRGBColorSpace;
-    map.anisotropy = 16;
-    map.flipY = true;
-    map.generateMipmaps = true;
-    map.needsUpdate = true;
-    return map;
-  }, [canvas]);
-  useEffect(() => () => texture.dispose(), [texture]);
+  const { color: texture, mask } = useLabelMaps(canvas, ink, spec.application);
   const plate = useDisposable(() => buildLabelPatch({
     height: design.bottle.heightMm,
     width: design.bottle.widthMm,
@@ -644,7 +710,7 @@ function LabelPart() {
   return (
     <PartShell part="label" index={4} home={[0, fit.labelY, fit.labelZ]} explode={fit.explode.label} visible={design.label.visible && onStage} variantKey={spec.id + design.label.text + bottle.id}>
       <mesh geometry={plate} renderOrder={8}>
-        <meshBasicMaterial map={texture} toneMapped={false} polygonOffset polygonOffsetFactor={-4} polygonOffsetUnits={-4} />
+        <LabelFinishMaterial map={texture} mask={mask} application={spec.application} />
         <GoldRim part="label" stamp={spec.id + design.label.text} />
       </mesh>
     </PartShell>
@@ -675,22 +741,18 @@ function BrandPlate({ w, y, z }: { w: number; y: number; z: number }) {
   const spec = logoById(variantId);
   const ink = labelInk(color, spec.application);
   const fontTick = useLabelFontTick(spec.font, text);
-  const tex = useMemo(() => {
-    const planeW = Math.min(w * 0.48, 52);
-    const canvas = logoTexture(spec, text, ink, 1024, Math.max(96, Math.round(1024 * 18 / planeW)));
-    canvas.dataset.fonts = String(fontTick);
-    const texture = new THREE.CanvasTexture(canvas);
-    texture.colorSpace = THREE.SRGBColorSpace;
-    texture.anisotropy = 4;
-    texture.needsUpdate = true;
-    return texture;
-  }, [text, spec, w, ink, fontTick]);
-  useEffect(() => () => tex.dispose(), [tex]);
+  const planeW = Math.min(w * 0.48, 52);
+  const canvas = useMemo(() => {
+    const drawn = logoTexture(spec, text, ink, 1024, Math.max(96, Math.round(1024 * 18 / planeW)));
+    drawn.dataset.fonts = String(fontTick);
+    return drawn;
+  }, [text, spec, ink, fontTick, planeW]);
+  const { color: tex, mask } = useLabelMaps(canvas, ink, spec.application);
   if (blueprint) return null;
   return (
     <mesh position={[0, y, z]}>
-      <planeGeometry args={[Math.min(w * 0.48, 52), 18]} />
-      <meshBasicMaterial map={tex} transparent toneMapped={false} depthWrite={false} />
+      <planeGeometry args={[planeW, 18]} />
+      <LabelFinishMaterial map={tex} mask={mask} application={spec.application} overlay />
     </mesh>
   );
 }
