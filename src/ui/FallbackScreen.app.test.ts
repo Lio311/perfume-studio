@@ -106,6 +106,7 @@ describe("app error boundary", () => {
         past: [createDefaultDesign()],
         future: [createDefaultDesign()],
         brief: { title: "עבודה" },
+        workshopNote: "עבודה",
         shareUrl: "https://example.test/lab#d=old",
       },
       version: 4,
@@ -141,7 +142,8 @@ describe("app error boundary", () => {
         future: unknown[];
         theme: string;
         lang: string;
-        brief: { title: string };
+        brief: { ceilingIls: number; volumeMl: number; confirmed: boolean };
+        workshopNote: string;
       };
       version: number;
     };
@@ -156,7 +158,8 @@ describe("app error boundary", () => {
     expect(stored.state.theme).toBe("dark");
     expect(stored.state.lang).toBe("he");
     expect("shareUrl" in stored.state).toBe(false);
-    expect(stored.state.brief).toEqual({ title: "עבודה" });
+    expect(stored.state.workshopNote).toBe("עבודה");
+    expect(stored.state.brief).toEqual({ ceilingIls: 30, volumeMl: 50, confirmed: false });
     expect(localStorage.getItem("perfume-lab-draft")).toBeNull();
     const kept = localStorage.getItem(DESIGN_STORAGE_KEY);
     createLabStorage().setItem(DESIGN_STORAGE_KEY, { state: { design: { bottle: { variantId: "wiped" } } }, version: 5 });

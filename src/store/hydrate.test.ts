@@ -3,7 +3,7 @@ import { hydrateBox } from "../model/boxFields.ts";
 import { setImportedCatalog } from "../model/catalog.ts";
 import { createDefaultDesign } from "../model/design.ts";
 import type { Design, LogoSpec } from "../model/types.ts";
-import { createLabStorage, mergePersistedLab, migratePersisted, partializeLabState, readStorageValue, resetPersistedPayload, resumeLabStorageWrites, sanitizeDesign, type HydratedSlice } from "./hydrate.ts";
+import { createLabStorage, DEFAULT_BUDGET_BRIEF, mergePersistedLab, migratePersisted, partializeLabState, readStorageValue, resetPersistedPayload, resumeLabStorageWrites, sanitizeDesign, type HydratedSlice } from "./hydrate.ts";
 import { useLab } from "./labStore.ts";
 
 function slice(design: Design = createDefaultDesign()): HydratedSlice {
@@ -98,7 +98,7 @@ describe("saved design hydration", () => {
     expect(merged.design.label.scale).toBe(1.6);
     expect(merged.design.liquid.color).toBe(defaults.liquid.color);
     expect(merged.design.liquid.fill).toBe(0);
-    expect(merged.design.liquid.visible).toBe(defaults.liquid.visible);
+    expect(merged.design.liquid.visible).toBe(true);
     expect(merged.theme).toBe("dark");
     expect(merged.lang).toBe("he");
     expect(merged.chat).toEqual([
@@ -387,16 +387,18 @@ describe("saved design hydration", () => {
 
   it("keeps unknown top-level fields and a null slot falls back", () => {
     const merged = mergePersistedLab(
-      { brief: { title: "עבודה" }, priceOverrides: { cara: 12 }, exchangeRates: { USD: 3.7 }, design: { bottle: null, cap: null } },
+      { workshopNote: "עבודה", brief: { title: "עבודה" }, priceOverrides: { cara: 12 }, exchangeRates: { USD: 3.7 }, design: { bottle: null, cap: null } },
       slice(),
     );
     const extra = merged as HydratedSlice & {
-      brief: { title: string };
-      priceOverrides: { cara: number };
+      workshopNote: string;
+      brief: { ceilingIls: number; volumeMl: number; confirmed: boolean };
+      priceOverrides: Record<string, unknown>;
       exchangeRates: { USD: number };
     };
-    expect(extra.brief).toEqual({ title: "עבודה" });
-    expect(extra.priceOverrides).toEqual({ cara: 12 });
+    expect(extra.workshopNote).toBe("עבודה");
+    expect(extra.brief).toEqual(DEFAULT_BUDGET_BRIEF);
+    expect(extra.priceOverrides).toEqual({});
     expect(extra.exchangeRates).toEqual({ USD: 3.7 });
     expect(merged.design.bottle.variantId).toBe("cara-50");
     expect(merged.design.bottle.visible).toBe(true);
@@ -405,15 +407,17 @@ describe("saved design hydration", () => {
 
     const undo = () => undefined;
     const mergedFns = mergePersistedLab(
-      { undo: "replaced", brief: { title: "נשאר" } },
+      { undo: "replaced", note: "נשאר", brief: { title: "נשאר" } },
       { ...slice(), undo },
-    ) as HydratedSlice & { undo: () => void; brief: { title: string } };
+    ) as HydratedSlice & { undo: () => void; note: string; brief: typeof DEFAULT_BUDGET_BRIEF };
     expect(mergedFns.undo).toBe(undo);
-    expect(mergedFns.brief).toEqual({ title: "נשאר" });
+    expect(mergedFns.note).toBe("נשאר");
+    expect(mergedFns.brief).toEqual(DEFAULT_BUDGET_BRIEF);
 
     const partial = partializeLabState({
       ...slice(),
       brief: { title: "עבודה" },
+      briefEditing: true,
       selected: "bottle",
       shareUrl: "https://example.test/#d=1",
       packNotices: ["something"],
@@ -423,6 +427,7 @@ describe("saved design hydration", () => {
     expect(partial.theme).toBe("dark");
     expect(partial.lang).toBe("he");
     expect(partial.brief).toEqual({ title: "עבודה" });
+    expect("briefEditing" in partial).toBe(false);
     expect("selected" in partial).toBe(false);
     expect("shareUrl" in partial).toBe(false);
     expect("packNotices" in partial).toBe(false);
@@ -552,11 +557,13 @@ describe("saved design hydration", () => {
       lang: "he",
       chat: [{ id: "c1", role: "user", text: "שלום" }],
       shareUrl: "https://example.test/#d=1",
+      workshopNote: "עבודה",
       brief: { title: "עבודה" },
     }, "en");
     expect(reset.state.lang).toBe("en");
     expect(reset.state.shareUrl).toBeUndefined();
-    expect(reset.state.brief).toEqual({ title: "עבודה" });
+    expect(reset.state.workshopNote).toBe("עבודה");
+    expect(reset.state.brief).toEqual(DEFAULT_BUDGET_BRIEF);
     expect(reset.version).toBe(6);
     const fromRecord = resetPersistedPayload({ lang: "en", chat: [] });
     expect(fromRecord.state.lang).toBe("en");
@@ -698,6 +705,123 @@ describe("saved design hydration", () => {
     } finally {
       setImportedCatalog({ bottles: [], caps: [], labels: [], pumps: [], collars: [], boxes: [] });
     }
+  });
+
+  it("drops a corrupt budget and keeps a finite known-currency quote", () => {
+    const merged = mergePersistedLab(
+      {
+        brief: { ceilingIls: Number.NaN, volumeMl: 12.5, confirmed: 1, quantity: 3, title: "לא" },
+        priceOverrides: {
+          ok: { value: 12.5, currency: "nis" },
+          bad: { value: "12", currency: "USD" },
+          unknown: { value: 4, currency: "dollar" },
+          missing: { value: 4 },
+          cleared: { absent: true },
+          zero: { value: 0, currency: "EUR" },
+          huge: { value: Number.POSITIVE_INFINITY, currency: "GBP" },
+        },
+        exchangeRates: { usd: 3.7, FOO: 2, EUR: Number.NaN, $: 3.65, "₪": 1, gbp: -4 },
+      },
+      slice(),
+    ) as HydratedSlice & {
+      brief: { ceilingIls: number; volumeMl: number; confirmed: boolean; quantity?: number; title?: string };
+      priceOverrides: Record<string, { value?: number; currency?: string; absent?: true }>;
+      exchangeRates: Record<string, number>;
+    };
+    expect(merged.brief).toEqual({ ceilingIls: 30, volumeMl: 12.5, confirmed: false, quantity: 3 });
+    expect(merged.brief.title).toBeUndefined();
+    expect(merged.priceOverrides).toEqual({
+      ok: { value: 12.5, currency: "ILS" },
+      cleared: { absent: true },
+    });
+    expect(merged.exchangeRates).toEqual({ USD: 3.65, ILS: 1 });
+  });
+
+  it("round-trips the budget through storage and ignores a corrupted reload", async () => {
+    const memory = new Map<string, string>();
+    vi.stubGlobal("localStorage", {
+      getItem: (key: string) => memory.get(key) ?? null,
+      setItem: (key: string, value: string) => {
+        memory.set(key, value);
+      },
+      removeItem: (key: string) => {
+        memory.delete(key);
+      },
+      key: (index: number) => [...memory.keys()][index] ?? null,
+      get length() {
+        return memory.size;
+      },
+    });
+    useLab.setState({
+      brief: { ceilingIls: 30, volumeMl: 50, confirmed: false },
+      briefEditing: false,
+      priceOverrides: {},
+      exchangeRates: {},
+      libraryOpen: false,
+      sideOpen: false,
+    });
+    useLab.getState().setBrief({ ceilingIls: 80, volumeMl: 30, quantity: 4 });
+    useLab.getState().confirmBrief();
+    useLab.getState().setPriceOverride("cara-50", { value: 90, currency: "ils" });
+    useLab.getState().setPriceOverride("cap-cyl-32", { absent: true });
+    useLab.getState().setExchangeRate("usd", 3.7);
+    useLab.getState().openBrief();
+
+    const written = JSON.parse(memory.get("perfume-lab-v1") ?? "{}") as {
+      state: {
+        brief: { ceilingIls: number; volumeMl: number; confirmed: boolean; quantity?: number };
+        briefEditing?: boolean;
+        priceOverrides: Record<string, { value?: number; currency?: string; absent?: true }>;
+        exchangeRates: Record<string, number>;
+      };
+      version: number;
+    };
+    expect(written.version).toBe(6);
+    expect(written.state.brief).toEqual({ ceilingIls: 80, volumeMl: 30, confirmed: true, quantity: 4 });
+    expect(written.state.briefEditing).toBeUndefined();
+    expect(written.state.priceOverrides["cara-50"]).toEqual({ value: 90, currency: "ils" });
+    expect(written.state.priceOverrides["cap-cyl-32"]).toEqual({ absent: true });
+    expect(written.state.exchangeRates).toEqual({ USD: 3.7 });
+
+    await useLab.persist.rehydrate();
+    expect(useLab.getState().brief).toEqual({ ceilingIls: 80, volumeMl: 30, confirmed: true, quantity: 4 });
+    expect(useLab.getState().priceOverrides["cara-50"]).toEqual({ value: 90, currency: "ILS" });
+    expect(useLab.getState().briefEditing).toBe(true);
+
+    useLab.getState().closeBrief();
+    written.state.brief = { ceilingIls: Number.NaN, volumeMl: 1000, confirmed: true, quantity: 0 } as typeof written.state.brief;
+    written.state.priceOverrides = {
+      "cara-50": { value: 90, currency: "ILS" },
+      bad: { value: 1, currency: "dollar" },
+      zero: { value: 0, currency: "USD" },
+      cleared: { absent: true },
+      "usd-cap": { value: 4, currency: "$" },
+    };
+    written.state.exchangeRates = { USD: 3.7, FOO: 9, $: 3.2 };
+    written.state.briefEditing = true;
+    written.version = 5;
+    memory.set("perfume-lab-v1", JSON.stringify(written));
+    await useLab.persist.rehydrate();
+
+    expect(useLab.getState().brief).toEqual({ ceilingIls: 80, volumeMl: 1000, confirmed: true });
+    expect(useLab.getState().briefEditing).toBe(false);
+    expect(useLab.getState().priceOverrides).toEqual({
+      "cara-50": { value: 90, currency: "ILS" },
+      cleared: { absent: true },
+      "usd-cap": { value: 4, currency: "USD" },
+    });
+    expect(useLab.getState().exchangeRates).toEqual({ USD: 3.2 });
+    const reloaded = JSON.parse(memory.get("perfume-lab-v1") ?? "{}") as { state: { briefEditing?: boolean } };
+    expect(reloaded.state.briefEditing).toBeUndefined();
+
+    useLab.setState({
+      brief: DEFAULT_BUDGET_BRIEF,
+      briefEditing: false,
+      priceOverrides: {},
+      exchangeRates: {},
+      libraryOpen: false,
+      sideOpen: false,
+    });
   });
 });
 

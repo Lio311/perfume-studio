@@ -586,7 +586,31 @@ export const useLab = create<LabState>()(
         return { ok: true };
       },
       newDesign: () => {
-        set({ design: createDefaultDesign(), past: [], future: [], modal: null });
+        const design = createDefaultDesign();
+        design.bottle.visible = false;
+        design.cap.visible = false;
+        design.label.visible = false;
+        design.pump.visible = false;
+        design.collar.visible = false;
+        design.box.visible = false;
+        design.liquid.visible = false;
+
+        set((state) => ({
+          design,
+          past: [],
+          future: [],
+          modal: null,
+          selected: null,
+          aimed: false,
+          solo: null,
+          mode: "assemble",
+          stage: "bottle",
+          present: false,
+          explode: 0,
+          fullToken: state.fullToken + 1,
+          brief: { ceilingIls: 30, volumeMl: 50, confirmed: false },
+          briefEditing: false,
+        }));
       },
       loadDesign: async (id) => {
         try {
