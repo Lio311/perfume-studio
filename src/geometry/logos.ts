@@ -10,10 +10,10 @@ const TYPEFACE: Record<LogoFont, string> = {
 };
 
 const FONT_FAMILY: Record<LogoFont, string> = {
-  cormorant: '"Cormorant Garamond", Georgia, serif',
-  cinzel: '"Cinzel", "Times New Roman", serif',
-  italiana: '"Italiana", "Times New Roman", serif',
-  vibes: '"Great Vibes", Georgia, serif',
+  cormorant: '"Cormorant Garamond", "Heebo", Georgia, serif',
+  cinzel: '"Cinzel", "Heebo", "Times New Roman", serif',
+  italiana: '"Italiana", "Heebo", "Times New Roman", serif',
+  vibes: '"Great Vibes", "Heebo", Georgia, serif',
   heebo: '"Heebo", sans-serif',
 };
 
@@ -55,6 +55,21 @@ export function shouldRepaintLabel(alreadyLoaded: boolean): boolean {
 /** The colour the user chose. Application changes how that ink is finished, not the colour itself. */
 export function labelInk(color: string, _application?: LogoApplication): string {
   return color;
+}
+
+/**
+ * Ink colour stored designs used before the label colour became the ink.
+ * Foil was always cream. Other applications picked a light or dark ink from the plate luminance.
+ * The luminance matches that old helper, including its second pass over linear `THREE.Color` channels.
+ */
+export function legacyLabelInk(application: string, plate: string): string {
+  const color = parsedColor(plate);
+  const lin = (channel: number) => (channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4);
+  const lum = 0.2126 * lin(color.r) + 0.7152 * lin(color.g) + 0.0722 * lin(color.b);
+  if (application === "foil") return "#fff6e4";
+  if (application === "emboss") return lum > 0.62 ? "#6d583c" : "#f6f1e6";
+  if (application === "engrave") return lum > 0.45 ? "#241c14" : "#0c0b0a";
+  return lum > 0.55 ? "#221910" : "#f4eee4";
 }
 
 export interface LabelFinish {

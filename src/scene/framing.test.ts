@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import * as THREE from "three";
 import { applyVariant, createDefaultDesign } from "../model/design.ts";
 import type { PartKey } from "../model/types.ts";
-import { FOCUS_FILL, fitPose, orbitLimits, partBounds, safeRect, type StageFrame } from "./framing.ts";
+import { assemblyBounds, FOCUS_FILL, fitPose, orbitLimits, partBounds, safeRect, type StageFrame } from "./framing.ts";
 
 function macbook(): StageFrame {
   const stageLeft = 338;
@@ -70,6 +70,25 @@ describe("focus framing on a MacBook stage", () => {
       const dist = pose.position.distanceTo(pose.target);
       const radius = bounds.getBoundingSphere(new THREE.Sphere()).radius;
       expect(dist, part).toBeGreaterThan(radius * 1.1);
+    }
+  });
+
+  it("keeps a capped bottle inside the open stage at a normal viewport", () => {
+    const frame = macbook();
+    const safe = safeRect(frame);
+    const design = createDefaultDesign();
+    design.cap.visible = true;
+    design.collar.visible = true;
+    design.pump.visible = true;
+    design.label.visible = true;
+    for (const dir of [new THREE.Vector3(0.78, 0.22, 1), new THREE.Vector3(0.02, 0.3, 1)]) {
+      const bounds = assemblyBounds(design, 0, "bottle", false);
+      const pose = fitPose(bounds, dir.normalize(), 30, frame);
+      const box = projected(pose, bounds, frame);
+      expect(box.minY, dir.y.toFixed(2)).toBeGreaterThanOrEqual(safe.top - 2);
+      expect(box.maxY, dir.y.toFixed(2)).toBeLessThanOrEqual(safe.bottom + 2);
+      expect(box.minX, dir.y.toFixed(2)).toBeGreaterThanOrEqual(safe.left - 2);
+      expect(box.maxX, dir.y.toFixed(2)).toBeLessThanOrEqual(safe.right + 2);
     }
   });
 

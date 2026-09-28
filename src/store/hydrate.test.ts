@@ -349,7 +349,7 @@ describe("saved design hydration", () => {
     expect(useLab.getState().design.pump.variantId).toBe("pack-pump-3");
     expect(useLab.getState().saved[0]?.design.bottle.variantId).toBe("pack-bouteille-12");
     const written = JSON.parse(memory.get("perfume-lab-v1") ?? "{}") as { state: { design: { bottle: { variantId: string } } }; version: number };
-    expect(written.version).toBe(5);
+    expect(written.version).toBe(6);
     expect(written.state.design.bottle.variantId).toBe("pack-bouteille-12");
     await useLab.persist.rehydrate();
     expect(useLab.getState().design.bottle.variantId).toBe("pack-bouteille-12");
@@ -449,6 +449,41 @@ describe("saved design hydration", () => {
     const merged = mergePersistedLab(migrated, slice());
     expect(merged.design.pump.variantId).toBe("pump-crimp");
     expect(merged.design.bottle.visible).toBe(true);
+  });
+
+  it("keeps a trailing emoji whole when stored label text is capped", () => {
+    const wave = "👋";
+    const text = "a".repeat(31) + wave;
+    const design = sanitizeDesign({
+      label: { variantId: "lg-heebo-word", text, color: "#141414", finish: "gold", scale: 1, visible: true },
+    });
+    expect(design.label.text).toBe(text);
+    expect(text.slice(0, 32)).not.toBe(text);
+    expect(Array.from(design.label.text)).toHaveLength(32);
+  });
+
+  it("restores light ink for an old dark label colour and cream for old foil", () => {
+    const migrated = migratePersisted({
+      design: {
+        label: { variantId: "lg-heebo-word", color: "#141414", text: "NOIR" },
+      },
+      saved: [{
+        id: "old",
+        name: "Old",
+        createdAt: 1,
+        design: { label: { variantId: "lg-foil-word", color: "#141414", text: "NOIR" } },
+      }],
+    }, 5) as {
+      design: { label: { color: string } };
+      saved: Array<{ design: { label: { color: string } } }>;
+    };
+    expect(migrated.design.label.color).toBe("#f4eee4");
+    expect(migrated.saved[0]?.design.label.color).toBe("#fff6e4");
+
+    const current = migratePersisted({
+      design: { label: { variantId: "lg-foil-word", color: "#c9a36a", text: "NOIR" } },
+    }, 6) as { design: { label: { color: string } } };
+    expect(current.design.label.color).toBe("#c9a36a");
   });
 });
 

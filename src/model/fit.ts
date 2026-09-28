@@ -134,8 +134,12 @@ export function computeFit(design: Design, exploded = false): Fit {
   const [baseW, baseH] = squareMark ? [0.5, 0.56] : fractions[logo.plate];
   const labelY = Math.max(12, shoulderY * 0.46);
   const face = bottleRadii(labelY, bottleH, bottleW, bottleD, bottle.profile, bottle.shoulder, neckR, bottle.finishMm);
-  const desiredW = logo.widthMm ? Math.min(bottleW - 2, logo.widthMm) : bottleW * baseW * design.label.scale;
-  const desiredH = logo.heightMm ?? shoulderY * baseH * design.label.scale;
+  const widthCap = Math.min(face.rx * 1.72, bottleW - 6);
+  const heightCap = Math.max(8, shoulderY * 0.72);
+  const rawW = logo.widthMm ? logo.widthMm : bottleW * baseW * design.label.scale;
+  const rawH = logo.heightMm ?? shoulderY * baseH * design.label.scale;
+  const desiredW = Math.min(widthCap, rawW);
+  const desiredH = Math.min(heightCap, rawH);
   const extent = labelPatchExtent({
     height: bottleH,
     width: bottleW,

@@ -39,6 +39,9 @@ describe("label text layout", () => {
     expect(labelTypeface("cinzel", "בושם")).toBe("Heebo");
     expect(labelTypeface("cinzel", "בושם NOIR 7")).toBe("Heebo");
     expect(labelTypeface("cinzel", "NOIR בושם")).toBe("Cinzel");
+    expect(labelFontFamily("cinzel", "NOIR בושם")).toContain("Cinzel");
+    expect(labelFontFamily("cinzel", "NOIR בושם")).toContain("Heebo");
+    expect(labelFontFamily("vibes", "ATELIER בושם")).toContain("Heebo");
     expect(labelFontFamily("vibes", "ATELIER")).toContain("Great Vibes");
     expect(labelFontFamily("heebo", "בושם")).toContain("Heebo");
     expect(labelFontWeight("vibes", "ATELIER")).toBe(400);
@@ -105,22 +108,9 @@ describe("label text layout", () => {
     expect(labelInk("#D6B26A", "engrave")).toBe("#D6B26A");
     expect(labelInk("#D6B26A", "decal")).toBe("#D6B26A");
     expect(labelFinish("decal")).toEqual({ metalness: 0, roughness: 1, bumpScale: 0, envMapIntensity: 1, emissive: 0 });
-    const foil = labelFinish("foil");
-    const emboss = labelFinish("emboss");
-    const engrave = labelFinish("engrave");
-    expect(foil.metalness).toBeGreaterThan(0.8);
-    expect(foil.roughness).toBeGreaterThanOrEqual(0.35);
-    expect(foil.roughness).toBeLessThanOrEqual(0.45);
-    expect(foil.bumpScale).toBe(0);
-    expect(emboss.bumpScale).toBeGreaterThan(0);
-    expect(engrave.bumpScale).toBeLessThan(0);
-    expect(emboss.bumpScale).toBe(-engrave.bumpScale);
-    expect(emboss.metalness).toBeLessThan(0.2);
-    expect(engrave.metalness).toBe(emboss.metalness);
-    expect(foil.roughness).toBeLessThan(emboss.roughness);
-    expect(emboss.roughness).toBeLessThan(1);
-    expect(emboss).toEqual({ metalness: 0.04, roughness: 0.55, bumpScale: 3.2, envMapIntensity: 1, emissive: 0 });
-    expect(engrave).toEqual({ metalness: 0.04, roughness: 0.55, bumpScale: -3.2, envMapIntensity: 1, emissive: 0 });
+    expect(labelFinish("foil")).toEqual({ metalness: 1, roughness: 0.4, bumpScale: 0, envMapIntensity: FOIL_ENV_FLOOR, emissive: 0.36 });
+    expect(labelFinish("emboss")).toEqual({ metalness: 0.04, roughness: 0.55, bumpScale: 3.2, envMapIntensity: 1, emissive: 0 });
+    expect(labelFinish("engrave")).toEqual({ metalness: 0.04, roughness: 0.55, bumpScale: -3.2, envMapIntensity: 1, emissive: 0 });
   });
 
   it("pins foil roughness, an environment floor, and emissive in the ink colour", () => {
@@ -238,7 +228,12 @@ describe("label text layout", () => {
     expect(wrapped.px).toBeGreaterThan(single);
     expect(wrapped.lines.some((line) => line.includes("2026"))).toBe(true);
     expect(wide.lines).toEqual([text]);
-    expect(text.length).toBeGreaterThan(12);
+    expect(wrapped.lines.length).toBe(2);
+    for (const line of wrapped.lines) {
+      expect(line.length).toBeGreaterThan(0);
+      expect([...line].length).toBeLessThan([...text].length);
+      expect(measure(line, wrapped.px)).toBeLessThanOrEqual(200);
+    }
   });
 
   it("redraws when the text, direction, font, or colour changes", () => {
@@ -259,6 +254,7 @@ describe("label text layout", () => {
     expect(english).toHaveLength(1);
     expect(english[0]?.direction).toBe("ltr");
     expect(english[0]?.font).toContain("Cinzel");
+    expect(english[0]?.font).toContain("Heebo");
     expect(english[0]?.font.startsWith("600 ")).toBe(true);
     expect(english[0]?.fill).toBe("#f4efe6");
 

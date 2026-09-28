@@ -1,5 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { buildLabelPatch } from "../geometry/sweep.ts";
+import { syncRegistry, type SupplierPart } from "../import/registry.ts";
 import { bottleById } from "./catalog.ts";
 import { applyVariant, createDefaultDesign } from "./design.ts";
 import { computeFit } from "./fit.ts";
@@ -20,10 +21,16 @@ describe("label plate fit", () => {
     const plaque = computeFit(withPlate("cara-50", "lg-foil-word"));
     const tall = computeFit(withPlate("cara-50", "lg-engrave-word"));
 
-    expect(band.labelW).toBeCloseTo(43.9, 1);
-    expect(band.labelH).toBeCloseTo(9.9, 1);
-    expect(slim.labelW).toBeCloseTo(39.8, 1);
-    expect(slim.labelH).toBeCloseTo(8.8, 1);
+    const cara = bottleById("cara-50");
+    const shoulderY = cara.heightMm * (1 - cara.shoulder) - 4;
+    const bandFace = bottleRadii(band.labelY, cara.heightMm, cara.widthMm, cara.depthMm, cara.profile, cara.shoulder, neckRadius(cara.neck), cara.finishMm);
+    const slimFace = bottleRadii(slim.labelY, cara.heightMm, cara.widthMm, cara.depthMm, cara.profile, cara.shoulder, neckRadius(cara.neck), cara.finishMm);
+    const bandW = Math.min(cara.widthMm * 0.92, cara.widthMm - 6, bandFace.rx * 1.72);
+    const slimW = Math.min(cara.widthMm * 0.78, cara.widthMm - 6, slimFace.rx * 1.72);
+    expect(Math.abs(band.labelW - bandW)).toBeLessThan(1.5);
+    expect(Math.abs(band.labelH - shoulderY * 0.18)).toBeLessThan(1.5);
+    expect(Math.abs(slim.labelW - slimW)).toBeLessThan(1.5);
+    expect(Math.abs(slim.labelH - shoulderY * 0.16)).toBeLessThan(1.5);
     expect(band.labelH).toBeLessThan(plaque.labelH * 0.45);
     expect(slim.labelH).toBeLessThan(band.labelH);
     expect(tall.labelH).toBeGreaterThan(plaque.labelH);
@@ -87,4 +94,54 @@ describe("label plate fit", () => {
     expect(fit.labelW).toBeLessThanOrEqual(mid.rx * 1.72 + 0.05);
     expect(fit.labelW).toBeGreaterThan(mid.rx * 1.6);
   });
+
+  it("keeps an oversized plaque inside the shoulder and the bottle width", () => {
+    const design = withPlate("cara-50", "lg-foil-word");
+    design.label.scale = 1.6;
+    const bottle = bottleById("cara-50");
+    const shoulderY = design.bottle.heightMm * (1 - bottle.shoulder) - 4;
+    const fit = computeFit(design);
+    const mid = bottleRadii(
+      fit.labelY,
+      bottle.heightMm,
+      bottle.widthMm,
+      bottle.depthMm,
+      bottle.profile,
+      bottle.shoulder,
+      neckRadius(bottle.neck),
+      bottle.finishMm,
+    );
+    expect(fit.labelW).toBeLessThanOrEqual(design.bottle.widthMm - 6 + 0.05);
+    expect(fit.labelW).toBeLessThanOrEqual(mid.rx * 1.72 + 0.05);
+    expect(fit.labelH).toBeLessThanOrEqual(shoulderY * 0.72 + 0.05);
+    expect(fit.labelY + fit.labelH / 2).toBeLessThanOrEqual(shoulderY + 0.05);
+
+    const part: SupplierPart = {
+      id: "imp-plaque",
+      kind: "label",
+      code: "imp-plaque",
+      name: "Oversized plaque",
+      neck: null,
+      widthMm: 160,
+      heightMm: 160,
+      depthMm: 0,
+      capacityMl: null,
+      profile: "label",
+      color: "#141414",
+      thumb: "",
+      page: 1,
+    };
+    syncRegistry([{ id: "supplier", name: "Supplier", createdAt: 1, parts: [part] }]);
+    const imported = withPlate("cara-50", "imp-plaque");
+    const importedFit = computeFit(imported);
+    const importedShoulder = imported.bottle.heightMm * (1 - bottle.shoulder) - 4;
+    expect(importedFit.labelW).toBeLessThanOrEqual(imported.bottle.widthMm - 6 + 0.05);
+    expect(importedFit.labelH).toBeLessThanOrEqual(importedShoulder * 0.72 + 0.05);
+    expect(importedFit.labelH).toBeGreaterThan(importedShoulder * 0.6);
+    expect(importedFit.labelY + importedFit.labelH / 2).toBeLessThanOrEqual(importedShoulder + 0.05);
+  });
+});
+
+afterEach(() => {
+  syncRegistry([]);
 });

@@ -1,4 +1,4 @@
-import { useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useContext, useEffect, useLayoutEffect, useMemo, useRef, type ReactNode } from "react";
 import { useFrame } from "@react-three/fiber";
 import { RoundedBox } from "@react-three/drei";
 import * as THREE from "three";
@@ -7,8 +7,9 @@ import { computeFit } from "../model/fit.ts";
 import { isGlass } from "../model/materials.ts";
 import type { BoxForm, PartKey, PumpStyle } from "../model/types.ts";
 import { buildBottleGeometry, buildCapGeometry, buildLabelPatch } from "../geometry/sweep.ts";
-import { FOIL_ENV_FLOOR, labelEmissive, labelEmissiveCanvas, labelFinish, labelFontSpec, labelInk, labelSurfaceCanvas, logoTexture, shouldRepaintLabel } from "../geometry/logos.ts";
-import type { LogoApplication, LogoFont } from "../model/types.ts";
+import { FOIL_ENV_FLOOR, labelEmissive, labelFinish, labelInk } from "../geometry/logos.ts";
+import type { LogoApplication } from "../model/types.ts";
+import { copyLabelCanvas, LabelPaintProvider, useLabelMaps, useSharedLabelCanvas } from "./labelPaint.ts";
 import { useLab } from "../store/labStore.ts";
 import { latheGeometry, latheProfile } from "../import/lathe.ts";
 import { clickPart, doubleClickPart, markPartPointer, swapFlashOn } from "./focusClick.ts";
@@ -263,6 +264,7 @@ export function Assembly() {
   });
 
   return (
+    <LabelPaintProvider>
     <Clock.Provider value={clock}>
       <BoxPart />
       <BottlePart />
@@ -278,6 +280,7 @@ export function Assembly() {
       <Shadow fitWidth={fit.bottleW} />
       <Turntable />
     </Clock.Provider>
+    </LabelPaintProvider>
   );
 }
 
@@ -602,66 +605,6 @@ function Actuator({
   );
 }
 
-function useLabelFontTick(font: LogoFont, text: string): number {
-  const [fontTick, setFontTick] = useState(0);
-  const spec = labelFontSpec(font, text);
-  useEffect(() => {
-    const fonts = document.fonts;
-    if (!fonts?.load || !fonts.check) return undefined;
-    const alreadyLoaded = fonts.check(spec, text);
-    if (!shouldRepaintLabel(alreadyLoaded)) return undefined;
-    let live = true;
-    void fonts.load(spec, text).then(() => {
-      if (live) setFontTick((n) => n + 1);
-    }).catch(() => undefined);
-    return () => {
-      live = false;
-    };
-  }, [spec, text]);
-  return fontTick;
-}
-
-function useLabelMaps(canvas: HTMLCanvasElement, ink: string, application: LogoApplication) {
-  const finish = labelFinish(application);
-  const color = useMemo(() => {
-    const map = new THREE.CanvasTexture(canvas);
-    map.colorSpace = THREE.SRGBColorSpace;
-    map.anisotropy = 16;
-    map.flipY = true;
-    map.generateMipmaps = true;
-    map.needsUpdate = true;
-    return map;
-  }, [canvas]);
-  const mask = useMemo(() => {
-    if (finish.metalness === 0 && finish.bumpScale === 0) return null;
-    const surface = labelSurfaceCanvas(canvas, ink, application);
-    const map = new THREE.CanvasTexture(surface);
-    map.colorSpace = THREE.NoColorSpace;
-    map.anisotropy = 8;
-    map.flipY = true;
-    map.generateMipmaps = true;
-    map.needsUpdate = true;
-    return map;
-  }, [canvas, ink, application, finish.metalness, finish.bumpScale]);
-  const emissive = useMemo(() => {
-    if (finish.emissive <= 0) return null;
-    const surface = labelEmissiveCanvas(canvas, ink, application);
-    const map = new THREE.CanvasTexture(surface);
-    map.colorSpace = THREE.NoColorSpace;
-    map.anisotropy = 8;
-    map.flipY = true;
-    map.generateMipmaps = true;
-    map.needsUpdate = true;
-    return map;
-  }, [canvas, ink, application, finish.emissive]);
-  useEffect(() => () => {
-    color.dispose();
-    mask?.dispose();
-    emissive?.dispose();
-  }, [color, mask, emissive]);
-  return { color, mask, emissive };
-}
-
 function LabelFinishMaterial({
   map,
   mask,
@@ -728,17 +671,8 @@ function LabelPart() {
   const spec = logoById(design.label.variantId);
   const fit = computeFit(design, false);
   const ink = labelInk(design.label.color, spec.application);
-  const fontTick = useLabelFontTick(spec.font, design.label.text);
-
-  const canvas = useMemo(() => {
-    const aspect = fit.labelW / Math.max(4, fit.labelH);
-    const longSide = 2048;
-    const width = aspect >= 1 ? longSide : Math.max(256, Math.round(longSide * aspect));
-    const height = aspect >= 1 ? Math.max(256, Math.round(longSide / Math.min(4.5, aspect))) : longSide;
-    const drawn = logoTexture(spec, design.label.text, ink, width, height);
-    drawn.dataset.fonts = String(fontTick);
-    return drawn;
-  }, [spec, design.label.text, ink, fontTick, fit.labelW, fit.labelH]);
+  const shared = useSharedLabelCanvas();
+  const canvas = useMemo(() => shared ?? document.createElement("canvas"), [shared]);
   const { color: texture, mask, emissive } = useLabelMaps(canvas, ink, spec.application);
   const plate = useDisposable(() => buildLabelPatch({
     height: design.bottle.heightMm,
@@ -783,18 +717,17 @@ function BoxPart() {
 
 function BrandPlate({ w, y, z }: { w: number; y: number; z: number }) {
   const blueprint = useLab((s) => s.blueprint);
-  const text = useLab((s) => s.design.label.text);
   const variantId = useLab((s) => s.design.label.variantId);
   const color = useLab((s) => s.design.label.color);
   const spec = logoById(variantId);
   const ink = labelInk(color, spec.application);
-  const fontTick = useLabelFontTick(spec.font, text);
+  const shared = useSharedLabelCanvas();
   const planeW = Math.min(w * 0.48, 52);
-  const canvas = useMemo(() => {
-    const drawn = logoTexture(spec, text, ink, 1024, Math.max(96, Math.round(1024 * 18 / planeW)));
-    drawn.dataset.fonts = String(fontTick);
-    return drawn;
-  }, [text, spec, ink, fontTick, planeW]);
+  const plateH = Math.max(96, Math.round(1024 * 18 / planeW));
+  const canvas = useMemo(
+    () => (shared ? copyLabelCanvas(shared, 1024, plateH) : document.createElement("canvas")),
+    [shared, plateH],
+  );
   const { color: tex, mask, emissive } = useLabelMaps(canvas, ink, spec.application);
   if (blueprint) return null;
   return (

@@ -1,9 +1,11 @@
 import type { PersistStorage } from "zustand/middleware";
+import { clampLabelText, legacyLabelInk } from "../geometry/logos.ts";
 import { BOTTLES } from "../model/bottles.ts";
 import { CAPS } from "../model/caps.ts";
 import { createDefaultDesign } from "../model/design.ts";
 import { BOXES } from "../model/hardware.ts";
 import { FINISHES } from "../model/materials.ts";
+import { LOGOS } from "../model/logos.ts";
 import { NECKS } from "../model/necks.ts";
 import type { ThemeId } from "../theme/themes.ts";
 import type {
@@ -26,8 +28,8 @@ const FINISH_IDS = new Set<string>(FINISHES.map((finish) => finish.id));
 const PARTS: VariantPart[] = ["bottle", "cap", "label", "pump", "collar", "box"];
 const PENDING_KINDS = new Set<string>([...PARTS, "unassigned"]);
 
-/** Persist schema. Version 6 is reserved for a later change. */
-export const LAB_PERSIST_VERSION = 5;
+/** Persist schema. Version 7 is reserved for a later change. */
+export const LAB_PERSIST_VERSION = 6;
 
 const SANITIZED_KEYS = new Set(["design", "theme", "lang", "chat", "saved", "pending", "compareIds", "past", "future"]);
 
@@ -232,7 +234,7 @@ function sanitizeLabel(raw: unknown, fallback: LabelState): LabelState {
     variantId: id,
     finish: finishOf(own(raw, "finish"), fallback.finish),
     color: colorOf(own(raw, "color"), fallback.color),
-    text: typeof text === "string" ? text.slice(0, 32) : fallback.text,
+    text: typeof text === "string" ? clampLabelText(text) : fallback.text,
     scale: num(own(raw, "scale"), fallback.scale, 0.55, 1.6),
     visible: bool(own(raw, "visible"), fallback.visible),
   };
@@ -469,6 +471,63 @@ export function mergePersistedLab<T extends HydratedSlice>(persisted: unknown, c
   }
 }
 
+function labelApplication(id: string): string {
+  return LOGOS.find((item) => item.id === id)?.application ?? "decal";
+}
+
+/** Old saves stored the plate colour. Replay the ink those plates used to draw. */
+function rewriteLabelRecord(label: Record<string, unknown>): void {
+  const color = own(label, "color");
+  if (typeof color !== "string" || !/^#[0-9a-f]{6}$/i.test(color)) return;
+  const id = own(label, "variantId");
+  label.color = legacyLabelInk(labelApplication(typeof id === "string" ? id : ""), color);
+}
+
+function rewriteDesignLabel(design: Record<string, unknown>): void {
+  if (!isRecord(design.label)) return;
+  const label = copyOwn(design.label);
+  rewriteLabelRecord(label);
+  design.label = label;
+}
+
+function rewriteLegacyLabelColours(state: Record<string, unknown>): void {
+  if (isRecord(state.design)) {
+    const design = copyOwn(state.design);
+    rewriteDesignLabel(design);
+    state.design = design;
+  }
+  if (Array.isArray(state.saved)) {
+    state.saved = state.saved.map((item) => {
+      if (!isRecord(item) || !isRecord(item.design)) return item;
+      const saved = copyOwn(item);
+      const design = copyOwn(item.design);
+      rewriteDesignLabel(design);
+      saved.design = design;
+      return saved;
+    });
+  }
+  for (const key of ["past", "future"] as const) {
+    const history = state[key];
+    if (!Array.isArray(history)) continue;
+    state[key] = history.map((item) => {
+      if (!isRecord(item)) return item;
+      const design = copyOwn(item);
+      rewriteDesignLabel(design);
+      return design;
+    });
+  }
+  if (Array.isArray(state.chat)) {
+    state.chat = state.chat.map((item) => {
+      if (!isRecord(item) || !isRecord(item.snapshot)) return item;
+      const message = copyOwn(item);
+      const snapshot = copyOwn(item.snapshot);
+      rewriteDesignLabel(snapshot);
+      message.snapshot = snapshot;
+      return message;
+    });
+  }
+}
+
 /** Version bumps from the persist middleware. A broken blob becomes an empty object. */
 export function migratePersisted(persisted: unknown, version: number): unknown {
   try {
@@ -493,6 +552,7 @@ export function migratePersisted(persisted: unknown, version: number): unknown {
         state.design = design;
       }
     }
+    if (version < 6) rewriteLegacyLabelColours(state);
     return state;
   } catch {
     return {};
