@@ -193,7 +193,7 @@ export function FinishMaterial({
         finish === "wood" ? 0.7 :
         0.84
       }
-      transmission={glassLike ? Math.max(0.01, glassTransmission(finish, opacity) ?? 0) : 0}
+      transmission={glassLike ? (finish === "tinted" ? 1.0 : Math.max(0.01, glassTransmission(finish, opacity) ?? 0)) : 0}
       thickness={glassLike ? (finish === "tinted" ? 4.2 : 2.8) : 0}
       ior={clear ? 1.52 : 1.5}
       clearcoat={clear || finish === "tinted" ? 1 : metal ? 0.65 : 0.04}
@@ -203,7 +203,7 @@ export function FinishMaterial({
       envMapIntensity={metal ? 1.65 : glassLike ? 1.7 : finish === "matteBlack" ? 0.28 : 0.7}
       specularIntensity={glassLike || metal ? 1 : 0.3}
       transparent={glassLike}
-      opacity={glassLike ? (effectiveGlassOpacity(finish, opacity) ?? 1) : 1}
+      opacity={glassLike ? (finish === "tinted" ? 1.0 : (effectiveGlassOpacity(finish, opacity) ?? 1)) : 1}
       depthWrite={!glassLike}
       side={THREE.FrontSide}
     />
