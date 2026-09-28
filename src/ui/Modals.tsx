@@ -49,9 +49,11 @@ function SaveModal() {
           {saved.map((item) => (
             <article key={item.id}>
               <img src={item.thumb || thumbFor("bottle", item.design.bottle.variantId)} alt="" />
-              <div>
+              <div className="info">
                 <strong>{item.name}</strong>
-                <span dir="ltr">{item.design.bottle.neck}</span>
+                <span className="neck-tag" dir="ltr" style={{ display: "block", fontSize: "12px", color: "var(--muted, #888)", marginTop: "4px" }}>
+                  Neck: {item.design.bottle.neck}
+                </span>
               </div>
               <button type="button" onClick={() => loadDesign(item.id)}>{t.load}</button>
               <button type="button" onClick={() => (armed === item.id ? deleteDesign(item.id) : setArmed(item.id))}>

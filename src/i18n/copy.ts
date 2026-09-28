@@ -395,8 +395,8 @@ export function tx(lang: Lang): typeof he {
 }
 
 export const partLabel: Record<Lang, Record<PartKey, string>> = {
-  he: { bottle: "בקבוק", cap: "פקק", collar: "צווארון", pump: "מרסס", label: "לוגו", box: "קופסה", liquid: "נוזל" },
-  en: { bottle: "Bottle", cap: "Cap", collar: "Collar", pump: "Pump", label: "Logo", box: "Box", liquid: "Liquid" },
+  he: { bottle: "בקבוק", cap: "פקק", collar: "צווארון", pump: "מרסס", label: "לוגו", box: "קופסה", liquid: "צבע בקבוק" },
+  en: { bottle: "Bottle", cap: "Cap", collar: "Collar", pump: "Pump", label: "Logo", box: "Box", liquid: "Bottle Color" },
 };
 
 export const CHIPS = {
