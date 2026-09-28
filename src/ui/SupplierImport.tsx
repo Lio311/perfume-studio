@@ -196,8 +196,14 @@ export function SupplierImport() {
                     moq: t.priceDropMoq,
                     tiers: t.priceDropTiers,
                     quotedAt: t.priceDropQuotedAt,
+                    tierDropped: t.tierDropped,
+                    tierRose: t.tierRose,
                   };
-                  setError(warnings.map((warning) => `${warning.partId}: ${reasonText[warning.reason]}. ${t.priceDropped}`).join(" "));
+                  const dropsPrice = new Set<PriceWarning["reason"]>(["value", "currency", "moq", "tiers", "quotedAt"]);
+                  setError(warnings.map((warning) => {
+                    const line = `${warning.partId}: ${reasonText[warning.reason]}.`;
+                    return dropsPrice.has(warning.reason) ? `${line} ${t.priceDropped}` : line;
+                  }).join(" "));
                 } else setError("");
                 upsertSupplier(pack);
               });

@@ -26,7 +26,7 @@ export interface SupplierPart {
   /**
    * Optional supplier quote. Absent on older packs. The pack version is not bumped for this field.
    * `value` is a number greater than 0. `currency` is an ISO 4217 code.
-   * `tiers` use `minQty` (an integer of at least 1) and a `value` greater than 0, stored sorted ascending. `quotedAt` is an ISO 8601 date.
+   * `tiers` use `minQty` (an integer of at least 1, strictly above `moq` when `moq` is set) and a `value` greater than 0, stored strictly ascending by `minQty`. `quotedAt` is an ISO 8601 date.
    * A currency other than ILS is not added to the shekel total unless the user sets a rate.
    */
   price?: SupplierPrice;

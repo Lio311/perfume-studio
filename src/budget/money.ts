@@ -1,6 +1,6 @@
 import type { PartFacts } from "./types.ts";
 
-/** A quantity break. `minQty` is an integer of at least 1. */
+/** A quantity break. `minQty` is an integer of at least 1, strictly above `moq` when set, and strictly above the previous break. */
 export interface PriceTier {
   minQty: number;
   value: number;
@@ -8,7 +8,7 @@ export interface PriceTier {
 
 /**
  * Optional supplier quote. `value` is the unit price and must be greater than 0.
- * `tiers` are sorted by `minQty` ascending.
+ * `tiers` are strictly ascending by `minQty`, and each break is above `moq` when `moq` is set.
  */
 export interface SupplierPrice {
   value: number;

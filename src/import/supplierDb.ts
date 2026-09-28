@@ -1,10 +1,10 @@
 import DOMPurify from "dompurify";
-import { sanitizeSupplierPrice, type PriceDropReason } from "./packPrice.ts";
+import { sanitizeSupplierPrice, type PriceDropReason, type PriceTierNotice } from "./packPrice.ts";
 import type { SupplierPack, SupplierPart } from "./registry.ts";
 
 export interface PriceWarning {
   partId: string;
-  reason: PriceDropReason;
+  reason: PriceDropReason | PriceTierNotice;
 }
 
 const DB_NAME = "perfume-lab-suppliers";
@@ -85,6 +85,7 @@ function sanitizePart(part: SupplierPart): SupplierPart {
     return next;
   }
   next.price = price.price;
+  for (const notice of price.notices) pendingPriceWarnings.push({ partId: part.id, reason: notice });
   return next;
 }
 

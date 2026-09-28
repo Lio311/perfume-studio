@@ -2,6 +2,9 @@ import { normalizeCurrency, type PriceTier, type SupplierPrice } from "../budget
 
 export type PriceDropReason = "value" | "currency" | "moq" | "tiers" | "quotedAt";
 
+/** A single break was adjusted. The rest of the price is kept. */
+export type PriceTierNotice = "tierDropped" | "tierRose";
+
 const ISO_8601 = /^\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:\d{2})?)?$/;
 
 /** A calendar date, or a date with a time, written as ISO 8601. */
@@ -22,9 +25,14 @@ export function isIso8601Date(value: string): boolean {
 
 /**
  * Keep a pack price only when it matches the shared shape.
- * A failure drops the price; the caller still imports the part and reports `reason`.
+ * A failure of the price itself drops it; the caller still imports the part and reports `reason`.
+ * A tier whose `minQty` is not strictly above `moq` (when `moq` is set), or not strictly above
+ * the previous break, is dropped on its own. A break that costs more than the previous price is kept.
+ * Both cases are reported in `notices`.
  */
-export function sanitizeSupplierPrice(raw: unknown): { price: SupplierPrice } | { reason: PriceDropReason } {
+export function sanitizeSupplierPrice(
+  raw: unknown,
+): { price: SupplierPrice; notices: PriceTierNotice[] } | { reason: PriceDropReason } {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return { reason: "value" };
   const price = raw as Record<string, unknown>;
   if (typeof price.value !== "number" || !Number.isFinite(price.value) || price.value <= 0) return { reason: "value" };
@@ -38,6 +46,7 @@ export function sanitizeSupplierPrice(raw: unknown): { price: SupplierPrice } | 
     moq = price.moq;
   }
 
+  const notices: PriceTierNotice[] = [];
   let tiers: PriceTier[] | undefined;
   if ("tiers" in price && price.tiers !== undefined) {
     if (!Array.isArray(price.tiers)) return { reason: "tiers" };
@@ -51,10 +60,21 @@ export function sanitizeSupplierPrice(raw: unknown): { price: SupplierPrice } | 
       if (typeof tierValue !== "number" || !Number.isFinite(tierValue) || tierValue <= 0) return { reason: "tiers" };
       clean.push({ minQty, value: tierValue });
     }
-    if (clean.length) {
-      clean.sort((a, b) => a.minQty - b.minQty);
-      tiers = clean;
+    clean.sort((a, b) => a.minQty - b.minQty);
+    const kept: PriceTier[] = [];
+    let previousQty = moq ?? 0;
+    let previousValue = price.value;
+    for (const tier of clean) {
+      if (tier.minQty <= previousQty) {
+        notices.push("tierDropped");
+        continue;
+      }
+      if (tier.value > previousValue) notices.push("tierRose");
+      kept.push(tier);
+      previousQty = tier.minQty;
+      previousValue = tier.value;
     }
+    if (kept.length) tiers = kept;
   }
 
   let quotedAt: string | undefined;
@@ -71,5 +91,6 @@ export function sanitizeSupplierPrice(raw: unknown): { price: SupplierPrice } | 
       ...(tiers ? { tiers } : {}),
       ...(quotedAt ? { quotedAt } : {}),
     },
+    notices,
   };
 }

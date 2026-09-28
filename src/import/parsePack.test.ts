@@ -110,7 +110,6 @@ describe("parsePackFile prices", () => {
       value: 12,
       currency: "ILS",
       moq: 100,
-      tiers: [{ minQty: 1, value: 11 }, { minQty: 100, value: 9 }],
     });
     expect(consumePriceWarnings()).toEqual([
       { partId: "text", reason: "value" },
@@ -120,6 +119,48 @@ describe("parsePackFile prices", () => {
       { partId: "zero-tier", reason: "tiers" },
       { partId: "low-qty", reason: "tiers" },
       { partId: "stale", reason: "quotedAt" },
+      { partId: "good", reason: "tierDropped" },
+      { partId: "good", reason: "tierDropped" },
+    ]);
+  });
+
+  it("drops a break that is not above moq or the previous break, and keeps a more expensive one", () => {
+    const pack = parsePackFile(JSON.stringify({
+      name: "Breaks",
+      parts: [{
+        ...basePart,
+        id: "breaks",
+        price: {
+          value: 10,
+          currency: "ILS",
+          moq: 100,
+          tiers: [
+            { minQty: 100, value: 9 },
+            { minQty: 500, value: 8 },
+            { minQty: 500, value: 7 },
+            { minQty: 1000, value: 8.5 },
+          ],
+        },
+      }],
+    }));
+    expect(pack!.parts[0].price).toEqual({
+      value: 10,
+      currency: "ILS",
+      moq: 100,
+      tiers: [
+        { minQty: 500, value: 8 },
+        { minQty: 1000, value: 8.5 },
+      ],
+    });
+    expect(consumePriceWarnings()).toEqual([
+      { partId: "breaks", reason: "tierDropped" },
+      { partId: "breaks", reason: "tierDropped" },
+      { partId: "breaks", reason: "tierRose" },
+    ]);
+    syncRegistry([pack!]);
+    expect(importedPrice("breaks")?.tiers).toEqual([
+      { minQty: 500, value: 8 },
+      { minQty: 1000, value: 8.5 },
     ]);
   });
 

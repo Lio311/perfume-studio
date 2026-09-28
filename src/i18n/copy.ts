@@ -252,6 +252,8 @@ const he = {
   priceDropMoq: "כמות מינימלית חייבת להיות מספר שלם מ-1 ומעלה",
   priceDropTiers: "כל מדרגה צריכה minQty שלם מ-1 ומעלה וערך גדול מ-0",
   priceDropQuotedAt: "תאריך ההצעה חייב להיות תאריך ISO 8601",
+  tierDropped: "מדרגה שהכמות שלה אינה גדולה מהכמות המינימלית, או שאינה גבוהה מהמדרגה הקודמת, הושמטה. שאר המחיר נשמר",
+  tierRose: "מדרגה יקרה מהמחיר הקודם. היא נשמרה",
 };
 
 const en: typeof he = {
@@ -506,6 +508,8 @@ const en: typeof he = {
   priceDropMoq: "moq must be an integer of 1 or more",
   priceDropTiers: "each tier needs an integer minQty of at least 1 and a value greater than 0",
   priceDropQuotedAt: "quotedAt must be an ISO 8601 date",
+  tierDropped: "A tier whose quantity is not above the minimum order, or not above the previous tier, was dropped. The rest of the price was kept",
+  tierRose: "A tier costs more than the previous price. It was kept",
 };
 
 export const copy = { he, en };
