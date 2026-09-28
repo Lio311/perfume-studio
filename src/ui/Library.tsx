@@ -147,7 +147,7 @@ export function Library() {
         </div>
       )}
       {tab === "label" && (
-        <input className="search" style={{ marginTop: "-8px", marginBottom: "12px" }} value={design.label.text} placeholder={t.brand} onChange={(event) => patch("label", { text: event.target.value.slice(0, 32) })} />
+        <input className="search" style={{ marginTop: "-8px", marginBottom: "12px" }} value={design.label.text} placeholder={t.brand} onChange={(event) => patch("label", { text: event.target.value.slice(0, 32), visible: true })} />
       )}
       {tab === "liquid" ? (
         <div className="liquid-panel" style={{ padding: "8px 0" }}>
@@ -158,19 +158,19 @@ export function Library() {
                 type="button"
                 className={design.liquid.color.toLowerCase() === color ? "swatch is-on" : "swatch"}
                 style={{ background: color }}
-                onClick={() => patch("liquid", { color })}
+                onClick={() => patch("liquid", { color, visible: true })}
               />
             ))}
             <label className="picker">
               <input type="color" value={typeof design.liquid.color === "string" ? design.liquid.color : "#000000"} onChange={(event) => {
-                patch("liquid", { color: event.target.value });
+                patch("liquid", { color: event.target.value, visible: true });
               }} />
             </label>
           </div>
           <label className="slider" style={{ marginTop: "16px" }}>
             <span>{lang === "he" ? "מילוי" : "Fill Level"}</span>
             <span>{Math.round(design.liquid.fill * 100)}%</span>
-            <input type="range" min="0" max="1" step="0.01" value={design.liquid.fill} onChange={(event) => patch("liquid", { fill: parseFloat(event.target.value) })} />
+            <input type="range" min="0" max="1" step="0.01" value={design.liquid.fill} onChange={(event) => patch("liquid", { fill: parseFloat(event.target.value), visible: true })} />
           </label>
         </div>
       ) : tab === "pending" ? (
@@ -243,22 +243,28 @@ export function Library() {
               {lang === "he" ? "הקודם" : "Back"}
             </button>
           )}
-          <button
-            type="button"
-            className="upload-btn"
-            style={{ flex: 1, background: "var(--accent-color, #23252a)", color: "var(--text-color, #e4e6eb)", border: "1px solid var(--border-color, #333)", fontWeight: "bold", margin: 0 }}
-            onClick={() => {
-              const nextStep = wizardStep + 1;
-              applyCommands([{ type: "wizard_step", step: nextStep }]);
-              if (nextStep < WIZARD_ORDER.length) {
-                setTab(WIZARD_ORDER[nextStep]);
-              } else {
-                useLab.getState().setLibraryOpen(false);
-              }
-            }}
-          >
-            {wizardStep === WIZARD_ORDER.length - 1 ? (lang === "he" ? "סיום" : "Finish") : (lang === "he" ? "לשלב הבא" : "Next")}
-          </button>
+          {(() => {
+            const canProceed = tab === "pending" || (design as any)[tab]?.visible === true;
+            return (
+              <button
+                type="button"
+                className="upload-btn"
+                disabled={!canProceed}
+                style={{ flex: 1, background: "var(--accent-color, #23252a)", color: "var(--text-color, #e4e6eb)", border: "1px solid var(--border-color, #333)", fontWeight: "bold", margin: 0, opacity: canProceed ? 1 : 0.5, cursor: canProceed ? "pointer" : "not-allowed" }}
+                onClick={() => {
+                  const nextStep = wizardStep + 1;
+                  applyCommands([{ type: "wizard_step", step: nextStep }]);
+                  if (nextStep < WIZARD_ORDER.length) {
+                    setTab(WIZARD_ORDER[nextStep]);
+                  } else {
+                    useLab.getState().setLibraryOpen(false);
+                  }
+                }}
+              >
+                {wizardStep === WIZARD_ORDER.length - 1 ? (lang === "he" ? "סיום" : "Finish") : (lang === "he" ? "לשלב הבא" : "Next")}
+              </button>
+            );
+          })()}
         </div>
       )}
       <div className="upload-group" style={{ marginTop: "auto", display: "flex", flexDirection: "column", gap: "12px" }}>
