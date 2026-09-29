@@ -184,6 +184,91 @@ export function safeRect(frame: StageFrame): { left: number; right: number; top:
   return { left, right, top, bottom, width: Math.max(80, right - left), height: Math.max(80, bottom - top) };
 }
 
+/**
+ * Canvas pixels covered by the top toolbar (14px chrome padding plus the 64px bar).
+ * The front view shifts under this band. The global safe rect stays put, so other
+ * views keep their size.
+ */
+export const TOOLBAR_COVER_PX = 78;
+
+const coverCam = new THREE.PerspectiveCamera(30, 1, 0.4, 8000);
+const coverPoint = new THREE.Vector3();
+const coverUp = new THREE.Vector3();
+
+function projectedExtent(
+  pose: { position: THREE.Vector3; target: THREE.Vector3 },
+  bounds: THREE.Box3,
+  frame: StageFrame,
+  fov: number,
+): { top: number; height: number } {
+  coverCam.fov = fov;
+  coverCam.aspect = frame.width / Math.max(1, frame.height);
+  coverCam.position.copy(pose.position);
+  coverCam.up.set(0, 1, 0);
+  coverCam.lookAt(pose.target);
+  coverCam.updateProjectionMatrix();
+  coverCam.updateMatrixWorld();
+  let minY = Infinity;
+  let maxY = -Infinity;
+  const { min, max } = bounds;
+  for (const x of [min.x, max.x]) {
+    for (const y of [min.y, max.y]) {
+      for (const z of [min.z, max.z]) {
+        coverPoint.set(x, y, z).project(coverCam);
+        const sy = (-coverPoint.y * 0.5 + 0.5) * frame.height;
+        minY = Math.min(minY, sy);
+        maxY = Math.max(maxY, sy);
+      }
+    }
+  }
+  return { top: minY, height: Math.max(0, maxY - minY) };
+}
+
+function shiftDownScreen(
+  pose: { position: THREE.Vector3; target: THREE.Vector3 },
+  pixels: number,
+  frame: StageFrame,
+  fov: number,
+): { position: THREE.Vector3; target: THREE.Vector3 } {
+  const dist = Math.max(1, pose.position.distanceTo(pose.target));
+  const vFov = (fov * Math.PI) / 180;
+  const worldPerPixel = (2 * Math.tan(vFov / 2) * dist) / Math.max(1, frame.height);
+  coverCam.fov = fov;
+  coverCam.aspect = frame.width / Math.max(1, frame.height);
+  coverCam.position.copy(pose.position);
+  coverCam.up.set(0, 1, 0);
+  coverCam.lookAt(pose.target);
+  coverCam.updateMatrixWorld();
+  coverUp.setFromMatrixColumn(coverCam.matrixWorld, 1).normalize();
+  const delta = coverUp.multiplyScalar(pixels * worldPerPixel);
+  return {
+    position: pose.position.clone().add(delta),
+    target: pose.target.clone().add(delta),
+  };
+}
+
+/**
+ * Raise the orbit target and the camera together so the subject drops below the toolbar.
+ * Distance and direction stay the same, so the product does not change size.
+ * A subject that is already clear is returned unchanged.
+ */
+export function clearToolbar(
+  pose: { position: THREE.Vector3; target: THREE.Vector3 },
+  bounds: THREE.Box3,
+  frame: StageFrame,
+  fov: number,
+  coverPx = TOOLBAR_COVER_PX,
+): { position: THREE.Vector3; target: THREE.Vector3 } {
+  let next = { position: pose.position.clone(), target: pose.target.clone() };
+  for (let pass = 0; pass < 4; pass += 1) {
+    const top = projectedExtent(next, bounds, frame, fov).top;
+    const overlap = coverPx - top;
+    if (!Number.isFinite(overlap) || overlap <= 0.5) return next;
+    next = shiftDownScreen(next, overlap, frame, fov);
+  }
+  return next;
+}
+
 function projectBox(corners: THREE.Vector3[], canvasW: number, canvasH: number): { w: number; h: number; cx: number; cy: number } {
   let minX = Infinity;
   let maxX = -Infinity;
