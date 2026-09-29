@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import vectorsText from "../../../fixtures/packkit/m3a-vectors.json?raw";
+import measuredText from "../../../fixtures/packkit/m3a-measured.json?raw";
+import { confidenceModel } from "./confidence.ts";
 import { correctedRadius, correctBoxFront, correctRound, flatEndDepthMm, radiusAboutAxis, radiusFromTangents, roundFactor } from "./parallax.ts";
 import { classifyShape } from "./shape.ts";
 import { evaluateScaleRule } from "./scaleRule.ts";
@@ -9,6 +11,15 @@ import { estimateMeasure } from "./estimator.ts";
 import { SYNTHETIC_FRAME, SYNTHETIC_INTRINSICS, cardCorners, cylinderMask, domeMask, filledMask, measureSynthetic, quadMask, sphereMask, taperMask } from "./synthetic.ts";
 import { v2 } from "./vec.ts";
 import { ID1 } from "./poseMath.ts";
+
+const measured = JSON.parse(measuredText) as {
+  toleranceMm: number;
+  bottle: { measuredMm: { heightMm: number; widthMm: number; depthMm: number }; tilts: number[]; axes: string[] };
+  cap: { measuredMm: { heightMm: number; widthMm: number; depthMm: number }; tilts: number[] };
+  box: { measuredMm: { heightMm: number; widthMm: number; depthMm: number }; tilt: number };
+  label: { measuredMm: { heightMm: number; widthMm: number; depthMm: number } };
+  worstNoise1pxMm: number;
+};
 
 const vectors = JSON.parse(vectorsText) as {
   cardFrontal: { tilt: number; axis: string; centerX: number; depthMm: number; tiltDegrees: number; tolerance: number };
@@ -276,6 +287,71 @@ describe("PackKit M3a parity", () => {
     expect(typed.dimensions.heightMm).toBeCloseTo(100, 1);
     expect(typed.dimensions.widthMm).toBeCloseTo(50, 1);
     expect(typed.confidence[0]?.model.band).toBe("check");
+  });
+
+  it("matches the iOS printed millimetres within 0.05 mm", () => {
+    const bottleMask = cylinderMask(vectors.bottle.radius, vectors.bottle.heightMm);
+    const capMask = cylinderMask(vectors.cap.radius, vectors.cap.heightMm);
+    for (const tilt of measured.bottle.tilts) {
+      for (const axis of measured.bottle.axes) {
+        const got = measureSynthetic("bottle", bottleMask, tilt, axis).dimensions;
+        expect(Math.abs(got.heightMm - measured.bottle.measuredMm.heightMm)).toBeLessThanOrEqual(measured.toleranceMm);
+        expect(Math.abs(got.widthMm - measured.bottle.measuredMm.widthMm)).toBeLessThanOrEqual(measured.toleranceMm);
+        expect(Math.abs(got.depthMm - measured.bottle.measuredMm.depthMm)).toBeLessThanOrEqual(measured.toleranceMm);
+      }
+    }
+    for (const tilt of measured.cap.tilts) {
+      const got = measureSynthetic("cap", capMask, tilt, "y").dimensions;
+      expect(Math.abs(got.heightMm - measured.cap.measuredMm.heightMm)).toBeLessThanOrEqual(measured.toleranceMm);
+      expect(Math.abs(got.widthMm - measured.cap.measuredMm.widthMm)).toBeLessThanOrEqual(measured.toleranceMm);
+      expect(Math.abs(got.depthMm - measured.cap.measuredMm.depthMm)).toBeLessThanOrEqual(measured.toleranceMm);
+    }
+    const box = estimateMeasure({
+      kind: "box",
+      intrinsics: SYNTHETIC_INTRINSICS,
+      frame: SYNTHETIC_FRAME,
+      reference: cardReference(cardCorners(measured.box.tilt, "y", 0, 1, 0)),
+      front: quadMask(v2(75, 0), 60, 100, measured.box.tilt, "y", 0),
+      side: quadMask(v2(-95, 0), 40, 100, measured.box.tilt, "y", 0),
+    });
+    expect(Math.abs(box.dimensions.heightMm - measured.box.measuredMm.heightMm)).toBeLessThanOrEqual(measured.toleranceMm);
+    expect(Math.abs(box.dimensions.widthMm - measured.box.measuredMm.widthMm)).toBeLessThanOrEqual(measured.toleranceMm);
+    expect(Math.abs(box.dimensions.depthMm - measured.box.measuredMm.depthMm)).toBeLessThanOrEqual(measured.toleranceMm);
+    const label = estimateMeasure({
+      kind: "label",
+      intrinsics: SYNTHETIC_INTRINSICS,
+      frame: SYNTHETIC_FRAME,
+      reference: cardReference(cardCorners(0, "y", 0, 1, 0)),
+      front: quadMask(v2(70, 0), 80, 36, 0, "y", 0),
+    });
+    expect(Math.abs(label.dimensions.heightMm - measured.label.measuredMm.heightMm)).toBeLessThanOrEqual(measured.toleranceMm);
+    expect(Math.abs(label.dimensions.widthMm - measured.label.measuredMm.widthMm)).toBeLessThanOrEqual(measured.toleranceMm);
+    expect(Math.abs(label.dimensions.depthMm - measured.label.measuredMm.depthMm)).toBeLessThanOrEqual(measured.toleranceMm);
+
+    let worst = 0;
+    for (let seed = 1; seed <= 4; seed += 1) {
+      for (const tilt of [10, -10]) {
+        const noisy = measureSynthetic("bottle", bottleMask, tilt, "y", 1, seed).dimensions;
+        worst = Math.max(worst, Math.abs(noisy.heightMm - 100), Math.abs(noisy.widthMm - 40), Math.abs(noisy.depthMm - 40));
+      }
+    }
+    expect(Math.abs(worst - measured.worstNoise1pxMm)).toBeLessThanOrEqual(measured.toleranceMm);
+  });
+
+  it("keeps the scale bands: auto from 80 mm, ok to 3 mm, check to 5 mm, suspect past 5 mm", () => {
+    expect(SCALE_LIMITS.minimumCardAreaFraction).toBe(0.08);
+    expect(SCALE_LIMITS.maximumCardTiltDegrees).toBe(25);
+    expect(SCALE_LIMITS.strongTiltDegrees).toBe(15);
+    expect(SCALE_LIMITS.minimumAutoMillimetres).toBe(80);
+    expect(SCALE_LIMITS.okErrorMillimetres).toBe(3);
+    expect(SCALE_LIMITS.checkErrorMillimetres).toBe(5);
+    expect(SCALE_LIMITS.suspectDisagreementMillimetres).toBe(5);
+    expect(evaluateScaleRule("box", 80, false, false, true, null, 80).saveBlocked).toBe(false);
+    expect(evaluateScaleRule("bottle", 79.9, false, false, true, null, 79.9).autoRejected).toBe(true);
+    expect(confidenceModel(3, 0, 0, true, false).band).toBe("ok");
+    expect(confidenceModel(3.01, 0, 0, true, false).band).toBe("check");
+    expect(confidenceModel(5, 0, 0, true, false).band).toBe("check");
+    expect(confidenceModel(5.01, 0, 0, true, false).band).toBe("retake");
   });
 
   it("keeps the normalised lathe when the height is edited", () => {

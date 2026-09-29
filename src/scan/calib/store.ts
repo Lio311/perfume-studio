@@ -12,8 +12,8 @@ export interface StoredCalibration {
   savedAt: string;
 }
 
-export function calibrationKey(userAgent: string, screenLabel: string, trackLabel: string): string {
-  return `perfume-scan-calib:v1:${fnv(userAgent + "|" + screenLabel + "|" + trackLabel)}`;
+export function calibrationKey(userAgent: string, screenLabel: string, trackLabel: string, orientation = "up"): string {
+  return `perfume-scan-calib:v2:${fnv(userAgent + "|" + screenLabel + "|" + trackLabel + "|" + orientation)}`;
 }
 
 export function screenLabel(): string {
