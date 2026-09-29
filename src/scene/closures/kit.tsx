@@ -216,7 +216,20 @@ export function ribbonBandWidth(w: number, d: number): number {
   return Math.max(8, Math.min(w, d) * 0.1);
 }
 
-export function Ribbon({ w, h, d, y, color = RIBBON_COLOR, cap = true, across = "z" }: {
+/** Radial thickness of a curved band, so the outer arc sits on `radius` and the inner arc stays outside the shell. */
+export const RIBBON_ARC_THICKNESS = 0.22;
+
+/** Open arc centred on `yaw`. Eight segments across the band; theta 0 is +Z. */
+export function curvedRibbonArc(radius: number, band: number, yaw: number): { theta: number; thetaStart: number; segments: 8 } {
+  const theta = band / Math.max(1, radius);
+  return { theta, thetaStart: yaw - theta / 2, segments: 8 };
+}
+
+function RibbonSheet({ color }: { color: string }) {
+  return <meshPhysicalMaterial color={color} metalness={0.2} roughness={0.45} side={THREE.DoubleSide} polygonOffset polygonOffsetFactor={-1} polygonOffsetUnits={-1} />;
+}
+
+export function Ribbon({ w, h, d, y, color = RIBBON_COLOR, cap = true, across = "z", bend }: {
   w: number;
   h: number;
   d: number;
@@ -226,8 +239,52 @@ export function Ribbon({ w, h, d, y, color = RIBBON_COLOR, cap = true, across = 
   cap?: boolean;
   /** `x` runs the bands over the sides. A rectangular box stays square to its faces. */
   across?: "x" | "z";
+  /** Curved band. `flareTo` chamfers the top when the next piece has a different radius. */
+  bend?: { radius: number; yaw: number; flareTo?: number };
 }) {
   const band = ribbonBandWidth(w, d);
+  if (bend) {
+    const arc = curvedRibbonArc(bend.radius, band, bend.yaw);
+    const inner = Math.max(0.4, bend.radius - RIBBON_ARC_THICKNESS);
+    const flareTo = bend.flareTo;
+    const flareH = flareTo != null && Math.abs(flareTo - bend.radius) > 0.12 ? Math.min(1.6, h * 0.35) : 0;
+    const bodyH = h - flareH;
+    const innerTop = flareTo == null ? inner : Math.max(0.4, flareTo - RIBBON_ARC_THICKNESS);
+    return (
+      <group position={[0, y, 0]}>
+        {bodyH > 0.2 && (
+          <>
+            <mesh position={[0, bodyH / 2, 0]}>
+              <cylinderGeometry args={[bend.radius, bend.radius, bodyH, arc.segments, 1, true, arc.thetaStart, arc.theta]} />
+              <RibbonSheet color={color} />
+            </mesh>
+            <mesh position={[0, bodyH / 2, 0]}>
+              <cylinderGeometry args={[inner, inner, bodyH, arc.segments, 1, true, arc.thetaStart, arc.theta]} />
+              <RibbonSheet color={color} />
+            </mesh>
+          </>
+        )}
+        {flareH > 0.2 && flareTo != null && (
+          <>
+            <mesh position={[0, bodyH + flareH / 2, 0]}>
+              <cylinderGeometry args={[flareTo, bend.radius, flareH, arc.segments, 1, true, arc.thetaStart, arc.theta]} />
+              <RibbonSheet color={color} />
+            </mesh>
+            <mesh position={[0, bodyH + flareH / 2, 0]}>
+              <cylinderGeometry args={[innerTop, inner, flareH, arc.segments, 1, true, arc.thetaStart, arc.theta]} />
+              <RibbonSheet color={color} />
+            </mesh>
+          </>
+        )}
+        {cap && (
+          <mesh position={[0, h + 0.3, 0]} rotation={[0, bend.yaw, 0]}>
+            <boxGeometry args={[band, 0.45, d]} />
+            <meshPhysicalMaterial color={color} metalness={0.2} roughness={0.45} />
+          </mesh>
+        )}
+      </group>
+    );
+  }
   return (
     <group position={[0, y, 0]} rotation={across === "x" ? [0, Math.PI / 2, 0] : undefined}>
       <mesh position={[0, h / 2, d / 2 + 0.3]}>
