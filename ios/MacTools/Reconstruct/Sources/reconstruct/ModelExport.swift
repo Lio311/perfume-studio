@@ -28,8 +28,7 @@ enum ModelExport {
         var loaded: [LoadedMesh] = []
         let count = asset.count
         for index in 0..<count {
-            guard let object = asset.object(at: index) else { continue }
-            walk(object, transform: matrix_identity_float4x4, into: &loaded)
+            walk(asset.object(at: index), transform: matrix_identity_float4x4, into: &loaded)
         }
         let triangles = loaded.reduce(0) { $0 + $1.mesh.indices.count / 3 }
         guard triangles > 0 else {
@@ -99,9 +98,9 @@ enum ModelExport {
         let uvs = mesh.vertexAttributeData(forAttributeNamed: MDLVertexAttributeTextureCoordinate)
             .flatMap { readUVs($0, count: mesh.vertexCount) } ?? Array(repeating: SIMD2<Float>(0, 0), count: positions.count)
 
-        guard let submeshes = mesh.submeshes, !submeshes.isEmpty else { return [] }
+        guard let submeshes = mesh.submeshes, submeshes.count > 0 else { return [] }
         var extracted: [LoadedMesh] = []
-        for submesh in submeshes {
+        for case let submesh as MDLSubmesh in submeshes {
             guard let indices = triangleIndices(submesh), !indices.isEmpty else { continue }
             let resolvedNormals: [SIMD3<Float>]
             if normals.count == positions.count {

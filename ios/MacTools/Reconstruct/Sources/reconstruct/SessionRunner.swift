@@ -180,7 +180,9 @@ private func poseViews(from result: PhotogrammetrySession.Result, manifest: Capt
             imageWidth: photo.imageWidth ?? size?.width,
             imageHeight: photo.imageHeight ?? size?.height
         ) else { continue }
-        guard let intrinsics = intrinsics(from: pose) ?? photo.intrinsics else { continue }
+        // PhotogrammetrySession.Pose exposes the camera transform only.
+        // Intrinsics come from capture.json when the iPhone capture recorded them.
+        guard let intrinsics = photo.intrinsics else { continue }
         views.append(CardView(
             fileName: url.lastPathComponent,
             corners: pixels,
@@ -189,17 +191,6 @@ private func poseViews(from result: PhotogrammetrySession.Result, manifest: Capt
         ))
     }
     return views
-}
-
-@available(macOS 14.0, *)
-private func intrinsics(from pose: PhotogrammetrySession.Pose) -> PinholeIntrinsics? {
-    guard let matrix = pose.intrinsics else { return nil }
-    let fx = Double(matrix.columns.0.x)
-    let fy = Double(matrix.columns.1.y)
-    let cx = Double(matrix.columns.2.x)
-    let cy = Double(matrix.columns.2.y)
-    guard fx > 1, fy > 1, cx.isFinite, cy.isFinite else { return nil }
-    return PinholeIntrinsics(fx: fx, fy: fy, cx: cx, cy: cy)
 }
 
 private func matchingPhoto(manifest: CaptureManifest, url: URL) -> CapturePhoto? {
