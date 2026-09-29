@@ -16,6 +16,7 @@ import { CartonMark, LabelFinishMaterial } from "./cartonMark.tsx";
 import { useLab } from "../store/labStore.ts";
 import { latheGeometry, latheProfile } from "../import/lathe.ts";
 import { clickPart, doubleClickPart, markPartPointer, swapFlashOn } from "./focusClick.ts";
+import { restoredOpacityTarget } from "./materialFade.ts";
 import { FinishMaterial, JuiceMaterial } from "./materials.tsx";
 import { Callouts } from "./Callouts.tsx";
 import { explodeLocal } from "./explodeCurve.ts";
@@ -155,8 +156,10 @@ function PartShell({
           if (mat.depthWrite !== newDepthWrite) mat.depthWrite = newDepthWrite;
           continue;
         }
-        const intended = (mat.userData.intendedOpacity as number | undefined) ?? mat.opacity;
-        const target = ghost ? intended * 0.1 : intended;
+        const fade = restoredOpacityTarget(mat.userData, mat.opacity, ghost);
+        mat.userData.intendedOpacity = fade.intendedOpacity;
+        const intended = fade.intendedOpacity;
+        const target = fade.target;
         const newTransparent = ghost || intended < 0.999;
         if (mat.transparent !== newTransparent) mat.transparent = newTransparent;
         const newOpacity = THREE.MathUtils.damp(mat.opacity, target, 7, dt);
