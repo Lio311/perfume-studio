@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState, type ComponentProps } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ComponentProps, type ComponentType } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { AdaptiveDpr, Grid, OrbitControls, PerformanceMonitor } from "@react-three/drei";
 import * as THREE from "three";
@@ -21,6 +21,7 @@ import { CinematicFloor, EnergyRings, ParticleField, VoiceGrade } from "./voiceS
 import { webglAvailable } from "./webgl.ts";
 import { noteStudioFrame } from "../boot/splash.ts";
 import { clearSceneError, contextLostSuppressed, noteRenderer, StageFallback, WebglBoundary, WebglFallback } from "../ui/FallbackScreen.tsx";
+import { getUnboxPlayback, subscribeUnbox } from "./unbox/playback.ts";
 
 const VIEW_DIR: Record<ViewPreset | "three", THREE.Vector3> = {
   home: new THREE.Vector3(0.78, 0.22, 1).normalize(),
@@ -165,6 +166,7 @@ function CameraRig() {
   const animStart = useRef(0);
   const radius = useRef(48);
   const boxEntered = useRef(false);
+  const adoptedCamera = useRef(0);
   const [reducedMotion, setReducedMotion] = useState(prefersReducedMotion);
 
   const measureRadius = () => {
@@ -416,9 +418,24 @@ function CameraRig() {
   }, [gl]);
 
   useFrame((_, delta) => {
-    if (poseBroken(camera.position, look.current, camera.up)) recoverHome();
+    const unbox = getUnboxPlayback();
     const state = useLab.getState();
     const signature = frameSignature(size.width, size.height);
+    const heroReady = unbox.cameraToken !== adoptedCamera.current && unbox.look !== null && unbox.snap !== null;
+    if (unbox.phase === "playing" || heroReady) {
+      if (controls && unbox.phase === "playing") controls.enabled = false;
+      seenSig.current = signature;
+      seenFull.current = state.fullToken;
+      seenView.current = state.viewToken;
+      seenFocus.current = state.focusToken;
+      if (unbox.phase === "playing") {
+        sceneSpan.flying = true;
+        const shot = takeShot();
+        if (shot) shot(gl.domElement.toDataURL("image/png"));
+      }
+      return;
+    }
+    if (poseBroken(camera.position, look.current, camera.up)) recoverHome();
     if (state.fullToken !== seenFull.current) {
       seenFull.current = state.fullToken;
       seenFocus.current = state.focusToken;
@@ -548,6 +565,30 @@ function CameraRig() {
   }, 1);
 
   useFrame(() => {
+    const unbox = getUnboxPlayback();
+    if (unbox.phase === "playing") return;
+    if (unbox.cameraToken !== adoptedCamera.current && unbox.look && unbox.snap) {
+      adoptedCamera.current = unbox.cameraToken;
+      camera.position.set(unbox.snap.x, unbox.snap.y, unbox.snap.z);
+      look.current.set(unbox.look.x, unbox.look.y, unbox.look.z);
+      camera.up.copy(UP);
+      camera.lookAt(look.current);
+      ORBIT_TARGET.copy(look.current);
+      fromPos.current.copy(camera.position);
+      fromLook.current.copy(look.current);
+      goalPos.current.copy(camera.position);
+      goalTarget.current.copy(look.current);
+      mode.current = "idle";
+      sceneSpan.flying = false;
+      const rig = controls as { enabled: boolean; target: THREE.Vector3; update: () => void; _lastAngle?: number } | null;
+      if (rig) {
+        rig.target.copy(look.current);
+        rig.enabled = true;
+        rig._lastAngle = 0;
+        rig.update();
+      }
+      seenSig.current = frameSignature(size.width, size.height);
+    }
     const rig = controls as { target: THREE.Vector3; _lastAngle?: number } | null;
     const target = mode.current === "anim" ? look.current : (rig?.target ?? look.current);
     const live = mode.current === "anim" ? look.current : (rig?.target ?? look.current);
@@ -711,6 +752,7 @@ function Stage() {
       {dark && voice === 3 && <CinematicFloor />}
       <Assembly />
       <FirstFrameSignal />
+      <UnboxHost />
       <CameraRig />
       <VoiceGrade />
       <Tier />
@@ -718,6 +760,31 @@ function Stage() {
       <FpsProbe />
     </>
   );
+}
+
+function UnboxHost() {
+  const [Director, setDirector] = useState<ComponentType | null>(null);
+  useEffect(() => {
+    let dead = false;
+    const asked = { current: false };
+    const sync = () => {
+      if (asked.current || dead) return;
+      const play = getUnboxPlayback();
+      if (play.phase !== "playing" && play.cameraToken === 0) return;
+      asked.current = true;
+      void import("./unbox/director.tsx").then((mod) => {
+        if (!dead) setDirector(() => mod.UnboxDirector);
+      });
+    };
+    sync();
+    const unsubscribe = subscribeUnbox(sync);
+    return () => {
+      dead = true;
+      unsubscribe();
+    };
+  }, []);
+  if (!Director) return null;
+  return <Director />;
 }
 
 function FirstFrameSignal() {
