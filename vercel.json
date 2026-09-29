@@ -1,0 +1,6 @@
+{
+  "rewrites": [
+    { "source": "/scan", "destination": "/index.html" },
+    { "source": "/scan/", "destination": "/index.html" }
+  ]
+}
