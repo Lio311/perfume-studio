@@ -226,13 +226,14 @@ export function Ribbon({ w, h, d, y }: { w: number; h: number; d: number; y: num
   );
 }
 
-/** Disc thickness along Y. The flap keeps this inside the board. */
+/** Disc radius in XZ, thickness along Y. The flap keeps both inside the board. */
+export const MAGNET_RADIUS = 2.3;
 export const MAGNET_THICKNESS = 1.15;
 
 export function Magnet({ position, rotation }: { position: [number, number, number]; rotation?: [number, number, number] }) {
   return (
     <mesh position={position} rotation={rotation}>
-      <cylinderGeometry args={[2.3, 2.3, MAGNET_THICKNESS, 16]} />
+      <cylinderGeometry args={[MAGNET_RADIUS, MAGNET_RADIUS, MAGNET_THICKNESS, 16]} />
       <meshStandardMaterial color="#2a2d33" metalness={0.86} roughness={0.22} />
     </mesh>
   );

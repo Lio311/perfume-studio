@@ -43,10 +43,15 @@ function LidShell({ w, h, d, wall }: { w: number; h: number; d: number; wall: nu
   );
 }
 
+/** Disc radius of the round insert. One millimetre inside the radius it is given. */
+export function prismInsertOuter(radius: number): number {
+  return Math.max(8, radius - 1.1);
+}
+
 /** Octagonal cradle in the insert material. Floor and walls do not share a start, and the tray lift carries it. */
-function PrismInsert({ radius, sides, fit, baseY }: { radius: number; sides: number; fit: Fit; baseY: number }) {
+export function PrismInsert({ radius, sides, fit, baseY }: { radius: number; sides: number; fit: Fit; baseY: number }) {
   const orientation = useLab((s) => s.design.box.insert?.orientation ?? "standing");
-  const outer = Math.max(8, radius - 1.1);
+  const outer = prismInsertOuter(radius);
   const wall = Math.max(2.2, outer * 0.14);
   const inner = Math.max(5, outer - wall);
   const floor = Math.max(1.6, fit.floorMm);
@@ -122,11 +127,6 @@ const LiftOff: ClosureBuilder = ({ form, fit, spec, dims, bind, ribbon, pullTab,
           <PrismMesh radius={lidR} inner={lidInner} height={Math.max(wall, dims.lidH - dims.wall)} sides={sides} />
           <PrismMesh radius={lidR} inner={0} height={dims.wall} sides={sides} y={Math.max(0, dims.lidH - dims.wall)} />
           {telescope && <BrandMark w={face.width} y={dims.lidH * 0.55} z={face.z} />}
-          {telescope && sides <= 12 && (
-            <group position={[0, dims.lidH + MARK_FACE_GAP, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-              <BrandMark w={face.width} y={0} z={0} />
-            </group>
-          )}
           {pullTab && <PullTab w={Math.min(dims.w, face.width)} z={face.z} />}
         </group>
         {!telescope && <BrandMark w={baseFace.width} y={trayH * 0.55} z={baseFace.z} />}

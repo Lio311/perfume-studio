@@ -909,6 +909,27 @@ describe("saved design hydration", () => {
     expect((partializeLabState(useLab.getState()).design as Design).label.text).toBe("EDIT");
     useLab.setState({ design: prior.design, theme: prior.theme, saved: prior.saved, demoHold: null, past: prior.past, future: prior.future });
   });
+
+  it("keeps the pre-link design after a save while the hold is set", () => {
+    const saved = createDefaultDesign();
+    saved.label = { ...saved.label, text: "KEPT" };
+    const hold = demoSessionHold({ ...slice(saved), past: [], future: [] });
+    const shot = createDefaultDesign();
+    shot.label = { ...shot.label, text: "SHOT" };
+    const prior = useLab.getState();
+    useLab.setState({ design: shot, saved: prior.saved, demoHold: hold, past: [], future: [] });
+    useLab.getState().saveDesign("during", "");
+    expect(useLab.getState().demoHold).toBe(hold);
+    const written = partializeLabState(useLab.getState());
+    expect((written.design as Design).label.text).toBe("KEPT");
+    expect((written.saved as { name: string }[])[0]?.name).toBe("during");
+    useLab.getState().applyCommands([{ type: "select", part: "box" }]);
+    expect(useLab.getState().demoHold).toBe(hold);
+    expect((partializeLabState(useLab.getState()).design as Design).label.text).toBe("KEPT");
+    useLab.getState().applyCommands([{ type: "text", text: "EDIT" }]);
+    expect(useLab.getState().demoHold).toBeNull();
+    useLab.setState({ design: prior.design, theme: prior.theme, saved: prior.saved, demoHold: null, past: prior.past, future: prior.future });
+  });
 });
 
 afterEach(() => {

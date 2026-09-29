@@ -312,81 +312,8 @@ export function WrapMaterial({
       sheenRoughness={pile ? 0.38 : 0.55}
       envMapIntensity={gloss ? 0.9 : pile ? 0.55 : soft ? 0.32 : 0.4}
       clippingPlanes={planes}
-      onBeforeCompile={(shader) => {
-        shader.uniforms.uWrapNoise = { value: wrapNoiseTexture() };
-        shader.vertexShader = shader.vertexShader
-          .replace("#include <common>", "#include <common>\nvarying vec3 vWrapWorld;\nvarying vec3 vWrapNormal;")
-          .replace("#include <beginnormal_vertex>", "#include <beginnormal_vertex>\nvWrapNormal = mat3(modelMatrix) * objectNormal;")
-          .replace("#include <begin_vertex>", "#include <begin_vertex>\nvWrapWorld = (modelMatrix * vec4(transformed, 1.0)).xyz;");
-        shader.fragmentShader = shader.fragmentShader
-          .replace("#include <common>", "#include <common>\nvarying vec3 vWrapWorld;\nvarying vec3 vWrapNormal;\nuniform sampler2D uWrapNoise;")
-          .replace(
-            "#include <dithering_fragment>",
-            `vec3 wrapBlend = abs(normalize(vWrapNormal));
-             wrapBlend /= max(wrapBlend.x + wrapBlend.y + wrapBlend.z, 0.0001);
-             float wrapNx = texture2D(uWrapNoise, vWrapWorld.yz * 0.045).r;
-             float wrapNy = texture2D(uWrapNoise, vWrapWorld.xz * 0.045).r;
-             float wrapNz = texture2D(uWrapNoise, vWrapWorld.xy * 0.045).r;
-             float wrapN = wrapNx * wrapBlend.x + wrapNy * wrapBlend.y + wrapNz * wrapBlend.z;
-             gl_FragColor.rgb *= mix(0.94, 1.06, wrapN);
-             float wrapNd = clamp(dot(normalize(normal), normalize(vViewPosition)), 0.0, 1.0);
-             gl_FragColor.rgb += vec3(0.96, 0.9, 0.78) * pow(1.0 - wrapNd, 2.4) * 0.2;
-             #include <dithering_fragment>`,
-          );
-      }}
-      customProgramCacheKey={() => "wrap-triplanar-grain"}
     />
   );
-}
-
-let wrapNoise: THREE.DataTexture | null = null;
-
-/** One tiled grain map. Sampled in world space so rotation does not reshuffle the hash. */
-function wrapNoiseTexture(): THREE.DataTexture {
-  if (wrapNoise) return wrapNoise;
-  const size = 128;
-  const cells = 16;
-  const cell = size / cells;
-  const data = new Uint8Array(size * size * 4);
-  const lattice = (x: number, y: number) => {
-    const xi = ((x % cells) + cells) % cells;
-    const yi = ((y % cells) + cells) % cells;
-    const n = Math.sin(xi * 127.1 + yi * 311.7) * 43758.5453;
-    return n - Math.floor(n);
-  };
-  for (let y = 0; y < size; y += 1) {
-    for (let x = 0; x < size; x += 1) {
-      const gx = x / cell;
-      const gy = y / cell;
-      const x0 = Math.floor(gx);
-      const y0 = Math.floor(gy);
-      const tx = gx - x0;
-      const ty = gy - y0;
-      const sx = tx * tx * (3 - 2 * tx);
-      const sy = ty * ty * (3 - 2 * ty);
-      const v =
-        lattice(x0, y0) * (1 - sx) * (1 - sy) +
-        lattice(x0 + 1, y0) * sx * (1 - sy) +
-        lattice(x0, y0 + 1) * (1 - sx) * sy +
-        lattice(x0 + 1, y0 + 1) * sx * sy;
-      const byte = Math.round(Math.min(1, Math.max(0, v)) * 255);
-      const i = (y * size + x) * 4;
-      data[i] = byte;
-      data[i + 1] = byte;
-      data[i + 2] = byte;
-      data[i + 3] = 255;
-    }
-  }
-  const tex = new THREE.DataTexture(data, size, size);
-  tex.wrapS = THREE.RepeatWrapping;
-  tex.wrapT = THREE.RepeatWrapping;
-  tex.magFilter = THREE.LinearFilter;
-  tex.minFilter = THREE.LinearMipmapLinearFilter;
-  tex.generateMipmaps = true;
-  tex.colorSpace = THREE.NoColorSpace;
-  tex.needsUpdate = true;
-  wrapNoise = tex;
-  return tex;
 }
 
 const JUICE_VERT = `

@@ -21,7 +21,8 @@ import { CompareBoard } from "./ui/CompareBoard.tsx";
 import { Modals } from "./ui/Modals.tsx";
 import { stopSpeaking } from "./audio/speech.ts";
 import { acknowledgePackLoads, adoptLoadedSuppliers, loadPacks } from "./import/supplierDb.ts";
-import { BOX_RANGES, isKnownPack, withInnerStructure } from "./model/boxFields.ts";
+import { isKnownPack, withInnerStructure } from "./model/boxFields.ts";
+import { shotHeightMm, stripShotQuery } from "./model/shotQuery.ts";
 import { packById } from "./model/closures/registry.ts";
 import { hydrateDesign } from "./model/design.ts";
 import { clampLabelText } from "./geometry/logos.ts";
@@ -45,6 +46,7 @@ function applyBackAction(action: Exclude<BackAction, "leave">, trap: Trap) {
     useLab.setState({
       design: { ...design, step },
       stage: step === 6 ? "box" : "bottle",
+      demoHold: null,
     });
   } else if (action === "mode") {
     // Zero before setMode so the assemble tween does not leave explode open and re-arm history.
@@ -158,7 +160,7 @@ export default function App() {
         noteInvalid: () => {
           useLab.setState({ toast: invalidShareMessage(useLab.getState().lang) });
         },
-        apply: (design) => useLab.setState({ design }),
+        apply: (design) => useLab.setState({ design, demoHold: null }),
         replaceState: (state, title, url) => history.replaceState(state, title, url),
       }).finally(() => {
         if (!cancelled) setShareLock(false);
@@ -259,10 +261,9 @@ export default function App() {
       }
       const board = params.get("board");
       if (board === "carton" || board === "rigid") design.box.material = board;
-      const height = Number(params.get("height"));
-      if (params.has("height") && Number.isFinite(height)) {
-        const [lo, hi] = BOX_RANGES.heightMm;
-        design.box.heightMm = Math.min(hi, Math.max(lo, height));
+      const height = shotHeightMm(params.get("height"));
+      if (height != null) {
+        design.box.heightMm = height;
         design.box.linked = false;
       }
       const tier = params.get("tier") === "fallback" ? "fallback" as const : "high" as const;
@@ -287,7 +288,7 @@ export default function App() {
         demoHold: hold,
       });
       demoShot.current = true;
-      const next = `${location.pathname}${location.hash}`;
+      const next = `${location.pathname}${stripShotQuery(location.search)}${location.hash}`;
       history.replaceState(history.state, "", next);
     };
     if (useLab.persist.hasHydrated()) applyShot();

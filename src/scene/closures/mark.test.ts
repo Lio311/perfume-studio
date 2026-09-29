@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { cartonMarkSize } from "../../geometry/logos.ts";
 import { MARK_FACE_GAP } from "./kit.tsx";
 import { sleeveInnerDepth, sleeveInnerMarkZ } from "./build/sleeve.tsx";
-import { tubeMarkWidth } from "./build/tube.tsx";
+import { tubeInnerRadius, tubeInsertOuter, tubeInsertRadius, tubeMarkWidth } from "./build/tube.tsx";
 
 describe("carton mark placement", () => {
   it("keeps the brand offset under half a millimetre", () => {
@@ -31,5 +31,16 @@ describe("carton mark placement", () => {
     const half = plane / 2;
     const sagitta = radius - Math.sqrt(radius * radius - half * half);
     expect(sagitta).toBeLessThan(1.6);
+  });
+
+  it("keeps the round tube insert inside the cylinder", () => {
+    const radius = 33.6;
+    const wall = 2.2;
+    const inner = tubeInnerRadius(radius, wall);
+    const placed = tubeInsertRadius(inner);
+    const disc = tubeInsertOuter(inner);
+    expect(placed).toBeCloseTo(inner - 0.4, 5);
+    expect(disc).toBeLessThanOrEqual(inner);
+    expect(disc).toBeLessThanOrEqual(radius);
   });
 });

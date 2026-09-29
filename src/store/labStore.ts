@@ -392,7 +392,6 @@ function commitSuppliers(
   packs: SupplierPack[],
   extra: PackNotice[],
   closeModal: boolean,
-  releaseHold = false,
 ) {
   const notices = [...extra, ...syncRegistry(packs)];
   const toast = noticeToast(notices, get().lang);
@@ -401,7 +400,6 @@ function commitSuppliers(
     packNotices: notices,
     ...(closeModal ? { modal: null } : {}),
     ...(toast ? { toast } : {}),
-    ...(releaseHold ? { demoHold: null } : {}),
   });
 }
 
@@ -516,7 +514,7 @@ export const useLab = create<LabState>()(
             past: designChanged ? [...state.past, state.design].slice(-30) : state.past,
             future: designChanged ? [] : state.future,
             wizardPicked,
-            demoHold: null,
+            demoHold: designChanged ? null : state.demoHold,
           };
         }),
       cycle: (dir, part) => {
@@ -557,14 +555,14 @@ export const useLab = create<LabState>()(
           const previous = state.past[state.past.length - 1];
           const note = state.lang === "he" ? "בוטל" : "Undone";
           if (!previous) return { toast: state.lang === "he" ? "אין מה לבטל" : "Nothing to undo" };
-          return { design: previous, past: state.past.slice(0, -1), future: [state.design, ...state.future].slice(0, 30), toast: note };
+          return { design: previous, past: state.past.slice(0, -1), future: [state.design, ...state.future].slice(0, 30), toast: note, demoHold: null };
         }),
       redo: () =>
         set((state) => {
           const next = state.future[0];
           const note = state.lang === "he" ? "חזר" : "Redone";
           if (!next) return { toast: state.lang === "he" ? "אין מה לחזור" : "Nothing to redo" };
-          return { design: next, future: state.future.slice(1), past: [...state.past, state.design].slice(-30), toast: note };
+          return { design: next, future: state.future.slice(1), past: [...state.past, state.design].slice(-30), toast: note, demoHold: null };
         }),
       beginGesture: () =>
         set((state) => (state.gesturing ? state : { gesturing: true, past: [...state.past, state.design].slice(-30), future: [] })),
@@ -574,6 +572,7 @@ export const useLab = create<LabState>()(
           design: design,
           past: [...state.past, state.design].slice(-30),
           future: [],
+          demoHold: null,
         })),
       duplicateDesign: () =>
         set((state) => ({
@@ -594,14 +593,14 @@ export const useLab = create<LabState>()(
       setSideOpen: (sideOpen) => set({ sideOpen }),
       setModal: (modal) => set({ modal }),
       setShareUrl: (shareUrl) => set({ shareUrl }),
-      pushChat: (message) => set((state) => ({ chat: [...state.chat, message].slice(-40), demoHold: null })),
+      pushChat: (message) => set((state) => ({ chat: [...state.chat, message].slice(-40) })),
       saveDesign: (name, thumb) => {
         const previous = get().saved;
         const id = uid("cfg");
         const newDesign = { id, name: name.trim() || "סקיצה", design: get().design, thumb, createdAt: Date.now() };
         const next = [newDesign, ...previous].slice(0, 24);
         const result = commitSavedDesigns(previous, next, (saved) => {
-          set({ saved, demoHold: null });
+          set({ saved });
         });
         if (!result.ok) return { ok: false };
         void apiClient.post("/designs", newDesign).catch((error) => {
@@ -665,7 +664,7 @@ export const useLab = create<LabState>()(
           const compareIds = has ? state.compareIds.filter((item) => item !== id) : [...state.compareIds, id].slice(-3);
           return { compareIds };
         }),
-      addPending: (part) => set((state) => ({ pending: [part, ...state.pending].slice(0, 30), modal: null, demoHold: null })),
+      addPending: (part) => set((state) => ({ pending: [part, ...state.pending].slice(0, 30), modal: null })),
       removePending: (id) => set((state) => ({ pending: state.pending.filter((item) => item.id !== id) })),
       setSuppliers: (packs, notices = []) => {
         commitSuppliers(set, get, packs, notices, false);
@@ -677,7 +676,7 @@ export const useLab = create<LabState>()(
       },
       upsertSupplier: (pack, notices = []) => {
         const suppliers = [pack, ...get().suppliers.filter((item) => item.id !== pack.id)];
-        commitSuppliers(set, get, suppliers, notices, notices.length === 0, true);
+        commitSuppliers(set, get, suppliers, notices, notices.length === 0);
         markPackWarningsSeen(pack);
         void savePack(pack);
       },
