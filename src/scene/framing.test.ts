@@ -4,7 +4,7 @@ import { applyVariant, createDefaultDesign } from "../model/design.ts";
 import type { PartKey } from "../model/types.ts";
 import { computeFit } from "../model/fit.ts";
 import { BOX_CLOSED_CAM_X, BOX_CLOSED_CAM_Y, BOX_CLOSED_CAM_Z } from "./boxCamera.ts";
-import { assemblyBounds, BOX_FILL, boxViewportFrame, FOCUS_FILL, fitPose, orbitLimits, partBounds, safeRect, type StageFrame } from "./framing.ts";
+import { assemblyBounds, BOX_FILL, boxViewportFrame, clearToolbar, FOCUS_FILL, fitPose, orbitLimits, partBounds, safeRect, TOOLBAR_COVER_PX, type StageFrame } from "./framing.ts";
 
 function macbook(): StageFrame {
   const stageLeft = 338;
@@ -120,6 +120,48 @@ describe("focus framing on a MacBook stage", () => {
     const closed = assemblyBounds(tube, 0, "box", false);
     const openTube = assemblyBounds(tube, 0, "box", true);
     expect(openTube.max.y - closed.max.y).toBeCloseTo(fit.boxH * 0.95, 5);
+  });
+
+  it("drops only the front view below the toolbar and leaves the safe rect at 18", () => {
+    const frame = boxViewportFrame(1280, 800);
+    const safe = safeRect(frame);
+    expect(safe.bottom).toBeCloseTo(frame.openTop + frame.openHeight - 18, 5);
+    expect(frame.openHeight - (safe.bottom - frame.openTop)).toBeCloseTo(18, 5);
+
+    const design = createDefaultDesign();
+    design.box.structure = "tube";
+    design.box.shape = { type: "cylinder" };
+    const bounds = assemblyBounds(design, 0, "box", false);
+    const frontDir = new THREE.Vector3(0.02, 0.3, 1).normalize();
+    const closedDir = new THREE.Vector3(BOX_CLOSED_CAM_X, BOX_CLOSED_CAM_Y, BOX_CLOSED_CAM_Z).normalize();
+    const fitted = fitPose(bounds, frontDir, 30, frame, BOX_FILL);
+    const cleared = clearToolbar(fitted, bounds, frame, 30);
+    const raw = projected(fitted, bounds, frame);
+    const front = projected(cleared, bounds, frame);
+    expect(front.minY).toBeGreaterThanOrEqual(TOOLBAR_COVER_PX - 1);
+    expect(cleared.position.distanceTo(cleared.target)).toBeCloseTo(fitted.position.distanceTo(fitted.target), 4);
+    expect(Math.abs(front.h - raw.h) / raw.h).toBeLessThan(0.01);
+    if (raw.minY >= TOOLBAR_COVER_PX) {
+      expect(cleared.target.y).toBeCloseTo(fitted.target.y, 4);
+      expect(cleared.position.y).toBeCloseTo(fitted.position.y, 4);
+    }
+
+    const closed = fitPose(bounds, closedDir, 30, frame, BOX_FILL);
+    const closedBox = projected(closed, bounds, frame);
+    expect(closedBox.h / frame.height).toBeGreaterThan(0.55);
+    expect(closedBox.h / frame.height).toBeLessThanOrEqual(0.7);
+
+    const raised = {
+      position: fitted.position.clone().add(new THREE.Vector3(0, -80, 0)),
+      target: fitted.target.clone().add(new THREE.Vector3(0, -80, 0)),
+    };
+    const tucked = projected(raised, bounds, frame);
+    expect(tucked.minY).toBeLessThan(TOOLBAR_COVER_PX);
+    const restored = clearToolbar(raised, bounds, frame, 30);
+    const restoredBox = projected(restored, bounds, frame);
+    expect(restoredBox.minY).toBeGreaterThanOrEqual(TOOLBAR_COVER_PX - 1);
+    expect(restored.position.distanceTo(restored.target)).toBeCloseTo(raised.position.distanceTo(raised.target), 4);
+    expect(Math.abs(restoredBox.h - tucked.h) / tucked.h).toBeLessThan(0.02);
   });
 
   it("keeps the camera outside the bottle and short of the world edge", () => {

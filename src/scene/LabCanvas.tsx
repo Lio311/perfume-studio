@@ -12,7 +12,7 @@ import { releaseFocus } from "./focusClick.ts";
 import { isKnownPack } from "../model/boxFields.ts";
 import { BOX_CLOSED_CAM_X, BOX_CLOSED_CAM_Y, BOX_CLOSED_CAM_Z } from "./boxCamera.ts";
 import { boxCameraSnap } from "./boxOrbit.ts";
-import { assemblyBounds, BOX_FILL, boxViewportFrame, fitPose, FOCUS_FILL, orbitLimits, partBounds, readStageFrame } from "./framing.ts";
+import { assemblyBounds, BOX_FILL, boxViewportFrame, clearToolbar, fitPose, FOCUS_FILL, orbitLimits, partBounds, readStageFrame } from "./framing.ts";
 import { prefersReducedMotion } from "./motion.ts";
 import { cameraProbe, sceneSpan } from "./limits.ts";
 import { clampPolarOffset, decayGlide, emptyGlide, PAN_SPEED, PAN_STEP, PITCH_STEP, polarAngle, poseBroken, pushGlide, ROTATE_SPEED, takeStep, YAW_STEP, type Glide } from "./orbitGlide.ts";
@@ -202,7 +202,7 @@ function CameraRig() {
     sceneSpan.flying = true;
   };
 
-  const poseFor = (dir: THREE.Vector3, bounds?: THREE.Box3, fill?: number) => {
+  const poseFor = (dir: THREE.Vector3, bounds?: THREE.Box3, fill?: number, clearTop = false) => {
     const state = useLab.getState();
     const lid = state.boxOpen && state.stage !== "bottle";
     const box = bounds ?? (state.solo
@@ -211,7 +211,8 @@ function CameraRig() {
     const boxScene = state.stage === "box" && !state.solo && !bounds;
     const frame = boxScene ? boxViewportFrame(size.width, size.height) : readStageFrame(gl.domElement);
     const fov = camera instanceof THREE.PerspectiveCamera ? camera.fov : 30;
-    return fitPose(box, dir, fov, frame, fill ?? (boxScene ? BOX_FILL : undefined));
+    const pose = fitPose(box, dir, fov, frame, fill ?? (boxScene ? BOX_FILL : undefined));
+    return clearTop ? clearToolbar(pose, box, frame, fov) : pose;
   };
 
   const aimPart = (part: PartKey) => {
@@ -249,7 +250,8 @@ function CameraRig() {
     boxEntered.current = boxScene;
     const present = state.present;
     const exploded = state.explode > 0.12 && !state.aimed && !state.solo;
-    const pose = poseFor(framed, undefined, exploded ? 0.72 : boxScene ? BOX_FILL : present ? 0.58 : undefined);
+    const frontView = state.viewPreset === "front" && framed.distanceTo(VIEW_DIR.front) < 1e-3;
+    const pose = poseFor(framed, undefined, exploded ? 0.72 : boxScene ? BOX_FILL : present ? 0.58 : undefined, frontView);
     goalPos.current.copy(pose.position);
     goalTarget.current.copy(pose.target);
     const jump = (canned || prefersReducedMotion()) && pullBack <= 1;
