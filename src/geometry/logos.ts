@@ -61,8 +61,8 @@ export function shouldRepaintLabel(alreadyLoaded: boolean): boolean {
   return !alreadyLoaded;
 }
 
-/** Bright foil when the chosen ink is warm. Cool inks become silver. */
-export const FOIL_GOLD = "#ffe7a6";
+/** Saturated gold. A pale cream clipped to white under the unmapped foil emissive. */
+export const FOIL_GOLD = "#d4a017";
 export const FOIL_SILVER = "#f3f6fb";
 /** Raised mark when the caller has no substrate colour yet. */
 export const EMBOSS_SUBSTRATE = "#cfc8bc";
@@ -144,11 +144,11 @@ export function labelFinish(application: LogoApplication = "decal"): LabelFinish
   switch (application) {
     case "foil":
       return {
-        metalness: 0.55,
-        roughness: 0.18,
+        metalness: 0.86,
+        roughness: 0.14,
         bumpScale: 0,
-        envMapIntensity: 2.4,
-        emissive: 1.15,
+        envMapIntensity: 2.8,
+        emissive: 1.05,
       };
     case "emboss":
       return { metalness: 0.02, roughness: 0.42, bumpScale: 16, envMapIntensity: 0.35, emissive: 0 };
@@ -360,10 +360,15 @@ export function relieveLabelPixels(
       if (alpha === 0) continue;
       if (application === "foil") {
         const lip = alphaAt(x, y - radius) < alpha * 0.45;
-        const gain = lip ? 0.78 : 0.28;
-        data[index] = Math.min(255, Math.round(src[index] + (255 - src[index]) * gain));
-        data[index + 1] = Math.min(255, Math.round(src[index + 1] + (255 - src[index + 1]) * (lip ? 0.7 : 0.2)));
-        data[index + 2] = Math.min(255, Math.round(src[index + 2] + (255 - src[index + 2]) * (lip ? 0.48 : 0.1)));
+        if (lip) {
+          data[index] = Math.min(255, Math.round(src[index] * 0.55 + 255 * 0.45));
+          data[index + 1] = Math.min(230, Math.round(src[index + 1] * 0.55 + 210 * 0.45));
+          data[index + 2] = Math.min(120, Math.round(src[index + 2] * 0.4 + 70 * 0.6));
+        } else {
+          data[index] = Math.round(src[index] * 0.94);
+          data[index + 1] = Math.round(src[index + 1] * 0.86);
+          data[index + 2] = Math.round(src[index + 2] * 0.62);
+        }
         continue;
       }
       if (application === "engrave") {
@@ -385,14 +390,15 @@ export function relieveLabelPixels(
       }
       const slopeX = (alphaAt(x + radius, y) - alphaAt(x - radius, y)) / 255;
       const slopeY = (alphaAt(x, y + radius) - alphaAt(x, y - radius)) / 255;
-      const light = Math.max(-1, Math.min(1, slopeX * 2.2 + slopeY * 2.4));
+      const light = Math.max(-1, Math.min(1, slopeX * 1.15 + slopeY * 1.25));
       if (light >= 0) {
-        const gain = Math.min(1, light * 1.45);
-        data[index] = Math.min(255, Math.round(src[index] + (255 - src[index]) * gain));
-        data[index + 1] = Math.min(255, Math.round(src[index + 1] + (255 - src[index + 1]) * gain));
-        data[index + 2] = Math.min(255, Math.round(src[index + 2] + (255 - src[index + 2]) * gain));
+        // Stay on the substrate. A lift toward white made emboss read as foil.
+        const lift = light * 22;
+        data[index] = Math.min(232, Math.round(src[index] + Math.min(lift, Math.max(0, 232 - src[index]))));
+        data[index + 1] = Math.min(232, Math.round(src[index + 1] + Math.min(lift, Math.max(0, 232 - src[index + 1]))));
+        data[index + 2] = Math.min(232, Math.round(src[index + 2] + Math.min(lift, Math.max(0, 232 - src[index + 2]))));
       } else {
-        const scale = Math.max(0.12, 1 + light * 1.05);
+        const scale = Math.max(0.72, 1 + light * 0.28);
         data[index] = Math.max(0, Math.round(src[index] * scale));
         data[index + 1] = Math.max(0, Math.round(src[index + 1] * scale));
         data[index + 2] = Math.max(0, Math.round(src[index + 2] * scale));

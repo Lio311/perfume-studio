@@ -151,7 +151,7 @@ describe("label text layout", () => {
     expect(etch).not.toBe("#D6B26A");
     expect(relativeLuminance(etch)).toBeLessThan(relativeLuminance("#D6B26A"));
     expect(labelFinish("decal")).toEqual({ metalness: 0, roughness: 1, bumpScale: 0, envMapIntensity: 1, emissive: 0 });
-    expect(labelFinish("foil")).toEqual({ metalness: 0.55, roughness: 0.18, bumpScale: 0, envMapIntensity: 2.4, emissive: 1.15 });
+    expect(labelFinish("foil")).toEqual({ metalness: 0.86, roughness: 0.14, bumpScale: 0, envMapIntensity: 2.8, emissive: 1.05 });
     expect(labelFinish("emboss")).toEqual({ metalness: 0.02, roughness: 0.42, bumpScale: 16, envMapIntensity: 0.35, emissive: 0 });
     expect(labelFinish("engrave")).toEqual({ metalness: 0, roughness: 0.94, bumpScale: -14, envMapIntensity: 0.15, emissive: 0 });
   });
@@ -320,8 +320,29 @@ describe("label text layout", () => {
     }
     expect(luma(face)).toBeGreaterThan(140);
     expect(luma(face)).toBeLessThan(190);
-    expect(brightest).toBeGreaterThan(luma(face) + 40);
-    expect(darkest).toBeLessThan(luma(face) - 40);
+    expect(brightest).toBeGreaterThan(luma(face) + 8);
+    expect(brightest).toBeLessThan(220);
+    expect(darkest).toBeLessThan(luma(face) - 20);
+    const foilBody = at(foil, 20, 16);
+    expect(foilBody[0]).toBeGreaterThan(foilBody[2] + 80);
+    expect(foilBody[2]).toBeLessThan(140);
+    expect(luma(foilBody)).toBeLessThan(210);
+    const cream = new Uint8ClampedArray(source);
+    for (let i = 0; i < cream.length; i += 4) {
+      if (cream[i + 3] === 0) continue;
+      cream[i] = 243;
+      cream[i + 1] = 239;
+      cream[i + 2] = 230;
+    }
+    relieveLabelPixels(cream, width, height, "emboss");
+    let creamPeak = 0;
+    for (let y = 6; y < 26; y += 1) {
+      for (let x = 8; x < 30; x += 1) {
+        const rgb = at(cream, x, y);
+        creamPeak = Math.max(creamPeak, rgb[0], rgb[1], rgb[2]);
+      }
+    }
+    expect(creamPeak).toBeLessThanOrEqual(243);
   });
 
   it("repaints only when a new face loads", () => {
