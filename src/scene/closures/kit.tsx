@@ -225,8 +225,19 @@ export function curvedRibbonArc(radius: number, band: number, yaw: number): { th
   return { theta, thetaStart: yaw - theta / 2, segments: 8 };
 }
 
-function RibbonSheet({ color }: { color: string }) {
-  return <meshPhysicalMaterial color={color} metalness={0.2} roughness={0.45} side={THREE.DoubleSide} polygonOffset polygonOffsetFactor={-1} polygonOffsetUnits={-1} />;
+/** Satin with dithering so the dark red does not band under ACES. */
+function satin(color: string, side: THREE.Side, offset = false) {
+  return (
+    <meshPhysicalMaterial
+      color={color}
+      metalness={0.2}
+      roughness={0.6}
+      envMapIntensity={0.6}
+      dithering
+      side={side}
+      {...(offset ? { polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 } : {})}
+    />
+  );
 }
 
 export function Ribbon({ w, h, d, y, color = RIBBON_COLOR, cap = true, across = "z", bend }: {
@@ -256,11 +267,11 @@ export function Ribbon({ w, h, d, y, color = RIBBON_COLOR, cap = true, across = 
           <>
             <mesh position={[0, bodyH / 2, 0]}>
               <cylinderGeometry args={[bend.radius, bend.radius, bodyH, arc.segments, 1, true, arc.thetaStart, arc.theta]} />
-              <RibbonSheet color={color} />
+              {satin(color, THREE.FrontSide, true)}
             </mesh>
             <mesh position={[0, bodyH / 2, 0]}>
               <cylinderGeometry args={[inner, inner, bodyH, arc.segments, 1, true, arc.thetaStart, arc.theta]} />
-              <RibbonSheet color={color} />
+              {satin(color, THREE.BackSide, true)}
             </mesh>
           </>
         )}
@@ -268,18 +279,18 @@ export function Ribbon({ w, h, d, y, color = RIBBON_COLOR, cap = true, across = 
           <>
             <mesh position={[0, bodyH + flareH / 2, 0]}>
               <cylinderGeometry args={[flareTo, bend.radius, flareH, arc.segments, 1, true, arc.thetaStart, arc.theta]} />
-              <RibbonSheet color={color} />
+              {satin(color, THREE.FrontSide, true)}
             </mesh>
             <mesh position={[0, bodyH + flareH / 2, 0]}>
               <cylinderGeometry args={[innerTop, inner, flareH, arc.segments, 1, true, arc.thetaStart, arc.theta]} />
-              <RibbonSheet color={color} />
+              {satin(color, THREE.BackSide, true)}
             </mesh>
           </>
         )}
         {cap && (
           <mesh position={[0, h + 0.3, 0]} rotation={[0, bend.yaw, 0]}>
             <boxGeometry args={[band, 0.45, d]} />
-            <meshPhysicalMaterial color={color} metalness={0.2} roughness={0.45} />
+            {satin(color, THREE.FrontSide)}
           </mesh>
         )}
       </group>
@@ -289,16 +300,16 @@ export function Ribbon({ w, h, d, y, color = RIBBON_COLOR, cap = true, across = 
     <group position={[0, y, 0]} rotation={across === "x" ? [0, Math.PI / 2, 0] : undefined}>
       <mesh position={[0, h / 2, d / 2 + 0.3]}>
         <boxGeometry args={[band, h, 0.45]} />
-        <meshPhysicalMaterial color={color} metalness={0.2} roughness={0.45} />
+        {satin(color, THREE.FrontSide)}
       </mesh>
       <mesh position={[0, h / 2, -d / 2 - 0.3]}>
         <boxGeometry args={[band, h, 0.45]} />
-        <meshPhysicalMaterial color={color} metalness={0.2} roughness={0.45} />
+        {satin(color, THREE.FrontSide)}
       </mesh>
       {cap && (
         <mesh position={[0, h + 0.3, 0]}>
           <boxGeometry args={[band, 0.45, d]} />
-          <meshPhysicalMaterial color={color} metalness={0.2} roughness={0.45} />
+          {satin(color, THREE.FrontSide)}
         </mesh>
       )}
     </group>

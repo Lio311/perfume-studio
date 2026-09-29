@@ -8,7 +8,7 @@ import { prismFrontFacet } from "../prism.ts";
 import { trayLiftNow } from "../../trayLift.ts";
 import { TubeMark } from "../tubeMark.tsx";
 import { BrandMark, InsertBlock, InsertFinish, Magnet, MARK_FACE_GAP, PrismMesh, PullTab, RIBBON_COLOR, Ribbon, Skin, Tub } from "../kit.tsx";
-import { closurePull, cylinderRibbonLayout, cylinderRibbonYaw, FACET_RIBBON_YAW, facetRibbonDiameter, rectRibbonLayout } from "../ribbonPose.ts";
+import { closurePull, cylinderRibbonLayout, cylinderRibbonYaw, facetRibbonDiameter, facetRibbonYaw, rectRibbonLayout } from "../ribbonPose.ts";
 import type { ClosureBuilder } from "../types.ts";
 
 /** Width passed to the carton mark, and the plane's z, for the facet that faces the camera. */
@@ -121,8 +121,8 @@ const LiftOff: ClosureBuilder = ({ form, fit, spec, dims, bind, ribbon, pullTab,
     const lidInner = Math.max(lidR - wall, lidR * 0.78);
     const face = cylinder ? null : octagonMarkPlacement(lidR, sides);
     const baseFace = cylinder ? null : octagonMarkPlacement(radius, sides);
-    const yaw = cylinder ? cylinderRibbonYaw(radius, lidR, dims.w, lidR * 2) : FACET_RIBBON_YAW;
-    const ribbonSpan = cylinderRibbonLayout(dims.h, Math.max(trayH, lid[1]), radius, lidR);
+    const yaw = cylinder ? cylinderRibbonYaw(radius, lidR, dims.w, lidR * 2) : facetRibbonYaw(sides);
+    const ribbonSpan = cylinderRibbonLayout(dims.h, lid[1], radius, lidR);
     const pull = closurePull(tied, pullTab);
     return (
       <group>

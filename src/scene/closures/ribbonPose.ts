@@ -35,11 +35,15 @@ export function splitRibbon(start: number, top: number, seam: number): {
 
 /** How far the curved band sits outside each shell. */
 export const RIBBON_ON_BASE = 0.3;
-export const RIBBON_ON_SLEEVE = 0.35;
+export const RIBBON_ON_SLEEVE = 0.45;
 export const RIBBON_ON_LID = 0.3;
 
-/** Side facet of an octagon. 90° is the middle of that face, not the 67.5° corner. */
-export const FACET_RIBBON_YAW = Math.PI / 2;
+/** Nearest facet centre to 90°. Octagon stays at 90°; other side counts snap onto a face. */
+export function facetRibbonYaw(sides: number): number {
+  const n = Math.max(3, Math.round(sides));
+  const step = (Math.PI * 2) / n;
+  return step * Math.round((Math.PI / 2) / step);
+}
 
 /** Flat-to-flat span so a band sits on the facet instead of outside the corners. */
 export function facetRibbonDiameter(radius: number, sides: number): number {
@@ -94,11 +98,8 @@ export function tubeRibbonLayout(height: number, baseH: number, closed: number, 
   };
 }
 
-/**
- * Rectangular lift-off. The lid piece uses the lid width; the base piece uses the base width.
- * `start` stays below the shoulder so the lower band is on the walls, not the floor.
- */
-export function rectRibbonLayout(height: number, seam: number, baseD: number, lidD: number, start = height * 0.28): {
+/** Rectangular lift-off from the floor. The lid piece uses the lid width; the base piece uses the base width. */
+export function rectRibbonLayout(height: number, seam: number, baseD: number, lidD: number, start = 0): {
   below: { y: number; h: number; d: number; cap: false } | null;
   above: { y: number; h: number; d: number; cap: true } | null;
 } {
