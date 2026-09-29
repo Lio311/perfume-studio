@@ -75,9 +75,10 @@ export function useBudgetModel(): BudgetModel {
       amounts.push(amount);
     }
     const summary = summarizeBudget(amounts, brief.ceilingIls);
+    if (!brief.confirmed) summary.over = false;
     const foreign = [...new Set(lines.filter((line) => line.price.currency !== "ILS" && !line.price.unknownCurrency).map((line) => line.price.currency))];
     let alternatives: Alternative[] = [];
-    if (summary.over && selected && selected !== "liquid") {
+    if (brief.confirmed && summary.over && selected && selected !== "liquid") {
       const line = lines.find((item) => item.kind === selected);
       if (line?.price.ils != null) {
         const maxPriceIls = brief.ceilingIls - (summary.totalIls - line.price.ils);

@@ -143,7 +143,7 @@ export function serializePack(pack: SupplierPack): string {
 }
 
 const PACK_EXPORT_KEYS = ["id", "name", "createdAt", "version", "source", "generator", "supplier", "parts"] as const;
-const PART_EXPORT_KEYS = ["id", "kind", "code", "name", "neck", "widthMm", "heightMm", "depthMm", "capacityMl", "profile", "color", "thumb", "page", "lathe", "source", "names", "neckFinish", "notes", "price", "measurements", "scan", "mesh", "params"] as const;
+const PART_EXPORT_KEYS = ["id", "kind", "code", "name", "neck", "widthMm", "heightMm", "depthMm", "capacityMl", "profile", "color", "thumb", "page", "lathe", "source", "names", "neckFinish", "notes", "price", "measurements", "scan", "mesh", "params", "appearance", "images", "thumbUrl"] as const;
 const GENERATOR_KEYS = ["name", "version", "exportedAt"] as const;
 const SUPPLIER_KEYS = ["company", "booth", "event", "country", "contactName", "role", "email", "phone", "whatsapp", "wechat", "website", "notes", "businessCard"] as const;
 const CARD_KEYS = ["dataUri", "bundlePath", "ocrText"] as const;

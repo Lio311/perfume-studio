@@ -421,7 +421,7 @@ const en: typeof he = {
   pendingEmpty: "No catalog uploads yet.",
   emptySelect: "Select a part in the scene or from the library.",
   send: "Send",
-  chatPlaceholder: "Command in English or Hebrew",
+  chatPlaceholder: "Type a command",
   saveTitle: "Save configuration",
   saveName: "Name",
   saveOk: "Configuration saved.",

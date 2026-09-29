@@ -37,7 +37,21 @@
       .studio-splash-slow[hidden] { display: none; }
       .studio-splash-slow a { color: #d6b26a; font-size: 14px; }
       @keyframes studio-splash-spin { to { transform: rotate(360deg); } }
+
+      html[data-theme="light"], html[data-theme="light"] body { background: #e8ebf0; }
+      html[data-theme="light"] .studio-splash { background: #e8ebf0; color: #1a1d22; }
+      html[data-theme="light"] .studio-splash-mark { border-color: rgba(26, 29, 34, 0.12); border-top-color: #1a1d22; }
+      html[data-theme="light"] .studio-splash-en { color: #5c6370; }
+      html[data-theme="light"] .studio-splash-slow a { color: #9a7b4a; }
     </style>
+    <script>
+      try {
+        var lab = localStorage.getItem("perfume-lab-v1");
+        if (lab && lab.indexOf('"theme":"light"') !== -1) {
+          document.documentElement.setAttribute("data-theme", "light");
+        }
+      } catch (e) {}
+    </script>
   </head>
   <body>
     <div id="studio-splash" class="studio-splash" role="status" aria-live="polite">

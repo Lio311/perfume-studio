@@ -270,10 +270,7 @@ export function Ribbon({ w, h, d, y, color = RIBBON_COLOR, cap = true, across = 
               <cylinderGeometry args={[bend.radius, bend.radius, bodyH, arc.segments, 1, true, arc.thetaStart, arc.theta]} />
               {satin(color, THREE.FrontSide, true)}
             </mesh>
-            <mesh position={[0, bodyH / 2, 0]}>
-              <cylinderGeometry args={[inner, inner, bodyH, arc.segments, 1, true, arc.thetaStart, arc.theta]} />
-              {satin(color, THREE.BackSide, true)}
-            </mesh>
+
           </>
         )}
         {flareH > 0.2 && flareTo != null && (
@@ -282,10 +279,7 @@ export function Ribbon({ w, h, d, y, color = RIBBON_COLOR, cap = true, across = 
               <cylinderGeometry args={[flareTo, bend.radius, flareH, arc.segments, 1, true, arc.thetaStart, arc.theta]} />
               {satin(color, THREE.FrontSide, true)}
             </mesh>
-            <mesh position={[0, bodyH + flareH / 2, 0]}>
-              <cylinderGeometry args={[innerTop, inner, flareH, arc.segments, 1, true, arc.thetaStart, arc.theta]} />
-              {satin(color, THREE.BackSide, true)}
-            </mesh>
+
           </>
         )}
         {cap && (

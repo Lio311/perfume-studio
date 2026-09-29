@@ -79,7 +79,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 /** Same defaults as a fresh lab. A stored brief that is not an object falls back to this. */
-export const DEFAULT_BUDGET_BRIEF: BudgetBrief = { ceilingIls: 30, volumeMl: 50, confirmed: false };
+export const DEFAULT_BUDGET_BRIEF: BudgetBrief = { ceilingIls: 200, volumeMl: 50, confirmed: false };
 
 function clampFinite(value: unknown, min: number, max: number): number | undefined {
   if (typeof value !== "number" || !Number.isFinite(value)) return undefined;
@@ -113,7 +113,7 @@ export function sanitizePersistedBrief(value: unknown, fallback: BudgetBrief = D
 }
 
 /** One user price. `absent` clears it. Anything else must be a positive finite value in a known currency. */
-function sanitizeOnePriceOverride(value: unknown): PriceOverride | undefined {
+function sanitizeOnePriceOverride(value: unknown, id: string): PriceOverride | undefined {
   if (!isRecord(value)) return undefined;
   if (own(value, "absent") === true) return { absent: true };
   const currency = own(value, "currency");
@@ -121,6 +121,9 @@ function sanitizeOnePriceOverride(value: unknown): PriceOverride | undefined {
     value: own(value, "value"),
     ...(typeof currency === "string" ? { currency } : {}),
   });
+  if (checked.unpriced && typeof currency === "string") {
+    console.warn(`Price override for "${id}" dropped: unknown currency "${currency}"`);
+  }
   if (!checked.price || checked.unpriced || !checked.price.currency) return undefined;
   return { value: checked.price.value, currency: checked.price.currency };
 }
@@ -131,7 +134,7 @@ export function sanitizePersistedPriceOverrides(value: unknown): Record<string, 
   const out: Record<string, PriceOverride> = {};
   for (const id of Object.keys(value)) {
     if (!id || id.length > 200) continue;
-    const price = sanitizeOnePriceOverride(own(value, id));
+    const price = sanitizeOnePriceOverride(own(value, id), id);
     if (price) out[id] = price;
   }
   return out;
