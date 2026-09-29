@@ -408,7 +408,7 @@ export function relieveLabelPixels(
           data[index] = Math.round(red + (255 - red) * 0.6);
           data[index + 1] = Math.round(green + (255 - green) * 0.6);
           data[index + 2] = Math.round(blue + (255 - blue) * 0.6);
-        } else if (alphaAt(x, y - radius) < alpha * 0.45) {
+        } else if (!lowContrast && alphaAt(x, y - radius) < alpha * 0.45) {
           data[index] = Math.min(255, Math.round(red + (255 - red) * 0.45));
           data[index + 1] = Math.min(255, Math.round(green + (255 - green) * 0.45));
           data[index + 2] = Math.min(255, Math.round(blue + (255 - blue) * 0.45));
