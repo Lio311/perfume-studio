@@ -1,8 +1,10 @@
 import * as THREE from "three";
 import { closureById } from "../../model/closures/registry.ts";
 import { closureDims } from "../../model/closures/types.ts";
+import { CARTON_MARK_MAX_H } from "../../geometry/logos.ts";
 import { liftOpeningRim } from "../../model/closures/lift-off.ts";
 import { tubeBaseHeight } from "../../model/closures/tube.ts";
+import type { ClosureDims } from "../../model/closures/types.ts";
 import { computeFit } from "../../model/fit.ts";
 import type { Design } from "../../model/types.ts";
 import { drawerTrayFront } from "../closures/build/drawer.tsx";
@@ -39,7 +41,24 @@ export function widePose(design: Design, frame: StageFrame, fov = 30): CameraPos
   return polarOnly(fitPose(bounds, WIDE_DIR, fov, frame, WIDE_FILL, 0.7));
 }
 
-/** Glass plus cap, after the open rise, in world millimetres. */
+/**
+ * Bottom of the brand on the carton that stays in the hero.
+ * The lid and the tube sleeve take their marks with them, so those are omitted.
+ */
+function baseMarkBottom(design: Design, dims: ClosureDims, structure: string): number | null {
+  const half = CARTON_MARK_MAX_H / 2;
+  if (structure === "drawer") {
+    return drawerTrayFront(dims.h, dims.wall).trayH * 0.58 - half;
+  }
+  if (structure !== "lift-off") return null;
+  const fullTelescope = dims.neckH <= 0 && dims.lidH >= dims.h * 0.9;
+  if (fullTelescope) return null;
+  const shape = design.box.shape?.type;
+  const center = shape === "polygon" || shape === "cylinder" ? dims.baseH * 0.55 : dims.baseH * 0.48;
+  return center - half;
+}
+
+/** Glass plus cap, after the open rise, in world millimetres. Includes the base mark. */
 export function bottleHeroBounds(design: Design): THREE.Box3 {
   const fit = computeFit(design, false);
   const structure = design.box.structure ?? "lift-off";
@@ -59,7 +78,8 @@ export function bottleHeroBounds(design: Design): THREE.Box3 {
   else if (dims && structure === "lift-off") rim = liftOpeningRim(dims);
   const rise = revealRiseMm(rim, fit.bottleH, 1, 0, fit.seatY);
   const z = structure === "drawer" ? fit.boxD * 0.92 : 0;
-  const bottom = rise + fit.seatY;
+  const markBottom = dims ? baseMarkBottom(design, dims, structure) : null;
+  const bottom = markBottom == null ? rise + fit.seatY : Math.min(rise + fit.seatY, markBottom);
   const top = bottom + Math.max(fit.bottleH + fit.capH * 0.85, fit.capBottom + fit.capH);
   const hx = Math.max(8, fit.bottleW * 0.5);
   const hz = Math.max(8, fit.bottleD * 0.5);
@@ -67,8 +87,8 @@ export function bottleHeroBounds(design: Design): THREE.Box3 {
 }
 
 /**
- * Hero on the bottle. The bottle fills about 60% of the stage height and
- * sits in the clear slot between the panels, the hint row, and the dock.
+ * Hero on the bottle and the base mark. Both sit in the clear slot between
+ * the panels, the hint row, and the dock.
  */
 export function heroPose(design: Design, frame: StageFrame, fov = 30): CameraPose {
   const bounds = bottleHeroBounds(design);

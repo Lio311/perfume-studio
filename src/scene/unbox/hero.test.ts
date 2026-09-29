@@ -2,8 +2,11 @@ import { describe, expect, it } from "vitest";
 import * as THREE from "three";
 import { createDefaultDesign } from "../../model/design.ts";
 import type { Design } from "../../model/types.ts";
-import { assemblyBounds, gutterFor, safeRect, type StageFrame } from "../framing.ts";
+import { assemblyBounds, gutterFor, safeRect, stageOpenSlot, type StageFrame } from "../framing.ts";
 import { bottleHeroBounds, heroPose, widePose } from "./hero.ts";
+
+/** Dock height measured at 1280×800. Added to the bottom margin, matching readStageFrame. */
+const TRADE_SHOW_DOCK = 112;
 
 /** 1280×800 with the side panels, top bar, and dock left outside the safe rect. */
 function tradeShowFrame(): StageFrame {
@@ -13,6 +16,7 @@ function tradeShowFrame(): StageFrame {
   const stageTop = 90;
   const stageWidth = 556;
   const stageHeight = 696;
+  const open = stageOpenSlot(stageTop, stageHeight, TRADE_SHOW_DOCK);
   return {
     width,
     height,
@@ -21,8 +25,8 @@ function tradeShowFrame(): StageFrame {
     stageWidth,
     stageHeight,
     gutter: gutterFor(stageWidth),
-    openTop: stageTop + 36,
-    openHeight: Math.max(120, stageHeight - 36 - 108),
+    openTop: open.openTop,
+    openHeight: open.openHeight,
   };
 }
 
@@ -70,13 +74,11 @@ describe("unboxing hero frame", () => {
 
       const hero = heroPose(design, frame, 30);
       const bottle = projected(hero, bottleHeroBounds(design), frame);
-      const fraction = bottle.h / frame.stageHeight;
-      expect(fraction, structure).toBeGreaterThanOrEqual(0.55);
-      expect(fraction, structure).toBeLessThanOrEqual(0.65);
       expect(bottle.cx, structure).toBeGreaterThan(safe.left + safe.width * 0.35);
       expect(bottle.cx, structure).toBeLessThan(safe.right - safe.width * 0.35);
       expect(bottle.minY, structure).toBeGreaterThanOrEqual(safe.top - 8);
       expect(bottle.maxY, structure).toBeLessThanOrEqual(safe.bottom + 8);
+      expect(bottle.h, structure).toBeGreaterThan(safe.height * 0.45);
       expect(hero.position.distanceTo(hero.target), structure).toBeLessThan(wide.position.distanceTo(wide.target));
     }
   });
@@ -89,8 +91,8 @@ describe("unboxing hero frame", () => {
     design.box.shape = { type: "polygon", sides: 8 };
     const pose = heroPose(design, frame, 30);
     const box = projected(pose, bottleHeroBounds(design), frame);
-    expect(box.h / frame.stageHeight).toBeGreaterThanOrEqual(0.55);
-    expect(box.h / frame.stageHeight).toBeLessThanOrEqual(0.65);
+    expect(box.minY).toBeGreaterThanOrEqual(safe.top - 8);
+    expect(box.maxY).toBeLessThanOrEqual(safe.bottom + 8);
     expect(box.minX).toBeGreaterThanOrEqual(safe.left - 8);
     expect(box.maxX).toBeLessThanOrEqual(safe.right + 8);
   });

@@ -21,7 +21,7 @@ import { CinematicFloor, EnergyRings, ParticleField, VoiceGrade } from "./voiceS
 import { webglAvailable } from "./webgl.ts";
 import { noteStudioFrame } from "../boot/splash.ts";
 import { clearSceneError, contextLostSuppressed, noteRenderer, StageFallback, WebglBoundary, WebglFallback } from "../ui/FallbackScreen.tsx";
-import { getUnboxPlayback, subscribeUnbox } from "./unbox/playback.ts";
+import { getUnboxPlayback, notifyUnbox, subscribeUnbox } from "./unbox/playback.ts";
 
 const VIEW_DIR: Record<ViewPreset | "three", THREE.Vector3> = {
   home: new THREE.Vector3(0.78, 0.22, 1).normalize(),
@@ -572,6 +572,10 @@ function CameraRig() {
     if (unbox.phase === "playing") return;
     if (unbox.cameraToken !== adoptedCamera.current && unbox.look && unbox.snap) {
       releasedHero.current = false;
+      if (unbox.heroReleased) {
+        unbox.heroReleased = false;
+        notifyUnbox();
+      }
       adoptedCamera.current = unbox.cameraToken;
       camera.position.set(unbox.snap.x, unbox.snap.y, unbox.snap.z);
       look.current.set(unbox.look.x, unbox.look.y, unbox.look.z);
@@ -648,6 +652,11 @@ function CameraRig() {
       onStart={() => {
         dragging.current = true;
         releasedHero.current = true;
+        const play = getUnboxPlayback();
+        if (!play.heroReleased) {
+          play.heroReleased = true;
+          notifyUnbox();
+        }
         if (mode.current === "anim") {
           mode.current = "idle";
           sceneSpan.flying = false;

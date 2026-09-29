@@ -97,6 +97,11 @@ export default function App() {
   const trapRef = useRef<Trap>({ armed: false });
   const [hintOn, setHintOn] = useState(true);
   const unboxing = useSyncExternalStore(subscribeUnbox, () => getUnboxPlayback().phase === "playing", () => false);
+  const heroHeld = useSyncExternalStore(subscribeUnbox, () => {
+    const play = getUnboxPlayback();
+    return play.cameraToken > 0 && !play.heroReleased;
+  }, () => false);
+  const hideHint = unboxing || heroHeld;
   const [shareLock, setShareLock] = useState(() => location.hash.startsWith("#d="));
   const [swapping, setSwapping] = useState(false);
   const [savingsOpen, setSavingsOpen] = useState(false);
@@ -435,7 +440,7 @@ export default function App() {
             <button type="button" className="icon-btn" style={{ background: 'var(--bg)' }} onClick={() => undo()} disabled={past === 0}>{t.undo}</button>
             <button type="button" className="icon-btn" style={{ background: 'var(--bg)' }} onClick={() => redo()} disabled={future === 0}>{t.redo}</button>
           </div>
-          {!unboxing && (design.step !== undefined && design.step < 7 ? (
+          {!hideHint && (design.step !== undefined && design.step < 7 ? (
             <p className="hint-strip" style={{ opacity: 1 }} dir={lang === "he" ? "rtl" : "ltr"}>
               <b>{wizardTitle(lang, design.step)}</b>
             </p>
