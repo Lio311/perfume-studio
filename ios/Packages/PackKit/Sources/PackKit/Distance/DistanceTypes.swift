@@ -93,7 +93,7 @@ public struct DistanceCalibration: Equatable, Sendable {
 }
 
 /// Pinhole intrinsics, pixels. X right, Y down, principal point `(cx, cy)`.
-public struct CameraIntrinsics: Equatable, Sendable {
+public struct CameraIntrinsics: Equatable, Sendable, Codable {
     public var fx: Double
     public var fy: Double
     public var cx: Double
@@ -154,6 +154,8 @@ public enum DistanceText {
     public static let lidarUnavailable = "LiDAR: לא זמין במכשיר זה"
     public static let lidarAvailable = "LiDAR: זמין"
     public static let centimeters = "ס״מ"
+    /// Shown once the guide has had no accepted sample for the hold window.
+    public static let noDistance = "אין מדידת מרחק"
 }
 
 /// Population standard deviation of depth samples in a trailing one-second window.

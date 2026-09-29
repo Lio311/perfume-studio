@@ -2,9 +2,10 @@ import Foundation
 
 /// Hysteresis guide around a target distance.
 /// Green needs three consecutive frames inside 0.8h and stays until the error exceeds 1.2h.
-/// Yellow is entered at 18 mm of error and left only past 22 mm. Anything else is red.
+/// Yellow is entered at |e| ≤ max(18 mm, 3.6h) and left only past max(22 mm, 4.4h),
+/// so a wide half-band (for example 20 mm) cannot jump from green straight to red.
 public struct DistanceGuide: Equatable {
-    public enum State: String, Equatable, Sendable {
+    public enum State: String, Equatable, Sendable, Codable {
         case green, yellow, red
     }
 
@@ -55,11 +56,13 @@ public struct DistanceGuide: Equatable {
         let magnitude = abs(error)
         let enterGreen = magnitudeUm(halfBandMm * 0.8)
         let leaveGreen = magnitudeUm(halfBandMm * 1.2)
+        let enterYellow = magnitudeUm(Self.yellowEnterMillimetres(halfBandMm: halfBandMm))
+        let leaveYellow = magnitudeUm(Self.yellowLeaveMillimetres(halfBandMm: halfBandMm))
         let now = magnitudeUm(magnitude)
 
         if yellow {
-            if now > magnitudeUm(22) { yellow = false }
-        } else if now <= magnitudeUm(18) {
+            if now > leaveYellow { yellow = false }
+        } else if now <= enterYellow {
             yellow = true
         }
 
@@ -92,6 +95,16 @@ public struct DistanceGuide: Equatable {
             enteredGreen: green && !wasGreen,
             errorMm: error
         )
+    }
+
+    /// |e| at which yellow turns on. `h` is the half-band in millimetres.
+    public static func yellowEnterMillimetres(halfBandMm: Double) -> Double {
+        max(18, halfBandMm * 3.6)
+    }
+
+    /// |e| past which yellow turns off. `h` is the half-band in millimetres.
+    public static func yellowLeaveMillimetres(halfBandMm: Double) -> Double {
+        max(22, halfBandMm * 4.4)
     }
 
     public static func centimeters(fromMillimetres zMm: Double) -> Double {
