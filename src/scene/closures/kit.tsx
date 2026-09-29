@@ -252,11 +252,11 @@ export function OuterSkin({ w, h, d, amount }: { w: number; h: number; d: number
   const planes = cutaway ? [sectionPlane] : undefined;
   const pad = kind === "cellophane" ? 1.4 : 2.2;
   const skin = outerWrapMaterialProps(kind, color, quality);
-  // The carton stands on y=0. Shift by half the pad so the shell sits on the floor and still clears the sleeve mark.
+  // Side clearance is pad/2. The top matches it. The bottom sits a hair under the floor so the shell does not z-fight the carton.
   return (
     <group ref={ref}>
-      <mesh position={[0, h / 2 + pad / 2, 0]}>
-        <boxGeometry args={[w + pad, h + pad, d + pad]} />
+      <mesh position={[0, (h + pad / 2) / 2 - 0.01, 0]}>
+        <boxGeometry args={[w + pad, h + pad / 2 + 0.02, d + pad]} />
         <meshPhysicalMaterial key={kind} {...skin} clippingPlanes={planes} />
       </mesh>
     </group>

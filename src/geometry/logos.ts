@@ -131,7 +131,7 @@ export const FOIL_ENV_FLOOR = 1.2;
 /** Below this WCAG ratio a foil tint disappears into the plate. */
 export const FOIL_CONTRAST_FLOOR = 1.6;
 /** Linear channel floor for a foil that would otherwise match its plate. A small lift keeps black foil black. */
-export const FOIL_METAL_MIN = 0.065;
+export const FOIL_METAL_MIN = 0.035;
 /** Metalness when the tint is too close to the plate for a mirror to read. */
 export const FOIL_LOW_METALNESS = 0.3;
 
@@ -381,9 +381,11 @@ export function relieveLabelPixels(
     const cy = clampIndex(y, height - 1);
     return src[(cy * width + cx) * 4 + 3];
   };
+  // A fixed 2px band is a quarter of a thin stroke on the 1024-wide carton canvas. Scale it to the plate.
+  const rimBand = Math.max(1, Math.round(Math.min(width, height) * 0.004));
   const onRim = (x: number, y: number) => {
-    for (let dy = -2; dy <= 2; dy += 1) {
-      for (let dx = -2; dx <= 2; dx += 1) {
+    for (let dy = -rimBand; dy <= rimBand; dy += 1) {
+      for (let dx = -rimBand; dx <= rimBand; dx += 1) {
         if (dx === 0 && dy === 0) continue;
         if (alphaAt(x + dx, y + dy) < 128) return true;
       }
@@ -405,9 +407,9 @@ export function relieveLabelPixels(
           blue = liftSrgbByte(blue);
         }
         if (lowContrast && onRim(x, y)) {
-          data[index] = Math.round(red + (255 - red) * 0.6);
-          data[index + 1] = Math.round(green + (255 - green) * 0.6);
-          data[index + 2] = Math.round(blue + (255 - blue) * 0.6);
+          data[index] = Math.min(128, Math.round(red + (255 - red) * 0.32));
+          data[index + 1] = Math.min(128, Math.round(green + (255 - green) * 0.32));
+          data[index + 2] = Math.min(128, Math.round(blue + (255 - blue) * 0.32));
         } else if (!lowContrast && alphaAt(x, y - radius) < alpha * 0.45) {
           data[index] = Math.min(255, Math.round(red + (255 - red) * 0.45));
           data[index + 1] = Math.min(255, Math.round(green + (255 - green) * 0.45));

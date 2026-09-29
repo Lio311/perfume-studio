@@ -372,8 +372,10 @@ describe("label text layout", () => {
     relieveLabelPixels(onBlack, width, height, "foil", { ink: "#000000", substrate: "#000000" });
     const liftedBody = at(onBlack, 20, 16);
     expect(luma(liftedBody)).toBeGreaterThan(40);
+    expect(luma(liftedBody)).toBeLessThan(60);
     const foilRim = at(onBlack, 8, 6);
     expect(luma(foilRim)).toBeGreaterThan(luma(liftedBody) + 40);
+    expect(luma(foilRim)).toBeLessThanOrEqual(130);
     expect(roseBody[0]).toBeGreaterThan(roseBody[2]);
     expect(roseBody[0]).toBeGreaterThan(roseBody[1]);
     expect(at(silver, 20, 16)[2]).toBeGreaterThan(at(silver, 20, 16)[0] - 15);
@@ -393,7 +395,7 @@ describe("label text layout", () => {
       }
     }
     expect(creamPeak).toBeGreaterThan(243);
-    expect(creamPeak).toBeLessThan(255);
+    expect(creamPeak).toBeLessThanOrEqual(250);
     const outline = new Uint8ClampedArray(width * height * 4);
     const onOutline = (x: number, y: number) =>
       (x === 4 || x === 34 || y === 4 || y === 26) && x >= 4 && x <= 34 && y >= 4 && y <= 26;
