@@ -176,51 +176,56 @@ export function InsertBlock({ fit, span, baseY }: { fit: Fit; span?: { w: number
   );
 }
 
-export function Tub({ w, h, d, wall, front = "full" }: { w: number; h: number; d: number; wall: number; front?: "full" | "lip" }) {
+export function Tub({ w, h, d, wall, front = "full", body }: { w: number; h: number; d: number; wall: number; front?: "full" | "lip"; body?: number }) {
   const y = h / 2;
   const frontH = front === "lip" ? Math.max(wall * 3.2, h * 0.22) : h;
   const frontY = front === "lip" ? frontH / 2 : y;
+  const bodyH = body ?? h;
+  const bodyY = bodyH / 2;
   return (
     <group>
       <mesh position={[0, wall / 2, 0]}>
         <boxGeometry args={[w, wall, d]} />
         <Skin />
       </mesh>
-      <mesh position={[0, y, -d / 2 + wall / 2]}>
-        <boxGeometry args={[w, h, wall]} />
+      <mesh position={[0, bodyY, -d / 2 + wall / 2]}>
+        <boxGeometry args={[w, bodyH, wall]} />
         <Skin />
       </mesh>
       <mesh position={[0, frontY, d / 2 - wall / 2]}>
         <boxGeometry args={[w, frontH, wall]} />
         <Skin />
       </mesh>
-      <mesh position={[-w / 2 + wall / 2, y, 0]}>
-        <boxGeometry args={[wall, h, d - wall * 2]} />
+      <mesh position={[-w / 2 + wall / 2, bodyY, 0]}>
+        <boxGeometry args={[wall, bodyH, d - wall * 2]} />
         <Skin />
       </mesh>
-      <mesh position={[w / 2 - wall / 2, y, 0]}>
-        <boxGeometry args={[wall, h, d - wall * 2]} />
+      <mesh position={[w / 2 - wall / 2, bodyY, 0]}>
+        <boxGeometry args={[wall, bodyH, d - wall * 2]} />
         <Skin />
       </mesh>
     </group>
   );
 }
 
-export function Ribbon({ w, h, d, y }: { w: number; h: number; d: number; y: number }) {
-  const band = Math.max(3.2, Math.min(w, d) * 0.045);
+/** Satin ribbon. Callers pass a ribbon or accent colour; the default is the pull-ribbon red. */
+export const RIBBON_COLOR = "#8d1d32";
+
+export function Ribbon({ w, h, d, y, color = RIBBON_COLOR }: { w: number; h: number; d: number; y: number; color?: string }) {
+  const band = Math.max(8, Math.min(w, d) * 0.1);
   return (
     <group position={[0, y, 0]}>
       <mesh position={[0, h / 2, d / 2 + 0.3]}>
         <boxGeometry args={[band, h, 0.45]} />
-        <meshPhysicalMaterial color="#c4a15a" metalness={1} roughness={0.16} />
+        <meshPhysicalMaterial color={color} metalness={0.2} roughness={0.45} />
       </mesh>
       <mesh position={[0, h / 2, -d / 2 - 0.3]}>
         <boxGeometry args={[band, h, 0.45]} />
-        <meshPhysicalMaterial color="#c4a15a" metalness={1} roughness={0.16} />
+        <meshPhysicalMaterial color={color} metalness={0.2} roughness={0.45} />
       </mesh>
       <mesh position={[0, h + 0.3, 0]}>
         <boxGeometry args={[band, 0.45, d]} />
-        <meshPhysicalMaterial color="#c4a15a" metalness={1} roughness={0.16} />
+        <meshPhysicalMaterial color={color} metalness={0.2} roughness={0.45} />
       </mesh>
     </group>
   );

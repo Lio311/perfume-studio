@@ -938,6 +938,7 @@ describe("saved design hydration", () => {
   });
 
   function memoryStorage() {
+    vi.unstubAllGlobals();
     const memory = new Map<string, string>();
     vi.stubGlobal("localStorage", {
       getItem: (key: string) => memory.get(key) ?? null,
@@ -1001,6 +1002,21 @@ describe("saved design hydration", () => {
     await useLab.persist.rehydrate();
     expect(useLab.getState().theme).toBe("dark");
     expect(useLab.getState().design.label.text).toBe("EDIT");
+    useLab.setState({ design: prior.design, theme: prior.theme, saved: prior.saved, demoHold: null, keptTheme: null, past: prior.past, future: prior.future });
+  });
+
+  it("persists a theme set with no demo hold, after reload", async () => {
+    const memory = memoryStorage();
+    const prior = useLab.getState();
+    useLab.setState({ theme: "light", keptTheme: null, demoHold: null });
+    useLab.getState().setTheme("dark");
+    expect(useLab.getState().keptTheme).toBeNull();
+    expect(useLab.getState().theme).toBe("dark");
+    const written = JSON.parse(memory.get("perfume-lab-v1") ?? "{}") as { state: { theme: string } };
+    expect(written.state.theme).toBe("dark");
+    await useLab.persist.rehydrate();
+    expect(useLab.getState().theme).toBe("dark");
+    expect(useLab.getState().keptTheme).toBeNull();
     useLab.setState({ design: prior.design, theme: prior.theme, saved: prior.saved, demoHold: null, keptTheme: null, past: prior.past, future: prior.future });
   });
 });

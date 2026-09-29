@@ -6,8 +6,9 @@ import type { Fit } from "../../../model/fit.ts";
 import { useLab } from "../../../store/labStore.ts";
 import { prismFrontFacet } from "../prism.ts";
 import { trayLiftNow } from "../../trayLift.ts";
+import { BOX_CLOSED_MARK_AZIMUTH } from "../../boxCamera.ts";
 import { TubeMark } from "../tubeMark.tsx";
-import { BrandMark, InsertBlock, InsertFinish, Magnet, MARK_FACE_GAP, PrismMesh, PullTab, Ribbon, Skin, Tub } from "../kit.tsx";
+import { BrandMark, InsertBlock, InsertFinish, Magnet, MARK_FACE_GAP, PrismMesh, PullTab, RIBBON_COLOR, Ribbon, Skin, Tub } from "../kit.tsx";
 import type { ClosureBuilder } from "../types.ts";
 
 /** Width passed to the carton mark, and the plane's z, for the facet that faces the camera. */
@@ -134,7 +135,11 @@ const LiftOff: ClosureBuilder = ({ form, fit, spec, dims, bind, ribbon, pullTab,
         </group>
         {cylinder && !telescope && <TubeMark radius={radius} y={trayH * 0.55} />}
         {baseFace && !telescope && <BrandMark w={baseFace.width} y={trayH * 0.55} z={baseFace.z} />}
-        {tied && <Ribbon w={dims.w} h={dims.h * 0.42} d={radius * 2 + (telescope ? 2.4 : 0)} y={dims.h * 0.28} />}
+        {tied && (
+          <group rotation={[0, BOX_CLOSED_MARK_AZIMUTH, 0]}>
+            <Ribbon w={dims.w} h={dims.h * 0.45} d={lidR * 2} y={dims.h * 0.28} color={RIBBON_COLOR} />
+          </group>
+        )}
       </group>
     );
   }
@@ -166,7 +171,11 @@ const LiftOff: ClosureBuilder = ({ form, fit, spec, dims, bind, ribbon, pullTab,
         {pullTab && <PullTab w={dims.w} z={lidD / 2 + MARK_FACE_GAP} />}
       </group>
       {!telescope && <BrandMark w={dims.w} y={trayH * 0.48} z={dims.d / 2 + MARK_FACE_GAP} />}
-      {tied && <Ribbon w={dims.w} h={dims.h * 0.42} d={telescope ? dims.d + 3.2 : dims.d} y={dims.h * 0.28} />}
+      {tied && (
+        <group rotation={[0, BOX_CLOSED_MARK_AZIMUTH, 0]}>
+          <Ribbon w={dims.w} h={dims.h * 0.45} d={Math.hypot(dims.w, telescope ? dims.d + 3.2 : dims.d)} y={dims.h * 0.28} color={RIBBON_COLOR} />
+        </group>
+      )}
     </group>
   );
 };

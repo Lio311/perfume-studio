@@ -7,7 +7,8 @@ import {
   tubeSleeveLocalY,
 } from "../../../model/closures/tube.ts";
 import { PrismInsert, prismInsertOuter } from "./lift-off.tsx";
-import { PrismMesh, PullTab, Ribbon } from "../kit.tsx";
+import { BOX_CLOSED_MARK_AZIMUTH } from "../../boxCamera.ts";
+import { PrismMesh, PullTab, RIBBON_COLOR, Ribbon } from "../kit.tsx";
 import { TubeMark } from "../tubeMark.tsx";
 import type { ClosureBuilder } from "../types.ts";
 
@@ -48,8 +49,12 @@ const Tube: ClosureBuilder = ({ fit, spec, dims, bind, ribbon, pullTab, latch })
         <PrismMesh radius={lidR} inner={lidInner} height={Math.max(wall, dims.lidH - dims.wall)} sides={48} />
         <PrismMesh radius={lidR} inner={0} height={dims.wall} sides={48} y={Math.max(0, dims.lidH - dims.wall)} />
         <TubeMark radius={radius} y={dims.h * 0.48 - closed} />
-        {tied && <Ribbon w={dims.w} h={dims.h * 0.42} d={radius * 2} y={dims.h * 0.55 - closed} />}
-        {pullTab && <PullTab w={dims.w} z={lidR + 1} />}
+        {(tied || pullTab) && (
+          <group rotation={[0, BOX_CLOSED_MARK_AZIMUTH, 0]}>
+            {tied && <Ribbon w={dims.w} h={dims.h * 0.45} d={lidR * 2} y={dims.h * 0.55 - closed} color={RIBBON_COLOR} />}
+            {pullTab && <PullTab w={dims.w} z={lidR + 1} />}
+          </group>
+        )}
       </group>
     </group>
   );

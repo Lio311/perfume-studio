@@ -4,8 +4,8 @@
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { PullRibbon } from "../kit.tsx";
-import { DRAWER_RIBBON_REACH, drawerInsertSeatOffset, drawerRibbonPose, drawerTrayFront, drawerTrayWall } from "./drawer.tsx";
+import { PullRibbon, RIBBON_COLOR, Ribbon, Tub } from "../kit.tsx";
+import { DRAWER_RIBBON_REACH, drawerInsertSeatOffset, drawerRibbonPose, drawerTrayFront, drawerTraySideHeight, drawerTrayWall } from "./drawer.tsx";
 
 describe("drawer front", () => {
   it("covers the sleeve opening when closed", () => {
@@ -44,5 +44,21 @@ describe("drawer front", () => {
     expect(pose).toBeTruthy();
     expect(pose!.y - DRAWER_RIBBON_REACH).toBeGreaterThanOrEqual(wall - 1e-6);
     expect(front.trayH).toBeLessThan(75);
+  });
+
+  it("keeps the drawer front full height and lowers the other walls", () => {
+    const trayH = 80;
+    const side = drawerTraySideHeight(trayH);
+    expect(side).toBeCloseTo(trayH * 0.35, 5);
+    expect(side).toBeLessThan(trayH * 0.5);
+    const markup = renderToStaticMarkup(createElement(Tub, { w: 40, h: trayH, d: 50, wall: 2, front: "full", body: side }));
+    expect(markup).toContain(`${trayH}`);
+    expect(markup).toContain(`${side}`);
+  });
+
+  it("draws the ribbon in a satin colour", () => {
+    const markup = renderToStaticMarkup(createElement(Ribbon, { w: 70, h: 40, d: 60, y: 20 }));
+    expect(markup).toContain(RIBBON_COLOR);
+    expect(markup).not.toContain("c4a15a");
   });
 });
