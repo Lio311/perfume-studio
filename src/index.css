@@ -586,7 +586,7 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   display: flex;
   gap: 8px;
   margin: 0;
-  max-width: calc(100% - 24px);
+  max-width: calc(100% - 220px);
   color: var(--muted);
   font-size: 12px;
   white-space: nowrap;

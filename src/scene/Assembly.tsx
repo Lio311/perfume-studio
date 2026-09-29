@@ -9,6 +9,7 @@ import { boxContentsSeat, computeFit, type Fit } from "../model/fit.ts";
 import { isGlass } from "../model/materials.ts";
 import type { BoxForm, PartKey, PumpStyle } from "../model/types.ts";
 import { ClosureBox } from "./boxClosure.tsx";
+import { useUnboxPlaying } from "./unbox/useUnboxPlaying.ts";
 import { buildBottleGeometry, buildCapGeometry, buildLabelPatch } from "../geometry/sweep.ts";
 import { contrastingPlate, labelInk } from "../geometry/logos.ts";
 import { LabelPaintProvider, useLabelMaps, useSharedLabelCanvas } from "./labelPaint.ts";
@@ -376,11 +377,16 @@ function Shadow({ fitWidth }: { fitWidth: number }) {
   );
 }
 
+function contentsOnStage(stage: string, boxOpen: boolean, playing: boolean): boolean {
+  return stage !== "box" || boxOpen || playing;
+}
+
 function BottlePart() {
   const design = useLab((s) => s.design);
   const stage = useLab((s) => s.stage);
   const boxOpen = useLab((s) => s.boxOpen);
-  const onStage = stage !== "box" || boxOpen;
+  const playing = useUnboxPlaying();
+  const onStage = contentsOnStage(stage, boxOpen, playing);
   const spec = bottleById(design.bottle.variantId);
   const fit = computeFit(design, false);
   const geo = useDisposable(
@@ -413,7 +419,8 @@ function LiquidPart() {
   const design = useLab((s) => s.design);
   const stage = useLab((s) => s.stage);
   const boxOpen = useLab((s) => s.boxOpen);
-  const onStage = stage !== "box" || boxOpen;
+  const playing = useUnboxPlaying();
+  const onStage = contentsOnStage(stage, boxOpen, playing);
   const spec = bottleById(design.bottle.variantId);
   const fit = computeFit(design, false);
   const surface = Math.min(
@@ -462,7 +469,8 @@ function CapPart() {
   const design = useLab((s) => s.design);
   const stage = useLab((s) => s.stage);
   const boxOpen = useLab((s) => s.boxOpen);
-  const onStage = stage !== "box" || boxOpen;
+  const playing = useUnboxPlaying();
+  const onStage = contentsOnStage(stage, boxOpen, playing);
   const spec = capById(design.cap.variantId);
   const fit = computeFit(design, false);
   const radii = latheProfile(spec.id)?.radii;
@@ -496,7 +504,8 @@ function CollarPart() {
   const design = useLab((s) => s.design);
   const stage = useLab((s) => s.stage);
   const boxOpen = useLab((s) => s.boxOpen);
-  const onStage = stage !== "box" || boxOpen;
+  const playing = useUnboxPlaying();
+  const onStage = contentsOnStage(stage, boxOpen, playing);
   const spec = collarById(design.collar.variantId);
   const fit = computeFit(design, false);
   const radii = latheProfile(spec.id)?.radii;
@@ -544,7 +553,8 @@ function PumpPart() {
   const design = useLab((s) => s.design);
   const stage = useLab((s) => s.stage);
   const boxOpen = useLab((s) => s.boxOpen);
-  const onStage = stage !== "box" || boxOpen;
+  const playing = useUnboxPlaying();
+  const onStage = contentsOnStage(stage, boxOpen, playing);
   const spec = pumpById(design.pump.variantId);
   const exploded = useLab((s) => s.explode) > 0.45;
   const fit = computeFit(design, exploded || !design.cap.visible);
@@ -661,7 +671,8 @@ function LabelPart() {
   const design = useLab((s) => s.design);
   const stage = useLab((s) => s.stage);
   const boxOpen = useLab((s) => s.boxOpen);
-  const onStage = stage !== "box" || boxOpen;
+  const playing = useUnboxPlaying();
+  const onStage = contentsOnStage(stage, boxOpen, playing);
   const bottle = bottleById(design.bottle.variantId);
   const spec = logoById(design.label.variantId);
   const application = resolvedLabelApplication(design.label);

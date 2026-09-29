@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { noteAppMounted } from "./boot/splash.ts";
 import { stopSpeaking } from "./audio/speech.ts";
 import { partLabel, tx, wizardTitle } from "./i18n/copy.ts";
@@ -11,6 +11,7 @@ import { clampLabelText } from "./geometry/logos.ts";
 import { applyIncomingShareHash, invalidShareMessage, missingPartsMessage, respondToLocation } from "./model/share.ts";
 import { backSurface, handleHistoryPop, syncHistoryTrap, wizardStepAfterPop, type BackAction, type Trap } from "./nav/backHistory.ts";
 import { requestShot } from "./scene/capture.ts";
+import { getUnboxPlayback, subscribeUnbox } from "./scene/unbox/playback.ts";
 import { useLab } from "./store/labStore.ts";
 import { demoSessionHold } from "./store/hydrate.ts";
 import { applyTheme } from "./theme/themes.ts";
@@ -95,6 +96,7 @@ export default function App() {
   const shareUrl = useLab((s) => s.shareUrl);
   const trapRef = useRef<Trap>({ armed: false });
   const [hintOn, setHintOn] = useState(true);
+  const unboxing = useSyncExternalStore(subscribeUnbox, () => getUnboxPlayback().phase === "playing", () => false);
   const [shareLock, setShareLock] = useState(() => location.hash.startsWith("#d="));
   const [swapping, setSwapping] = useState(false);
   const [savingsOpen, setSavingsOpen] = useState(false);
@@ -410,12 +412,12 @@ export default function App() {
         <TopBar />
         <Library />
         <div className="stage-slot">
-          <BudgetMeter onSavings={() => setSavingsOpen(true)} />
+          {!unboxing && <BudgetMeter onSavings={() => setSavingsOpen(true)} />}
           <div style={{ position: 'absolute', top: 12, right: 12, display: 'flex', gap: 8, pointerEvents: 'auto', zIndex: 10 }} dir={lang === "he" ? "rtl" : "ltr"}>
             <button type="button" className="icon-btn" style={{ background: 'var(--bg)' }} onClick={() => undo()} disabled={past === 0}>{t.undo}</button>
             <button type="button" className="icon-btn" style={{ background: 'var(--bg)' }} onClick={() => redo()} disabled={future === 0}>{t.redo}</button>
           </div>
-          {design.step !== undefined && design.step < 7 ? (
+          {!unboxing && (design.step !== undefined && design.step < 7 ? (
             <p className="hint-strip" style={{ opacity: 1 }} dir={lang === "he" ? "rtl" : "ltr"}>
               <b>{wizardTitle(lang, design.step)}</b>
             </p>
@@ -429,7 +431,7 @@ export default function App() {
               <span>·</span>
               {t.hintClick}
             </p>
-          )}
+          ))}
           <Crumb />
           {(solo || (aimed && selected)) && (
             <button type="button" className="back-btn" data-back onClick={() => showFull()}>

@@ -1,4 +1,4 @@
-import { sizedChannel, STANDARD_DIMS, linearMotion, type ClosureDims, type ClosureSpec } from "./types.ts";
+import { sizedChannel, STANDARD_DIMS, type ClosureDims, type ClosureSpec } from "./types.ts";
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
@@ -88,8 +88,16 @@ const spec: ClosureSpec = {
     {
       id: "lid",
       pivot: (dims) => [0, tubeClosedY(dims), 0],
-      motion: linearMotion("power2.inOut"),
+      motion: { delay: 0.18, duration: 0.82, ease: "power2.inOut" },
       channels: [
+        sizedChannel(
+          "translate",
+          "x",
+          () => 0,
+          (dims) => dims.w * 2.35,
+          () => 0,
+          (dims) => dims.w * 2.7,
+        ),
         sizedChannel(
           "translate",
           "y",
@@ -98,6 +106,8 @@ const spec: ClosureSpec = {
           (dims) => tubeClosedY(dims),
           (dims) => tubeClosedY(dims) + dims.h * 1.05,
         ),
+        sizedChannel("rotate", "y", () => 0, () => 0.85, () => 0, () => 1.15),
+        sizedChannel("rotate", "z", () => 0, () => -0.38, () => -0.55, () => 0),
       ],
     },
   ],

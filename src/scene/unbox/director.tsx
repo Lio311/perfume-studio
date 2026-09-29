@@ -2,15 +2,12 @@ import { useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { useLab } from "../../store/labStore.ts";
-import { assemblyBounds, readStageFrame } from "../framing.ts";
-import { cameraProbe } from "../limits.ts";
-import { UNBOX_CAMERA_SPLIT, getUnboxPlayback } from "./playback.ts";
-import { approachPose, heroPose, tuneUnboxCamera } from "./hero.ts";
+import { readStageFrame } from "../framing.ts";
+import { getUnboxPlayback } from "./playback.ts";
+import { bottleHeroBounds, heroPose, tuneUnboxCamera, widePose } from "./hero.ts";
 
-const FROM_POS = new THREE.Vector3();
-const FROM_LOOK = new THREE.Vector3();
-const APPROACH_POS = new THREE.Vector3();
-const APPROACH_LOOK = new THREE.Vector3();
+const WIDE_POS = new THREE.Vector3();
+const WIDE_LOOK = new THREE.Vector3();
 const HERO_POS = new THREE.Vector3();
 const HERO_LOOK = new THREE.Vector3();
 const POS = new THREE.Vector3();
@@ -30,7 +27,6 @@ export function UnboxDirector() {
   const camera = useThree((s) => s.camera);
   const gl = useThree((s) => s.gl);
   const light = useRef<THREE.DirectionalLight>(null);
-  const runSeen = useRef(0);
   const applied = useRef(0);
   const radius = useRef(48);
   const posedKey = useRef("");
@@ -42,8 +38,8 @@ export function UnboxDirector() {
     const sheen = playing ? play.sheen : 0;
     const sweep = playing ? play.sweep : 0;
     if (light.current) {
-      light.current.intensity = sheen * 3.1;
-      light.current.position.set(-110 + sweep * 220, 78, 36);
+      light.current.intensity = playing ? 1.4 + sheen * 7.5 : 0;
+      light.current.position.set(-140 + sweep * 280, 96, -48);
     }
     if (!playing && !finishing) return;
     if (!(camera instanceof THREE.PerspectiveCamera)) return;
@@ -54,14 +50,13 @@ export function UnboxDirector() {
     if (poseKey !== posedKey.current || finishing) {
       posedKey.current = poseKey;
       const frame = readStageFrame(gl.domElement);
-      const approach = approachPose(design, frame, camera.fov);
+      const wide = widePose(design, frame, camera.fov);
       const hero = heroPose(design, frame, camera.fov);
-      APPROACH_POS.copy(approach.position);
-      APPROACH_LOOK.copy(approach.target);
+      WIDE_POS.copy(wide.position);
+      WIDE_LOOK.copy(wide.target);
       HERO_POS.copy(hero.position);
       HERO_LOOK.copy(hero.target);
-      const bounds = assemblyBounds(design, 0, "box", true);
-      radius.current = Math.max(18, bounds.getBoundingSphere(new THREE.Sphere()).radius);
+      radius.current = Math.max(18, bottleHeroBounds(design).getBoundingSphere(new THREE.Sphere()).radius);
     }
 
     if (finishing) {
@@ -75,19 +70,7 @@ export function UnboxDirector() {
       return;
     }
 
-    if (play.runToken !== runSeen.current) {
-      runSeen.current = play.runToken;
-      FROM_POS.copy(camera.position);
-      if (cameraProbe.finite) FROM_LOOK.set(cameraProbe.tx, cameraProbe.ty, cameraProbe.tz);
-      else FROM_LOOK.copy(APPROACH_LOOK);
-    }
-
-    const t = play.camera;
-    if (t <= UNBOX_CAMERA_SPLIT) {
-      lerpPose(t / UNBOX_CAMERA_SPLIT, FROM_POS, FROM_LOOK, APPROACH_POS, APPROACH_LOOK);
-    } else {
-      lerpPose((t - UNBOX_CAMERA_SPLIT) / (1 - UNBOX_CAMERA_SPLIT), APPROACH_POS, APPROACH_LOOK, HERO_POS, HERO_LOOK);
-    }
+    lerpPose(play.camera, WIDE_POS, WIDE_LOOK, HERO_POS, HERO_LOOK);
     camera.position.copy(POS);
     camera.up.set(0, 1, 0);
     camera.lookAt(LOOK);

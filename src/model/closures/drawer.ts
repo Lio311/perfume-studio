@@ -1,4 +1,4 @@
-import { sizedChannel, STANDARD_DIMS, linearMotion, type ClosureSpec } from "./types.ts";
+import { sizedChannel, STANDARD_DIMS, type ClosureSpec } from "./types.ts";
 
 /** Matchbox drawer: a tray sliding out of a sleeve, with an optional pull ribbon or thumb notch. */
 const spec: ClosureSpec = {
@@ -15,7 +15,8 @@ const spec: ClosureSpec = {
     {
       id: "tray",
       pivot: () => [0, 0, 0],
-      motion: linearMotion("power2.out"),
+      // Ribbon leaves first. The tray then slides straight out; the bottle rises after that.
+      motion: { delay: 0.22, duration: 0.48, ease: "power2.inOut" },
       channels: [
         sizedChannel(
           "translate",

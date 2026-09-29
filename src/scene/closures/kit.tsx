@@ -13,7 +13,7 @@ import { trayLiftNow } from "../trayLift.ts";
 import { trackRibbon, untrackRibbon } from "../unbox/ribbonSlip.ts";
 
 const INSERT_COLOR: Record<InsertMaterial, string> = {
-  eva: "#2c2e33",
+  eva: "#e6dfd4",
   pulp: "#e4d5c0",
   card: "#d5cfc6",
   "velvet-foam": "#5a2433",
@@ -48,11 +48,12 @@ export function InsertFinish() {
   return (
     <meshPhysicalMaterial
       color={color}
-      roughness={velvet ? 0.78 : 0.9}
-      sheen={velvet ? 1 : 0}
-      sheenColor={color}
-      sheenRoughness={0.42}
-      envMapIntensity={0.72}
+      roughness={velvet ? 0.62 : 0.42}
+      metalness={0}
+      sheen={0.55}
+      sheenColor="#fff8f1"
+      sheenRoughness={0.24}
+      envMapIntensity={0.48}
       clippingPlanes={planes}
     />
   );

@@ -148,6 +148,7 @@ export function previewUnbox(progress: number): void {
   built.timeline.pause();
   built.timeline.progress(amount);
   writeDriver(built.driver);
+  showCarton();
   if (amount >= 0.999) {
     built.timeline.kill();
     settle();

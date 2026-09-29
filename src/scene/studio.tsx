@@ -3,6 +3,7 @@ import { useThree } from "@react-three/fiber";
 import { ContactShadows, Environment, Lightformer } from "@react-three/drei";
 import * as THREE from "three";
 import { useLab } from "../store/labStore.ts";
+import { useUnboxPlaying } from "./unbox/useUnboxPlaying.ts";
 
 export function Exposure() {
   const theme = useLab((s) => s.theme);
@@ -29,10 +30,13 @@ export function PixelRatio() {
 export function StudioEnv() {
   
   const theme = useLab((s) => s.theme);
+  const playing = useUnboxPlaying();
+  const open = useLab((s) => (s.boxOpen || playing) && s.stage === "box");
   const resolution = 256;
   const dark = theme === "dark";
+  const base = dark ? 1.15 : 1.2;
   return (
-    <Environment frames={1} resolution={resolution} environmentIntensity={dark ? 1.15 : 1.2}>
+    <Environment frames={1} resolution={resolution} environmentIntensity={open ? base + 0.55 : base}>
       <Lightformer form="rect" intensity={dark ? 4.2 : 3.6} color="#ffffff" position={[0, 5, 4]} scale={[14, 6, 1]} />
       <Lightformer form="rect" intensity={dark ? 1.6 : 1.5} color={dark ? "#d7e0ee" : "#e7eef6"} position={[-6, 2.2, -1]} rotation={[0, Math.PI / 2, 0]} scale={[10, 4, 1]} />
       <Lightformer form="rect" intensity={dark ? 1.5 : 1.35} color="#e8eef6" position={[6, 1.8, 2]} rotation={[0, -Math.PI / 2.4, 0]} scale={[6, 3, 1]} />
@@ -45,10 +49,16 @@ export function StudioEnv() {
 export function StudioLights() {
   const themeId = useLab((s) => s.theme);
   const voice = useLab((s) => s.voice);
+  const playing = useUnboxPlaying();
+  const open = useLab((s) => (s.boxOpen || playing) && s.stage === "box");
   if (themeId === "light") {
     return (
       <>
         <ambientLight color="#f4f6f8" intensity={0.62} />
+        {open && <directionalLight position={[-36, 88, -120]} color="#fff6ec" intensity={2.6} />}
+        {open && <pointLight position={[0, 72, 18]} color="#fff4e4" intensity={5.5} distance={240} decay={2} />}
+        {open && <pointLight position={[0, 46, 6]} color="#fff8f2" intensity={16} distance={150} decay={2} />}
+        {open && <directionalLight position={[18, 36, 160]} color="#fff8f2" intensity={1.7} />}
         <directionalLight position={[48, 110, 72]} color="#ffffff" intensity={2.15} />
         <directionalLight position={[-62, 28, 48]} color="#d5deea" intensity={0.55} />
         <directionalLight position={[-18, 36, -90]} color="#ffffff" intensity={0.42} />
@@ -61,6 +71,10 @@ export function StudioLights() {
   return (
     <>
       <ambientLight color="#e7edf4" intensity={voice === 2 ? 0.36 : 0.5} />
+      {open && <directionalLight position={[-36, 88, -120]} color="#f4f7fb" intensity={2.2} />}
+      {open && <pointLight position={[0, 72, 18]} color="#fff4e4" intensity={4.2} distance={240} decay={2} />}
+      {open && <pointLight position={[0, 46, 6]} color="#fff8f2" intensity={12} distance={150} decay={2} />}
+      {open && <directionalLight position={[18, 36, 160]} color="#f7f9fc" intensity={1.35} />}
       <directionalLight position={[28, 90, 54]} color="#f5f7fb" intensity={voice === 3 ? 3.1 : 2.2} />
       <directionalLight position={[-48, 42, -36]} color="#c9d4e2" intensity={voice === 3 ? 1.6 : 0.9} />
       <directionalLight position={[18, 24, 70]} color="#f7f8fa" intensity={0.62} />

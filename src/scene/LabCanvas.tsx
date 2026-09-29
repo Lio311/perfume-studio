@@ -167,6 +167,7 @@ function CameraRig() {
   const radius = useRef(48);
   const boxEntered = useRef(false);
   const adoptedCamera = useRef(0);
+  const releasedHero = useRef(false);
   const [reducedMotion, setReducedMotion] = useState(prefersReducedMotion);
 
   const measureRadius = () => {
@@ -184,8 +185,10 @@ function CameraRig() {
     const fov = camera instanceof THREE.PerspectiveCamera ? camera.fov : 30;
     const limits = orbitLimits(radius.current, fov);
     const rig = controls as { minDistance?: number; maxDistance?: number } | null;
+    const unbox = getUnboxPlayback();
+    const holdingHero = !releasedHero.current && unbox.phase !== "playing" && unbox.cameraToken > 0 && adoptedCamera.current === unbox.cameraToken;
     if (rig) {
-      rig.minDistance = limits.min;
+      rig.minDistance = holdingHero ? Math.min(limits.min, 28) : limits.min;
       rig.maxDistance = limits.max;
     }
     return limits;
@@ -568,6 +571,7 @@ function CameraRig() {
     const unbox = getUnboxPlayback();
     if (unbox.phase === "playing") return;
     if (unbox.cameraToken !== adoptedCamera.current && unbox.look && unbox.snap) {
+      releasedHero.current = false;
       adoptedCamera.current = unbox.cameraToken;
       camera.position.set(unbox.snap.x, unbox.snap.y, unbox.snap.z);
       look.current.set(unbox.look.x, unbox.look.y, unbox.look.z);
@@ -601,7 +605,8 @@ function CameraRig() {
       glide.current.yaw = 0;
     }
     const held = mode.current === "anim" ? look.current : (rig?.target ?? look.current);
-    clampOrbit(camera, held, radius.current);
+    const holdingHero = !releasedHero.current && unbox.cameraToken > 0 && adoptedCamera.current === unbox.cameraToken;
+    if (!holdingHero) clampOrbit(camera, held, radius.current);
     if (mode.current !== "anim") {
       if (rig && typeof rig._lastAngle === "number") {
         rig._lastAngle = THREE.MathUtils.clamp(rig._lastAngle, -0.008, 0.008);
@@ -642,6 +647,7 @@ function CameraRig() {
       maxDistance={2200}
       onStart={() => {
         dragging.current = true;
+        releasedHero.current = true;
         if (mode.current === "anim") {
           mode.current = "idle";
           sceneSpan.flying = false;

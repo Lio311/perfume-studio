@@ -11,8 +11,10 @@ import { useLab } from "../store/labStore.ts";
 import { ClipSync, OuterSkin } from "./closures/kit.tsx";
 import { builderFor } from "./closures/registry.ts";
 import type { GroupBind } from "./closures/types.ts";
-import { drawerInsertSeatOffset } from "./closures/build/drawer.tsx";
-import { insertSeatNow, trayLiftNow } from "./trayLift.ts";
+import { drawerInsertSeatOffset, drawerTrayFront } from "./closures/build/drawer.tsx";
+import { liftOpeningRim } from "../model/closures/lift-off.ts";
+import { tubeBaseHeight } from "../model/closures/tube.ts";
+import { insertSeatNow, revealRiseMm, trayLiftNow } from "./trayLift.ts";
 import { getUnboxPlayback } from "./unbox/playback.ts";
 import { applyRibbonSlip } from "./unbox/ribbonSlip.ts";
 
@@ -85,10 +87,11 @@ export function ClosureBox({ form, fit }: { form: BoxForm; fit: Fit }) {
     const current = specRef.current;
     const live = fitRef.current;
     let wall = live.boardMm;
+    let dims: ClosureDims | null = null;
     if (current) {
       const layout = layoutRef.current;
       const prev = dimMemo.current;
-      const dims = prev
+      dims = prev
         && prev.id === current.id
         && prev.w === live.boxW
         && prev.h === live.boxH
@@ -128,7 +131,22 @@ export function ClosureBox({ form, fit }: { form: BoxForm; fit: Fit }) {
       writeChannels(outer, sleeveGroups.current, dims, poseAmount);
     }
     const motion = motionRef.current;
-    trayLiftNow.mm = motion ? trayLiftMm(current?.id ?? "lift-off", motion, poseAmount, pullRef.current) : 0;
+    const specLift = motion ? trayLiftMm(current?.id ?? "lift-off", motion, poseAmount, pullRef.current) : 0;
+    let rim = 0;
+    let riseStart = 0.42;
+    if (dims && current) {
+      if (current.id === "drawer") {
+        const front = drawerTrayFront(dims.h, dims.wall);
+        rim = front.y + front.trayH;
+        riseStart = 0.7;
+      } else if (current.id === "tube") {
+        rim = tubeBaseHeight(dims);
+        riseStart = 0.48;
+      } else if (current.id === "lift-off") rim = liftOpeningRim(dims);
+      else rim = dims.baseH;
+    }
+    trayLiftNow.mm = Math.max(specLift, revealRiseMm(rim, live.bottleH, poseAmount, riseStart, live.seatY));
+    applyRibbonSlip(poseAmount);
     const tray = current?.id === "drawer" ? groups.current.tray : null;
     if (tray) {
       insertSeatNow.x = tray.position.x;
@@ -179,13 +197,11 @@ export function ClosureBox({ form, fit }: { form: BoxForm; fit: Fit }) {
     if (playback.phase === "playing") {
       amount.current = playback.openAmount;
       applyPose(amount.current);
-      applyRibbonSlip();
       return;
     }
     const live = stage !== "bottle" && open ? 1 : 0;
     amount.current = reducedMotion.current ? live : THREE.MathUtils.damp(amount.current, live, 5.5, dt);
     applyPose(amount.current);
-    applyRibbonSlip();
   });
 
   if (!spec || !Builder) return null;

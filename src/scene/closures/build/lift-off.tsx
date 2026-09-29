@@ -70,6 +70,20 @@ export function PrismInsert({ radius, sides, fit, baseY }: { radius: number; sid
   useFrame(() => {
     if (ref.current) ref.current.position.y = y0 + trayLiftNow.mm;
   });
+  if (sides >= 24 && !lying) {
+    return (
+      <group ref={ref} position={[0, y0, 0]}>
+        <mesh position={[0, floor / 2, 0]}>
+          <cylinderGeometry args={[outer, outer, floor, 48]} />
+          <InsertFinish />
+        </mesh>
+        <mesh position={[0, floor + wallH / 2, 0]}>
+          <cylinderGeometry args={[outer, outer, wallH, 64, 1, true]} />
+          <InsertFinish />
+        </mesh>
+      </group>
+    );
+  }
   return (
     <group ref={ref} position={[0, y0, 0]}>
       <PrismMesh finish="insert" radius={outer} inner={0} height={floor} sides={sides} />

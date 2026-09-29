@@ -207,6 +207,7 @@ export function fitPose(
   fov: number,
   frame: StageFrame,
   fill = FILL,
+  ceiling = 0.78,
 ): { position: THREE.Vector3; target: THREE.Vector3 } {
   bounds.getCenter(center);
   const corners = cornersOf(bounds);
@@ -269,7 +270,7 @@ export function fitPose(
     const top = box.cy - box.h / 2;
     const bottom = box.cy + box.h / 2;
     const inside = left >= safe.left + marginX && rightEdge <= safe.right - marginX && top >= safe.top + marginY && bottom <= safe.bottom - marginY;
-    const heightCap = safe.height * Math.min(0.78, Math.max(fill, 0.66));
+    const heightCap = safe.height * Math.min(ceiling, Math.max(fill, 0.5));
     if (inside && box.h <= heightCap && box.w <= safe.width * 0.92 && box.h >= safe.height * fill * 0.92) break;
     const hScale = box.h / Math.max(1, safe.height * fill);
     const wScale = box.w / Math.max(1, allowedW);

@@ -1,10 +1,16 @@
-import { sizedChannel, STANDARD_DIMS, linearMotion, type ClosureDims, type ClosureLayoutInput, type ClosureSpec } from "./types.ts";
+import { sizedChannel, STANDARD_DIMS, type ClosureDims, type ClosureLayoutInput, type ClosureSpec } from "./types.ts";
 
 const NECK_MM: readonly [number, number] = [6, 36];
 const LID_MM: readonly [number, number] = [12, 160];
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
+}
+
+/** Top of the shoulder the bottle has to clear. A telescope has no neck, so the rim is the base. */
+export function liftOpeningRim(dims: ClosureDims): number {
+  if (dims.neckH <= 0) return dims.baseH;
+  return dims.baseH + dims.neckH + Math.min(dims.lidH * 0.35, 8);
 }
 
 /** Closed lid origin. Shoulder-neck sits above the visible neck; a full telescope starts at the floor. */
@@ -76,7 +82,8 @@ const spec: ClosureSpec = {
     {
       id: "lid",
       pivot: (dims) => [0, liftClosedY(dims), 0],
-      motion: linearMotion("power2.inOut"),
+      // The ribbon fades first. The lid then lifts up and back until it leaves the hero frame.
+      motion: { delay: 0.2, duration: 0.8, ease: "power2.inOut" },
       channels: [
         sizedChannel(
           "translate",
@@ -90,17 +97,33 @@ const spec: ClosureSpec = {
           "translate",
           "y",
           (dims) => liftClosedY(dims),
-          (dims) => liftClosedY(dims) + dims.h * (fullTelescope(dims) ? 0.14 : 0.62),
+          (dims) => liftClosedY(dims) + dims.h * (fullTelescope(dims) ? 0.14 : 1.12),
           (dims) => liftClosedY(dims),
-          (dims) => liftClosedY(dims) + dims.h * (fullTelescope(dims) ? 0.22 : 0.7),
+          (dims) => liftClosedY(dims) + dims.h * (fullTelescope(dims) ? 0.22 : 1.2),
         ),
         sizedChannel(
           "translate",
           "z",
           () => 0,
-          (dims) => (fullTelescope(dims) ? dims.d * 0.16 : dims.d * 0.32),
+          (dims) => (fullTelescope(dims) ? dims.d * 0.55 : -dims.d * 0.55),
+          (dims) => (fullTelescope(dims) ? 0 : -dims.d * 0.8),
+          (dims) => (fullTelescope(dims) ? dims.d * 0.7 : 0),
+        ),
+        sizedChannel(
+          "rotate",
+          "x",
           () => 0,
-          (dims) => (fullTelescope(dims) ? dims.d * 0.28 : dims.d * 0.4),
+          (dims) => (fullTelescope(dims) ? -0.28 : -0.42),
+          (dims) => (fullTelescope(dims) ? -0.4 : -0.6),
+          () => 0,
+        ),
+        sizedChannel(
+          "rotate",
+          "z",
+          () => 0,
+          () => 0.34,
+          () => 0,
+          () => 0.5,
         ),
       ],
     },

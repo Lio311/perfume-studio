@@ -1,5 +1,4 @@
 import * as THREE from "three";
-import { getUnboxPlayback } from "./playback.ts";
 
 const nodes = new Set<THREE.Group>();
 
@@ -12,17 +11,26 @@ export function untrackRibbon(node: THREE.Group): void {
   nodes.delete(node);
 }
 
-/** Writes the cinematic ribbon offset. The open pose is slip 0, so nothing snaps. */
-export function applyRibbonSlip(): void {
-  const play = getUnboxPlayback();
-  const slip = play.phase === "playing" ? play.ribbon : 0;
+/**
+ * Fades every ribbon piece together before the lid or tray moves.
+ * Open is fully hidden, so the two halves never show a broken end.
+ */
+export function applyRibbonSlip(openAmount = 0): void {
+  const t = Math.min(1, Math.max(0, openAmount));
+  const opacity = t <= 0.03 ? 1 : t >= 0.18 ? 0 : 1 - (t - 0.03) / 0.15;
   for (const node of nodes) {
-    if (node.userData.ribbonTug === true) {
-      node.position.set(0, 0, slip * 14);
-      node.rotation.z = 0;
-      continue;
-    }
-    node.position.set(0, slip * 22, 0);
-    node.rotation.z = slip * -0.16;
+    node.visible = opacity > 0.02;
+    node.position.set(0, 0, 0);
+    node.rotation.set(0, 0, 0);
+    node.traverse((child) => {
+      const mesh = child as THREE.Mesh;
+      if (!mesh.isMesh || !mesh.material) return;
+      const list = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+      for (const material of list) {
+        material.transparent = opacity < 0.98;
+        material.opacity = opacity;
+        material.depthWrite = opacity > 0.9;
+      }
+    });
   }
 }
