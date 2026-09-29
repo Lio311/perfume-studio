@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { commitSavedDesigns } from "./saveResult.ts";
-import { createLabStorage, type DemoHold, LAB_PERSIST_VERSION, mergePersistedLab, migratePersisted, partializeLabState } from "./hydrate.ts";
+import { createLabStorage, type DemoHold, LAB_PERSIST_VERSION, mergePersistedLab, migratePersisted, partializeLabState, DEFAULT_BUDGET_BRIEF } from "./hydrate.ts";
 import { produce } from "immer";
 import { applyLook, applyVariant, createDefaultDesign, estimateMl, hydrateDesign, LOOKS } from "../model/design.ts";
 import { BOTTLES } from "../model/bottles.ts";
@@ -449,7 +449,7 @@ export const useLab = create<LabState>()(
       pending: [],
       suppliers: [],
       packNotices: [],
-      brief: { ceilingIls: 30, volumeMl: 50, confirmed: false },
+      brief: DEFAULT_BUDGET_BRIEF,
       briefEditing: false,
       priceOverrides: {},
       exchangeRates: {},
@@ -634,7 +634,7 @@ export const useLab = create<LabState>()(
           present: false,
           explode: 0,
           fullToken: state.fullToken + 1,
-          brief: { ceilingIls: 30, volumeMl: 50, confirmed: false },
+          brief: DEFAULT_BUDGET_BRIEF,
           briefEditing: false,
           demoHold: null,
         }));

@@ -39,7 +39,7 @@ public struct CaptureSnapshot: Sendable {
 public protocol CaptureFrameSource: AnyObject {
     var isCameraSupported: Bool { get }
     var isLiDARSupported: Bool { get }
-    var onFrame: ((CVPixelBuffer, CaptureSnapshot) -> Void)? { get set }
+    var onFrame: ((ARFrame, CaptureSnapshot) -> Void)? { get set }
     var onSessionFailed: (() -> Void)? { get set }
     func start()
     func stop()
@@ -51,8 +51,9 @@ public final class CardCaptureSession: NSObject, ARSessionDelegate, CaptureFrame
     public let arSession = ARSession()
     public let queue = DispatchQueue(label: "com.perfumestudio.capture", qos: .userInteractive)
 
-    /// Called on `queue`. `pixelBuffer` is `capturedImage` and is only valid for this call.
-    public var onFrame: ((CVPixelBuffer, CaptureSnapshot) -> Void)?
+    /// Called on `queue`. The frame (and its `capturedImage`) stays valid while the
+    /// handler retains `frame`. Return quickly and detect off this queue.
+    public var onFrame: ((ARFrame, CaptureSnapshot) -> Void)?
     public var onSessionFailed: (() -> Void)?
 
     public var isCameraSupported: Bool { ARWorldTrackingConfiguration.isSupported }
@@ -63,6 +64,8 @@ public final class CardCaptureSession: NSObject, ARSessionDelegate, CaptureFrame
     }
 
     private var running = false
+    private var latestFrame: ARFrame?
+    private var stillWaiter: ((CVPixelBuffer, CameraIntrinsics, TimeInterval) -> Void)?
 
     public override init() {
         super.init()
@@ -93,7 +96,23 @@ public final class CardCaptureSession: NSObject, ARSessionDelegate, CaptureFrame
 
     public func stop() {
         running = false
+        latestFrame = nil
+        stillWaiter = nil
         arSession.pause()
+    }
+
+    /// Full-resolution still from the latest `ARFrame`, or the next one if none has arrived.
+    /// The handler runs on `queue` and must finish with the pixel buffer before returning.
+    public func takeStill(_ handler: @escaping (CVPixelBuffer, CameraIntrinsics, TimeInterval) -> Void) {
+        queue.async { [weak self] in
+            guard let self else { return }
+            if let frame = self.latestFrame {
+                let snapshot = Self.snapshot(from: frame, session: self.arSession)
+                handler(frame.capturedImage, snapshot.intrinsics, frame.timestamp)
+            } else {
+                self.stillWaiter = handler
+            }
+        }
     }
 
     /// Keeps this object as the session delegate after an `ARSCNView` takes the session.
@@ -106,13 +125,19 @@ public final class CardCaptureSession: NSObject, ARSessionDelegate, CaptureFrame
     }
 
     public func session(_ session: ARSession, didUpdate frame: ARFrame) {
-        let buffer = frame.capturedImage
+        latestFrame = frame
         let snapshot = Self.snapshot(from: frame, session: session)
-        onFrame?(buffer, snapshot)
+        if let stillWaiter {
+            self.stillWaiter = nil
+            stillWaiter(frame.capturedImage, snapshot.intrinsics, frame.timestamp)
+        }
+        onFrame?(frame, snapshot)
     }
 
     public func session(_ session: ARSession, didFailWithError error: Error) {
         running = false
+        latestFrame = nil
+        stillWaiter = nil
         onSessionFailed?()
     }
 
@@ -121,17 +146,25 @@ public final class CardCaptureSession: NSObject, ARSessionDelegate, CaptureFrame
         arSession.delegate = self
     }
 
-    /// Highest-resolution wide-camera format at 30 fps or faster. Never the ultra-wide.
+    /// Wide camera, preferring 1920×1440 (or the nearest 4:3 no wider than 1920) at ≥ 30 fps.
+    /// Never the ultra-wide when a wide format exists. 4K is intentionally not preferred:
+    /// rectangle detection cannot keep up with it.
     static func wideVideoFormat() -> ARConfiguration.VideoFormat? {
         let formats = ARWorldTrackingConfiguration.supportedVideoFormats
-        let wide = formats.filter { $0.captureDeviceType == .builtInWideAngleCamera }
-        let fast = wide.filter { $0.framesPerSecond >= 30 }
-        let pool = fast.isEmpty ? (wide.isEmpty ? formats : wide) : fast
-        return pool.max { lhs, rhs in
-            let left = lhs.imageResolution.width * lhs.imageResolution.height
-            let right = rhs.imageResolution.width * rhs.imageResolution.height
-            if left == right { return lhs.framesPerSecond < rhs.framesPerSecond }
-            return left < right
+        let described = formats.map { format in
+            CameraVideoFormat(
+                width: Int(format.imageResolution.width.rounded()),
+                height: Int(format.imageResolution.height.rounded()),
+                framesPerSecond: format.framesPerSecond,
+                isWide: format.captureDeviceType == .builtInWideAngleCamera
+            )
+        }
+        guard let picked = WideVideoFormatPicker.pick(described) else { return nil }
+        return formats.first { format in
+            Int(format.imageResolution.width.rounded()) == picked.width
+                && Int(format.imageResolution.height.rounded()) == picked.height
+                && format.framesPerSecond == picked.framesPerSecond
+                && (format.captureDeviceType == .builtInWideAngleCamera) == picked.isWide
         }
     }
 

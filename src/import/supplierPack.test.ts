@@ -26,6 +26,7 @@ import type { NeckId } from "../model/types.ts";
 const validateSupplierPack = (() => {
   const ajv = new Ajv2020({ allErrors: true });
   addFormats(ajv);
+  ajv.addFormat("date", (v: string) => !Number.isNaN(Date.parse(v)) && new Date(v).toISOString().slice(0, 10) === v);
   return ajv.compile(JSON.parse(schemaText) as object);
 })();
 
@@ -660,6 +661,17 @@ describe("reviveStoredPack", () => {
     });
     expect(schemaErrors(unknownCurrency.text)).toBe("");
 
+    const baseObj = JSON.parse(roundTrip.text);
+    expect(schemaErrors(JSON.stringify({
+      ...baseObj,
+      parts: [{ ...baseObj.parts[0], price: { value: 2, currency: "USD", quotedAt: "2026-02-28" } }],
+    }))).toBe("");
+    
+    expect(schemaErrors(JSON.stringify({
+      ...baseObj,
+      parts: [{ ...baseObj.parts[0], price: { value: 2, currency: "USD", quotedAt: "2026-02-30" } }],
+    }))).toContain("format");
+
     const unknownKeys = exportLoose({
       id: "sup-lab",
       name: "Lab Supplier",
@@ -693,7 +705,7 @@ describe("reviveStoredPack", () => {
     expect(cleaned.generator).toEqual({ name: "Perfume Studio" });
     expect(cleaned.supplier).toEqual({ company: "Lab" });
     expect(cleaned.parts[0].note).toBeUndefined();
-    expect(cleaned.parts[0].appearance).toBeUndefined();
+    expect(cleaned.parts[0].appearance).toEqual({ finish: "gold" });
     expect(cleaned.parts[0].names).toEqual({ he: "פקק", en: "Cap" });
     expect(cleaned.parts[0].price).toEqual({ value: 1.25, currency: "USD" });
     expect(cleaned.parts[0].scan.extra).toBeUndefined();

@@ -1,6 +1,6 @@
 import Foundation
 
-public enum PartKind: String, Codable, Equatable, CaseIterable {
+public enum PartKind: String, Codable, Equatable, CaseIterable, Sendable {
     case bottle, cap, label, pump, collar, box
 }
 

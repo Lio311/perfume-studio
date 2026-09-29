@@ -158,7 +158,7 @@ const LiftOff: ClosureBuilder = ({ form, fit, spec, dims, bind, ribbon, pullTab,
           ))}
           {pull === "tab" && (
             <group rotation={[0, yaw, 0]}>
-              <PullTab w={dims.w} y={-2} z={lidR + 0.4} color={RIBBON_COLOR} />
+              <PullTab w={dims.w} y={lid[1] > 4 ? -2 : 2} z={lidR + 0.4} color={RIBBON_COLOR} />
             </group>
           )}
         </group>
@@ -199,7 +199,7 @@ const LiftOff: ClosureBuilder = ({ form, fit, spec, dims, bind, ribbon, pullTab,
           </>
         )}
         {telescope && <BrandMark w={lidW} y={dims.lidH * 0.46} z={lidD / 2 + MARK_FACE_GAP} />}
-        {closurePull(tied, pullTab) === "tab" && <PullTab w={dims.w} x={lidW / 2 + 0.4} y={-2} z={0} color={RIBBON_COLOR} side />}
+        {closurePull(tied, pullTab) === "tab" && <PullTab w={dims.w} x={lidW / 2 + 0.4} y={lid[1] > 4 ? -2 : 2} z={0} color={RIBBON_COLOR} side />}
         {closurePull(tied, pullTab) === "ribbon" && rectRibbon.above && (
           <Ribbon w={dims.w} h={rectRibbon.above.h} d={rectRibbon.above.d} y={rectRibbon.above.y - lid[1]} across="x" color={RIBBON_COLOR} />
         )}

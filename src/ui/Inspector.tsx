@@ -36,6 +36,7 @@ export function Inspector() {
   const budget = useBudgetModel();
   const hidden = hiddenDesignPart(part, design, suppliers);
   const name = hidden ? (hidden.name || hidden.code || hidden.id) : variantName(part, design, lang);
+  const wizardPicked = useLab((s) => s.wizardPicked);
   let fit: ReturnType<typeof computeFit>;
   try {
     fit = computeFit(design, explode > 0.45);
@@ -47,7 +48,6 @@ export function Inspector() {
       </section>
     );
   }
-  const wizardPicked = useLab((s) => s.wizardPicked);
   
   const neckLabel = design.bottle.neck.replace("FEA", "FEA ");
   const badge = !part || part === "liquid" || part === "label" || part === "box"

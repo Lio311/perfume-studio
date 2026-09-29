@@ -63,6 +63,7 @@ export function Library() {
   const [cat, setCat] = useState("all");
   const [supplier, setSupplier] = useState("all");
   const [allBottles, setAllBottles] = useState(false);
+  const [addMenuOpen, setAddMenuOpen] = useState(false);
   const brief = useLab((s) => s.brief);
   const { priceFor } = useBudgetModel();
   const gridRef = useRef<HTMLDivElement>(null);
@@ -281,7 +282,7 @@ export function Library() {
           ))}
         </div>
       ) : (
-        <div ref={gridRef} className="thumb-grid">
+        <div ref={gridRef} className="thumb-grid" style={{ minHeight: isWizard ? '160px' : 0 }}>
           {items.length === 0 && supplier !== "all" && <p className="hint">{t.importedEmpty}</p>}
           {items.map((item) => (
             <button
@@ -346,17 +347,25 @@ export function Library() {
           })()}
         </div>
       )}
-      <div className="upload-group" style={{ marginTop: "auto", display: "flex", flexDirection: "column", gap: "12px" }}>
-        <button type="button" className="upload-btn" data-photo3d onClick={() => setModal("photo")}>
-          {t.photo3d}
-        </button>
-        <button type="button" className="upload-btn" data-import-catalog onClick={() => setModal("supplier")}>
-          {t.importCatalog}
-        </button>
-        <button type="button" className="upload-btn" onClick={() => setModal("upload")}>
-          {t.addPart}
-        </button>
-      </div>
+      {isWizard && !addMenuOpen ? (
+        <div style={{ marginTop: "auto", display: "flex", flexDirection: "column", gap: "12px", paddingTop: "12px" }}>
+          <button type="button" className="upload-btn" onClick={() => setAddMenuOpen(true)}>
+            {t.addMenu}
+          </button>
+        </div>
+      ) : (
+        <div className="upload-group" style={{ marginTop: "auto", display: "flex", flexDirection: "column", gap: "12px" }}>
+          <button type="button" className="upload-btn" data-photo3d onClick={() => setModal("photo")}>
+            {t.photo3d}
+          </button>
+          <button type="button" className="upload-btn" data-import-catalog onClick={() => setModal("supplier")}>
+            {t.importCatalog}
+          </button>
+          <button type="button" className="upload-btn" onClick={() => setModal("upload")}>
+            {t.addPart}
+          </button>
+        </div>
+      )}
     </aside>
   );
 }

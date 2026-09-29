@@ -33,4 +33,5 @@ export function noteAppMounted(): void {
 export function noteStudioFrame(): void {
   sceneFramed = true;
   dismissSplash();
+  try { sessionStorage.removeItem("perfume-lab-preload-reloaded"); } catch {}
 }

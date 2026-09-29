@@ -21,13 +21,20 @@ public struct AutoCaptureGate: Equatable {
     }
 
     /// Returns true on the single frame where the hold completes.
+    /// When `enabled` is false the hold is cleared and never counted, so turning
+    /// auto-capture on later cannot fire from time accumulated while it was off.
     public mutating func update(
         isGreen: Bool,
         source: some DistanceSource,
         tiltDegrees: Double,
         zMm: Double,
-        time: TimeInterval
+        time: TimeInterval,
+        enabled: Bool = true
     ) -> Bool {
+        guard enabled else {
+            reset()
+            return false
+        }
         let qualified = isGreen
             && source.allowsAutoCapture
             && source.accepts(rawZMm: zMm)

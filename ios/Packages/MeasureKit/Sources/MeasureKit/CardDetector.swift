@@ -21,8 +21,7 @@ public enum CardDetector {
 
         let handler = VNImageRequestHandler(cvPixelBuffer: pixelBuffer, orientation: .up, options: [:])
         guard (try? handler.perform([request])) != nil else { return nil }
-        guard let raw = request.results?.first else { return nil }
-        guard let observation = raw as? VNRectangleObservation else { return nil }
+        guard let observation = request.results?.first else { return nil }
 
         let width = Double(CVPixelBufferGetWidth(pixelBuffer))
         let height = Double(CVPixelBufferGetHeight(pixelBuffer))

@@ -105,7 +105,8 @@ public struct DistanceSession {
             source: source,
             tiltDegrees: tiltDegrees,
             zMm: rawZMm,
-            time: time
+            time: time,
+            enabled: autoCaptureEnabled
         )
         return DistanceReading(
             accepted: true,
@@ -113,7 +114,7 @@ public struct DistanceSession {
             rawMm: rawZMm,
             filteredMm: filtered.millimetres,
             guide: output,
-            shouldAutoCapture: autoCaptureEnabled && fire,
+            shouldAutoCapture: fire,
             sigmaMm: sigma,
             showsApproximateBadge: source.isApproximate
         )

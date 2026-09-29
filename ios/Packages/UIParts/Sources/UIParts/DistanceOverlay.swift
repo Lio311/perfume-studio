@@ -35,19 +35,23 @@ public struct DistanceOverlay: View {
     public var distanceCm: Double?
     public var showsApproximateBadge: Bool
     public var debug: DistanceDebugStrip?
+    /// Neutral copy when there is no distance to show, for example "אין מדידת מרחק".
+    public var statusText: String?
 
     public init(
         state: DistanceGuide.State?,
         direction: DistanceGuide.Direction,
         distanceCm: Double?,
         showsApproximateBadge: Bool,
-        debug: DistanceDebugStrip? = nil
+        debug: DistanceDebugStrip? = nil,
+        statusText: String? = nil
     ) {
         self.state = state
         self.direction = direction
         self.distanceCm = distanceCm
         self.showsApproximateBadge = showsApproximateBadge
         self.debug = debug
+        self.statusText = statusText
     }
 
     public var body: some View {
@@ -86,6 +90,10 @@ public struct DistanceOverlay: View {
                     Text(DistanceText.centimeters)
                         .font(.title2)
                 }
+            } else if let statusText {
+                Text(statusText)
+                    .font(.title3.bold())
+                    .multilineTextAlignment(.center)
             }
             if showsApproximateBadge {
                 Text(DistanceText.approximateAccuracy)

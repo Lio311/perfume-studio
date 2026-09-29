@@ -465,6 +465,7 @@ export default function App() {
           <Dock />
         </div>
         <div className={`side-col ${sideOpen ? "is-open" : ""}`}>
+          <BudgetMeter onSavings={() => setSavingsOpen(true)} />
           <Inspector />
           {/* <ChatPanel /> */}
         </div>

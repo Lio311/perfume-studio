@@ -11,7 +11,7 @@ jobs:
     container: swift:6.0-jammy     # match the Swift minor of the owner's Xcode
     strategy:
       matrix:
-        pkg: [PackKit, APIClient]
+        pkg: [PackKit, APIClient, Store]
     defaults:
       run:
         working-directory: ios

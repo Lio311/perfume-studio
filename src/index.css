@@ -159,7 +159,7 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   border-color: var(--line-strong);
   background: var(--fill);
 }
-.lang { min-width: 44px; }
+.lang { min-width: 64px; white-space: nowrap; }
 
 .library, .side-col { display: flex; flex-direction: column; gap: 12px; }
 .library { grid-column: 1; grid-row: 2; padding: 14px 12px 12px; }
@@ -378,6 +378,7 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 .budget-bar { height: 6px; border-radius: 99px; background: rgba(255, 255, 255, 0.08); overflow: hidden; }
 .budget-bar i { display: block; height: 100%; background: var(--accent); }
 .budget-meter.is-over .budget-bar i { background: var(--danger); }
+.side-col .budget-meter { position: static; top: auto; inset-inline-start: auto; width: auto; }
 .budget-rate input { max-width: 96px; }
 .budget-brief, .budget-savings { width: min(560px, 100%); display: grid; gap: 10px; }
 .brief-field { position: relative; }

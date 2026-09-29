@@ -781,13 +781,14 @@ describe("saved design hydration", () => {
   });
 
   it("drops a corrupt budget and keeps a finite known-currency quote", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     const merged = mergePersistedLab(
       {
         brief: { ceilingIls: Number.NaN, volumeMl: 12.5, confirmed: 1, quantity: 3, title: "לא" },
         priceOverrides: {
           ok: { value: 12.5, currency: "nis" },
           bad: { value: "12", currency: "USD" },
-          unknown: { value: 4, currency: "dollar" },
+          unknown: { value: 4, currency: "XYZ" },
           missing: { value: 4 },
           cleared: { absent: true },
           zero: { value: 0, currency: "EUR" },
@@ -801,13 +802,15 @@ describe("saved design hydration", () => {
       priceOverrides: Record<string, { value?: number; currency?: string; absent?: true }>;
       exchangeRates: Record<string, number>;
     };
-    expect(merged.brief).toEqual({ ceilingIls: 30, volumeMl: 12.5, confirmed: false, quantity: 3 });
+    expect(merged.brief).toEqual({ ceilingIls: 200, volumeMl: 12.5, confirmed: false, quantity: 3 });
     expect(merged.brief.title).toBeUndefined();
     expect(merged.priceOverrides).toEqual({
       ok: { value: 12.5, currency: "ILS" },
       cleared: { absent: true },
     });
     expect(merged.exchangeRates).toEqual({ USD: 3.65, ILS: 1 });
+    expect(warnSpy).toHaveBeenCalledWith('Price override for "unknown" dropped: unknown currency "XYZ"');
+    warnSpy.mockRestore();
   });
 
   it("round-trips the budget through storage and ignores a corrupted reload", async () => {
