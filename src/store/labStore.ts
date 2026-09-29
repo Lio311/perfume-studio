@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { commitSavedDesigns } from "./saveResult.ts";
-import { createLabStorage, LAB_PERSIST_VERSION, mergePersistedLab, migratePersisted, partializeLabState } from "./hydrate.ts";
+import { createLabStorage, type DemoHold, LAB_PERSIST_VERSION, mergePersistedLab, migratePersisted, partializeLabState } from "./hydrate.ts";
 import { produce } from "immer";
 import { applyLook, applyVariant, createDefaultDesign, estimateMl, hydrateDesign, LOOKS } from "../model/design.ts";
 import { BOTTLES } from "../model/bottles.ts";
@@ -116,8 +116,8 @@ interface LabState {
   tierLock: boolean;
   /** Parts the user has explicitly picked during the wizard. Not persisted. */
   wizardPicked: ReadonlySet<PartKey>;
-  /** Persisted fields from before a demo link. Not itself persisted. */
-  demoHold: Record<string, unknown> | null;
+  /** Pre-link design and undo stack. Not itself persisted. Cleared on the first real edit. */
+  demoHold: DemoHold | null;
   select: (part: PartKey | null) => void;
   hover: (part: PartKey | null, x?: number, y?: number) => void;
   patch: (part: PartKey, partial: Record<string, unknown>) => void;
@@ -392,6 +392,7 @@ function commitSuppliers(
   packs: SupplierPack[],
   extra: PackNotice[],
   closeModal: boolean,
+  releaseHold = false,
 ) {
   const notices = [...extra, ...syncRegistry(packs)];
   const toast = noticeToast(notices, get().lang);
@@ -400,6 +401,7 @@ function commitSuppliers(
     packNotices: notices,
     ...(closeModal ? { modal: null } : {}),
     ...(toast ? { toast } : {}),
+    ...(releaseHold ? { demoHold: null } : {}),
   });
 }
 
@@ -467,7 +469,9 @@ export const useLab = create<LabState>()(
               draft.box.wrap.color = partial.color;
             }
           });
-          return state.gesturing ? { design: next } : { design: next, past: [...state.past, state.design].slice(-30), future: [] };
+          return state.gesturing
+            ? { design: next, demoHold: null }
+            : { design: next, past: [...state.past, state.design].slice(-30), future: [], demoHold: null };
         }),
       applyCommands: (commands, options) =>
         set((state) => {
@@ -512,6 +516,7 @@ export const useLab = create<LabState>()(
             past: designChanged ? [...state.past, state.design].slice(-30) : state.past,
             future: designChanged ? [] : state.future,
             wizardPicked,
+            demoHold: null,
           };
         }),
       cycle: (dir, part) => {
@@ -589,14 +594,14 @@ export const useLab = create<LabState>()(
       setSideOpen: (sideOpen) => set({ sideOpen }),
       setModal: (modal) => set({ modal }),
       setShareUrl: (shareUrl) => set({ shareUrl }),
-      pushChat: (message) => set((state) => ({ chat: [...state.chat, message].slice(-40) })),
+      pushChat: (message) => set((state) => ({ chat: [...state.chat, message].slice(-40), demoHold: null })),
       saveDesign: (name, thumb) => {
         const previous = get().saved;
         const id = uid("cfg");
         const newDesign = { id, name: name.trim() || "סקיצה", design: get().design, thumb, createdAt: Date.now() };
         const next = [newDesign, ...previous].slice(0, 24);
         const result = commitSavedDesigns(previous, next, (saved) => {
-          set({ saved });
+          set({ saved, demoHold: null });
         });
         if (!result.ok) return { ok: false };
         void apiClient.post("/designs", newDesign).catch((error) => {
@@ -629,13 +634,14 @@ export const useLab = create<LabState>()(
           fullToken: state.fullToken + 1,
           brief: { ceilingIls: 30, volumeMl: 50, confirmed: false },
           briefEditing: false,
+          demoHold: null,
         }));
       },
       loadDesign: async (id) => {
         try {
           const loaded = await apiClient.get<SavedDesign>(`/designs/${id}`);
           if (loaded && loaded.design) {
-            set((state) => ({ design: hydrateDesign(loaded.design), modal: null, focusToken: state.focusToken + 1 }));
+            set((state) => ({ design: hydrateDesign(loaded.design), modal: null, focusToken: state.focusToken + 1, demoHold: null }));
             return;
           }
         } catch (e) {
@@ -643,7 +649,7 @@ export const useLab = create<LabState>()(
         }
         const found = get().saved.find((item) => item.id === id);
         if (!found) return;
-        set((state) => ({ design: hydrateDesign(found.design), modal: null, focusToken: state.focusToken + 1 }));
+        set((state) => ({ design: hydrateDesign(found.design), modal: null, focusToken: state.focusToken + 1, demoHold: null }));
       },
       deleteDesign: async (id) => {
         set((state) => ({ saved: state.saved.filter((item) => item.id !== id), compareIds: state.compareIds.filter((item) => item !== id) }));
@@ -659,7 +665,7 @@ export const useLab = create<LabState>()(
           const compareIds = has ? state.compareIds.filter((item) => item !== id) : [...state.compareIds, id].slice(-3);
           return { compareIds };
         }),
-      addPending: (part) => set((state) => ({ pending: [part, ...state.pending].slice(0, 30), modal: null })),
+      addPending: (part) => set((state) => ({ pending: [part, ...state.pending].slice(0, 30), modal: null, demoHold: null })),
       removePending: (id) => set((state) => ({ pending: state.pending.filter((item) => item.id !== id) })),
       setSuppliers: (packs, notices = []) => {
         commitSuppliers(set, get, packs, notices, false);
@@ -671,7 +677,7 @@ export const useLab = create<LabState>()(
       },
       upsertSupplier: (pack, notices = []) => {
         const suppliers = [pack, ...get().suppliers.filter((item) => item.id !== pack.id)];
-        commitSuppliers(set, get, suppliers, notices, notices.length === 0);
+        commitSuppliers(set, get, suppliers, notices, notices.length === 0, true);
         markPackWarningsSeen(pack);
         void savePack(pack);
       },

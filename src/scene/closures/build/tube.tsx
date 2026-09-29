@@ -10,7 +10,8 @@ import type { ClosureBuilder } from "../types.ts";
 export function tubeMarkWidth(radius: number, gap = 1.4): number {
   const r = Math.max(gap + 0.4, radius);
   const half = Math.sqrt(Math.max(0, r * r - (r - gap) ** 2));
-  return Math.min(CARTON_MARK_MAX_W, half * 2 * 0.92);
+  // cartonMarkSize applies the 0.92 inset. Passing it here as well shrunk the word twice.
+  return Math.min(CARTON_MARK_MAX_W / 0.92, half * 2);
 }
 
 /** Round tube. The cap lifts off the canister. */

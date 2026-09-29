@@ -315,20 +315,26 @@ export function WrapMaterial({
       onBeforeCompile={(shader) => {
         shader.uniforms.uWrapNoise = { value: wrapNoiseTexture() };
         shader.vertexShader = shader.vertexShader
-          .replace("#include <common>", "#include <common>\nvarying vec3 vWrapWorld;")
+          .replace("#include <common>", "#include <common>\nvarying vec3 vWrapWorld;\nvarying vec3 vWrapNormal;")
+          .replace("#include <beginnormal_vertex>", "#include <beginnormal_vertex>\nvWrapNormal = mat3(modelMatrix) * objectNormal;")
           .replace("#include <begin_vertex>", "#include <begin_vertex>\nvWrapWorld = (modelMatrix * vec4(transformed, 1.0)).xyz;");
         shader.fragmentShader = shader.fragmentShader
-          .replace("#include <common>", "#include <common>\nvarying vec3 vWrapWorld;\nuniform sampler2D uWrapNoise;")
+          .replace("#include <common>", "#include <common>\nvarying vec3 vWrapWorld;\nvarying vec3 vWrapNormal;\nuniform sampler2D uWrapNoise;")
           .replace(
             "#include <dithering_fragment>",
-            `float wrapN = texture2D(uWrapNoise, vWrapWorld.xy * 0.045).r;
-             gl_FragColor.rgb *= mix(0.985, 1.015, wrapN);
+            `vec3 wrapBlend = abs(normalize(vWrapNormal));
+             wrapBlend /= max(wrapBlend.x + wrapBlend.y + wrapBlend.z, 0.0001);
+             float wrapNx = texture2D(uWrapNoise, vWrapWorld.yz * 0.045).r;
+             float wrapNy = texture2D(uWrapNoise, vWrapWorld.xz * 0.045).r;
+             float wrapNz = texture2D(uWrapNoise, vWrapWorld.xy * 0.045).r;
+             float wrapN = wrapNx * wrapBlend.x + wrapNy * wrapBlend.y + wrapNz * wrapBlend.z;
+             gl_FragColor.rgb *= mix(0.94, 1.06, wrapN);
              float wrapNd = clamp(dot(normalize(normal), normalize(vViewPosition)), 0.0, 1.0);
              gl_FragColor.rgb += vec3(0.96, 0.9, 0.78) * pow(1.0 - wrapNd, 2.4) * 0.2;
              #include <dithering_fragment>`,
           );
       }}
-      customProgramCacheKey={() => "wrap-tiled-noise"}
+      customProgramCacheKey={() => "wrap-triplanar-grain"}
     />
   );
 }

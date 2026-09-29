@@ -7,10 +7,15 @@ export function drawerTrayFront(h: number, wall: number): { trayH: number; y: nu
   return { trayH: opening - 0.8, y: wall + 0.2, opening };
 }
 
+/** Half-torus radius plus the tube, the distance the pull hangs below its center. */
+export const DRAWER_RIBBON_REACH = 8 + 0.85;
+
 /** Ribbon pull, low on the tray front so it sits under the brand. Null when another pull is chosen. */
-export function drawerRibbonPose(pull: string | undefined, trayH: number, trayD: number): { y: number; z: number } | null {
+export function drawerRibbonPose(pull: string | undefined, trayH: number, trayD: number, floorTop = 0): { y: number; z: number } | null {
   if (pull !== "ribbon") return null;
-  return { y: Math.max(6, trayH * 0.16), z: trayD / 2 + 1.2 };
+  const preferred = Math.max(6, trayH * 0.16);
+  const y = Math.max(floorTop + DRAWER_RIBBON_REACH, preferred);
+  return { y, z: trayD / 2 + 1.2 };
 }
 
 const Drawer: ClosureBuilder = ({ fit, dims, bind, ribbon, pullTab, latch, drawerPull }) => {
@@ -19,7 +24,7 @@ const Drawer: ClosureBuilder = ({ fit, dims, bind, ribbon, pullTab, latch, drawe
   const trayW = dims.w - dims.wall * 2.6;
   const trayD = dims.d - dims.wall * 2.2;
   const trayWall = Math.max(1.2, dims.wall * 0.85);
-  const pull = drawerRibbonPose(drawerPull, trayH, trayD);
+  const pull = drawerRibbonPose(drawerPull, trayH, trayD, dims.wall);
   return (
     <group>
       <group userData={{ hinge: "sleeve" }}>

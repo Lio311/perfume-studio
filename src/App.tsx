@@ -21,7 +21,7 @@ import { CompareBoard } from "./ui/CompareBoard.tsx";
 import { Modals } from "./ui/Modals.tsx";
 import { stopSpeaking } from "./audio/speech.ts";
 import { acknowledgePackLoads, adoptLoadedSuppliers, loadPacks } from "./import/supplierDb.ts";
-import { isKnownPack, withInnerStructure } from "./model/boxFields.ts";
+import { BOX_RANGES, isKnownPack, withInnerStructure } from "./model/boxFields.ts";
 import { packById } from "./model/closures/registry.ts";
 import { hydrateDesign } from "./model/design.ts";
 import { clampLabelText } from "./geometry/logos.ts";
@@ -258,6 +258,12 @@ export default function App() {
       }
       const board = params.get("board");
       if (board === "carton" || board === "rigid") design.box.material = board;
+      const height = Number(params.get("height"));
+      if (params.has("height") && Number.isFinite(height)) {
+        const [lo, hi] = BOX_RANGES.heightMm;
+        design.box.heightMm = Math.min(hi, Math.max(lo, height));
+        design.box.linked = false;
+      }
       const tier = params.get("tier") === "fallback" ? "fallback" as const : "high" as const;
       design.step = 7;
       const wizardPicked = new Set(useLab.getState().wizardPicked);
@@ -279,6 +285,8 @@ export default function App() {
         wizardPicked,
         demoHold: hold,
       });
+      const next = `${location.pathname}${location.hash}`;
+      history.replaceState(history.state, "", next);
     };
     if (useLab.persist.hasHydrated()) applyShot();
     return useLab.persist.onFinishHydration(() => {

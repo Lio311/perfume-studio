@@ -265,6 +265,25 @@ function CameraRig() {
       }
       return;
     }
+    if (prefersReducedMotion()) {
+      camera.position.copy(goalPos.current);
+      look.current.copy(goalTarget.current);
+      camera.up.copy(UP);
+      camera.lookAt(goalTarget.current);
+      fromPos.current.copy(camera.position);
+      fromLook.current.copy(look.current);
+      ORBIT_TARGET.copy(goalTarget.current);
+      mode.current = "idle";
+      sceneSpan.flying = false;
+      measureRadius();
+      const rig = controls as { enabled: boolean; target: THREE.Vector3; update: () => void } | null;
+      if (rig) {
+        rig.target.copy(goalTarget.current);
+        rig.enabled = true;
+        rig.update();
+      }
+      return;
+    }
     if (pullBack > 1) {
       const away = pose.position.clone().sub(pose.target);
       const length = away.length();

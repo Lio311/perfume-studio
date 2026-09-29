@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import * as THREE from "three";
+import { cartonMarkSize } from "../../geometry/logos.ts";
+import { octagonMarkPlacement } from "./build/lift-off.tsx";
 import { prismFrontFacet, prismShell } from "./prism.ts";
 import { MARK_FACE_GAP } from "./kit.tsx";
 
@@ -79,12 +81,13 @@ describe("prism shell", () => {
       if (normal.z > 0.9 && Math.abs(normal.x) < 0.2 && Math.abs(normal.y) < 0.25 && Math.abs(cz - facet.z) < 1.2) facing += 1;
     }
     expect(facing).toBeGreaterThan(0);
-    const markZ = facet.z + MARK_FACE_GAP;
-    const markW = Math.min(facet.width, facet.width * 0.92);
-    expect(markZ - facet.z).toBeGreaterThan(0);
-    expect(markZ - facet.z).toBeLessThan(0.5);
-    expect(markW).toBeLessThanOrEqual(facet.width);
-    expect(markW).toBeGreaterThan(facet.width * 0.8);
+    const place = octagonMarkPlacement(radius, sides);
+    const sized = cartonMarkSize(place.width, 3.5);
+    expect(place.width).toBeCloseTo(facet.width, 5);
+    expect(place.z - facet.z).toBeCloseTo(MARK_FACE_GAP, 5);
+    expect(place.z - facet.z).toBeLessThan(0.5);
+    expect(sized.width).toBeLessThanOrEqual(facet.width);
+    expect(sized.width).toBeGreaterThan(facet.width * 0.85);
     geo.dispose();
   });
 });

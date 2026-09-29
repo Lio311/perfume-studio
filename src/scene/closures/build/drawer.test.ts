@@ -5,7 +5,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { PullRibbon } from "../kit.tsx";
-import { drawerRibbonPose, drawerTrayFront } from "./drawer.tsx";
+import { DRAWER_RIBBON_REACH, drawerRibbonPose, drawerTrayFront } from "./drawer.tsx";
 
 describe("drawer front", () => {
   it("covers the sleeve opening when closed", () => {
@@ -30,5 +30,14 @@ describe("drawer front", () => {
     const markup = renderToStaticMarkup(createElement(PullRibbon, { y: pose!.y, z: pose!.z }));
     expect(markup.toLowerCase()).toContain("torusgeometry");
     expect(markup).toContain("8d1d32");
+  });
+
+  it("keeps the ribbon above the floor on a short box", () => {
+    const wall = 2.2;
+    const front = drawerTrayFront(60, wall);
+    const pose = drawerRibbonPose("ribbon", front.trayH, 50, wall);
+    expect(pose).toBeTruthy();
+    expect(pose!.y - DRAWER_RIBBON_REACH).toBeGreaterThanOrEqual(wall - 1e-6);
+    expect(front.trayH).toBeLessThan(75);
   });
 });

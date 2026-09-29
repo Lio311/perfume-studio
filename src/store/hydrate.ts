@@ -698,19 +698,34 @@ const PERSISTED_FIELDS = ["design", "theme", "lang", "chat", "saved", "pending",
  * data) is copied through so the next write does not erase it. Functions and live UI
  * fields, including `shareUrl`, brief editing, cutaway, quality, and the tier lock, are left out.
  */
+/** Design and undo stack from before a `?closure=` link. Nothing else is frozen. */
+export interface DemoHold {
+  design: unknown;
+  past: unknown;
+  future: unknown;
+}
+
+function isDemoHold(value: unknown): value is DemoHold {
+  return isRecord(value) && Object.hasOwn(value, "design");
+}
+
 /**
- * Design captured before a `?closure=` screenshot link. While that link is on screen,
- * persist writes this snapshot so the visitor's saved design is still there afterwards.
+ * Snapshot taken before a screenshot link mutates the design.
+ * A second apply keeps the first snapshot. Past and future stay with it so the
+ * link's undo stack is not what gets written.
  */
-export function demoSessionHold(state: object): Record<string, unknown> {
+export function demoSessionHold(state: object): DemoHold {
   const source = state as Record<string, unknown>;
-  if (isRecord(source.demoHold)) return source.demoHold;
-  return partializeLabState(state);
+  if (isDemoHold(source.demoHold)) return source.demoHold;
+  return {
+    design: source.design,
+    past: source.past ?? [],
+    future: source.future ?? [],
+  };
 }
 
 export function partializeLabState(state: object): Record<string, unknown> {
   const source = state as Record<string, unknown>;
-  if (isRecord(source.demoHold)) return source.demoHold;
   const out: Record<string, unknown> = {};
   for (const key of PERSISTED_FIELDS) {
     if (!Object.hasOwn(source, key)) continue;
@@ -724,6 +739,7 @@ export function partializeLabState(state: object): Record<string, unknown> {
     if (value === undefined || typeof value === "function") continue;
     out[key] = value;
   }
+  if (isDemoHold(source.demoHold)) out.design = source.demoHold.design;
   return out;
 }
 
