@@ -49,6 +49,9 @@ export function outerWrapMaterialProps(kind: VisibleWrap, color: string, quality
     opacity: 1,
     roughness: 0.78,
     metalness: 0,
+    transmission: 0,
+    thickness: 0,
+    depthWrite: true,
   };
 }
 

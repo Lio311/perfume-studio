@@ -252,9 +252,10 @@ export function OuterSkin({ w, h, d, amount }: { w: number; h: number; d: number
   const planes = cutaway ? [sectionPlane] : undefined;
   const pad = kind === "cellophane" ? 1.4 : 2.2;
   const skin = outerWrapMaterialProps(kind, color, quality);
+  // The carton stands on y=0. A shell centered on the origin only covers the lower half, so the sleeve mark stays in front of the paper.
   return (
     <group ref={ref}>
-      <mesh>
+      <mesh position={[0, h / 2, 0]}>
         <boxGeometry args={[w + pad, h + pad, d + pad]} />
         <meshPhysicalMaterial key={kind} {...skin} clippingPlanes={planes} />
       </mesh>

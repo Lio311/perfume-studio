@@ -12,6 +12,8 @@ describe("outer wrap material", () => {
     expect(cellophane.opacity).toBeCloseTo(0.18);
     expect(sleeve.opacity).toBe(1);
     expect(sleeve.transparent).toBe(false);
+    expect(sleeve.transmission).toBe(0);
+    expect(sleeve.depthWrite).toBe(true);
     expect(sleeve.color.getHexString()).toBe("9aa0a6");
     expect(paper.opacity).toBe(1);
     expect(paper.transparent).toBe(false);
