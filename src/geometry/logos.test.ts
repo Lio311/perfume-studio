@@ -343,6 +343,35 @@ describe("label text layout", () => {
       }
     }
     expect(creamPeak).toBeLessThanOrEqual(243);
+    const outline = new Uint8ClampedArray(width * height * 4);
+    const onOutline = (x: number, y: number) =>
+      (x === 4 || x === 34 || y === 4 || y === 26) && x >= 4 && x <= 34 && y >= 4 && y <= 26;
+    for (let y = 0; y < height; y += 1) {
+      for (let x = 0; x < width; x += 1) {
+        if (!onOutline(x, y)) continue;
+        const index = (y * width + x) * 4;
+        outline[index] = 40;
+        outline[index + 1] = 36;
+        outline[index + 2] = 30;
+        outline[index + 3] = 255;
+      }
+    }
+    relieveLabelPixels(outline, width, height, "engrave");
+    let frostPixels = 0;
+    let darkPixels = 0;
+    let stroked = 0;
+    for (let y = 0; y < height; y += 1) {
+      for (let x = 0; x < width; x += 1) {
+        if (!onOutline(x, y)) continue;
+        stroked += 1;
+        const rgb = at(outline, x, y);
+        if (luma(rgb) > 140) frostPixels += 1;
+        if (luma(rgb) < 50) darkPixels += 1;
+      }
+    }
+    expect(stroked).toBeGreaterThan(40);
+    expect(frostPixels).toBe(stroked);
+    expect(darkPixels).toBe(0);
   });
 
   it("repaints only when a new face loads", () => {

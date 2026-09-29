@@ -372,9 +372,27 @@ export function relieveLabelPixels(
         continue;
       }
       if (application === "engrave") {
-        // A thin rim, not the whole stroke. Wide bands turned the word into a dark smudge.
+        // A thin rim on thick letters. A hairline emblem is thinner than that band, so the
+        // same test used to paint the whole diamond near-black and it fell apart.
         const band = Math.max(2, Math.round(radius * 0.55));
-        const shadow = alphaAt(x - band, y - band) < alpha * 0.55;
+        const run = (dx: number, dy: number) => {
+          let steps = 0;
+          for (let i = 1; i <= band; i += 1) {
+            if (alphaAt(x + dx * i, y + dy * i) < 128) break;
+            steps += 1;
+          }
+          return steps;
+        };
+        const across = Math.min(run(-1, 0) + run(1, 0), run(0, -1) + run(0, 1));
+        const filled =
+          alpha >= 128 &&
+          ((alphaAt(x + 1, y) >= 128 && alphaAt(x, y + 1) >= 128 && alphaAt(x + 1, y + 1) >= 128) ||
+            (alphaAt(x - 1, y) >= 128 && alphaAt(x, y - 1) >= 128 && alphaAt(x - 1, y - 1) >= 128) ||
+            (alphaAt(x + 1, y) >= 128 && alphaAt(x, y - 1) >= 128 && alphaAt(x + 1, y - 1) >= 128) ||
+            (alphaAt(x - 1, y) >= 128 && alphaAt(x, y + 1) >= 128 && alphaAt(x - 1, y + 1) >= 128));
+        // Hairlines have no filled block, so the rim sample must not black them out.
+        const thin = across < band || !filled;
+        const shadow = !thin && alphaAt(x - band, y - band) < alpha * 0.55;
         if (shadow) {
           data[index] = 22;
           data[index + 1] = 24;
@@ -385,7 +403,7 @@ export function relieveLabelPixels(
           data[index + 1] = 178;
           data[index + 2] = 190;
         }
-        data[index + 3] = 255;
+        if (alpha >= 80) data[index + 3] = 255;
         continue;
       }
       const slopeX = (alphaAt(x + radius, y) - alphaAt(x - radius, y)) / 255;
