@@ -180,7 +180,7 @@ export function safeRect(frame: StageFrame): { left: number; right: number; top:
   const left = frame.stageLeft + gutter;
   const right = frame.stageLeft + frame.stageWidth - gutter;
   const top = frame.openTop + 16;
-  const bottom = frame.openTop + frame.openHeight - 64;
+  const bottom = frame.openTop + frame.openHeight - 18;
   return { left, right, top, bottom, width: Math.max(80, right - left), height: Math.max(80, bottom - top) };
 }
 

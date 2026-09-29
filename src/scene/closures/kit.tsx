@@ -257,30 +257,22 @@ export function Ribbon({ w, h, d, y, color = RIBBON_COLOR, cap = true, across = 
   const band = ribbonBandWidth(w, d);
   if (bend) {
     const arc = curvedRibbonArc(bend.radius, band, bend.yaw);
-    const inner = Math.max(0.4, bend.radius - RIBBON_ARC_THICKNESS);
     const flareTo = bend.flareTo;
     const flareH = flareTo != null && Math.abs(flareTo - bend.radius) > 0.12 ? Math.min(1.6, h * 0.35) : 0;
     const bodyH = h - flareH;
-    const innerTop = flareTo == null ? inner : Math.max(0.4, flareTo - RIBBON_ARC_THICKNESS);
     return (
       <group position={[0, y, 0]}>
         {bodyH > 0.2 && (
-          <>
-            <mesh position={[0, bodyH / 2, 0]}>
-              <cylinderGeometry args={[bend.radius, bend.radius, bodyH, arc.segments, 1, true, arc.thetaStart, arc.theta]} />
-              {satin(color, THREE.FrontSide, true)}
-            </mesh>
-
-          </>
+          <mesh position={[0, bodyH / 2, 0]}>
+            <cylinderGeometry args={[bend.radius, bend.radius, bodyH, arc.segments, 1, true, arc.thetaStart, arc.theta]} />
+            {satin(color, THREE.DoubleSide, true)}
+          </mesh>
         )}
         {flareH > 0.2 && flareTo != null && (
-          <>
-            <mesh position={[0, bodyH + flareH / 2, 0]}>
-              <cylinderGeometry args={[flareTo, bend.radius, flareH, arc.segments, 1, true, arc.thetaStart, arc.theta]} />
-              {satin(color, THREE.FrontSide, true)}
-            </mesh>
-
-          </>
+          <mesh position={[0, bodyH + flareH / 2, 0]}>
+            <cylinderGeometry args={[flareTo, bend.radius, flareH, arc.segments, 1, true, arc.thetaStart, arc.theta]} />
+            {satin(color, THREE.DoubleSide, true)}
+          </mesh>
         )}
         {cap && (
           <mesh position={[0, h + 0.3, 0]} rotation={[0, bend.yaw, 0]}>

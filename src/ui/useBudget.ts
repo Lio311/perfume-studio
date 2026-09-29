@@ -122,5 +122,5 @@ export function useBudgetModel(): BudgetModel {
       belowMoq: lines.some((line) => quantityBelowMoq(brief.quantity, line.price.moq)),
     };
     // suppliers refreshes imported prices and facts after a pack sync.
-  }, [brief.ceilingIls, brief.quantity, brief.volumeMl, design, overrides, rates, selected, suppliers]);
+  }, [brief.ceilingIls, brief.quantity, brief.volumeMl, brief.confirmed, design, overrides, rates, selected, suppliers]);
 }

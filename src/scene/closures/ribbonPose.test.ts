@@ -197,6 +197,6 @@ describe("cylinder ribbon pose", () => {
       expect(props.envMapIntensity).toBeCloseTo(0.6, 5);
       sides.push(props.side ?? THREE.FrontSide);
     });
-    expect(sides).toEqual([THREE.FrontSide, THREE.FrontSide, THREE.FrontSide]);
+    expect(sides).toEqual([THREE.DoubleSide, THREE.DoubleSide, THREE.FrontSide]);
   });
 });

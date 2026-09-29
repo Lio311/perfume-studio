@@ -350,7 +350,7 @@ export function Library() {
       {isWizard && !addMenuOpen ? (
         <div style={{ marginTop: "auto", display: "flex", flexDirection: "column", gap: "12px", paddingTop: "12px" }}>
           <button type="button" className="upload-btn" onClick={() => setAddMenuOpen(true)}>
-            {lang === "he" ? "+ הוספה" : "+ Add"}
+            {t.addMenu}
           </button>
         </div>
       ) : (
