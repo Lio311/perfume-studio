@@ -29,10 +29,31 @@ export function Skin({ section = true }: { section?: boolean }) {
   return <WrapMaterial color={wrap?.color || color} finish={wrap?.finish || "soft-touch"} board={board || "rigid"} section={section} />;
 }
 
+/** Brand plane in front of a board face. Callers add this; the mark itself does not. */
+export const MARK_FACE_GAP = 0.2;
 
 /** Foil or print on the board. No dark plate unless print is given a plate colour. */
 export function BrandMark({ w, y, z }: { w: number; y: number; z: number }) {
   return <CartonMark w={w} y={y} z={z} />;
+}
+
+export function InsertFinish() {
+  const material = useLab((s) => s.design.box.insert?.material ?? "eva");
+  const cutaway = useLab((s) => s.cutaway);
+  const color = INSERT_COLOR[material];
+  const velvet = material === "velvet-foam";
+  const planes = cutaway ? [sectionPlane] : undefined;
+  return (
+    <meshPhysicalMaterial
+      color={color}
+      roughness={velvet ? 0.78 : 0.9}
+      sheen={velvet ? 1 : 0}
+      sheenColor={color}
+      sheenRoughness={0.42}
+      envMapIntensity={0.72}
+      clippingPlanes={planes}
+    />
+  );
 }
 
 export function PrismMesh({
@@ -41,18 +62,20 @@ export function PrismMesh({
   height,
   sides,
   y = 0,
+  finish = "wrap",
 }: {
   radius: number;
   inner: number;
   height: number;
   sides: number;
   y?: number;
+  finish?: "wrap" | "insert";
 }) {
   const geo = useMemo(() => prismShell(radius, inner, height, sides), [radius, inner, height, sides]);
   useEffect(() => () => geo.dispose(), [geo]);
   return (
     <mesh geometry={geo} position={[0, y, 0]}>
-      <Skin />
+      {finish === "insert" ? <InsertFinish /> : <Skin />}
     </mesh>
   );
 }
@@ -88,21 +111,23 @@ function useWell(width: number, depth: number, height: number, holeW: number, ho
   return geo;
 }
 
-export function InsertBlock({ fit }: { fit: Fit }) {
+export function InsertBlock({ fit, span, baseY }: { fit: Fit; span?: { w: number; d: number }; baseY?: number }) {
   const material = useLab((s) => s.design.box.insert?.material ?? "eva");
   const orientation = useLab((s) => s.design.box.insert?.orientation ?? "standing");
   const cutaway = useLab((s) => s.cutaway);
   const color = INSERT_COLOR[material];
   const velvet = material === "velvet-foam";
   const wall = Math.max(fit.boardMm, 1.2);
-  const maxW = Math.max(12, fit.boxW - wall * 2 - 1.2);
-  const maxD = Math.max(12, fit.boxD - wall * 2 - 1.2);
+  const maxW = span ? Math.max(12, span.w) : Math.max(12, fit.boxW - wall * 2 - 1.2);
+  const maxD = span ? Math.max(12, span.d) : Math.max(12, fit.boxD - wall * 2 - 1.2);
   const width = Math.min(fit.insertW, maxW);
   const depth = Math.min(fit.insertD, maxD);
-  const wellH = Math.min(Math.max(12, fit.cavityH * 0.4), fit.boxH * 0.36);
+  const wellH = span
+    ? Math.min(22, Math.max(10, fit.cavityH * 0.22))
+    : Math.min(Math.max(12, fit.cavityH * 0.4), fit.boxH * 0.36);
   const well = useWell(width, depth, wellH, fit.cavityW, fit.cavityD);
   const planes = cutaway ? [sectionPlane] : undefined;
-  const y0 = wall;
+  const y0 = baseY ?? wall;
   const ref = useRef<THREE.Group>(null);
   useFrame(() => {
     if (ref.current) ref.current.position.y = y0 + trayLiftNow.mm;
@@ -145,7 +170,7 @@ export function InsertBlock({ fit }: { fit: Fit }) {
         <meshPhysicalMaterial color={color} roughness={velvet ? 0.78 : 0.92} sheen={velvet ? 1 : 0} sheenColor={color} sheenRoughness={0.42} clippingPlanes={planes} />
       </mesh>
       <mesh geometry={well} position={[0, fit.floorMm, 0]}>
-        <meshPhysicalMaterial color={color} roughness={velvet ? 0.8 : 0.9} sheen={velvet ? 1 : 0} sheenColor={color} sheenRoughness={0.4} envMapIntensity={0.72} clippingPlanes={planes} />
+        <meshPhysicalMaterial color={color} roughness={velvet ? 0.72 : 0.78} metalness={0.04} sheen={velvet ? 1 : 0.18} sheenColor={velvet ? color : "#8a8176"} sheenRoughness={0.46} envMapIntensity={0.9} clippingPlanes={planes} />
       </mesh>
     </group>
   );
@@ -201,10 +226,14 @@ export function Ribbon({ w, h, d, y }: { w: number; h: number; d: number; y: num
   );
 }
 
+/** Disc radius in XZ, thickness along Y. The flap keeps both inside the board. */
+export const MAGNET_RADIUS = 2.3;
+export const MAGNET_THICKNESS = 1.15;
+
 export function Magnet({ position, rotation }: { position: [number, number, number]; rotation?: [number, number, number] }) {
   return (
     <mesh position={position} rotation={rotation}>
-      <cylinderGeometry args={[2.3, 2.3, 1.15, 16]} />
+      <cylinderGeometry args={[MAGNET_RADIUS, MAGNET_RADIUS, MAGNET_THICKNESS, 16]} />
       <meshStandardMaterial color="#2a2d33" metalness={0.86} roughness={0.22} />
     </mesh>
   );

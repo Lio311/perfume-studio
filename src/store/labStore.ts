@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { commitSavedDesigns } from "./saveResult.ts";
-import { createLabStorage, LAB_PERSIST_VERSION, mergePersistedLab, migratePersisted, partializeLabState } from "./hydrate.ts";
+import { createLabStorage, type DemoHold, LAB_PERSIST_VERSION, mergePersistedLab, migratePersisted, partializeLabState } from "./hydrate.ts";
 import { produce } from "immer";
 import { applyLook, applyVariant, createDefaultDesign, estimateMl, hydrateDesign, LOOKS } from "../model/design.ts";
 import { BOTTLES } from "../model/bottles.ts";
@@ -116,6 +116,8 @@ interface LabState {
   tierLock: boolean;
   /** Parts the user has explicitly picked during the wizard. Not persisted. */
   wizardPicked: ReadonlySet<PartKey>;
+  /** Pre-link design and undo stack. Not itself persisted. Cleared on the first real edit. */
+  demoHold: DemoHold | null;
   select: (part: PartKey | null) => void;
   hover: (part: PartKey | null, x?: number, y?: number) => void;
   patch: (part: PartKey, partial: Record<string, unknown>) => void;
@@ -432,6 +434,7 @@ export const useLab = create<LabState>()(
       quality: initialQuality(),
       tierLock: false,
       wizardPicked: new Set<PartKey>(),
+      demoHold: null,
       theme: "dark",
       lang: "he",
       libraryOpen: false,
@@ -464,7 +467,9 @@ export const useLab = create<LabState>()(
               draft.box.wrap.color = partial.color;
             }
           });
-          return state.gesturing ? { design: next } : { design: next, past: [...state.past, state.design].slice(-30), future: [] };
+          return state.gesturing
+            ? { design: next, demoHold: null }
+            : { design: next, past: [...state.past, state.design].slice(-30), future: [], demoHold: null };
         }),
       applyCommands: (commands, options) =>
         set((state) => {
@@ -509,6 +514,7 @@ export const useLab = create<LabState>()(
             past: designChanged ? [...state.past, state.design].slice(-30) : state.past,
             future: designChanged ? [] : state.future,
             wizardPicked,
+            demoHold: designChanged ? null : state.demoHold,
           };
         }),
       cycle: (dir, part) => {
@@ -549,14 +555,14 @@ export const useLab = create<LabState>()(
           const previous = state.past[state.past.length - 1];
           const note = state.lang === "he" ? "בוטל" : "Undone";
           if (!previous) return { toast: state.lang === "he" ? "אין מה לבטל" : "Nothing to undo" };
-          return { design: previous, past: state.past.slice(0, -1), future: [state.design, ...state.future].slice(0, 30), toast: note };
+          return { design: previous, past: state.past.slice(0, -1), future: [state.design, ...state.future].slice(0, 30), toast: note, demoHold: null };
         }),
       redo: () =>
         set((state) => {
           const next = state.future[0];
           const note = state.lang === "he" ? "חזר" : "Redone";
           if (!next) return { toast: state.lang === "he" ? "אין מה לחזור" : "Nothing to redo" };
-          return { design: next, future: state.future.slice(1), past: [...state.past, state.design].slice(-30), toast: note };
+          return { design: next, future: state.future.slice(1), past: [...state.past, state.design].slice(-30), toast: note, demoHold: null };
         }),
       beginGesture: () =>
         set((state) => (state.gesturing ? state : { gesturing: true, past: [...state.past, state.design].slice(-30), future: [] })),
@@ -566,6 +572,7 @@ export const useLab = create<LabState>()(
           design: design,
           past: [...state.past, state.design].slice(-30),
           future: [],
+          demoHold: null,
         })),
       duplicateDesign: () =>
         set((state) => ({
@@ -626,13 +633,14 @@ export const useLab = create<LabState>()(
           fullToken: state.fullToken + 1,
           brief: { ceilingIls: 30, volumeMl: 50, confirmed: false },
           briefEditing: false,
+          demoHold: null,
         }));
       },
       loadDesign: async (id) => {
         try {
           const loaded = await apiClient.get<SavedDesign>(`/designs/${id}`);
           if (loaded && loaded.design) {
-            set((state) => ({ design: hydrateDesign(loaded.design), modal: null, focusToken: state.focusToken + 1 }));
+            set((state) => ({ design: hydrateDesign(loaded.design), modal: null, focusToken: state.focusToken + 1, demoHold: null }));
             return;
           }
         } catch (e) {
@@ -640,7 +648,7 @@ export const useLab = create<LabState>()(
         }
         const found = get().saved.find((item) => item.id === id);
         if (!found) return;
-        set((state) => ({ design: hydrateDesign(found.design), modal: null, focusToken: state.focusToken + 1 }));
+        set((state) => ({ design: hydrateDesign(found.design), modal: null, focusToken: state.focusToken + 1, demoHold: null }));
       },
       deleteDesign: async (id) => {
         set((state) => ({ saved: state.saved.filter((item) => item.id !== id), compareIds: state.compareIds.filter((item) => item !== id) }));

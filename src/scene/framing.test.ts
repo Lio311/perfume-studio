@@ -99,7 +99,7 @@ describe("focus framing on a MacBook stage", () => {
     design.box.liftOff = { ...design.box.liftOff, variant: "telescope-full" };
     for (const open of [false, true]) {
       const bounds = assemblyBounds(design, 0, "box", open);
-      const dir = new THREE.Vector3(open ? 0.5 : 0.72, open ? 1.18 : 0.46, open ? 0.8 : 1).normalize();
+      const dir = new THREE.Vector3(open ? 0.82 : 0.72, open ? 0.95 : 0.46, open ? 0.78 : 1).normalize();
       const pose = fitPose(bounds, dir, 30, frame, BOX_FILL);
       const box = projected(pose, bounds, frame);
       const ratio = box.h / frame.height;
@@ -108,7 +108,7 @@ describe("focus framing on a MacBook stage", () => {
     }
     design.box.structure = "drawer";
     const openDrawer = assemblyBounds(design, 0, "box", true);
-    const drawerPose = fitPose(openDrawer, new THREE.Vector3(0.5, 1.18, 0.8).normalize(), 30, frame, BOX_FILL);
+    const drawerPose = fitPose(openDrawer, new THREE.Vector3(0.82, 0.95, 0.78).normalize(), 30, frame, BOX_FILL);
     const drawer = projected(drawerPose, openDrawer, frame);
     expect(drawer.h / frame.height).toBeGreaterThan(0.55);
     expect(drawer.h / frame.height).toBeLessThanOrEqual(0.7);

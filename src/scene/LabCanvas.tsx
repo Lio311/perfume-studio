@@ -9,7 +9,10 @@ import type { PartKey } from "../model/types.ts";
 import type { ViewPreset } from "../store/labStore.ts";
 import { Assembly } from "./Assembly.tsx";
 import { releaseFocus } from "./focusClick.ts";
+import { isKnownPack } from "../model/boxFields.ts";
+import { boxCameraSnap } from "./boxOrbit.ts";
 import { assemblyBounds, BOX_FILL, boxViewportFrame, fitPose, FOCUS_FILL, orbitLimits, partBounds, readStageFrame } from "./framing.ts";
+import { prefersReducedMotion } from "./motion.ts";
 import { cameraProbe, sceneSpan } from "./limits.ts";
 import { clampPolarOffset, decayGlide, emptyGlide, PAN_SPEED, PAN_STEP, PITCH_STEP, polarAngle, poseBroken, pushGlide, ROTATE_SPEED, takeStep, YAW_STEP, type Glide } from "./orbitGlide.ts";
 import { Exposure, PixelRatio, StageFloor, StudioEnv, StudioLights } from "./studio.tsx";
@@ -96,6 +99,12 @@ function frameSignature(width: number, height: number): string {
   ].join("|");
 }
 
+function boxDemoLink(): boolean {
+  if (typeof window === "undefined") return false;
+  const params = new URLSearchParams(window.location.search);
+  return isKnownPack(params.get("closure") ?? params.get("structure"));
+}
+
 function stageWash(themeId: "dark" | "light", voice: 1 | 2 | 3): { top: string; bottom: string } {
   if (themeId === "light") return { top: themes.light.scene.top, bottom: themes.light.scene.bottom };
   if (voice === 2) return { top: "#12181e", bottom: "#07080c" };
@@ -153,6 +162,8 @@ function CameraRig() {
   const fromLook = useRef(new THREE.Vector3());
   const animStart = useRef(0);
   const radius = useRef(48);
+  const boxEntered = useRef(false);
+  const [reducedMotion, setReducedMotion] = useState(prefersReducedMotion);
 
   const measureRadius = () => {
     const state = useLab.getState();
@@ -212,22 +223,67 @@ function CameraRig() {
   };
 
   const aim = (dir: THREE.Vector3, pullBack = 1) => {
-    direction.current.copy(dir);
     const state = useLab.getState();
-    const framed = dir.clone();
     const boxScene = state.stage === "box" && !state.solo;
-    if (boxScene) {
-      framed.set(state.boxOpen ? 0.85 : 0.72, state.boxOpen ? 1.4 : 0.46, state.boxOpen ? 0.62 : 1);
-      framed.normalize();
-    } else if (state.stage !== "bottle" && state.boxOpen && !state.solo) {
+    const canned = boxCameraSnap({ boxScene, demo: boxDemoLink(), entered: boxEntered.current, pullBack });
+    const framed = dir.clone();
+    const refit = dir.distanceTo(direction.current) < 1e-3;
+    if (canned) {
+      framed.set(state.boxOpen ? 0.82 : 0.72, state.boxOpen ? 0.95 : 0.46, state.boxOpen ? 0.78 : 1);
+    } else if (boxScene && pullBack <= 1 && refit) {
+      const live = camera.position.clone().sub(look.current);
+      if (live.length() > 8) framed.copy(live);
+    } else if (!boxScene && state.stage !== "bottle" && state.boxOpen && !state.solo) {
       framed.set(0.62, 0.92, 1);
-      framed.normalize();
     }
+    if (framed.y < 0.02) framed.y = 0.08;
+    framed.normalize();
+    direction.current.copy(framed);
+    boxEntered.current = boxScene;
     const present = state.present;
     const exploded = state.explode > 0.12 && !state.aimed && !state.solo;
     const pose = poseFor(framed, undefined, exploded ? 0.72 : boxScene ? BOX_FILL : present ? 0.58 : undefined);
     goalPos.current.copy(pose.position);
     goalTarget.current.copy(pose.target);
+    const jump = (canned || prefersReducedMotion()) && pullBack <= 1;
+    if (jump) {
+      camera.position.copy(pose.position);
+      look.current.copy(pose.target);
+      camera.up.copy(UP);
+      camera.lookAt(pose.target);
+      fromPos.current.copy(camera.position);
+      fromLook.current.copy(look.current);
+      ORBIT_TARGET.copy(pose.target);
+      mode.current = "idle";
+      sceneSpan.flying = false;
+      measureRadius();
+      const rig = controls as { enabled: boolean; target: THREE.Vector3; update: () => void } | null;
+      if (rig) {
+        rig.target.copy(pose.target);
+        rig.enabled = true;
+        rig.update();
+      }
+      return;
+    }
+    if (prefersReducedMotion()) {
+      camera.position.copy(goalPos.current);
+      look.current.copy(goalTarget.current);
+      camera.up.copy(UP);
+      camera.lookAt(goalTarget.current);
+      fromPos.current.copy(camera.position);
+      fromLook.current.copy(look.current);
+      ORBIT_TARGET.copy(goalTarget.current);
+      mode.current = "idle";
+      sceneSpan.flying = false;
+      measureRadius();
+      const rig = controls as { enabled: boolean; target: THREE.Vector3; update: () => void } | null;
+      if (rig) {
+        rig.target.copy(goalTarget.current);
+        rig.enabled = true;
+        rig.update();
+      }
+      return;
+    }
     if (pullBack > 1) {
       const away = pose.position.clone().sub(pose.target);
       const length = away.length();
@@ -245,6 +301,15 @@ function CameraRig() {
     camera.position.set(220, 340, 1280);
     camera.lookAt(0, 48, 0);
   }, [camera]);
+
+  useEffect(() => {
+    if (typeof window.matchMedia !== "function") return undefined;
+    const query = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const sync = () => setReducedMotion(query.matches);
+    sync();
+    query.addEventListener?.("change", sync);
+    return () => query.removeEventListener?.("change", sync);
+  }, []);
 
   const controlsRef = useRef(controls);
   controlsRef.current = controls;
@@ -392,7 +457,7 @@ function CameraRig() {
 
     if (mode.current === "anim") {
       if (controls) controls.enabled = false;
-      const t = Math.min(1, (performance.now() - animStart.current) / 1350);
+      const t = prefersReducedMotion() ? 1 : Math.min(1, (performance.now() - animStart.current) / 1350);
       const eased = t < 0.5 ? 4 * t * t * t : 1 - ((-2 * t + 2) ** 3) / 2;
       camera.position.lerpVectors(fromPos.current, goalPos.current, eased);
       look.current.lerpVectors(fromLook.current, goalTarget.current, eased);
@@ -525,8 +590,8 @@ function CameraRig() {
     <OrbitControls
       makeDefault
       target={ORBIT_TARGET}
-      enableDamping
-      dampingFactor={0.05}
+      enableDamping={!reducedMotion}
+      dampingFactor={reducedMotion ? 0 : 0.05}
       rotateSpeed={ROTATE_SPEED}
       zoomSpeed={0.26}
       panSpeed={PAN_SPEED}

@@ -1,5 +1,19 @@
 import * as THREE from "three";
 
+/**
+ * Flat facing +Z. Vertices start at -π/2 + π/n so a facet, not a corner, points at the camera.
+ * Distance from the origin to that facet, and the facet width.
+ */
+export function prismFrontFacet(radius: number, sides: number): { z: number; width: number; normal: [number, number, number] } {
+  const n = Math.max(3, Math.round(sides));
+  const step = Math.PI / n;
+  return { z: radius * Math.cos(step), width: 2 * radius * Math.sin(step), normal: [0, 0, 1] };
+}
+
+function prismAngle(index: number, sides: number): number {
+  return (index / sides) * Math.PI * 2 - Math.PI / 2 + Math.PI / sides;
+}
+
 /** Thick closed prism. `sides` 48 reads as a tube; 8 is an octagon. Inner radius 0 is a solid cap. */
 export function prismShell(outerRadius: number, innerRadius: number, height: number, sides: number): THREE.BufferGeometry {
   const n = Math.max(3, Math.round(sides));
@@ -7,7 +21,7 @@ export function prismShell(outerRadius: number, innerRadius: number, height: num
   const rise = Math.max(0.4, height);
   const shape = new THREE.Shape();
   for (let i = 0; i < n; i += 1) {
-    const angle = (i / n) * Math.PI * 2 - Math.PI / 2;
+    const angle = prismAngle(i, n);
     const x = Math.cos(angle) * outer;
     const y = Math.sin(angle) * outer;
     if (i === 0) shape.moveTo(x, y);
@@ -18,7 +32,7 @@ export function prismShell(outerRadius: number, innerRadius: number, height: num
   if (holeR > 0) {
     const hole = new THREE.Path();
     for (let i = n - 1; i >= 0; i -= 1) {
-      const angle = (i / n) * Math.PI * 2 - Math.PI / 2;
+      const angle = prismAngle(i, n);
       const x = Math.cos(angle) * holeR;
       const y = Math.sin(angle) * holeR;
       if (i === n - 1) hole.moveTo(x, y);
