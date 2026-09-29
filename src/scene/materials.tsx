@@ -262,6 +262,17 @@ export function FinishMaterial({
   );
 }
 
+/** Roughness and environment of the board the carton mark has to match. */
+export function boardSurface(board: BoxBoard, finish: WrapFinish): { roughness: number; envMapIntensity: number } {
+  const gloss = finish === "gloss";
+  const pile = finish === "velvet";
+  const soft = finish === "soft-touch";
+  return {
+    roughness: gloss ? 0.16 : pile ? 0.82 : soft ? 0.62 : board === "carton" ? 0.86 : 0.8,
+    envMapIntensity: gloss ? 0.9 : pile ? 0.55 : soft ? 0.62 : 0.48,
+  };
+}
+
 export function WrapMaterial({
   color,
   finish,
@@ -298,19 +309,20 @@ export function WrapMaterial({
   const pile = finish === "velvet";
   const gloss = finish === "gloss";
   const soft = finish === "soft-touch";
+  const surface = boardSurface(board, finish);
   return (
     <meshPhysicalMaterial
       color={color}
       map={pile ? velvet?.map : paper?.map}
       roughnessMap={pile ? velvet?.rough : paper?.rough}
       metalness={0}
-      roughness={gloss ? 0.16 : pile ? 0.82 : soft ? 0.62 : board === "carton" ? 0.86 : 0.8}
+      roughness={surface.roughness}
       clearcoat={gloss ? 0.75 : soft ? 0.34 : 0.08}
       clearcoatRoughness={gloss ? 0.18 : 0.42}
       sheen={pile ? 1 : soft ? 0.38 : 0.12}
       sheenColor={color}
       sheenRoughness={pile ? 0.38 : 0.55}
-      envMapIntensity={gloss ? 0.9 : pile ? 0.55 : soft ? 0.62 : 0.48}
+      envMapIntensity={surface.envMapIntensity}
       clippingPlanes={planes}
       onBeforeCompile={(shader) => {
         shader.fragmentShader = shader.fragmentShader.replace(

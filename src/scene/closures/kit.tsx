@@ -6,6 +6,7 @@ import type { Fit } from "../../model/fit.ts";
 import { useLab } from "../../store/labStore.ts";
 import { CartonMark } from "../cartonMark.tsx";
 import { FinishMaterial, WrapMaterial } from "../materials.tsx";
+import { outerWrapMaterialProps } from "./outerWrap.ts";
 import { prismShell } from "./prism.ts";
 import { sectionPlane } from "../sectionPlane.ts";
 import { trayLiftNow } from "../trayLift.ts";
@@ -250,33 +251,12 @@ export function OuterSkin({ w, h, d, amount }: { w: number; h: number; d: number
   if (kind === "none") return null;
   const planes = cutaway ? [sectionPlane] : undefined;
   const pad = kind === "cellophane" ? 1.4 : 2.2;
+  const skin = outerWrapMaterialProps(kind, color, quality);
   return (
     <group ref={ref}>
       <mesh>
         <boxGeometry args={[w + pad, h + pad, d + pad]} />
-        {kind === "cellophane" ? (
-          <meshPhysicalMaterial
-            color="#f7f8f4"
-            transparent
-            opacity={quality === "high" ? 0.18 : 0.22}
-            roughness={0.06}
-            metalness={0}
-            transmission={quality === "high" ? 0.9 : 0}
-            thickness={0.35}
-            ior={1.46}
-            depthWrite={false}
-            clippingPlanes={planes}
-          />
-        ) : (
-          <meshPhysicalMaterial
-            color={kind === "tissue" ? "#f3ecdf" : color}
-            transparent
-            opacity={kind === "tissue" ? 0.55 : 0.96}
-            roughness={kind === "tissue" ? 0.95 : 0.78}
-            metalness={0}
-            clippingPlanes={planes}
-          />
-        )}
+        <meshPhysicalMaterial key={kind} {...skin} clippingPlanes={planes} />
       </mesh>
     </group>
   );

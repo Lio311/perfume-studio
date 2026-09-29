@@ -60,9 +60,6 @@ export function shouldRepaintLabel(alreadyLoaded: boolean): boolean {
   return !alreadyLoaded;
 }
 
-/** Reference metals. Foil uses the chosen label colour; these stay for saves that picked them. */
-export const FOIL_GOLD = "#d4a017";
-export const FOIL_SILVER = "#f3f6fb";
 /** Raised mark when the caller has no substrate colour yet. */
 export const EMBOSS_SUBSTRATE = "#cfc8bc";
 
@@ -149,6 +146,12 @@ export interface LabelFinish {
  * The face is rough enough to carry the ink colour, and this is the least environment response it keeps.
  */
 export const FOIL_ENV_FLOOR = 1.2;
+/** Below this WCAG ratio a foil tint disappears into the plate. */
+export const FOIL_CONTRAST_FLOOR = 1.6;
+/** Linear channel floor for a foil that would otherwise match its plate. */
+export const FOIL_METAL_MIN = 0.18;
+/** Metalness when the tint is too close to the plate for a mirror to read. */
+export const FOIL_LOW_METALNESS = 0.3;
 
 /**
  * Finish of the ink region.
@@ -178,6 +181,26 @@ export function labelFinish(application: LogoApplication = "decal"): LabelFinish
 /** Emissive colour for a finish. Foil glows in the ink; every other application stays black. */
 export function labelEmissive(ink: string, application: LogoApplication = "decal"): string {
   return labelFinish(application).emissive > 0 ? ink : "#000000";
+}
+
+/**
+ * Foil keeps its chosen colour, except when that colour is too close to the plate.
+ * The metal is then lifted to {@link FOIL_METAL_MIN} so black on black still reads.
+ */
+export function foilDisplayInk(ink: string, substrate?: string): string {
+  const ground = substrate?.trim();
+  if (!ground || contrastRatio(ink, ground) >= FOIL_CONTRAST_FLOOR) return ink;
+  const parsed = parsedColor(ink);
+  return hexFromLinear({
+    r: Math.max(parsed.r, FOIL_METAL_MIN),
+    g: Math.max(parsed.g, FOIL_METAL_MIN),
+    b: Math.max(parsed.b, FOIL_METAL_MIN),
+  });
+}
+
+export interface FoilRelief {
+  ink: string;
+  substrate: string;
 }
 
 /** 0 on the contrasting plate, 1 on solid ink. Edges in between stay partial so anti-aliasing survives. */
@@ -360,14 +383,28 @@ export function relieveLabelPixels(
   width: number,
   height: number,
   application: LogoApplication,
+  foil?: FoilRelief,
 ): void {
   if (application === "decal" || width < 2 || height < 2) return;
   const src = new Uint8ClampedArray(data);
   const radius = Math.max(2, Math.round(Math.min(width, height) * 0.02));
+  const lowContrast =
+    application === "foil" &&
+    foil !== undefined &&
+    contrastRatio(foil.ink, foil.substrate) < FOIL_CONTRAST_FLOOR;
   const alphaAt = (x: number, y: number) => {
     const cx = clampIndex(x, width - 1);
     const cy = clampIndex(y, height - 1);
     return src[(cy * width + cx) * 4 + 3];
+  };
+  const onRim = (x: number, y: number) => {
+    for (let dy = -2; dy <= 2; dy += 1) {
+      for (let dx = -2; dx <= 2; dx += 1) {
+        if (dx === 0 && dy === 0) continue;
+        if (alphaAt(x + dx, y + dy) < 128) return true;
+      }
+    }
+    return false;
   };
   for (let y = 0; y < height; y += 1) {
     for (let x = 0; x < width; x += 1) {
@@ -375,15 +412,26 @@ export function relieveLabelPixels(
       const alpha = src[index + 3];
       if (alpha === 0) continue;
       if (application === "foil") {
-        const lip = alphaAt(x, y - radius) < alpha * 0.45;
-        if (lip) {
-          data[index] = Math.min(255, Math.round(src[index] + (255 - src[index]) * 0.45));
-          data[index + 1] = Math.min(255, Math.round(src[index + 1] + (255 - src[index + 1]) * 0.45));
-          data[index + 2] = Math.min(255, Math.round(src[index + 2] + (255 - src[index + 2]) * 0.45));
+        let red = src[index];
+        let green = src[index + 1];
+        let blue = src[index + 2];
+        if (lowContrast) {
+          red = liftSrgbByte(red);
+          green = liftSrgbByte(green);
+          blue = liftSrgbByte(blue);
+        }
+        if (lowContrast && onRim(x, y)) {
+          data[index] = Math.round(red + (255 - red) * 0.6);
+          data[index + 1] = Math.round(green + (255 - green) * 0.6);
+          data[index + 2] = Math.round(blue + (255 - blue) * 0.6);
+        } else if (alphaAt(x, y - radius) < alpha * 0.45) {
+          data[index] = Math.min(255, Math.round(red + (255 - red) * 0.45));
+          data[index + 1] = Math.min(255, Math.round(green + (255 - green) * 0.45));
+          data[index + 2] = Math.min(255, Math.round(blue + (255 - blue) * 0.45));
         } else {
-          data[index] = Math.round(src[index] * 0.94);
-          data[index + 1] = Math.round(src[index + 1] * 0.94);
-          data[index + 2] = Math.round(src[index + 2] * 0.94);
+          data[index] = Math.round(red * 0.94);
+          data[index + 1] = Math.round(green * 0.94);
+          data[index + 2] = Math.round(blue * 0.94);
         }
         continue;
       }
@@ -427,13 +475,17 @@ export function hairlineWidth(span: number, ratio: number, application: LogoAppl
   return Math.max(minPx, span * ratio);
 }
 
-export function applyLabelRelief(canvas: HTMLCanvasElement, application: LogoApplication): void {
+export function applyLabelRelief(canvas: HTMLCanvasElement, application: LogoApplication, foil?: FoilRelief): void {
   if (application === "decal") return;
   const ctx = canvas.getContext("2d", { willReadFrequently: true });
   if (!ctx || canvas.width < 2 || canvas.height < 2) return;
   const image = ctx.getImageData(0, 0, canvas.width, canvas.height);
-  relieveLabelPixels(image.data, canvas.width, canvas.height, application);
+  relieveLabelPixels(image.data, canvas.width, canvas.height, application, foil);
   ctx.putImageData(image, 0, 0);
+}
+
+function liftSrgbByte(byte: number): number {
+  return linearToSrgbByte(Math.max(srgbChannelToLinear(byte / 255), FOIL_METAL_MIN));
 }
 
 /** Tangent-space normal from glyph alpha. Emboss uses it as lit relief; other applications stay flat. */
@@ -945,11 +997,11 @@ const TYPE_MARKS = new Set<LogoSpec["mark"]>(["word", "horizon", "stacked", "ver
 
 /**
  * Ground behind carton ink.
- * Print and emboss keep a plate. Foil and engrave stay clear.
- * An empty colour stays clear so a missing board does not paint black.
+ * Print keeps a plate. Emboss stays clear: the normal map is the glyph alpha, and the board shows through.
+ * Foil and engrave stay clear. An empty colour stays clear so a missing board does not paint black.
  */
 export function cartonMarkPlate(application: LogoApplication | "print", plateColour?: string | null): string | "clear" {
-  const plated = application === "decal" || application === "print" || application === "emboss";
+  const plated = application === "decal" || application === "print";
   if (!plated) return "clear";
   const colour = plateColour?.trim() ?? "";
   return colour ? colour : "clear";
@@ -1033,8 +1085,7 @@ export function paintLabel(
 
 /**
  * Brand line for the carton face.
- * Foil and engrave sit on the paper. Print gets a contrasting plate.
- * Emboss is drawn clear here; the plate is composited afterwards so glyph alpha can still build a normal.
+ * Print gets a contrasting plate. Emboss, foil, and engrave sit on the board.
  */
 export function paintCartonMark(
   ctx: CanvasRenderingContext2D,
@@ -1044,11 +1095,13 @@ export function paintCartonMark(
   w: number,
   h: number,
   application: LogoApplication,
+  plateColour?: string | null,
 ): void {
-  const plate = application === "decal";
+  const supplied = plateColour ?? (application === "decal" ? contrastingPlate(ink) : "");
+  const plate = cartonMarkPlate(application, supplied);
   ctx.clearRect(0, 0, w, h);
-  if (plate) {
-    ctx.fillStyle = contrastingPlate(ink);
+  if (plate !== "clear") {
+    ctx.fillStyle = plate;
     ctx.fillRect(0, 0, w, h);
   }
   const family = labelFontFamily(spec.font, text);
@@ -1070,6 +1123,9 @@ export function paintCartonMark(
   }
   ctx.font = `${weight} ${layout.px}px ${family}`;
   ctx.fillStyle = ink;
+  ctx.strokeStyle = ink;
+  ctx.lineWidth = hairlineWidth(layout.px, 0.012, application);
+  ctx.lineJoin = "round";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   const leading = layout.px * 1.16;
@@ -1077,6 +1133,7 @@ export function paintCartonMark(
   let y = (h - block) / 2 + leading * 0.5;
   for (const line of layout.lines) {
     ctx.direction = layout.direction;
+    ctx.strokeText(line, w / 2, y);
     ctx.fillText(line, w / 2, y);
     y += leading;
   }
@@ -1089,6 +1146,7 @@ export function cartonMarkCanvas(
   text: string,
   ink: string,
   application: LogoApplication,
+  foil?: FoilRelief,
 ): HTMLCanvasElement {
   const probe = document.createElement("canvas");
   const probeCtx = probe.getContext("2d");
@@ -1109,8 +1167,7 @@ export function cartonMarkCanvas(
   const ctx = canvas.getContext("2d");
   if (ctx) {
     paintCartonMark(ctx, spec, text, ink, width, height, application);
-    applyLabelRelief(canvas, application);
-    if (application === "emboss") sealEmbossPlate(canvas, ink);
+    applyLabelRelief(canvas, application, foil);
   }
   return canvas;
 }
@@ -1134,6 +1191,7 @@ export function logoTexture(
   size = 512,
   height?: number,
   application: LogoApplication = "decal",
+  foil?: FoilRelief,
 ): HTMLCanvasElement {
   const canvas = document.createElement("canvas");
   const w = Math.max(32, Math.round(size));
@@ -1142,9 +1200,9 @@ export function logoTexture(
   canvas.height = h;
   const ctx = canvas.getContext("2d");
   if (!ctx) return canvas;
-  const minStroke = application === "decal" ? 1 : 2;
+  const minStroke = hairlineWidth(1, 0, application);
   paintLabel(ctx, spec, text, ink, w, h, application === "decal" ? "contrast" : "clear", minStroke);
-  applyLabelRelief(canvas, application);
+  applyLabelRelief(canvas, application, foil);
   if (application === "emboss") sealEmbossPlate(canvas, ink);
   return canvas;
 }

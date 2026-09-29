@@ -689,7 +689,15 @@ function LabelPart() {
   return (
     <PartShell part="label" index={4} home={[0, fit.labelY, fit.labelZ]} explode={fit.explode.label} visible={design.label.visible && onStage} variantKey={spec.id + design.label.text + bottle.id + application}>
       <mesh geometry={plate} renderOrder={8}>
-        <LabelFinishMaterial map={texture} mask={mask} emissiveMap={emissive} normalMap={normal} ink={ink} application={application} />
+        <LabelFinishMaterial
+          map={texture}
+          mask={mask}
+          emissiveMap={emissive}
+          normalMap={normal}
+          ink={application === "foil" ? design.label.color : ink}
+          application={application}
+          substrate={application === "foil" ? design.bottle.color : undefined}
+        />
         <GoldRim part="label" stamp={spec.id + design.label.text} />
       </mesh>
     </PartShell>

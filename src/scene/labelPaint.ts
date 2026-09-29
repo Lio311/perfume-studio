@@ -1,6 +1,6 @@
 import { createContext, createElement, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import * as THREE from "three";
-import { cartonMarkCanvas, contrastingPlate, embossHeightCanvas, labelEmissiveCanvas, labelFinish, labelFontSpec, labelInk, labelNormalCanvas, labelSurfaceCanvas, logoTexture, shouldRepaintLabel } from "../geometry/logos.ts";
+import { cartonMarkCanvas, contrastingPlate, embossHeightCanvas, foilDisplayInk, labelEmissiveCanvas, labelFinish, labelFontSpec, labelInk, labelNormalCanvas, labelSurfaceCanvas, logoTexture, shouldRepaintLabel, type FoilRelief } from "../geometry/logos.ts";
 import { logoById, resolvedLabelApplication } from "../model/catalog.ts";
 import { computeFit } from "../model/fit.ts";
 import type { LogoApplication, LogoFont } from "../model/types.ts";
@@ -93,7 +93,8 @@ export function LabelPaintProvider({ children }: { children: ReactNode }) {
   const application = resolvedLabelApplication(design.label);
   const fit = computeFit(design, false);
   const ground = application === "emboss" || application === "engrave" ? contrastingPlate(design.label.color) : undefined;
-  const ink = labelInk(design.label.color, application, ground);
+  const foil: FoilRelief | undefined = application === "foil" ? { ink: design.label.color, substrate: design.bottle.color } : undefined;
+  const ink = foil ? foilDisplayInk(foil.ink, foil.substrate) : labelInk(design.label.color, application, ground);
   const fontTick = useLabelFontTick(spec.font, design.label.text);
   const aspect = fit.labelW / Math.max(4, fit.labelH);
   const longSide = 2048;
@@ -102,7 +103,7 @@ export function LabelPaintProvider({ children }: { children: ReactNode }) {
   const immediate = [spec.id, application, fontTick].join("\u0000");
   const deferred = [design.label.text, ink, width, height].join("\u0000");
   const canvas = useDebouncedLabelCanvas(immediate, deferred, () => {
-    const drawn = logoTexture(spec, design.label.text, ink, width, height, application);
+    const drawn = logoTexture(spec, design.label.text, ink, width, height, application, foil);
     drawn.dataset.fonts = String(fontTick);
     return drawn;
   });
@@ -115,12 +116,13 @@ export function useCartonLabelCanvas(): HTMLCanvasElement {
   const spec = logoById(design.label.variantId);
   const application = resolvedLabelApplication(design.label);
   const ground = application === "emboss" || application === "engrave" ? design.box.color : undefined;
-  const ink = labelInk(design.label.color, application, ground);
+  const foil: FoilRelief | undefined = application === "foil" ? { ink: design.label.color, substrate: design.box.color } : undefined;
+  const ink = foil ? foilDisplayInk(foil.ink, foil.substrate) : labelInk(design.label.color, application, ground);
   const fontTick = useLabelFontTick(spec.font, design.label.text);
   const immediate = [spec.id, application, spec.font, fontTick].join("\u0000");
-  const deferred = [design.label.text, ink].join("\u0000");
+  const deferred = [design.label.text, ink, foil?.substrate ?? ""].join("\u0000");
   return useDebouncedLabelCanvas(immediate, deferred, () => {
-    const drawn = cartonMarkCanvas(spec, design.label.text, ink, application);
+    const drawn = cartonMarkCanvas(spec, design.label.text, ink, application, foil);
     drawn.dataset.fonts = String(fontTick);
     return drawn;
   });
