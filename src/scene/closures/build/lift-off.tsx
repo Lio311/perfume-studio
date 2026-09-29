@@ -6,9 +6,9 @@ import type { Fit } from "../../../model/fit.ts";
 import { useLab } from "../../../store/labStore.ts";
 import { prismFrontFacet } from "../prism.ts";
 import { trayLiftNow } from "../../trayLift.ts";
-import { BOX_CLOSED_MARK_AZIMUTH } from "../../boxCamera.ts";
 import { TubeMark } from "../tubeMark.tsx";
 import { BrandMark, InsertBlock, InsertFinish, Magnet, MARK_FACE_GAP, PrismMesh, PullTab, RIBBON_COLOR, Ribbon, Skin, Tub } from "../kit.tsx";
+import { cylinderRibbonYaw, splitRibbon } from "../ribbonPose.ts";
 import type { ClosureBuilder } from "../types.ts";
 
 /** Width passed to the carton mark, and the plane's z, for the facet that faces the camera. */
@@ -109,6 +109,7 @@ const LiftOff: ClosureBuilder = ({ form, fit, spec, dims, bind, ribbon, pullTab,
   const tied = ribbon || latch === "ribbon";
   const telescope = !shoulder && dims.lidH >= dims.h * 0.9;
   const trayH = telescope ? Math.max(dims.wall * 6, dims.h * 0.38) : dims.baseH;
+  const ribbonY = dims.h * 0.28;
   if (shape.type === "cylinder" || shape.type === "polygon") {
     const cylinder = shape.type === "cylinder";
     const sides = shape.type === "polygon" ? Math.min(12, Math.max(3, Math.round(shape.sides ?? 8))) : 48;
@@ -120,6 +121,8 @@ const LiftOff: ClosureBuilder = ({ form, fit, spec, dims, bind, ribbon, pullTab,
     const lidInner = Math.max(lidR - wall, lidR * 0.78);
     const face = cylinder ? null : octagonMarkPlacement(lidR, sides);
     const baseFace = cylinder ? null : octagonMarkPlacement(radius, sides);
+    const yaw = cylinderRibbonYaw(radius, lidR, dims.w, lidR * 2);
+    const ribbonSpan = splitRibbon(ribbonY, dims.h, Math.max(trayH, lid[1]));
     return (
       <group>
         <PrismMesh radius={radius - 0.15} inner={0} height={dims.wall} sides={sides} />
@@ -131,13 +134,22 @@ const LiftOff: ClosureBuilder = ({ form, fit, spec, dims, bind, ribbon, pullTab,
           <PrismMesh radius={lidR} inner={0} height={dims.wall} sides={sides} y={Math.max(0, dims.lidH - dims.wall)} />
           {cylinder && telescope && <TubeMark radius={lidR} y={dims.lidH * 0.55} />}
           {face && telescope && <BrandMark w={face.width} y={dims.lidH * 0.55} z={face.z} />}
-          {pullTab && <PullTab w={Math.min(dims.w, face?.width ?? radius)} z={face?.z ?? lidR} />}
+          {tied && ribbonSpan.above && (
+            <group rotation={[0, yaw, 0]}>
+              <Ribbon w={dims.w} h={ribbonSpan.above.h} d={lidR * 2} y={ribbonSpan.above.y - lid[1]} color={RIBBON_COLOR} />
+            </group>
+          )}
+          {!tied && pullTab && (
+            <group rotation={[0, yaw, 0]}>
+              <PullTab w={dims.w} y={-2} z={lidR + 0.4} color={RIBBON_COLOR} />
+            </group>
+          )}
         </group>
         {cylinder && !telescope && <TubeMark radius={radius} y={trayH * 0.55} />}
         {baseFace && !telescope && <BrandMark w={baseFace.width} y={trayH * 0.55} z={baseFace.z} />}
-        {tied && (
-          <group rotation={[0, BOX_CLOSED_MARK_AZIMUTH, 0]}>
-            <Ribbon w={dims.w} h={dims.h * 0.45} d={lidR * 2} y={dims.h * 0.28} color={RIBBON_COLOR} />
+        {tied && ribbonSpan.below && (
+          <group rotation={[0, yaw, 0]}>
+            <Ribbon w={dims.w} h={ribbonSpan.below.h} d={radius * 2} y={ribbonSpan.below.y} cap={false} color={RIBBON_COLOR} />
           </group>
         )}
       </group>
@@ -168,14 +180,10 @@ const LiftOff: ClosureBuilder = ({ form, fit, spec, dims, bind, ribbon, pullTab,
           </>
         )}
         {telescope && <BrandMark w={lidW} y={dims.lidH * 0.46} z={lidD / 2 + MARK_FACE_GAP} />}
-        {pullTab && <PullTab w={dims.w} z={lidD / 2 + MARK_FACE_GAP} />}
+        {!tied && pullTab && <PullTab w={dims.w} x={lidW / 2 + 0.4} y={-2} z={0} color={RIBBON_COLOR} side />}
       </group>
       {!telescope && <BrandMark w={dims.w} y={trayH * 0.48} z={dims.d / 2 + MARK_FACE_GAP} />}
-      {tied && (
-        <group rotation={[0, BOX_CLOSED_MARK_AZIMUTH, 0]}>
-          <Ribbon w={dims.w} h={dims.h * 0.45} d={Math.hypot(dims.w, telescope ? dims.d + 3.2 : dims.d)} y={dims.h * 0.28} color={RIBBON_COLOR} />
-        </group>
-      )}
+      {tied && <Ribbon w={dims.w} h={dims.h - ribbonY} d={lidW + 0.6} y={ribbonY} across="x" color={RIBBON_COLOR} />}
     </group>
   );
 };

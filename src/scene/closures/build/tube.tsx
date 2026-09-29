@@ -7,8 +7,8 @@ import {
   tubeSleeveLocalY,
 } from "../../../model/closures/tube.ts";
 import { PrismInsert, prismInsertOuter } from "./lift-off.tsx";
-import { BOX_CLOSED_MARK_AZIMUTH } from "../../boxCamera.ts";
 import { PrismMesh, PullTab, RIBBON_COLOR, Ribbon } from "../kit.tsx";
+import { cylinderRibbonYaw, splitRibbon } from "../ribbonPose.ts";
 import { TubeMark } from "../tubeMark.tsx";
 import type { ClosureBuilder } from "../types.ts";
 
@@ -39,6 +39,11 @@ const Tube: ClosureBuilder = ({ fit, spec, dims, bind, ribbon, pullTab, latch })
   const tied = ribbon || latch === "ribbon";
   const baseH = tubeBaseHeight(dims);
   const closed = tubeClosedY(dims);
+  const ribbonY = dims.h * 0.55;
+  const yaw = cylinderRibbonYaw(radius, lidR, dims.w, lidR * 2);
+  const sleeveD = (radius + TUBE_SLEEVE_RADIUS_GAP) * 2;
+  const onBase = splitRibbon(ribbonY, dims.h, baseH);
+  const onCap = splitRibbon(Math.max(ribbonY, baseH), dims.h, closed);
   return (
     <group>
       <PrismMesh radius={radius - 0.15} inner={0} height={dims.wall} sides={48} />
@@ -49,13 +54,27 @@ const Tube: ClosureBuilder = ({ fit, spec, dims, bind, ribbon, pullTab, latch })
         <PrismMesh radius={lidR} inner={lidInner} height={Math.max(wall, dims.lidH - dims.wall)} sides={48} />
         <PrismMesh radius={lidR} inner={0} height={dims.wall} sides={48} y={Math.max(0, dims.lidH - dims.wall)} />
         <TubeMark radius={radius} y={dims.h * 0.48 - closed} />
-        {(tied || pullTab) && (
-          <group rotation={[0, BOX_CLOSED_MARK_AZIMUTH, 0]}>
-            {tied && <Ribbon w={dims.w} h={dims.h * 0.45} d={lidR * 2} y={dims.h * 0.55 - closed} color={RIBBON_COLOR} />}
-            {pullTab && <PullTab w={dims.w} z={lidR + 1} />}
+        {tied && onCap.below && (
+          <group rotation={[0, yaw, 0]}>
+            <Ribbon w={dims.w} h={onCap.below.h} d={sleeveD} y={onCap.below.y - closed} cap={false} color={RIBBON_COLOR} />
+          </group>
+        )}
+        {tied && onCap.above && (
+          <group rotation={[0, yaw, 0]}>
+            <Ribbon w={dims.w} h={onCap.above.h} d={lidR * 2} y={onCap.above.y - closed} color={RIBBON_COLOR} />
+          </group>
+        )}
+        {!tied && pullTab && (
+          <group rotation={[0, yaw, 0]}>
+            <PullTab w={dims.w} y={-2} z={lidR + 0.4} color={RIBBON_COLOR} />
           </group>
         )}
       </group>
+      {tied && onBase.below && (
+        <group rotation={[0, yaw, 0]}>
+          <Ribbon w={dims.w} h={onBase.below.h} d={radius * 2} y={onBase.below.y} cap={false} color={RIBBON_COLOR} />
+        </group>
+      )}
     </group>
   );
 };

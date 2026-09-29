@@ -1,7 +1,7 @@
 /**
  * @vitest-environment happy-dom
  */
-import { createElement } from "react";
+import { createElement, isValidElement, type ReactElement, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { PullRibbon, RIBBON_COLOR, Ribbon, Tub } from "../kit.tsx";
@@ -48,12 +48,23 @@ describe("drawer front", () => {
 
   it("keeps the drawer front full height and lowers the other walls", () => {
     const trayH = 80;
+    const wall = 2;
     const side = drawerTraySideHeight(trayH);
     expect(side).toBeCloseTo(trayH * 0.35, 5);
     expect(side).toBeLessThan(trayH * 0.5);
-    const markup = renderToStaticMarkup(createElement(Tub, { w: 40, h: trayH, d: 50, wall: 2, front: "full", body: side }));
-    expect(markup).toContain(`${trayH}`);
-    expect(markup).toContain(`${side}`);
+    const heights: number[] = [];
+    const visit = (node: ReactNode) => {
+      if (!isValidElement(node)) return;
+      const el = node as ReactElement<{ args?: number[]; children?: ReactNode }>;
+      if (el.type === "boxGeometry" && el.props.args) heights.push(el.props.args[1]);
+      const children = el.props.children;
+      if (Array.isArray(children)) children.forEach(visit);
+      else visit(children);
+    };
+    visit(Tub({ w: 40, h: trayH, d: 50, wall, front: "full", body: side }));
+    expect(heights.filter((h) => h === trayH)).toEqual([trayH]);
+    expect(heights.filter((h) => h === side)).toEqual([side, side, side]);
+    expect(heights.filter((h) => h === wall)).toEqual([wall]);
   });
 
   it("draws the ribbon in a satin colour", () => {

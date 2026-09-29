@@ -211,10 +211,25 @@ export function Tub({ w, h, d, wall, front = "full", body }: { w: number; h: num
 /** Satin ribbon. Callers pass a ribbon or accent colour; the default is the pull-ribbon red. */
 export const RIBBON_COLOR = "#8d1d32";
 
-export function Ribbon({ w, h, d, y, color = RIBBON_COLOR }: { w: number; h: number; d: number; y: number; color?: string }) {
-  const band = Math.max(8, Math.min(w, d) * 0.1);
+/** Width of the vertical bands. Shared with the cylinder yaw so the ribbon clears the mark. */
+export function ribbonBandWidth(w: number, d: number): number {
+  return Math.max(8, Math.min(w, d) * 0.1);
+}
+
+export function Ribbon({ w, h, d, y, color = RIBBON_COLOR, cap = true, across = "z" }: {
+  w: number;
+  h: number;
+  d: number;
+  y: number;
+  color?: string;
+  /** Top bar. The lower half of a split ribbon leaves this off. */
+  cap?: boolean;
+  /** `x` runs the bands over the sides. A rectangular box stays square to its faces. */
+  across?: "x" | "z";
+}) {
+  const band = ribbonBandWidth(w, d);
   return (
-    <group position={[0, y, 0]}>
+    <group position={[0, y, 0]} rotation={across === "x" ? [0, Math.PI / 2, 0] : undefined}>
       <mesh position={[0, h / 2, d / 2 + 0.3]}>
         <boxGeometry args={[band, h, 0.45]} />
         <meshPhysicalMaterial color={color} metalness={0.2} roughness={0.45} />
@@ -223,10 +238,12 @@ export function Ribbon({ w, h, d, y, color = RIBBON_COLOR }: { w: number; h: num
         <boxGeometry args={[band, h, 0.45]} />
         <meshPhysicalMaterial color={color} metalness={0.2} roughness={0.45} />
       </mesh>
-      <mesh position={[0, h + 0.3, 0]}>
-        <boxGeometry args={[band, 0.45, d]} />
-        <meshPhysicalMaterial color={color} metalness={0.2} roughness={0.45} />
-      </mesh>
+      {cap && (
+        <mesh position={[0, h + 0.3, 0]}>
+          <boxGeometry args={[band, 0.45, d]} />
+          <meshPhysicalMaterial color={color} metalness={0.2} roughness={0.45} />
+        </mesh>
+      )}
     </group>
   );
 }
@@ -262,11 +279,22 @@ export function ThumbNotch({ y, z }: { y: number; z: number }) {
   );
 }
 
-export function PullTab({ w, z }: { w: number; z: number }) {
+export function PullTab({ w, z, y = 0, x = 0, color, side = false }: {
+  w: number;
+  z: number;
+  y?: number;
+  x?: number;
+  color?: string;
+  /** Thickness along X, so a rectangular lid can carry the tab on a side. */
+  side?: boolean;
+}) {
+  const width = color ? (side ? 0.6 : 10) : Math.min(18, w * 0.22);
+  const height = color ? 4 : 7;
+  const depth = color ? (side ? 10 : 0.6) : 1.1;
   return (
-    <mesh position={[0, 0, z]}>
-      <boxGeometry args={[Math.min(18, w * 0.22), 7, 1.1]} />
-      <meshStandardMaterial color="#efe6d6" roughness={0.72} />
+    <mesh position={[x, y, z]}>
+      <boxGeometry args={[width, height, depth]} />
+      <meshStandardMaterial color={color ?? "#efe6d6"} roughness={color ? 0.45 : 0.72} />
     </mesh>
   );
 }
