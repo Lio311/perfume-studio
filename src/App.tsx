@@ -210,11 +210,15 @@ export default function App() {
       design.box.latch = choice.latch;
       design.box.layers = withInnerStructure(design.box.layers, choice.structure.id, choice.latch);
       const variant = params.get("variant");
-      if (variant && choice.structure.liftOff?.variants.some((item) => item.id === variant)) {
-        design.box.liftOff = { ...design.box.liftOff, variant };
+      if (choice.structure.liftOff) {
+        const known = Boolean(variant && choice.structure.liftOff.variants.some((item) => item.id === variant));
+        design.box.liftOff = {
+          ...design.box.liftOff,
+          variant: known ? variant ?? choice.structure.liftOff.defaults.variant : choice.structure.liftOff.defaults.variant,
+        };
       }
       const pull = params.get("pull");
-      if (pull === "ribbon" || pull === "notch" || pull === "none") design.box.drawerPull = pull;
+      design.box.drawerPull = pull === "ribbon" || pull === "notch" ? pull : "none";
       design.box.visible = true;
       design.bottle.visible = true;
       design.cap.visible = true;
@@ -222,7 +226,6 @@ export default function App() {
       design.collar.visible = true;
       design.liquid.visible = true;
       design.label.visible = true;
-      if (params.get("orient") === "lying") design.box.insert.orientation = "lying";
       const latch = params.get("latch");
       if (latch === "ribbon" || latch === "magnet" || latch === "none") {
         design.box.latch = latch;
@@ -230,12 +233,18 @@ export default function App() {
           layer.structure === choice.structure.id ? { ...layer, latch } : layer,
         );
       }
-      if (params.get("shape") === "octagon") design.box.shape = { type: "polygon", sides: 8 };
-      if (params.get("shape") === "cylinder") design.box.shape = { type: "cylinder" };
+      const shape = params.get("shape");
+      design.box.shape = shape === "octagon"
+        ? { type: "polygon", sides: 8 }
+        : shape === "cylinder"
+          ? { type: "cylinder" }
+          : { type: "rect" };
       const insert = params.get("insert");
-      if (insert === "eva" || insert === "pulp" || insert === "card" || insert === "velvet-foam") {
-        design.box.insert = { ...design.box.insert, material: insert };
-      }
+      design.box.insert = {
+        ...design.box.insert,
+        material: insert === "pulp" || insert === "card" || insert === "velvet-foam" ? insert : "eva",
+        orientation: params.get("orient") === "lying" ? "lying" : "standing",
+      };
       if (params.get("sleeve") === "0") design.box.layers = design.box.layers.filter((layer) => layer.structure !== "sleeve");
       const brand = params.get("brand");
       if (brand) design.label.text = clampLabelText(brand);
