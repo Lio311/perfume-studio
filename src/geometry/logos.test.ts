@@ -151,7 +151,7 @@ describe("label text layout", () => {
     expect(etch).not.toBe("#D6B26A");
     expect(relativeLuminance(etch)).toBeLessThan(relativeLuminance("#D6B26A"));
     expect(labelFinish("decal")).toEqual({ metalness: 0, roughness: 1, bumpScale: 0, envMapIntensity: 1, emissive: 0 });
-    expect(labelFinish("foil")).toEqual({ metalness: 0.78, roughness: 0.16, bumpScale: 0, envMapIntensity: 2.4, emissive: 0.82 });
+    expect(labelFinish("foil")).toEqual({ metalness: 0.55, roughness: 0.18, bumpScale: 0, envMapIntensity: 2.4, emissive: 1.15 });
     expect(labelFinish("emboss")).toEqual({ metalness: 0.02, roughness: 0.42, bumpScale: 16, envMapIntensity: 0.35, emissive: 0 });
     expect(labelFinish("engrave")).toEqual({ metalness: 0, roughness: 0.94, bumpScale: -14, envMapIntensity: 0.15, emissive: 0 });
   });
@@ -160,8 +160,8 @@ describe("label text layout", () => {
     const foil = labelFinish("foil");
     expect(foil.roughness).toBeGreaterThan(0.05);
     expect(foil.roughness).toBeLessThanOrEqual(0.22);
-    expect(foil.metalness).toBeGreaterThan(0.6);
-    expect(foil.emissive).toBeGreaterThanOrEqual(0.7);
+    expect(foil.metalness).toBeGreaterThan(0.45);
+    expect(foil.emissive).toBeGreaterThanOrEqual(1);
     expect(FOIL_ENV_FLOOR).toBeGreaterThan(0);
     expect(foil.envMapIntensity).toBeGreaterThanOrEqual(FOIL_ENV_FLOOR);
     expect(foil.emissive).toBeGreaterThan(0);
@@ -289,6 +289,39 @@ describe("label text layout", () => {
     expect(mean(foil, engrave)).toBeGreaterThan(25);
     expect(mean(foil, emboss)).toBeGreaterThan(15);
     expect(mean(engrave, emboss)).toBeGreaterThan(25);
+    const at = (buf: Uint8ClampedArray, x: number, y: number) => {
+      const index = (y * width + x) * 4;
+      return [buf[index], buf[index + 1], buf[index + 2]] as const;
+    };
+    const luma = (rgb: readonly [number, number, number]) => 0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2];
+    const frost = at(engrave, 20, 16);
+    const rim = at(engrave, 8, 6);
+    expect(luma(frost)).toBeGreaterThan(150);
+    expect(luma(frost)).toBeLessThan(200);
+    expect(frost[2]).toBeGreaterThan(frost[0] + 10);
+    expect(luma(rim)).toBeLessThan(50);
+    const grey = new Uint8ClampedArray(source);
+    for (let i = 0; i < grey.length; i += 4) {
+      if (grey[i + 3] === 0) continue;
+      grey[i] = 160;
+      grey[i + 1] = 154;
+      grey[i + 2] = 146;
+    }
+    relieveLabelPixels(grey, width, height, "emboss");
+    const face = at(grey, 20, 16);
+    let brightest = 0;
+    let darkest = 255;
+    for (let y = 6; y < 26; y += 1) {
+      for (let x = 8; x < 30; x += 1) {
+        const value = luma(at(grey, x, y));
+        brightest = Math.max(brightest, value);
+        darkest = Math.min(darkest, value);
+      }
+    }
+    expect(luma(face)).toBeGreaterThan(140);
+    expect(luma(face)).toBeLessThan(190);
+    expect(brightest).toBeGreaterThan(luma(face) + 40);
+    expect(darkest).toBeLessThan(luma(face) - 40);
   });
 
   it("repaints only when a new face loads", () => {

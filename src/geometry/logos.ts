@@ -144,11 +144,11 @@ export function labelFinish(application: LogoApplication = "decal"): LabelFinish
   switch (application) {
     case "foil":
       return {
-        metalness: 0.78,
-        roughness: 0.16,
+        metalness: 0.55,
+        roughness: 0.18,
         bumpScale: 0,
         envMapIntensity: 2.4,
-        emissive: 0.82,
+        emissive: 1.15,
       };
     case "emboss":
       return { metalness: 0.02, roughness: 0.42, bumpScale: 16, envMapIntensity: 0.35, emissive: 0 };
@@ -367,29 +367,32 @@ export function relieveLabelPixels(
         continue;
       }
       if (application === "engrave") {
-        const upLeft = alphaAt(x - radius, y - radius);
-        const shadow = upLeft < alpha * 0.45;
+        // A thin rim, not the whole stroke. Wide bands turned the word into a dark smudge.
+        const band = Math.max(2, Math.round(radius * 0.55));
+        const shadow = alphaAt(x - band, y - band) < alpha * 0.55;
         if (shadow) {
-          data[index] = Math.round(src[index] * 0.34);
-          data[index + 1] = Math.round(src[index + 1] * 0.32);
-          data[index + 2] = Math.round(src[index + 2] * 0.3);
+          data[index] = 22;
+          data[index + 1] = 24;
+          data[index + 2] = 28;
         } else {
-          data[index] = Math.round(src[index] * 0.28 + 214 * 0.72);
-          data[index + 1] = Math.round(src[index + 1] * 0.28 + 218 * 0.72);
-          data[index + 2] = Math.round(src[index + 2] * 0.28 + 224 * 0.72);
+          // Cool and clearly dimmer than a lit emboss highlight, so the etch does not read as cream.
+          data[index] = 168;
+          data[index + 1] = 178;
+          data[index + 2] = 190;
         }
-        data[index + 3] = Math.min(alpha, 220);
+        data[index + 3] = 255;
         continue;
       }
       const slopeX = (alphaAt(x + radius, y) - alphaAt(x - radius, y)) / 255;
       const slopeY = (alphaAt(x, y + radius) - alphaAt(x, y - radius)) / 255;
-      const light = Math.max(-1, Math.min(1, slopeX * 1.25 + slopeY * 1.4));
+      const light = Math.max(-1, Math.min(1, slopeX * 2.2 + slopeY * 2.4));
       if (light >= 0) {
-        data[index] = Math.min(255, Math.round(src[index] + (255 - src[index]) * light * 0.92));
-        data[index + 1] = Math.min(255, Math.round(src[index + 1] + (255 - src[index + 1]) * light * 0.92));
-        data[index + 2] = Math.min(255, Math.round(src[index + 2] + (255 - src[index + 2]) * light * 0.92));
+        const gain = Math.min(1, light * 1.45);
+        data[index] = Math.min(255, Math.round(src[index] + (255 - src[index]) * gain));
+        data[index + 1] = Math.min(255, Math.round(src[index + 1] + (255 - src[index + 1]) * gain));
+        data[index + 2] = Math.min(255, Math.round(src[index + 2] + (255 - src[index + 2]) * gain));
       } else {
-        const scale = 1 + light * 0.82;
+        const scale = Math.max(0.12, 1 + light * 1.05);
         data[index] = Math.max(0, Math.round(src[index] * scale));
         data[index + 1] = Math.max(0, Math.round(src[index + 1] * scale));
         data[index + 2] = Math.max(0, Math.round(src[index + 2] * scale));

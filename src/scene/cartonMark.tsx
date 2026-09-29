@@ -25,14 +25,18 @@ export function LabelFinishMaterial({
   const finish = labelFinish(application);
   const flat = finish.metalness === 0 && finish.bumpScale === 0 && !normalMap;
   const open = overlay || application !== "decal";
-  if (flat || !mask) {
+  // Engrave and emboss are baked into the colour map (frost + inner rim, substrate + bevel).
+  // A lit standard material in this studio crushes both to the same dark grey.
+  const baked = application === "engrave" || application === "emboss";
+  if (baked || flat || !mask) {
     return (
       <meshBasicMaterial
         map={map}
         toneMapped={false}
         transparent={open}
-        depthWrite={!open}
-        polygonOffset={!overlay}
+        alphaTest={open ? 0.1 : 0}
+        depthWrite={overlay ? true : !open}
+        polygonOffset
         polygonOffsetFactor={-4}
         polygonOffsetUnits={-4}
       />
@@ -60,10 +64,10 @@ export function LabelFinishMaterial({
       emissiveMap={finish.emissive > 0 ? emissiveMap ?? undefined : undefined}
       toneMapped={finish.metalness < 0.5}
       transparent={open}
-      alphaTest={overlay ? 0.1 : 0}
-      depthWrite={!open}
+      alphaTest={open ? 0.1 : 0}
+      depthWrite={overlay ? true : !open}
       premultipliedAlpha={!open}
-      polygonOffset={!overlay}
+      polygonOffset
       polygonOffsetFactor={-4}
       polygonOffsetUnits={-4}
     />
@@ -86,7 +90,7 @@ export function CartonMark({ w, y, z }: { w: number; y: number; z: number }) {
   const { color: tex, mask, emissive, normal } = useLabelMaps(canvas, ink, application);
   if (blueprint || text.trim().length === 0) return null;
   return (
-    <mesh position={[0, y, z]}>
+    <mesh position={[0, y, z + 2.2]} renderOrder={6}>
       <planeGeometry args={[planeW, planeH]} />
       <LabelFinishMaterial map={tex} mask={mask} emissiveMap={emissive} normalMap={normal} ink={ink} application={application} overlay />
     </mesh>
