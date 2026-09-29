@@ -4,7 +4,7 @@ import Foundation
 /// A missing or rejected card keeps the last card reading for `grace` (700 ms)
 /// without feeding the filter and without falling through to VIO or LiDAR.
 /// Only after that window does the frame use LiDAR or VIO, which is a real source change.
-/// LiDAR stays optional: a phone without it (iPhone 16 standard) simply has no LiDAR sample.
+/// LiDAR stays optional: a phone without it simply has no LiDAR sample.
 public struct DistanceSourceChooser: Equatable {
     public var grace: TimeInterval
     private var held: DistanceChooser.Choice?

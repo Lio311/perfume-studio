@@ -2,8 +2,8 @@ import Foundation
 
 /// How `ARFrame.capturedImage` is rotated relative to the portrait UI.
 /// Values match `CGImagePropertyOrientation` so MeasureKit can pass them to Vision.
-/// The iPhone 16 test phone is portrait-only and has no LiDAR. Its back wide camera
-/// delivers a landscape sensor buffer, so Vision's orientation is `.right`.
+/// The app is portrait-only. The back wide camera delivers a landscape sensor
+/// buffer, so Vision's orientation is `.right`.
 public enum VisionImageOrientation: String, Equatable, Sendable, Codable {
     case up
     case upMirrored
@@ -14,7 +14,7 @@ public enum VisionImageOrientation: String, Equatable, Sendable, Codable {
     case right
     case rightMirrored
 
-    /// Portrait interface, back wide camera. This is the iPhone 16 (standard) setup.
+    /// Portrait interface, back wide camera.
     /// Do not switch to `.up` when the device reports `.faceUp`: the interface is still portrait.
     public static let backCameraPortrait = VisionImageOrientation.right
 }

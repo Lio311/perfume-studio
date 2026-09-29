@@ -33,7 +33,7 @@ extension VisionImageOrientation {
 
 /// Finds one reference card and returns its corners in `capturedImage` pixels
 /// (origin at the top-left, Y downward): top-left, top-right, bottom-right, bottom-left.
-/// The iPhone 16 test phone is portrait-only, so the default orientation is `.right`:
+/// The app is portrait-only, so the default orientation is `.right`:
 /// the sensor buffer is landscape and Vision must be told that. Corners are mapped
 /// back into the buffer before anyone uses `ARCamera.intrinsics`.
 public enum CardDetector {

@@ -75,9 +75,9 @@ public final class CardCaptureSession: NSObject, ARSessionDelegate, CaptureFrame
     }
 
     /// Pins the wide camera so ARKit does not swap to the ultra-wide macro camera.
-    /// The test phone is an iPhone 16 (standard, not Pro), which has no LiDAR.
-    /// Smoothed scene depth is turned on only when `supportsFrameSemantics(.smoothedSceneDepth)`
-    /// is true (an iPhone 16 Pro and other LiDAR devices). Missing LiDAR is not an error
+    /// The test phone is an iPhone 15, which has no LiDAR. Smoothed scene depth is
+    /// turned on only when `supportsFrameSemantics(.smoothedSceneDepth)` is true
+    /// (an iPhone 16 Pro and other LiDAR devices). Missing LiDAR is not an error
     /// and is not an Info.plist requirement.
     public func start() {
         guard isCameraSupported, !running else { return }

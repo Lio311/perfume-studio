@@ -26,7 +26,7 @@ struct PreparedStill {
 /// portrait correction for this app (portrait only, back wide camera), and
 /// `jpegData` writes that orientation into EXIF so the photo is upright.
 /// Corners and intrinsics stay in that bitmap's pixels (origin top-left, Y down).
-/// Vision is given `.right` for this portrait back camera (iPhone 16, no LiDAR),
+/// Vision is given `.right` for this portrait back camera,
 /// then the corners are converted back into the same buffer space as the intrinsics.
 enum StillImageBuilder {
     /// Call on the capture queue. `buffer` is a copy of `capturedImage`; the `ARFrame` is not retained.

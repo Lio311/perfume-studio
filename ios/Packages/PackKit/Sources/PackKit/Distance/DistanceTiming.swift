@@ -1,7 +1,7 @@
 import Foundation
 
 /// Tunables for the rock-steady distance guide.
-/// The test phone is an iPhone 16 (standard, no LiDAR). None of these depend on LiDAR.
+/// None of these depend on LiDAR.
 public enum DistanceTiming {
     /// Median window ahead of the one-euro filter.
     public static let medianCount = 7
