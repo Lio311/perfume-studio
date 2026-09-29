@@ -1,5 +1,5 @@
 // swift-tools-version:5.9
-// DEVICE module (iOS frameworks). Not built in Linux CI; built by Xcode on the owner's Mac.
+// File layer is Foundation only and tested on Linux. UIKit JPEG encoding is behind canImport(UIKit).
 import PackageDescription
 
 let package = Package(

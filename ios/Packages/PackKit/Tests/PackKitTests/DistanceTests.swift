@@ -197,6 +197,25 @@ final class DistanceGuideTests: XCTestCase {
         XCTAssertEqual(guide.update(zMm: 218).state, .yellow)
     }
 
+    func testWideHalfBandDoesNotJumpFromGreenToRed() {
+        XCTAssertEqual(DistanceGuide.yellowEnterMillimetres(halfBandMm: 5), 18, accuracy: 1e-9)
+        XCTAssertEqual(DistanceGuide.yellowLeaveMillimetres(halfBandMm: 5), 22, accuracy: 1e-9)
+        XCTAssertEqual(DistanceGuide.yellowEnterMillimetres(halfBandMm: 20), 72, accuracy: 1e-9)
+        XCTAssertEqual(DistanceGuide.yellowLeaveMillimetres(halfBandMm: 20), 88, accuracy: 1e-9)
+
+        var guide = DistanceGuide(targetMm: 200, halfBandMm: 20)
+        _ = guide.update(zMm: 200)
+        _ = guide.update(zMm: 200)
+        XCTAssertEqual(guide.update(zMm: 200).state, .green)
+        XCTAssertEqual(guide.update(zMm: 225).state, .yellow)
+        XCTAssertEqual(guide.update(zMm: 287).state, .yellow)
+        XCTAssertEqual(guide.update(zMm: 289).state, .red)
+
+        var reenter = DistanceGuide(targetMm: 200, halfBandMm: 20)
+        XCTAssertEqual(reenter.update(zMm: 300).state, .red)
+        XCTAssertEqual(reenter.update(zMm: 272).state, .yellow)
+    }
+
     func testNoGreenYellowFlickerAround204to206() {
         var stayingGreen = DistanceGuide()
         _ = stayingGreen.update(zMm: 200)
@@ -241,6 +260,22 @@ final class AutoCaptureTests: XCTestCase {
         for time in stride(from: 0.0, through: 2, by: 0.1) {
             XCTAssertFalse(gate.update(isGreen: true, source: CameraDistance.vio, tiltDegrees: 0, zMm: 200, time: time))
         }
+    }
+
+    func testDisabledGateDoesNotAccumulateHold() {
+        var gate = AutoCaptureGate()
+        for time in stride(from: 0.0, through: 2, by: 0.1) {
+            XCTAssertFalse(gate.update(
+                isGreen: true,
+                source: CameraDistance.card,
+                tiltDegrees: 0,
+                zMm: 200,
+                time: time,
+                enabled: false
+            ))
+        }
+        XCTAssertFalse(gate.update(isGreen: true, source: CameraDistance.card, tiltDegrees: 0, zMm: 200, time: 3, enabled: true))
+        XCTAssertTrue(gate.update(isGreen: true, source: CameraDistance.card, tiltDegrees: 0, zMm: 200, time: 3.5, enabled: true))
     }
 
     func testLiDARDoesNotAutoCapture() {
@@ -307,6 +342,22 @@ final class DistanceSessionTests: XCTestCase {
         XCTAssertFalse(again.shouldAutoCapture)
     }
 
+    func testDisabledAutoCaptureDoesNotFireFromOldHold() {
+        var session = DistanceSession(autoCaptureEnabled: false)
+        for step in 0..<40 {
+            let reading = session.update(rawZMm: 200, source: CameraDistance.card, tiltDegrees: 0, time: Double(step) * 0.05)
+            XCTAssertFalse(reading.shouldAutoCapture)
+        }
+        session.autoCaptureEnabled = true
+        var firedAt: TimeInterval?
+        for step in 0..<12 {
+            let time = 2.0 + Double(step) * 0.05
+            let reading = session.update(rawZMm: 200, source: CameraDistance.card, tiltDegrees: 0, time: time)
+            if reading.shouldAutoCapture { firedAt = time }
+        }
+        XCTAssertEqual(firedAt ?? -1, 2.5, accuracy: 1e-9)
+    }
+
     func testSigmaOverOneSecond() {
         var spread = DistanceSpread()
         XCTAssertEqual(spread.push(10, time: 0), 0)
@@ -339,6 +390,125 @@ final class DistanceChooserTests: XCTestCase {
 
     func testNothingInViewReturnsNil() {
         XCTAssertNil(DistanceChooser.choose(cardDepthMm: nil, cardTiltDegrees: nil, lidarMm: 100, vioMm: nil))
+    }
+}
+
+final class DistanceSourceChooserTests: XCTestCase {
+    func testSingleDroppedFrameKeepsTheCardAndTheFilter() {
+        var chooser = DistanceSourceChooser()
+        var filter = DistanceFilter()
+        let first = chooser.update(cardDepthMm: 200, cardTiltDegrees: 3, lidarMm: 400, vioMm: 180, time: 0)
+        XCTAssertEqual(first?.source, .card)
+        let started = filter.push(zMm: first?.rawZMm ?? 0, time: 0, source: CameraDistance.card)
+        XCTAssertEqual(started?.didReset, false)
+
+        let dropped = chooser.update(cardDepthMm: nil, cardTiltDegrees: nil, lidarMm: 400, vioMm: 180, time: 1.0 / 60.0)
+        XCTAssertEqual(dropped?.source, .card)
+        XCTAssertEqual(dropped?.rawZMm ?? 0, 200, accuracy: 1e-9)
+        let held = filter.push(zMm: dropped?.rawZMm ?? 0, time: 1.0 / 60.0, source: dropped?.source ?? CameraDistance.vio)
+        XCTAssertEqual(held?.didReset, false)
+
+        let back = chooser.update(cardDepthMm: 201, cardTiltDegrees: 3, lidarMm: 400, vioMm: 180, time: 2.0 / 60.0)
+        XCTAssertEqual(back?.source, .card)
+        XCTAssertEqual(back?.rawZMm ?? 0, 201, accuracy: 1e-9)
+    }
+
+    func testFiveDroppedFramesAt30fpsStayOnTheCard() {
+        var chooser = DistanceSourceChooser()
+        let first = chooser.update(cardDepthMm: 210, cardTiltDegrees: 1, lidarMm: nil, vioMm: 190, time: 0)
+        XCTAssertEqual(first?.source, .card)
+        for drop in 1...5 {
+            let choice = chooser.update(
+                cardDepthMm: nil,
+                cardTiltDegrees: nil,
+                lidarMm: 350,
+                vioMm: 190,
+                time: Double(drop) / 30.0
+            )
+            XCTAssertEqual(choice?.source, .card, "drop \(drop)")
+            XCTAssertEqual(choice?.rawZMm ?? 0, 210, accuracy: 1e-9)
+        }
+    }
+
+    func testARealLossPastTheGraceUsesTheFallback() {
+        var chooser = DistanceSourceChooser()
+        _ = chooser.update(cardDepthMm: 200, cardTiltDegrees: 0, lidarMm: 320, vioMm: 180, time: 0)
+        let edge = chooser.update(cardDepthMm: nil, cardTiltDegrees: nil, lidarMm: 320, vioMm: 180, time: 0.300)
+        XCTAssertEqual(edge?.source, .card)
+        let lost = chooser.update(cardDepthMm: nil, cardTiltDegrees: nil, lidarMm: 320, vioMm: 180, time: 0.301)
+        XCTAssertEqual(lost?.source, .lidar)
+        let stillGone = chooser.update(cardDepthMm: nil, cardTiltDegrees: nil, lidarMm: nil, vioMm: 180, time: 0.40)
+        XCTAssertEqual(stillGone?.source, .vio)
+        let nothing = chooser.update(cardDepthMm: nil, cardTiltDegrees: nil, lidarMm: nil, vioMm: nil, time: 0.50)
+        XCTAssertNil(nothing)
+        let found = chooser.update(cardDepthMm: 190, cardTiltDegrees: 2, lidarMm: nil, vioMm: 180, time: 0.55)
+        XCTAssertEqual(found?.source, .card)
+        XCTAssertEqual(found?.rawZMm ?? 0, 190, accuracy: 1e-9)
+    }
+}
+
+final class DistanceSampleHoldTests: XCTestCase {
+    func testClearsAfter500msWithoutASample() {
+        var hold = DistanceSampleHold()
+        XCTAssertFalse(hold.update(hasSample: false, time: 0))
+        XCTAssertTrue(hold.update(hasSample: true, time: 1))
+        XCTAssertTrue(hold.update(hasSample: false, time: 1.499))
+        XCTAssertFalse(hold.update(hasSample: false, time: 1.5))
+        XCTAssertFalse(hold.update(hasSample: false, time: 2))
+        XCTAssertTrue(hold.update(hasSample: true, time: 2.1))
+        XCTAssertTrue(hold.update(hasSample: false, time: 2.4))
+    }
+}
+
+final class WideVideoFormatTests: XCTestCase {
+    func testPrefers1920x1440Over4K() {
+        let picked = WideVideoFormatPicker.pick([
+            CameraVideoFormat(width: 3840, height: 2160, framesPerSecond: 30, isWide: true),
+            CameraVideoFormat(width: 1920, height: 1440, framesPerSecond: 30, isWide: true),
+            CameraVideoFormat(width: 1920, height: 1080, framesPerSecond: 60, isWide: true),
+            CameraVideoFormat(width: 1280, height: 960, framesPerSecond: 60, isWide: true),
+        ])
+        XCTAssertEqual(picked, CameraVideoFormat(width: 1920, height: 1440, framesPerSecond: 30, isWide: true))
+    }
+
+    func testNearestFourByThreeAtMost1920Wide() {
+        let picked = WideVideoFormatPicker.pick([
+            CameraVideoFormat(width: 1280, height: 960, framesPerSecond: 30, isWide: true),
+            CameraVideoFormat(width: 1440, height: 1080, framesPerSecond: 30, isWide: true),
+            CameraVideoFormat(width: 3840, height: 2880, framesPerSecond: 30, isWide: true),
+        ])
+        XCTAssertEqual(picked?.width, 1440)
+        XCTAssertEqual(picked?.height, 1080)
+    }
+
+    func testSkipsUltraWideAndFormatsUnder30fps() {
+        let picked = WideVideoFormatPicker.pick([
+            CameraVideoFormat(width: 1920, height: 1440, framesPerSecond: 30, isWide: false),
+            CameraVideoFormat(width: 1920, height: 1440, framesPerSecond: 15, isWide: true),
+            CameraVideoFormat(width: 1280, height: 960, framesPerSecond: 60, isWide: true),
+        ])
+        XCTAssertEqual(picked, CameraVideoFormat(width: 1280, height: 960, framesPerSecond: 60, isWide: true))
+    }
+}
+
+final class VisionFrameSchedulerTests: XCTestCase {
+    func testDropsFramesWhileDetectionIsInFlight() {
+        var scheduler = VisionFrameScheduler()
+        XCTAssertTrue(scheduler.shouldDetect())
+        XCTAssertFalse(scheduler.shouldDetect())
+        XCTAssertFalse(scheduler.shouldDetect())
+        scheduler.detectionFinished(elapsed: 0.01)
+        XCTAssertTrue(scheduler.shouldDetect())
+    }
+
+    func testSlowDetectionRunsOnAtMostEverySecondFrame() {
+        var scheduler = VisionFrameScheduler()
+        XCTAssertTrue(scheduler.shouldDetect())
+        scheduler.detectionFinished(elapsed: 0.06)
+        XCTAssertFalse(scheduler.shouldDetect())
+        XCTAssertTrue(scheduler.shouldDetect())
+        scheduler.detectionFinished(elapsed: 0.01)
+        XCTAssertTrue(scheduler.shouldDetect())
     }
 }
 
