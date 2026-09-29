@@ -108,29 +108,29 @@ final class CardPoseTests: XCTestCase {
 }
 
 final class DistanceFilterTests: XCTestCase {
-    func testMedianThenEMA() {
+    func testMedianOfSevenFeedsTheFilter() {
+        XCTAssertEqual(DistanceFilter.window, 7)
         var filter = DistanceFilter()
-        let samples = [10.0, 30, 20, 100, 40, 20]
-        let expected = [10.0, 12.5, 14.375, 17.03125, 20.2734375, 22.705078125]
+        let samples = [200.0, 200, 200, 200, 200, 200, 400]
+        var last = 0.0
         for (index, sample) in samples.enumerated() {
-            let result = filter.push(zMm: sample, time: Double(index) * 0.05, source: CameraDistance.card)
-            XCTAssertEqual(result?.millimetres ?? .nan, expected[index], accuracy: 1e-9, "sample \(index)")
+            let result = filter.push(zMm: sample, time: Double(index) / 30, source: CameraDistance.card)
             XCTAssertFalse(result?.didReset ?? true)
+            last = result?.millimetres ?? .nan
         }
+        XCTAssertEqual(last, 200, accuracy: 1, "one spike inside a window of seven stays at the median")
     }
 
-    func testGapAt300msDoesNotResetButLongerDoes() {
-        var held = DistanceFilter()
-        _ = held.push(zMm: 10, time: 0, source: CameraDistance.card)
-        let kept = held.push(zMm: 50, time: 0.3, source: CameraDistance.card)
-        XCTAssertEqual(kept?.didReset, false)
-        XCTAssertEqual(kept?.millimetres ?? .nan, 15, accuracy: 1e-9)
-
-        var reset = DistanceFilter()
-        _ = reset.push(zMm: 10, time: 0, source: CameraDistance.card)
-        let fresh = reset.push(zMm: 50, time: 0.301, source: CameraDistance.card)
-        XCTAssertEqual(fresh?.didReset, true)
-        XCTAssertEqual(fresh?.millimetres ?? .nan, 50, accuracy: 1e-9)
+    func testTimeGapDoesNotReset() {
+        var filter = DistanceFilter()
+        let first = filter.push(zMm: 200, time: 0, source: CameraDistance.card)
+        XCTAssertEqual(first?.millimetres ?? .nan, 200, accuracy: 1e-9)
+        let later = filter.push(zMm: 200, time: 2, source: CameraDistance.card)
+        XCTAssertEqual(later?.didReset, false)
+        XCTAssertEqual(later?.millimetres ?? .nan, 200, accuracy: 1e-6)
+        let step = filter.push(zMm: 230, time: 2.05, source: CameraDistance.card)
+        XCTAssertEqual(step?.didReset, false)
+        XCTAssertLessThan(step?.millimetres ?? 0, 230)
     }
 
     func testSourceChangeResets() {
@@ -172,16 +172,53 @@ final class DistanceGuideTests: XCTestCase {
         XCTAssertEqual(third.direction, .none)
     }
 
-    func testDirectionAndOneDecimalCentimetre() {
+    func testDirectionNeedsThreeFramesAndOneDecimalCentimetre() {
         var guide = DistanceGuide()
-        let far = guide.update(zMm: 217)
+        var far = guide.update(zMm: 217, time: 0)
+        far = guide.update(zMm: 217, time: 0.25)
+        XCTAssertEqual(far.direction, .none)
+        far = guide.update(zMm: 217, time: 0.5)
         XCTAssertEqual(far.direction, .closer)
         XCTAssertEqual(far.direction.hebrew, "קרב")
         XCTAssertEqual(far.distanceCm, 21.7, accuracy: 1e-9)
-        let near = guide.update(zMm: 183)
+        var near = guide.update(zMm: 183, time: 0.75)
+        near = guide.update(zMm: 183, time: 1.0)
+        XCTAssertEqual(near.direction, .closer)
+        near = guide.update(zMm: 183, time: 1.25)
         XCTAssertEqual(near.direction, .farther)
         XCTAssertEqual(near.direction.hebrew, "הרחק")
         XCTAssertEqual(near.distanceCm, 18.3, accuracy: 1e-9)
+    }
+
+    func testGreenShowsNoArrow() {
+        var guide = DistanceGuide()
+        _ = guide.update(zMm: 200, time: 0)
+        _ = guide.update(zMm: 200, time: 0.25)
+        XCTAssertEqual(guide.update(zMm: 200, time: 0.5).state, .green)
+        let inside = guide.update(zMm: 204, time: 0.75)
+        XCTAssertEqual(inside.state, .green)
+        XCTAssertEqual(inside.direction, .none)
+    }
+
+    func testDisplayDeadbandAndFiveHertz() {
+        var guide = DistanceGuide()
+        XCTAssertEqual(guide.update(zMm: 200, time: 0).distanceCm, 20, accuracy: 1e-9)
+        XCTAssertEqual(guide.update(zMm: 201, time: 1).distanceCm, 20, accuracy: 1e-9)
+        XCTAssertEqual(guide.update(zMm: 202, time: 1.2).distanceCm, 20.2, accuracy: 1e-9)
+        XCTAssertEqual(guide.update(zMm: 210, time: 1.3).distanceCm, 20.2, accuracy: 1e-9)
+        XCTAssertEqual(guide.update(zMm: 210, time: 1.4).distanceCm, 21, accuracy: 1e-9)
+
+        var fast = DistanceGuide()
+        var shown: [Double] = []
+        var last: Double?
+        for step in 0..<30 {
+            let centimetres = fast.update(zMm: 200 + Double(step) * 2, time: Double(step) / 30).distanceCm
+            if centimetres != last {
+                shown.append(centimetres)
+                last = centimetres
+            }
+        }
+        XCTAssertLessThanOrEqual(shown.count, 5)
     }
 
     func testLeavingGreenAndYellowHysteresis() {
@@ -394,69 +431,70 @@ final class DistanceChooserTests: XCTestCase {
 }
 
 final class DistanceSourceChooserTests: XCTestCase {
-    func testSingleDroppedFrameKeepsTheCardAndTheFilter() {
+    func testSingleDroppedFrameHoldsWithoutFeedingANewSample() {
         var chooser = DistanceSourceChooser()
-        var filter = DistanceFilter()
-        let first = chooser.update(cardDepthMm: 200, cardTiltDegrees: 3, lidarMm: 400, vioMm: 180, time: 0)
-        XCTAssertEqual(first?.source, .card)
-        let started = filter.push(zMm: first?.rawZMm ?? 0, time: 0, source: CameraDistance.card)
-        XCTAssertEqual(started?.didReset, false)
+        let first = chooser.update(card: card(200, tilt: 3), lidarMm: 400, vioMm: 180, time: 0)
+        guard case let .measure(choice) = first else { return XCTFail("expected a measurement") }
+        XCTAssertEqual(choice.source, .card)
 
-        let dropped = chooser.update(cardDepthMm: nil, cardTiltDegrees: nil, lidarMm: 400, vioMm: 180, time: 1.0 / 60.0)
-        XCTAssertEqual(dropped?.source, .card)
-        XCTAssertEqual(dropped?.rawZMm ?? 0, 200, accuracy: 1e-9)
-        let held = filter.push(zMm: dropped?.rawZMm ?? 0, time: 1.0 / 60.0, source: dropped?.source ?? CameraDistance.vio)
-        XCTAssertEqual(held?.didReset, false)
+        let dropped = chooser.update(card: nil, lidarMm: 400, vioMm: 180, time: 1.0 / 60.0)
+        guard case let .hold(held) = dropped else { return XCTFail("expected a hold") }
+        XCTAssertEqual(held.source, .card)
+        XCTAssertEqual(held.rawZMm, 200, accuracy: 1e-9)
 
-        let back = chooser.update(cardDepthMm: 201, cardTiltDegrees: 3, lidarMm: 400, vioMm: 180, time: 2.0 / 60.0)
-        XCTAssertEqual(back?.source, .card)
-        XCTAssertEqual(back?.rawZMm ?? 0, 201, accuracy: 1e-9)
+        let back = chooser.update(card: card(201, tilt: 3), lidarMm: 400, vioMm: 180, time: 2.0 / 60.0)
+        guard case let .measure(returned) = back else { return XCTFail("expected the card back") }
+        XCTAssertEqual(returned.rawZMm, 201, accuracy: 1e-9)
     }
 
     func testFiveDroppedFramesAt30fpsStayOnTheCard() {
         var chooser = DistanceSourceChooser()
-        let first = chooser.update(cardDepthMm: 210, cardTiltDegrees: 1, lidarMm: nil, vioMm: 190, time: 0)
-        XCTAssertEqual(first?.source, .card)
+        _ = chooser.update(card: card(210, tilt: 1), lidarMm: nil, vioMm: 190, time: 0)
         for drop in 1...5 {
-            let choice = chooser.update(
-                cardDepthMm: nil,
-                cardTiltDegrees: nil,
-                lidarMm: 350,
-                vioMm: 190,
-                time: Double(drop) / 30.0
-            )
-            XCTAssertEqual(choice?.source, .card, "drop \(drop)")
-            XCTAssertEqual(choice?.rawZMm ?? 0, 210, accuracy: 1e-9)
+            let choice = chooser.update(card: nil, lidarMm: 350, vioMm: 190, time: Double(drop) / 30.0)
+            guard case let .hold(held) = choice else { return XCTFail("drop \(drop)") }
+            XCTAssertEqual(held.rawZMm, 210, accuracy: 1e-9)
         }
     }
 
-    func testARealLossPastTheGraceUsesTheFallback() {
+    func testARealLossPast700msUsesTheFallback() {
         var chooser = DistanceSourceChooser()
-        _ = chooser.update(cardDepthMm: 200, cardTiltDegrees: 0, lidarMm: 320, vioMm: 180, time: 0)
-        let edge = chooser.update(cardDepthMm: nil, cardTiltDegrees: nil, lidarMm: 320, vioMm: 180, time: 0.300)
-        XCTAssertEqual(edge?.source, .card)
-        let lost = chooser.update(cardDepthMm: nil, cardTiltDegrees: nil, lidarMm: 320, vioMm: 180, time: 0.301)
-        XCTAssertEqual(lost?.source, .lidar)
-        let stillGone = chooser.update(cardDepthMm: nil, cardTiltDegrees: nil, lidarMm: nil, vioMm: 180, time: 0.40)
-        XCTAssertEqual(stillGone?.source, .vio)
-        let nothing = chooser.update(cardDepthMm: nil, cardTiltDegrees: nil, lidarMm: nil, vioMm: nil, time: 0.50)
-        XCTAssertNil(nothing)
-        let found = chooser.update(cardDepthMm: 190, cardTiltDegrees: 2, lidarMm: nil, vioMm: 180, time: 0.55)
-        XCTAssertEqual(found?.source, .card)
-        XCTAssertEqual(found?.rawZMm ?? 0, 190, accuracy: 1e-9)
+        _ = chooser.update(card: card(200, tilt: 0), lidarMm: 320, vioMm: 180, time: 0)
+        let edge = chooser.update(card: nil, lidarMm: 320, vioMm: 180, time: 0.700)
+        guard case .hold = edge else { return XCTFail("700 ms is still inside the hold") }
+        let lost = chooser.update(card: nil, lidarMm: 320, vioMm: 180, time: 0.701)
+        guard case let .measure(lidar) = lost else { return XCTFail("expected LiDAR") }
+        XCTAssertEqual(lidar.source, .lidar)
+        let stillGone = chooser.update(card: nil, lidarMm: nil, vioMm: 180, time: 0.80)
+        guard case let .measure(vio) = stillGone else { return XCTFail("expected VIO") }
+        XCTAssertEqual(vio.source, .vio)
+        XCTAssertNil(chooser.update(card: nil, lidarMm: nil, vioMm: nil, time: 0.90))
+        let found = chooser.update(card: card(190, tilt: 2), lidarMm: nil, vioMm: 180, time: 0.95)
+        guard case let .measure(cardChoice) = found else { return XCTFail("expected the card") }
+        XCTAssertEqual(cardChoice.rawZMm, 190, accuracy: 1e-9)
+    }
+
+    private func card(_ z: Double, tilt: Double) -> DistanceChooser.Choice {
+        DistanceChooser.Choice(rawZMm: z, source: .card, tiltDegrees: tilt)
     }
 }
 
 final class DistanceSampleHoldTests: XCTestCase {
-    func testClearsAfter500msWithoutASample() {
+    func testClearsAfter700msWithoutASampleAndDimsWhileHeld() {
         var hold = DistanceSampleHold()
+        XCTAssertEqual(hold.limit, 0.7, accuracy: 1e-12)
         XCTAssertFalse(hold.update(hasSample: false, time: 0))
+        XCTAssertFalse(hold.isDimmed)
         XCTAssertTrue(hold.update(hasSample: true, time: 1))
-        XCTAssertTrue(hold.update(hasSample: false, time: 1.499))
-        XCTAssertFalse(hold.update(hasSample: false, time: 1.5))
+        XCTAssertFalse(hold.isDimmed)
+        XCTAssertTrue(hold.update(hasSample: false, time: 1.699))
+        XCTAssertTrue(hold.isDimmed)
+        XCTAssertFalse(hold.update(hasSample: false, time: 1.7))
+        XCTAssertFalse(hold.isDimmed)
         XCTAssertFalse(hold.update(hasSample: false, time: 2))
         XCTAssertTrue(hold.update(hasSample: true, time: 2.1))
         XCTAssertTrue(hold.update(hasSample: false, time: 2.4))
+        XCTAssertTrue(hold.isDimmed)
     }
 }
 
@@ -492,23 +530,19 @@ final class WideVideoFormatTests: XCTestCase {
 }
 
 final class VisionFrameSchedulerTests: XCTestCase {
-    func testDropsFramesWhileDetectionIsInFlight() {
+    func testLatestFrameOnlyDropsStaleResults() {
         var scheduler = VisionFrameScheduler()
-        XCTAssertTrue(scheduler.shouldDetect())
-        XCTAssertFalse(scheduler.shouldDetect())
-        XCTAssertFalse(scheduler.shouldDetect())
-        scheduler.detectionFinished(elapsed: 0.01)
-        XCTAssertTrue(scheduler.shouldDetect())
-    }
-
-    func testSlowDetectionRunsOnAtMostEverySecondFrame() {
-        var scheduler = VisionFrameScheduler()
-        XCTAssertTrue(scheduler.shouldDetect())
-        scheduler.detectionFinished(elapsed: 0.06)
-        XCTAssertFalse(scheduler.shouldDetect())
-        XCTAssertTrue(scheduler.shouldDetect())
-        scheduler.detectionFinished(elapsed: 0.01)
-        XCTAssertTrue(scheduler.shouldDetect())
+        let first = scheduler.arrived()
+        XCTAssertTrue(scheduler.start(first))
+        let second = scheduler.arrived()
+        XCTAssertFalse(scheduler.start(second))
+        let third = scheduler.arrived()
+        XCTAssertFalse(scheduler.start(third))
+        XCTAssertFalse(scheduler.finish(first))
+        XCTAssertNil(scheduler.inFlight)
+        XCTAssertFalse(scheduler.start(second), "the middle frame was superseded")
+        XCTAssertTrue(scheduler.start(third))
+        XCTAssertTrue(scheduler.finish(third))
     }
 }
 

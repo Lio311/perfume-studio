@@ -25,15 +25,16 @@ struct PreparedStill {
 /// The bitmap keeps the camera pixel grid. UIImage orientation `.right` is the
 /// portrait correction for this app (portrait only, back wide camera), and
 /// `jpegData` writes that orientation into EXIF so the photo is upright.
-/// Corners and intrinsics stay in that bitmap's pixels (origin top-left, Y down),
-/// the same space `CardDetector` uses on this exact frame.
+/// Corners and intrinsics stay in that bitmap's pixels (origin top-left, Y down).
+/// Vision is given `.right` for this portrait back camera,
+/// then the corners are converted back into the same buffer space as the intrinsics.
 enum StillImageBuilder {
-    /// Call on the capture queue, before the `ARFrame` buffer is released.
+    /// Call on the capture queue. `buffer` is a copy of `capturedImage`; the `ARFrame` is not retained.
     static func prepare(buffer: CVPixelBuffer, intrinsics: CameraIntrinsics) -> PreparedStill? {
         let context = CIContext()
         let image = CIImage(cvPixelBuffer: buffer)
         guard let cgImage = context.createCGImage(image, from: image.extent) else { return nil }
-        let corners = CardDetector.detect(in: buffer)?.map(ImagePoint.init)
+        let corners = CardDetector.detect(in: buffer, orientation: .backCameraPortrait)?.corners.map(ImagePoint.init)
         return PreparedStill(cgImage: cgImage, corners: corners, intrinsics: intrinsics)
     }
 

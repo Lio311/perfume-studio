@@ -132,13 +132,6 @@ export default function App() {
 
   useEffect(() => {
     let cancelled = false;
-    const ready = loadPacks().then((loaded) => {
-      if (cancelled) return;
-      if (adoptLoadedSuppliers(loaded, useLab.getState().suppliers.length)) {
-        useLab.getState().setSuppliers(loaded.packs, loaded.warnings);
-        acknowledgePackLoads(loaded.unseenKeys);
-      }
-    }).catch(() => undefined);
     const hydrated = new Promise<void>((resolve) => {
       if (useLab.persist.hasHydrated()) {
         resolve();
@@ -149,6 +142,31 @@ export default function App() {
         resolve();
       });
     });
+    const ready = loadPacks().then((loaded) => {
+      if (cancelled) return;
+      if (adoptLoadedSuppliers(loaded, useLab.getState().suppliers.length)) {
+        useLab.getState().setSuppliers(loaded.packs, loaded.warnings);
+        acknowledgePackLoads(loaded.unseenKeys);
+      }
+      let scanId = "";
+      try {
+        scanId = sessionStorage.getItem("perfume-scan-pack") ?? "";
+      } catch {
+        scanId = "";
+      }
+      if (!scanId) return;
+      const pack = loaded.packs.find((item) => item.id === scanId);
+      void hydrated.then(() => {
+        if (cancelled) return;
+        try {
+          sessionStorage.removeItem("perfume-scan-pack");
+        } catch {
+          // Private mode can refuse storage. The pack is still in IndexedDB.
+        }
+        if (!pack || useLab.getState().suppliers.some((item) => item.id === pack.id)) return;
+        useLab.getState().upsertSupplier(pack);
+      });
+    }).catch(() => undefined);
     const applyShare = () => {
       if (location.hash.startsWith("#d=")) setShareLock(true);
       return applyIncomingShareHash({

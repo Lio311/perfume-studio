@@ -53,10 +53,19 @@ document.fonts?.load('600 48px Cinzel', "ABC");
 document.fonts?.load('400 48px Italiana', "ABC");
 document.fonts?.load('400 48px "Great Vibes"', "ABC");
 
-createRoot(document.getElementById("root")!).render(
-  <StrictMode>
-    <AppErrorBoundary>
-      <App />
-    </AppErrorBoundary>
-  </StrictMode>,
-);
+function isScanRoute() {
+  const path = location.pathname.replace(/\/+$/, "") || "/";
+  return path === "/scan" || path.endsWith("/scan");
+}
+
+if (isScanRoute()) {
+  void import("./scan/mount.tsx").then((mod) => mod.mountScan());
+} else {
+  createRoot(document.getElementById("root")!).render(
+    <StrictMode>
+      <AppErrorBoundary>
+        <App />
+      </AppErrorBoundary>
+    </StrictMode>,
+  );
+}

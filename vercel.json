@@ -1,0 +1,8 @@
+{
+  "redirects": [
+    { "source": "/scan/", "destination": "/scan", "permanent": false }
+  ],
+  "rewrites": [
+    { "source": "/scan", "destination": "/index.html" }
+  ]
+}

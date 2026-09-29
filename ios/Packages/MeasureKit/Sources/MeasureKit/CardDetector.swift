@@ -1,12 +1,46 @@
 import CoreVideo
 import Foundation
+import ImageIO
 import Vision
 import PackKit
 
+/// One rectangle in `capturedImage` pixels, plus Vision's confidence.
+public struct CardDetection: Equatable, Sendable {
+    public var corners: [SIMD2<Double>]
+    public var confidence: Double
+
+    public init(corners: [SIMD2<Double>], confidence: Double) {
+        self.corners = corners
+        self.confidence = confidence
+    }
+}
+
+extension VisionImageOrientation {
+    /// EXIF value passed to `VNImageRequestHandler`.
+    var exif: CGImagePropertyOrientation {
+        switch self {
+        case .up: return .up
+        case .upMirrored: return .upMirrored
+        case .down: return .down
+        case .downMirrored: return .downMirrored
+        case .left: return .left
+        case .leftMirrored: return .leftMirrored
+        case .right: return .right
+        case .rightMirrored: return .rightMirrored
+        }
+    }
+}
+
 /// Finds one reference card and returns its corners in `capturedImage` pixels
 /// (origin at the top-left, Y downward): top-left, top-right, bottom-right, bottom-left.
+/// The app is portrait-only, so the default orientation is `.right`:
+/// the sensor buffer is landscape and Vision must be told that. Corners are mapped
+/// back into the buffer before anyone uses `ARCamera.intrinsics`.
 public enum CardDetector {
-    public static func detect(in pixelBuffer: CVPixelBuffer) -> [SIMD2<Double>]? {
+    public static func detect(
+        in pixelBuffer: CVPixelBuffer,
+        orientation: VisionImageOrientation = .backCameraPortrait
+    ) -> CardDetection? {
         let request = VNDetectRectanglesRequest()
         let tuning = CardDetectorTuning.id1
         // Vision's aspect ratio is shorter/longer and must stay in [0, 1].
@@ -19,7 +53,7 @@ public enum CardDetector {
         request.maximumObservations = tuning.maximumObservations
         request.quadratureTolerance = Float(tuning.quadratureToleranceDegrees)
 
-        let handler = VNImageRequestHandler(cvPixelBuffer: pixelBuffer, orientation: .up, options: [:])
+        let handler = VNImageRequestHandler(cvPixelBuffer: pixelBuffer, orientation: orientation.exif, options: [:])
         guard (try? handler.perform([request])) != nil else { return nil }
         guard let observation = request.results?.first else { return nil }
 
@@ -27,8 +61,12 @@ public enum CardDetector {
         let height = Double(CVPixelBufferGetHeight(pixelBuffer))
         guard width > 1, height > 1 else { return nil }
         func pixel(_ point: CGPoint) -> SIMD2<Double> {
-            // Vision's origin is the lower-left of the buffer.
-            SIMD2(Double(point.x) * width, (1 - Double(point.y)) * height)
+            CapturedImageSpace.pixel(
+                fromVisionNormalized: SIMD2(Double(point.x), Double(point.y)),
+                orientation: orientation,
+                width: width,
+                height: height
+            )
         }
         let coarse = [
             pixel(observation.topLeft),
@@ -36,7 +74,8 @@ public enum CardDetector {
             pixel(observation.bottomRight),
             pixel(observation.bottomLeft),
         ]
-        return refine(coarse, in: pixelBuffer) ?? coarse
+        let corners = refine(coarse, in: pixelBuffer) ?? coarse
+        return CardDetection(corners: corners, confidence: Double(observation.confidence))
     }
 
     /// Sub-pixel edge fit on the luma plane. Falls back to the Vision corners when the fit is poor.

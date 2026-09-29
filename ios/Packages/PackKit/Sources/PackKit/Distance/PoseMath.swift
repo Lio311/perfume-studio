@@ -3,7 +3,7 @@ import Foundation
 // Camera frame used by the pose solver: X right, Y down, Z forward (the optical axis).
 // A fronto-parallel card has its centre at (tx, ty, Z) and its normal along ±Z.
 
-struct Mat3 {
+struct Mat3: Equatable {
     var c0: SIMD3<Double>
     var c1: SIMD3<Double>
     var c2: SIMD3<Double>

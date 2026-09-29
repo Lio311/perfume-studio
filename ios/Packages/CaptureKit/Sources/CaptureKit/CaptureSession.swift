@@ -5,7 +5,7 @@ import simd
 import PackKit
 
 /// One camera frame reduced to the numbers the distance pipeline needs.
-/// The pixel buffer is not retained: the handler must finish with it before returning.
+/// The pixel buffer is passed separately, as a copy, so this snapshot never holds an `ARFrame`.
 public struct CaptureSnapshot: Sendable {
     public var time: TimeInterval
     public var intrinsics: CameraIntrinsics
@@ -39,7 +39,8 @@ public struct CaptureSnapshot: Sendable {
 public protocol CaptureFrameSource: AnyObject {
     var isCameraSupported: Bool { get }
     var isLiDARSupported: Bool { get }
-    var onFrame: ((ARFrame, CaptureSnapshot) -> Void)? { get set }
+    /// `pixelBuffer` is a copy. Callers must not retain the `ARFrame` that produced it.
+    var onFrame: ((CVPixelBuffer, CaptureSnapshot) -> Void)? { get set }
     var onSessionFailed: (() -> Void)? { get set }
     func start()
     func stop()
@@ -51,9 +52,8 @@ public final class CardCaptureSession: NSObject, ARSessionDelegate, CaptureFrame
     public let arSession = ARSession()
     public let queue = DispatchQueue(label: "com.perfumestudio.capture", qos: .userInteractive)
 
-    /// Called on `queue`. The frame (and its `capturedImage`) stays valid while the
-    /// handler retains `frame`. Return quickly and detect off this queue.
-    public var onFrame: ((ARFrame, CaptureSnapshot) -> Void)?
+    /// Called on `queue` with a copy of `capturedImage`. The `ARFrame` is not retained.
+    public var onFrame: ((CVPixelBuffer, CaptureSnapshot) -> Void)?
     public var onSessionFailed: (() -> Void)?
 
     public var isCameraSupported: Bool { ARWorldTrackingConfiguration.isSupported }
@@ -64,7 +64,10 @@ public final class CardCaptureSession: NSObject, ARSessionDelegate, CaptureFrame
     }
 
     private var running = false
-    private var latestFrame: ARFrame?
+    /// Copied pixels only. Retaining `ARFrame` (or its `capturedImage`) starves the camera.
+    private var latestCopy: CVPixelBuffer?
+    private var latestIntrinsics: CameraIntrinsics?
+    private var latestTime: TimeInterval?
     private var stillWaiter: ((CVPixelBuffer, CameraIntrinsics, TimeInterval) -> Void)?
 
     public override init() {
@@ -96,19 +99,20 @@ public final class CardCaptureSession: NSObject, ARSessionDelegate, CaptureFrame
 
     public func stop() {
         running = false
-        latestFrame = nil
+        latestCopy = nil
+        latestIntrinsics = nil
+        latestTime = nil
         stillWaiter = nil
         arSession.pause()
     }
 
-    /// Full-resolution still from the latest `ARFrame`, or the next one if none has arrived.
-    /// The handler runs on `queue` and must finish with the pixel buffer before returning.
+    /// Full-resolution still from the latest copied frame, or the next one if none has arrived.
+    /// The handler runs on `queue`. The buffer is a copy, not an `ARFrame` image.
     public func takeStill(_ handler: @escaping (CVPixelBuffer, CameraIntrinsics, TimeInterval) -> Void) {
         queue.async { [weak self] in
             guard let self else { return }
-            if let frame = self.latestFrame {
-                let snapshot = Self.snapshot(from: frame, session: self.arSession)
-                handler(frame.capturedImage, snapshot.intrinsics, frame.timestamp)
+            if let copy = self.latestCopy, let intrinsics = self.latestIntrinsics, let time = self.latestTime {
+                handler(copy, intrinsics, time)
             } else {
                 self.stillWaiter = handler
             }
@@ -125,18 +129,25 @@ public final class CardCaptureSession: NSObject, ARSessionDelegate, CaptureFrame
     }
 
     public func session(_ session: ARSession, didUpdate frame: ARFrame) {
-        latestFrame = frame
         let snapshot = Self.snapshot(from: frame, session: session)
+        // Copy before returning. Holding the ARFrame (or its capturedImage) across the
+        // Vision call makes ARKit drop camera frames, which shows up as distance jumps.
+        guard let copy = PixelBufferCopier.copy(frame.capturedImage) else { return }
+        latestCopy = copy
+        latestIntrinsics = snapshot.intrinsics
+        latestTime = frame.timestamp
         if let stillWaiter {
             self.stillWaiter = nil
-            stillWaiter(frame.capturedImage, snapshot.intrinsics, frame.timestamp)
+            stillWaiter(copy, snapshot.intrinsics, frame.timestamp)
         }
-        onFrame?(frame, snapshot)
+        onFrame?(copy, snapshot)
     }
 
     public func session(_ session: ARSession, didFailWithError error: Error) {
         running = false
-        latestFrame = nil
+        latestCopy = nil
+        latestIntrinsics = nil
+        latestTime = nil
         stillWaiter = nil
         onSessionFailed?()
     }

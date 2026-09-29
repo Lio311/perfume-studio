@@ -1,0 +1,22 @@
+{
+  "source": "ios/Packages/PackKit/Tests/PackKitTests/MeasureTests.swift",
+  "note": "Inputs match the Synthetic camera in that file. Expected numbers are the XCTAssertEqual targets. The web port must hit them within the same tolerance.",
+  "intrinsics": { "fx": 1500, "fy": 1500, "cx": 960, "cy": 720 },
+  "frame": { "width": 1920, "height": 1440 },
+  "distanceMm": 200,
+  "id1": { "widthMm": 85.6, "heightMm": 53.98 },
+  "cardFrontal": { "tilt": 0, "axis": "y", "centerX": 0, "depthMm": 200, "tiltDegrees": 0, "tolerance": 0.05 },
+  "cardTilt10": { "tilt": 10, "axis": "y", "centerX": 0, "planeToleranceMm": 0.2 },
+  "cardSteep": { "tilt": 30, "axis": "x", "centerX": 0, "issue": "card_tilt" },
+  "customCard": { "widthMm": 100, "heightMm": 60, "label": "printed card 100x60mm" },
+  "coin": { "id": "ils-10-agorot", "p1": [10, 40], "p2": [110, 40], "mmPerPx": 0.22 },
+  "ruler": { "p1": [0, 0], "p2": [0, 250], "mm": 50, "mmPerPx": 0.2 },
+  "customTap": { "p1": [0, 0], "p2": [80, 0], "mm": 40, "mmPerPx": 0.5 },
+  "typed": { "axis": "height", "mm": 100, "widthPx": 80, "heightPx": 400, "mmPerPx": 0.25 },
+  "bottle": { "radius": 20, "heightMm": 100, "widthMm": 40, "depthMm": 40, "toleranceMm": 2 },
+  "cap": { "radius": 15, "heightMm": 25, "widthMm": 30, "depthMm": 30, "toleranceMm": 2 },
+  "box": { "widthMm": 60, "heightMm": 100, "depthMm": 40, "toleranceMm": 2 },
+  "label": { "widthMm": 80, "heightMm": 36, "depthMm": 0, "toleranceMm": 2 },
+  "filledCoinPath": { "x0": 100, "x1": 300, "y0": 200, "y1": 600, "heightMm": 88, "widthMm": 44 },
+  "parallax": { "apparent": 22.36, "distance": 200, "iterations": 2 }
+}

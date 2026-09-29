@@ -32,7 +32,7 @@ public struct DistanceReading: Equatable, Sendable {
     }
 }
 
-/// Calibration, then the median/EMA filter, the guide, and the auto-capture gate.
+/// Calibration, then the median and one-euro filter, the guide, and the auto-capture gate.
 public struct DistanceSession {
     public var calibration: DistanceCalibration
     public var guide: DistanceGuide
@@ -98,7 +98,7 @@ public struct DistanceSession {
             guide.reset()
             gate.reset()
         }
-        let output = guide.update(zMm: filtered.millimetres)
+        let output = guide.update(zMm: filtered.millimetres, time: time)
         let sigma = spread.push(filtered.millimetres, time: time)
         let fire = gate.update(
             isGreen: output.state == .green,
