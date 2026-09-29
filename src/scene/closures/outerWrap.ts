@@ -1,4 +1,3 @@
-import * as THREE from "three";
 import type { OuterWrap } from "../../model/types.ts";
 import type { RenderTier } from "../../store/labStore.ts";
 
@@ -53,20 +52,4 @@ export function outerWrapMaterialProps(kind: VisibleWrap, color: string, quality
     thickness: 0,
     depthWrite: true,
   };
-}
-
-export function createOuterWrapMaterial(kind: VisibleWrap, color: string, quality: RenderTier): THREE.MeshPhysicalMaterial {
-  return new THREE.MeshPhysicalMaterial(outerWrapMaterialProps(kind, color, quality));
-}
-
-/** A new material for the next wrap. The previous instance keeps the opacity it was given. */
-export function swapOuterWrapMaterial(
-  previous: THREE.Material,
-  kind: VisibleWrap,
-  color: string,
-  quality: RenderTier,
-): THREE.MeshPhysicalMaterial {
-  const next = createOuterWrapMaterial(kind, color, quality);
-  if (next === previous) throw new Error("wrap kind must mint a new material");
-  return next;
 }

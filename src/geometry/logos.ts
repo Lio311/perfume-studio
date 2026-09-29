@@ -78,23 +78,6 @@ function hexFromLinear(color: { r: number; g: number; b: number }): string {
 }
 
 /**
- * Darker, desaturated etch for an engrave that has no substrate yet.
- * Linear mix, same curve as the old `THREE.Color` lerp, without importing three.
- */
-function engraveEtch(color: string): string {
-  const parsed = parsedColor(color);
-  const grey = (parsed.r + parsed.g + parsed.b) / 3;
-  const tint = { r: grey, g: grey, b: Math.min(1, grey * 1.04) };
-  const ground = parsedColor("#1c1a17");
-  const mix = 0.62;
-  return hexFromLinear({
-    r: tint.r + (ground.r - tint.r) * mix,
-    g: tint.g + (ground.g - tint.g) * mix,
-    b: tint.b + (ground.b - tint.b) * mix,
-  });
-}
-
-/**
  * Colour of the glyph itself.
  * Print keeps the chosen ink. Foil is that same colour, including black, so a saved tint stays put.
  * Engrave and emboss have no ink of their own and take the substrate.
@@ -104,7 +87,6 @@ export function labelInk(color: string, application: LogoApplication = "decal", 
   if (application === "engrave" || application === "emboss") {
     const ground = substrate?.trim();
     if (ground) return ground;
-    if (application === "engrave") return engraveEtch(color);
     return EMBOSS_SUBSTRATE;
   }
   return color;
@@ -148,8 +130,8 @@ export interface LabelFinish {
 export const FOIL_ENV_FLOOR = 1.2;
 /** Below this WCAG ratio a foil tint disappears into the plate. */
 export const FOIL_CONTRAST_FLOOR = 1.6;
-/** Linear channel floor for a foil that would otherwise match its plate. */
-export const FOIL_METAL_MIN = 0.18;
+/** Linear channel floor for a foil that would otherwise match its plate. A small lift keeps black foil black. */
+export const FOIL_METAL_MIN = 0.065;
 /** Metalness when the tint is too close to the plate for a mirror to read. */
 export const FOIL_LOW_METALNESS = 0.3;
 
@@ -164,7 +146,7 @@ export function labelFinish(application: LogoApplication = "decal"): LabelFinish
     case "foil":
       return {
         metalness: 0.86,
-        roughness: 0.14,
+        roughness: 0.18,
         bumpScale: 0,
         envMapIntensity: 2.8,
         emissive: 1.05,
@@ -388,6 +370,8 @@ export function relieveLabelPixels(
   if (application === "decal" || width < 2 || height < 2) return;
   const src = new Uint8ClampedArray(data);
   const radius = Math.max(2, Math.round(Math.min(width, height) * 0.02));
+  const embossField = application === "emboss" ? embossHeightField(src, width, height) : null;
+  const sobel = embossSobelRadius(width, height);
   const lowContrast =
     application === "foil" &&
     foil !== undefined &&
@@ -443,15 +427,19 @@ export function relieveLabelPixels(
         data[index + 3] = engraveAlpha(alpha);
         continue;
       }
-      const slopeX = (alphaAt(x + radius, y) - alphaAt(x - radius, y)) / 255;
-      const slopeY = (alphaAt(x, y + radius) - alphaAt(x, y - radius)) / 255;
+      const slopeX = embossField
+        ? embossSample(embossField, width, height, x + sobel, y) - embossSample(embossField, width, height, x - sobel, y)
+        : (alphaAt(x + radius, y) - alphaAt(x - radius, y)) / 255;
+      const slopeY = embossField
+        ? embossSample(embossField, width, height, x, y + sobel) - embossSample(embossField, width, height, x, y - sobel)
+        : (alphaAt(x, y + radius) - alphaAt(x, y - radius)) / 255;
       const light = Math.max(-1, Math.min(1, slopeX * 1.15 + slopeY * 1.25));
       if (light >= 0) {
-        // Stay on the substrate. A lift toward white made emboss read as foil.
-        const lift = light * 22;
-        data[index] = Math.min(232, Math.round(src[index] + Math.min(lift, Math.max(0, 232 - src[index]))));
-        data[index + 1] = Math.min(232, Math.round(src[index + 1] + Math.min(lift, Math.max(0, 232 - src[index + 1]))));
-        data[index + 2] = Math.min(232, Math.round(src[index + 2] + Math.min(lift, Math.max(0, 232 - src[index + 2]))));
+        // Relative lift so an ivory board still catches a highlight. A hard cap at 232 left only the dark edge.
+        const gain = light * 0.28;
+        data[index] = Math.round(src[index] + (255 - src[index]) * gain);
+        data[index + 1] = Math.round(src[index + 1] + (255 - src[index + 1]) * gain);
+        data[index + 2] = Math.round(src[index + 2] + (255 - src[index + 2]) * gain);
       } else {
         const scale = Math.max(0.72, 1 + light * 0.28);
         data[index] = Math.max(0, Math.round(src[index] * scale));
@@ -488,7 +476,23 @@ function liftSrgbByte(byte: number): number {
   return linearToSrgbByte(Math.max(srgbChannelToLinear(byte / 255), FOIL_METAL_MIN));
 }
 
-/** Tangent-space normal from glyph alpha. Emboss uses it as lit relief; other applications stay flat. */
+function embossSobelRadius(width: number, height: number): number {
+  return Math.min(width, height) >= 64 ? 2 : 1;
+}
+
+function embossSample(field: Float32Array, width: number, height: number, x: number, y: number): number {
+  return field[clampIndex(y, height - 1) * width + clampIndex(x, width - 1)];
+}
+
+/** Glyph alpha blurred by about half a stem, so a thin stroke has a ridge instead of a flat top. */
+function embossHeightField(source: Uint8ClampedArray, width: number, height: number): Float32Array {
+  const coverage = new Float32Array(width * height);
+  for (let pixel = 0; pixel < coverage.length; pixel += 1) coverage[pixel] = source[pixel * 4 + 3] / 255;
+  const radius = Math.max(1, Math.round(Math.min(width, height) * 0.04));
+  return blurCoverage(coverage, width, height, radius);
+}
+
+/** Tangent-space normal from a blurred glyph height. Emboss uses it as lit relief; other applications stay flat. */
 export function paintLabelNormal(
   source: Uint8ClampedArray,
   application: LogoApplication,
@@ -505,17 +509,13 @@ export function paintLabelNormal(
     target[index + 3] = 255;
   }
   if (application !== "emboss" || width < 2 || height < 2 || width * height !== count) return;
-  const radius = Math.max(1, Math.round(Math.min(width, height) * 0.012));
-  const heightAt = (x: number, y: number) => {
-    const cx = clampIndex(x, width - 1);
-    const cy = clampIndex(y, height - 1);
-    return source[(cy * width + cx) * 4 + 3] / 255;
-  };
-  const strength = 6;
+  const field = embossHeightField(source, width, height);
+  const radius = embossSobelRadius(width, height);
+  const strength = 8;
   for (let y = 0; y < height; y += 1) {
     for (let x = 0; x < width; x += 1) {
-      const slopeX = heightAt(x + radius, y) - heightAt(x - radius, y);
-      const slopeY = heightAt(x, y - radius) - heightAt(x, y + radius);
+      const slopeX = embossSample(field, width, height, x + radius, y) - embossSample(field, width, height, x - radius, y);
+      const slopeY = embossSample(field, width, height, x, y - radius) - embossSample(field, width, height, x, y + radius);
       let nx = -slopeX * strength;
       let ny = slopeY * strength;
       let nz = 1;
@@ -1133,7 +1133,7 @@ export function paintCartonMark(
   let y = (h - block) / 2 + leading * 0.5;
   for (const line of layout.lines) {
     ctx.direction = layout.direction;
-    ctx.strokeText(line, w / 2, y);
+    if (application !== "decal") ctx.strokeText(line, w / 2, y);
     ctx.fillText(line, w / 2, y);
     y += leading;
   }

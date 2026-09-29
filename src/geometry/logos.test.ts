@@ -157,11 +157,9 @@ describe("label text layout", () => {
     expect(labelInk("#D6B26A", "emboss")).toBe(EMBOSS_SUBSTRATE);
     expect(labelInk("#D6B26A", "emboss", "#16130f")).toBe("#16130f");
     expect(labelInk("#D6B26A", "engrave", "#16130f")).toBe("#16130f");
-    const etch = labelInk("#D6B26A", "engrave");
-    expect(etch).not.toBe("#D6B26A");
-    expect(relativeLuminance(etch)).toBeLessThan(relativeLuminance("#D6B26A"));
+    expect(labelInk("#D6B26A", "engrave")).toBe(EMBOSS_SUBSTRATE);
     expect(labelFinish("decal")).toEqual({ metalness: 0, roughness: 1, bumpScale: 0, envMapIntensity: 1, emissive: 0 });
-    expect(labelFinish("foil")).toEqual({ metalness: 0.86, roughness: 0.14, bumpScale: 0, envMapIntensity: 2.8, emissive: 1.05 });
+    expect(labelFinish("foil")).toEqual({ metalness: 0.86, roughness: 0.18, bumpScale: 0, envMapIntensity: 2.8, emissive: 1.05 });
     expect(labelFinish("emboss")).toEqual({ metalness: 0.02, roughness: 0.42, bumpScale: 16, envMapIntensity: 0.35, emissive: 0 });
     expect(labelFinish("engrave")).toEqual({ metalness: 0, roughness: 0.94, bumpScale: -14, envMapIntensity: 0.15, emissive: 0 });
   });
@@ -394,7 +392,8 @@ describe("label text layout", () => {
         creamPeak = Math.max(creamPeak, rgb[0], rgb[1], rgb[2]);
       }
     }
-    expect(creamPeak).toBeLessThanOrEqual(243);
+    expect(creamPeak).toBeGreaterThan(243);
+    expect(creamPeak).toBeLessThan(255);
     const outline = new Uint8ClampedArray(width * height * 4);
     const onOutline = (x: number, y: number) =>
       (x === 4 || x === 34 || y === 4 || y === 26) && x >= 4 && x <= 34 && y >= 4 && y <= 26;
@@ -483,6 +482,7 @@ describe("label text layout", () => {
     const print = fakeCtx();
     paintCartonMark(print as unknown as CanvasRenderingContext2D, { font: "cinzel" }, "ATELIER", "#c9a36a", 640, 180, "decal");
     expect(print.plate).toBe("#16130f");
+    expect(print.strokes).toHaveLength(0);
     expect(print.texts.some((call) => call.text === "ATELIER")).toBe(true);
   });
 

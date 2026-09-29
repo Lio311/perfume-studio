@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { resolvedLabelApplication } from "../model/catalog.ts";
 import type { LogoApplication } from "../model/types.ts";
-import { cartonMarkSize, contrastRatio, FOIL_CONTRAST_FLOOR, FOIL_ENV_FLOOR, FOIL_LOW_METALNESS, foilDisplayInk, labelEmissive, labelFinish, labelInk } from "../geometry/logos.ts";
+import { cartonMarkSize, contrastRatio, FOIL_CONTRAST_FLOOR, FOIL_ENV_FLOOR, FOIL_LOW_METALNESS, labelEmissive, labelFinish, labelInk } from "../geometry/logos.ts";
 import { useLab } from "../store/labStore.ts";
 import { useCartonLabelCanvas, useLabelMaps } from "./labelPaint.ts";
 import { boardSurface } from "./materials.tsx";
@@ -59,11 +59,13 @@ export function LabelFinishMaterial({
     : embossBoard
       ? surface.envMapIntensity
       : finish.envMapIntensity;
-  const displayInk = lowFoil ? foilDisplayInk(ink, substrate) : ink;
+  const metalness = lowFoil ? FOIL_LOW_METALNESS : finish.metalness;
+  // A lifted black tint plus ink-coloured emissive reads as silver. The rim on the map is enough.
+  const emissiveIntensity = lowFoil ? 0 : finish.emissive;
   return (
     <meshStandardMaterial
       map={map}
-      metalness={lowFoil ? FOIL_LOW_METALNESS : finish.metalness}
+      metalness={metalness}
       metalnessMap={mask}
       roughness={embossBoard ? surface.roughness : 1}
       roughnessMap={embossBoard ? undefined : mask}
@@ -72,10 +74,10 @@ export function LabelFinishMaterial({
       normalMap={normalMap ?? undefined}
       normalScale={normalMap ? [2.4, 2.4] : undefined}
       envMapIntensity={envMapIntensity}
-      emissive={labelEmissive(displayInk, application)}
-      emissiveIntensity={finish.emissive}
-      emissiveMap={finish.emissive > 0 ? emissiveMap ?? undefined : undefined}
-      toneMapped={finish.metalness < 0.5}
+      emissive={lowFoil ? "#000000" : labelEmissive(ink, application)}
+      emissiveIntensity={emissiveIntensity}
+      emissiveMap={emissiveIntensity > 0 ? emissiveMap ?? undefined : undefined}
+      toneMapped={metalness < 0.5}
       transparent={open}
       alphaTest={overlay ? 0.4 : 0}
       depthWrite={overlay ? true : !open}
