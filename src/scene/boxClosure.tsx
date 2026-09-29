@@ -3,7 +3,8 @@ import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { renderedShape, sleeveOverActive, trayLiftMm } from "../model/boxFields.ts";
 import { closureById } from "../model/closures/registry.ts";
-import { channelValue, closureDims, groupAmount, type ClosureLayoutInput, type ClosureSpec } from "../model/closures/types.ts";
+import { channelValue, closureDims, groupAmount, type ClosureDims, type ClosureLayoutInput, type ClosureSpec } from "../model/closures/types.ts";
+import { prefersReducedMotion } from "./motion.ts";
 import type { BoxForm } from "../model/types.ts";
 import type { Fit } from "../model/fit.ts";
 import { useLab } from "../store/labStore.ts";
@@ -51,6 +52,15 @@ export function ClosureBox({ form, fit }: { form: BoxForm; fit: Fit }) {
   motionRef.current = insertMotion;
   const pullRef = useRef(pull || ribbonOn || insertMotion?.pullTab === true);
   pullRef.current = pull || ribbonOn || insertMotion?.pullTab === true;
+  const dimMemo = useRef<{ key: string; value: ClosureDims } | null>(null);
+  const outerMemo = useRef<{ key: string; value: ClosureDims } | null>(null);
+
+  const rememberDims = (slot: { current: { key: string; value: ClosureDims } | null }, key: string, build: () => ClosureDims) => {
+    if (slot.current?.key === key) return slot.current.value;
+    const value = build();
+    slot.current = { key, value };
+    return value;
+  };
 
   const bind = useCallback<GroupBind>((id) => (node) => {
     groups.current[id] = node;
@@ -78,12 +88,15 @@ export function ClosureBox({ form, fit }: { form: BoxForm; fit: Fit }) {
     const current = specRef.current;
     const live = fitRef.current;
     if (current) {
-      const dims = closureDims({ w: live.boxW, h: live.boxH, d: live.boxD, boardMm: live.boardMm }, current, layoutRef.current);
+      const layout = layoutRef.current;
+      const key = `${current.id}|${live.boxW}|${live.boxH}|${live.boxD}|${live.boardMm}|${layout.variant ?? ""}|${layout.neckMm ?? ""}|${layout.lidDepthMm ?? ""}`;
+      const dims = rememberDims(dimMemo, key, () => closureDims({ w: live.boxW, h: live.boxH, d: live.boxD, boardMm: live.boardMm }, current, layout));
       writeChannels(current, groups.current, dims, poseAmount);
     }
     const outer = sleeveRef.current;
     if (outer) {
-      const dims = closureDims({ w: live.boxW + 10, h: live.boxH + 8, d: live.boxD + 10, boardMm: live.boardMm }, outer);
+      const key = `sleeve|${live.boxW}|${live.boxH}|${live.boxD}|${live.boardMm}`;
+      const dims = rememberDims(outerMemo, key, () => closureDims({ w: live.boxW + 10, h: live.boxH + 8, d: live.boxD + 10, boardMm: live.boardMm }, outer));
       writeChannels(outer, sleeveGroups.current, dims, poseAmount);
     }
     const motion = motionRef.current;
@@ -118,7 +131,7 @@ export function ClosureBox({ form, fit }: { form: BoxForm; fit: Fit }) {
 
   useFrame((_, dt) => {
     const live = stage !== "bottle" && open ? 1 : 0;
-    amount.current = THREE.MathUtils.damp(amount.current, live, 5.5, dt);
+    amount.current = prefersReducedMotion() ? live : THREE.MathUtils.damp(amount.current, live, 5.5, dt);
     applyPose(amount.current);
   });
 
@@ -133,8 +146,6 @@ export function ClosureBox({ form, fit }: { form: BoxForm; fit: Fit }) {
         <SleeveBuilder form={form} fit={fit} spec={sleeveSpec} dims={outerDims} bind={bindSleeve} ribbon={false} pullTab={false} latch="none" drawerPull="none" shape={{ type: "rect" }} shellOnly window={sleeveWindow} />
       )}
       <OuterSkin w={outerDims.w} h={outerDims.h} d={outerDims.d} amount={amount} />
-      <pointLight position={[0, dims.h * 0.42, 0]} intensity={3.4} distance={Math.max(80, dims.h * 2.4)} decay={2} color="#fff6ea" />
-      <pointLight position={[0, dims.h * 0.78, dims.d * 0.15]} intensity={1.8} distance={Math.max(70, dims.h * 2)} decay={2} color="#f3efe6" />
     </group>
   );
 }

@@ -116,6 +116,8 @@ interface LabState {
   tierLock: boolean;
   /** Parts the user has explicitly picked during the wizard. Not persisted. */
   wizardPicked: ReadonlySet<PartKey>;
+  /** Persisted fields from before a demo link. Not itself persisted. */
+  demoHold: Record<string, unknown> | null;
   select: (part: PartKey | null) => void;
   hover: (part: PartKey | null, x?: number, y?: number) => void;
   patch: (part: PartKey, partial: Record<string, unknown>) => void;
@@ -432,6 +434,7 @@ export const useLab = create<LabState>()(
       quality: initialQuality(),
       tierLock: false,
       wizardPicked: new Set<PartKey>(),
+      demoHold: null,
       theme: "dark",
       lang: "he",
       libraryOpen: false,

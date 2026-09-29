@@ -46,7 +46,7 @@ const EPHEMERAL_KEYS = new Set([
   "viewToken", "focusToken", "libraryOpen", "sideOpen", "modal", "units", "suppliers",
   "voice", "soundOn", "stage", "blueprint", "fullToken", "aimed", "solo", "present",
   "exporting", "palette", "help", "boxOpen", "toast", "shareUrl", "briefEditing", "cutaway", "quality", "tierLock", "packNotices",
-  "wizardPicked",
+  "wizardPicked", "demoHold",
 ]);
 
 let storageWritesOpen = true;
@@ -698,8 +698,19 @@ const PERSISTED_FIELDS = ["design", "theme", "lang", "chat", "saved", "pending",
  * data) is copied through so the next write does not erase it. Functions and live UI
  * fields, including `shareUrl`, brief editing, cutaway, quality, and the tier lock, are left out.
  */
+/**
+ * Design captured before a `?closure=` screenshot link. While that link is on screen,
+ * persist writes this snapshot so the visitor's saved design is still there afterwards.
+ */
+export function demoSessionHold(state: object): Record<string, unknown> {
+  const source = state as Record<string, unknown>;
+  if (isRecord(source.demoHold)) return source.demoHold;
+  return partializeLabState(state);
+}
+
 export function partializeLabState(state: object): Record<string, unknown> {
   const source = state as Record<string, unknown>;
+  if (isRecord(source.demoHold)) return source.demoHold;
   const out: Record<string, unknown> = {};
   for (const key of PERSISTED_FIELDS) {
     if (!Object.hasOwn(source, key)) continue;

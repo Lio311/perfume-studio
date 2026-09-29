@@ -382,6 +382,7 @@ function fakeCtx() {
     fillText(text: string) {
       texts.push({ text, direction: ctx.direction, font: ctx.font, fill: String(ctx.fillStyle) });
     },
+    strokeText() {},
     measureText(text: string) {
       const px = Number(/(\d+(?:\.\d+)?)px/.exec(ctx.font)?.[1] ?? 16);
       return { width: [...text].length * px * 0.55 };

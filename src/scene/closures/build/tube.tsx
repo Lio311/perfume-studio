@@ -1,6 +1,17 @@
 import { partPivot } from "../../../model/closures/registry.ts";
-import { BrandMark, InsertBlock, PrismMesh, PullTab, Ribbon } from "../kit.tsx";
+import { CARTON_MARK_MAX_W } from "../../../geometry/logos.ts";
+import { BrandMark, InsertBlock, MARK_FACE_GAP, PrismMesh, PullTab, Ribbon } from "../kit.tsx";
 import type { ClosureBuilder } from "../types.ts";
+
+/**
+ * Flat chord whose edges stay within `gap` mm of the cylinder.
+ * A 52 mm plane on a ~34 mm radius otherwise floats about 14 mm off the sides.
+ */
+export function tubeMarkWidth(radius: number, gap = 1.4): number {
+  const r = Math.max(gap + 0.4, radius);
+  const half = Math.sqrt(Math.max(0, r * r - (r - gap) ** 2));
+  return Math.min(CARTON_MARK_MAX_W, half * 2 * 0.92);
+}
 
 /** Round tube. The cap lifts off the canister. */
 const Tube: ClosureBuilder = ({ fit, spec, dims, bind, ribbon, pullTab, latch }) => {
@@ -21,7 +32,7 @@ const Tube: ClosureBuilder = ({ fit, spec, dims, bind, ribbon, pullTab, latch })
         <PrismMesh radius={lidR} inner={0} height={dims.wall} sides={48} y={Math.max(0, dims.lidH - dims.wall)} />
         {pullTab && <PullTab w={dims.w} z={lidR + 1} />}
       </group>
-      <BrandMark w={dims.w} y={dims.h * 0.48} z={radius + 0.6} />
+      <BrandMark w={tubeMarkWidth(radius)} y={dims.h * 0.48} z={radius + MARK_FACE_GAP} />
       {tied && <Ribbon w={dims.w} h={dims.h * 0.42} d={radius * 2} y={dims.h * 0.55} />}
     </group>
   );

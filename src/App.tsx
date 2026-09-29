@@ -7,6 +7,7 @@ import { applyTheme } from "./theme/themes.ts";
 import { partLabel, tx, wizardTitle } from "./i18n/copy.ts";
 import { pngDownloadName } from "./ui/pngName.ts";
 import { useLab } from "./store/labStore.ts";
+import { demoSessionHold } from "./store/hydrate.ts";
 import { applyIncomingShareHash, invalidShareMessage, missingPartsMessage, respondToLocation } from "./model/share.ts";
 import { backSurface, handleHistoryPop, syncHistoryTrap, wizardStepAfterPop, type BackAction, type Trap } from "./nav/backHistory.ts";
 import { clipToast } from "./ui/toast.ts";
@@ -205,7 +206,9 @@ export default function App() {
       if (!isKnownPack(closure)) return;
       const choice = packById(closure);
       if (!choice) return;
-      const design = hydrateDesign(useLab.getState().design);
+      const state = useLab.getState();
+      const hold = demoSessionHold(state);
+      const design = hydrateDesign(state.design);
       design.box.structure = choice.structure.id;
       design.box.latch = choice.latch;
       design.box.layers = withInnerStructure(design.box.layers, choice.structure.id, choice.latch);
@@ -274,6 +277,7 @@ export default function App() {
         aimed: false,
         selected: "box",
         wizardPicked,
+        demoHold: hold,
       });
     };
     if (useLab.persist.hasHydrated()) applyShot();

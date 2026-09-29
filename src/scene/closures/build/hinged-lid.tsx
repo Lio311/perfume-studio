@@ -1,6 +1,6 @@
 import { RoundedBox } from "@react-three/drei";
 import { partPivot } from "../../../model/closures/registry.ts";
-import { BrandMark, InsertBlock, Magnet, Ribbon, Skin, Tub } from "../kit.tsx";
+import { BrandMark, InsertBlock, Magnet, MARK_FACE_GAP, Ribbon, Skin, Tub } from "../kit.tsx";
 import type { ClosureBuilder } from "../types.ts";
 
 const HingedLid: ClosureBuilder = ({ fit, spec, dims, bind, ribbon, latch }) => {
@@ -22,7 +22,9 @@ const HingedLid: ClosureBuilder = ({ fit, spec, dims, bind, ribbon, latch }) => 
             <Skin />
           </mesh>
           {latch === "magnet" && <Magnet position={[dims.w * 0.22, dims.wall * 1.4, flapH - 5]} rotation={[Math.PI / 2, 0, 0]} />}
-          <BrandMark w={dims.w} y={dims.wall + 0.35} z={flapH * 0.55} />
+          <group position={[0, dims.wall * 1.3 + MARK_FACE_GAP, flapH * 0.5]} rotation={[-Math.PI / 2, 0, 0]}>
+            <BrandMark w={dims.w} y={0} z={0} />
+          </group>
         </group>
       </group>
       {tied && <Ribbon w={dims.w} h={dims.baseH * 0.55} d={dims.d} y={dims.baseH * 0.2} />}

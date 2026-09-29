@@ -1,5 +1,11 @@
+import { useRef } from "react";
+import { useFrame } from "@react-three/fiber";
+import type * as THREE from "three";
 import { partPivot } from "../../../model/closures/registry.ts";
-import { BrandMark, InsertBlock, Magnet, PrismMesh, PullTab, Ribbon, Skin, Tub } from "../kit.tsx";
+import type { Fit } from "../../../model/fit.ts";
+import { prismFrontFacet } from "../prism.ts";
+import { trayLiftNow } from "../../trayLift.ts";
+import { BrandMark, InsertBlock, Magnet, MARK_FACE_GAP, PrismMesh, PullTab, Ribbon, Skin, Tub } from "../kit.tsx";
 import type { ClosureBuilder } from "../types.ts";
 
 function LidShell({ w, h, d, wall }: { w: number; h: number; d: number; wall: number }) {
@@ -26,27 +32,26 @@ function LidShell({ w, h, d, wall }: { w: number; h: number; d: number; wall: nu
         <boxGeometry args={[wall, h, d - wall * 2]} />
         <Skin />
       </mesh>
-      <pointLight position={[0, h * 0.42, 0]} intensity={8} distance={Math.max(100, h * 1.8)} decay={2} color="#fff3e2" />
     </group>
   );
 }
 
-function facetFace(radius: number, sides: number): { z: number; width: number } {
-  const step = Math.PI / Math.max(3, sides);
-  return { z: radius * Math.cos(step), width: 2 * radius * Math.sin(step) };
-}
-
-/** Octagonal (or round) cradle. Same footprint family and wrap as the shell, sitting inside it. */
-function PrismInsert({ radius, sides }: { radius: number; sides: number }) {
+/** Octagonal cradle in the insert material. Floor and walls do not share a start, and the tray lift carries it. */
+function PrismInsert({ radius, sides, fit, baseY }: { radius: number; sides: number; fit: Fit; baseY: number }) {
   const outer = Math.max(8, radius - 1.1);
   const wall = Math.max(2.2, outer * 0.14);
   const inner = Math.max(5, outer - wall);
-  const floor = 2.2;
-  const wallH = Math.min(36, Math.max(18, outer * 0.62));
+  const floor = Math.max(1.6, fit.floorMm);
+  const wallH = Math.min(Math.max(12, fit.cavityH * 0.4), Math.max(14, fit.boxH * 0.36));
+  const y0 = Math.max(baseY, fit.boardMm);
+  const ref = useRef<THREE.Group>(null);
+  useFrame(() => {
+    if (ref.current) ref.current.position.y = y0 + trayLiftNow.mm;
+  });
   return (
-    <group>
-      <PrismMesh radius={outer} inner={0} height={floor} sides={sides} />
-      <PrismMesh radius={outer} inner={inner} height={wallH} sides={sides} />
+    <group ref={ref} position={[0, y0, 0]}>
+      <PrismMesh finish="insert" radius={outer} inner={0} height={floor} sides={sides} />
+      <PrismMesh finish="insert" radius={outer} inner={inner} height={wallH} sides={sides} y={floor} />
     </group>
   );
 }
@@ -69,21 +74,21 @@ const LiftOff: ClosureBuilder = ({ form, fit, spec, dims, bind, ribbon, pullTab,
     const neckR = Math.max(inner * 0.86, radius * 0.62);
     const lidR = radius + 0.7;
     const lidInner = Math.max(lidR - wall, lidR * 0.78);
-    const face = facetFace(lidR, sides);
-    const markW = Math.max(12, face.width * 0.78);
+    const face = prismFrontFacet(lidR, sides);
+    const baseFace = prismFrontFacet(radius, sides);
     return (
       <group>
         <PrismMesh radius={radius - 0.15} inner={0} height={dims.wall} sides={sides} />
         <PrismMesh radius={radius} inner={inner} height={trayH} sides={sides} />
         {shoulder && <PrismMesh radius={neckR} inner={Math.max(neckR - wall, neckR * 0.72)} height={neckRise} sides={Math.max(8, sides)} y={dims.baseH} />}
-        <PrismInsert radius={inner - 0.4} sides={sides} />
+        <PrismInsert radius={inner - 0.4} sides={sides} fit={fit} baseY={dims.wall} />
         <group ref={bind("lid")} userData={{ hinge: "lid" }} position={lid}>
           <PrismMesh radius={lidR} inner={lidInner} height={Math.max(wall, dims.lidH - dims.wall)} sides={sides} />
           <PrismMesh radius={lidR} inner={0} height={dims.wall} sides={sides} y={Math.max(0, dims.lidH - dims.wall)} />
-          {telescope && <BrandMark w={markW} y={dims.lidH * 0.55} z={face.z - 0.5} />}
-          {pullTab && <PullTab w={Math.min(dims.w, face.width)} z={face.z + 0.2} />}
+          {telescope && <BrandMark w={face.width} y={dims.lidH * 0.55} z={face.z + MARK_FACE_GAP} />}
+          {pullTab && <PullTab w={Math.min(dims.w, face.width)} z={face.z + MARK_FACE_GAP} />}
         </group>
-        {!telescope && <BrandMark w={Math.max(12, facetFace(radius, sides).width * 0.78)} y={trayH * 0.55} z={facetFace(radius, sides).z - 0.5} />}
+        {!telescope && <BrandMark w={baseFace.width} y={trayH * 0.55} z={baseFace.z + MARK_FACE_GAP} />}
         {tied && <Ribbon w={dims.w} h={dims.h * 0.42} d={radius * 2 + (telescope ? 2.4 : 0)} y={dims.h * 0.28} />}
       </group>
     );
@@ -112,10 +117,10 @@ const LiftOff: ClosureBuilder = ({ form, fit, spec, dims, bind, ribbon, pullTab,
             <Magnet position={[dims.w * 0.28, dims.wall + 0.6, dims.d * 0.18]} />
           </>
         )}
-        {telescope && <BrandMark w={lidW} y={dims.lidH * 0.46} z={lidD / 2 + 0.4} />}
-        {pullTab && <PullTab w={dims.w} z={lidD / 2 + 0.4} />}
+        {telescope && <BrandMark w={lidW} y={dims.lidH * 0.46} z={lidD / 2 + MARK_FACE_GAP} />}
+        {pullTab && <PullTab w={dims.w} z={lidD / 2 + MARK_FACE_GAP} />}
       </group>
-      {!telescope && <BrandMark w={dims.w} y={trayH * 0.48} z={dims.d / 2 + 0.55} />}
+      {!telescope && <BrandMark w={dims.w} y={trayH * 0.48} z={dims.d / 2 + MARK_FACE_GAP} />}
       {tied && <Ribbon w={dims.w} h={dims.h * 0.42} d={telescope ? dims.d + 3.2 : dims.d} y={dims.h * 0.28} />}
     </group>
   );

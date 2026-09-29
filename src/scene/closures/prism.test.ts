@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import * as THREE from "three";
-import { prismShell } from "./prism.ts";
+import { prismFrontFacet, prismShell } from "./prism.ts";
+import { MARK_FACE_GAP } from "./kit.tsx";
 
 function boundaryEdges(geo: THREE.BufferGeometry): number {
   const pos = geo.getAttribute("position");
@@ -49,6 +50,41 @@ describe("prism shell", () => {
     expect(minR).toBeLessThan(27.5);
     expect(maxR).toBeGreaterThan(28);
     expect(maxR).toBeLessThan(31.5);
+    geo.dispose();
+  });
+
+  it("points an octagon facet at +z and keeps the brand mark on that facet", () => {
+    const radius = 30;
+    const sides = 8;
+    const facet = prismFrontFacet(radius, sides);
+    expect(facet.normal[2]).toBeGreaterThan(0.99);
+    expect(Math.hypot(facet.normal[0], facet.normal[1])).toBeLessThan(0.01);
+    const geo = prismShell(radius, 26, 48, sides);
+    const pos = geo.getAttribute("position");
+    const a = new THREE.Vector3();
+    const b = new THREE.Vector3();
+    const c = new THREE.Vector3();
+    const ab = new THREE.Vector3();
+    const ac = new THREE.Vector3();
+    const normal = new THREE.Vector3();
+    let facing = 0;
+    for (let i = 0; i < pos.count; i += 3) {
+      a.fromBufferAttribute(pos, i);
+      b.fromBufferAttribute(pos, i + 1);
+      c.fromBufferAttribute(pos, i + 2);
+      normal.crossVectors(ab.subVectors(b, a), ac.subVectors(c, a));
+      if (normal.lengthSq() < 1e-6) continue;
+      normal.normalize();
+      const cz = (a.z + b.z + c.z) / 3;
+      if (normal.z > 0.9 && Math.abs(normal.x) < 0.2 && Math.abs(normal.y) < 0.25 && Math.abs(cz - facet.z) < 1.2) facing += 1;
+    }
+    expect(facing).toBeGreaterThan(0);
+    const markZ = facet.z + MARK_FACE_GAP;
+    const markW = Math.min(facet.width, facet.width * 0.92);
+    expect(markZ - facet.z).toBeGreaterThan(0);
+    expect(markZ - facet.z).toBeLessThan(0.5);
+    expect(markW).toBeLessThanOrEqual(facet.width);
+    expect(markW).toBeGreaterThan(facet.width * 0.8);
     geo.dispose();
   });
 });

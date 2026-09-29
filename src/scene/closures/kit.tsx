@@ -29,9 +29,31 @@ export function Skin({ section = true }: { section?: boolean }) {
   return <WrapMaterial color={wrap?.color || color} finish={wrap?.finish || "soft-touch"} board={board || "rigid"} section={section} />;
 }
 
+/** Brand plane in front of a board face. Callers add this; the mark itself does not. */
+export const MARK_FACE_GAP = 0.2;
+
 /** Foil or print on the board. No dark plate unless print is given a plate colour. */
 export function BrandMark({ w, y, z }: { w: number; y: number; z: number }) {
-  return <CartonMark w={w} y={y} z={z + 0.85} />;
+  return <CartonMark w={w} y={y} z={z} />;
+}
+
+function InsertFinish() {
+  const material = useLab((s) => s.design.box.insert?.material ?? "eva");
+  const cutaway = useLab((s) => s.cutaway);
+  const color = INSERT_COLOR[material];
+  const velvet = material === "velvet-foam";
+  const planes = cutaway ? [sectionPlane] : undefined;
+  return (
+    <meshPhysicalMaterial
+      color={color}
+      roughness={velvet ? 0.78 : 0.9}
+      sheen={velvet ? 1 : 0}
+      sheenColor={color}
+      sheenRoughness={0.42}
+      envMapIntensity={0.72}
+      clippingPlanes={planes}
+    />
+  );
 }
 
 export function PrismMesh({
@@ -40,18 +62,20 @@ export function PrismMesh({
   height,
   sides,
   y = 0,
+  finish = "wrap",
 }: {
   radius: number;
   inner: number;
   height: number;
   sides: number;
   y?: number;
+  finish?: "wrap" | "insert";
 }) {
   const geo = useMemo(() => prismShell(radius, inner, height, sides), [radius, inner, height, sides]);
   useEffect(() => () => geo.dispose(), [geo]);
   return (
     <mesh geometry={geo} position={[0, y, 0]}>
-      <Skin />
+      {finish === "insert" ? <InsertFinish /> : <Skin />}
     </mesh>
   );
 }
@@ -87,7 +111,7 @@ function useWell(width: number, depth: number, height: number, holeW: number, ho
   return geo;
 }
 
-export function InsertBlock({ fit, span }: { fit: Fit; span?: { w: number; d: number } }) {
+export function InsertBlock({ fit, span, baseY }: { fit: Fit; span?: { w: number; d: number }; baseY?: number }) {
   const material = useLab((s) => s.design.box.insert?.material ?? "eva");
   const orientation = useLab((s) => s.design.box.insert?.orientation ?? "standing");
   const cutaway = useLab((s) => s.cutaway);
@@ -103,7 +127,7 @@ export function InsertBlock({ fit, span }: { fit: Fit; span?: { w: number; d: nu
     : Math.min(Math.max(12, fit.cavityH * 0.4), fit.boxH * 0.36);
   const well = useWell(width, depth, wellH, fit.cavityW, fit.cavityD);
   const planes = cutaway ? [sectionPlane] : undefined;
-  const y0 = wall;
+  const y0 = baseY ?? wall;
   const ref = useRef<THREE.Group>(null);
   useFrame(() => {
     if (ref.current) ref.current.position.y = y0 + trayLiftNow.mm;
@@ -178,7 +202,6 @@ export function Tub({ w, h, d, wall, front = "full" }: { w: number; h: number; d
         <boxGeometry args={[wall, h, d - wall * 2]} />
         <Skin />
       </mesh>
-      <pointLight position={[0, Math.max(wall * 2, h * 0.62), 0]} intensity={6.5} distance={Math.max(90, h * 2.2)} decay={2} color="#fff1dc" />
     </group>
   );
 }

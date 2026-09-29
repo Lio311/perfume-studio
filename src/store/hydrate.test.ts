@@ -3,7 +3,7 @@ import { hydrateBox } from "../model/boxFields.ts";
 import { setImportedCatalog } from "../model/catalog.ts";
 import { createDefaultDesign } from "../model/design.ts";
 import type { Design, LogoSpec } from "../model/types.ts";
-import { createLabStorage, DEFAULT_BUDGET_BRIEF, LAB_PERSIST_VERSION, mergePersistedLab, migratePersisted, partializeLabState, readStorageValue, resetPersistedPayload, resumeLabStorageWrites, sanitizeDesign, type HydratedSlice } from "./hydrate.ts";
+import { createLabStorage, DEFAULT_BUDGET_BRIEF, demoSessionHold, LAB_PERSIST_VERSION, mergePersistedLab, migratePersisted, partializeLabState, readStorageValue, resetPersistedPayload, resumeLabStorageWrites, sanitizeDesign, type HydratedSlice } from "./hydrate.ts";
 import { useLab } from "./labStore.ts";
 
 function slice(design: Design = createDefaultDesign()): HydratedSlice {
@@ -858,6 +858,30 @@ describe("saved design hydration", () => {
       libraryOpen: false,
       sideOpen: false,
     });
+  });
+
+  it("keeps the saved design while a demo link is on screen, including a second apply", () => {
+    const saved = createDefaultDesign();
+    saved.label = { ...saved.label, text: "KEPT" };
+    saved.box = { ...saved.box, color: "#112233" };
+    const before = { ...slice(saved), theme: "dark" as const, demoHold: null, stage: "bottle", boxOpen: false };
+    const hold = demoSessionHold(before);
+    expect((hold.design as Design).label.text).toBe("KEPT");
+    expect((hold.design as Design).box.color).toBe("#112233");
+    const shot = createDefaultDesign();
+    shot.step = 7;
+    shot.label = { ...shot.label, text: "SHOT" };
+    shot.box = { ...shot.box, shape: { type: "rect" }, color: "#e4d8c4" };
+    const during = { ...before, design: shot, theme: "light" as const, stage: "box", boxOpen: true, demoHold: hold };
+    const written = partializeLabState(during);
+    expect(written).toBe(hold);
+    expect((written.design as Design).label.text).toBe("KEPT");
+    expect(written.theme).toBe("dark");
+    expect("demoHold" in written).toBe(false);
+    expect("stage" in written).toBe(false);
+    const again = demoSessionHold(during);
+    expect(again).toBe(hold);
+    expect((partializeLabState({ ...during, design: shot, demoHold: again }).design as Design).box.color).toBe("#112233");
   });
 });
 
