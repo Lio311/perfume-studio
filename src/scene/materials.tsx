@@ -44,10 +44,10 @@ const BLUE_FRAG = `
 
 /**
  * Neutral fibre albedo, multiplied by the finish colour.
- * A white map leaves no headroom: cream (#f4efe6) under the studio key and lightformers
- * tone-maps to a flat 255 face. This gray stays a tinted paper so edges and grain read.
+ * A white map leaves cream (#f4efe6) no headroom under the studio key, so the face
+ * tone-maps flat. This gray stays a tint, and the fibres are large enough to read.
  */
-export const MATTE_PAPER_ALBEDO = "#c4bdb2";
+export const MATTE_PAPER_ALBEDO = "#8f887c";
 
 function mattePaper(): { map: THREE.CanvasTexture; bump: THREE.CanvasTexture } {
   const canvas = document.createElement("canvas");
@@ -63,16 +63,18 @@ function mattePaper(): { map: THREE.CanvasTexture; bump: THREE.CanvasTexture } {
     ctx.fillRect(0, 0, 256, 256);
     bumpCtx.fillStyle = "#808080";
     bumpCtx.fillRect(0, 0, 256, 256);
-    for (let i = 0; i < 2400; i += 1) {
+    for (let i = 0; i < 220; i += 1) {
       const x = Math.random() * 256;
       const y = Math.random() * 256;
-      const w = 1 + Math.random() * 2.8;
-      const n = 58 + Math.random() * 160;
-      ctx.globalAlpha = 0.28 + Math.random() * 0.5;
-      ctx.fillStyle = `rgb(${n | 0},${Math.max(0, n - 12) | 0},${Math.max(0, n - 26) | 0})`;
-      ctx.fillRect(x, y, w, 1);
-      bumpCtx.fillStyle = `rgb(${70 + Math.random() * 120},${70 + Math.random() * 120},${70 + Math.random() * 120})`;
-      bumpCtx.fillRect(x, y, w, 1);
+      const len = 16 + Math.random() * 36;
+      const thick = 1.3 + Math.random() * 1.6;
+      const n = Math.random() > 0.5 ? 108 + Math.random() * 18 : 156 + Math.random() * 22;
+      ctx.globalAlpha = 0.32 + Math.random() * 0.28;
+      ctx.fillStyle = `rgb(${n | 0},${Math.max(0, n - 10) | 0},${Math.max(0, n - 18) | 0})`;
+      ctx.fillRect(x, y, len, thick);
+      const bump = n > 140 ? 158 : 96;
+      bumpCtx.fillStyle = `rgb(${bump},${bump},${bump})`;
+      bumpCtx.fillRect(x, y, len, thick);
     }
     ctx.globalAlpha = 1;
   }
@@ -81,9 +83,15 @@ function mattePaper(): { map: THREE.CanvasTexture; bump: THREE.CanvasTexture } {
   for (const texture of [map, bump]) {
     texture.wrapS = THREE.RepeatWrapping;
     texture.wrapT = THREE.RepeatWrapping;
-    texture.repeat.set(2.2, 2.2);
+    texture.repeat.set(1.35, 1.35);
   }
   map.colorSpace = THREE.SRGBColorSpace;
+  map.generateMipmaps = false;
+  map.minFilter = THREE.LinearFilter;
+  map.magFilter = THREE.LinearFilter;
+  bump.generateMipmaps = false;
+  bump.minFilter = THREE.LinearFilter;
+  bump.magFilter = THREE.LinearFilter;
   return { map, bump };
 }
 
@@ -171,7 +179,7 @@ export function FinishMaterial({
 }: {
   finish: FinishId;
   color: string;
-  opacity?: number;
+  opacity?: number | null;
   flat?: boolean;
   glass?: boolean;
   section?: boolean;
@@ -192,7 +200,7 @@ export function FinishMaterial({
   }, [wood, leather, paper]);
   const glassLike = glass && isGlass(finish);
   const gp = useMemo(
-    () => (glassLike ? computeGlassProps(finish, opacity) : null),
+    () => (glassLike ? computeGlassProps(finish, opacity ?? undefined) : null),
     [glassLike, finish, opacity],
   );
   const metal = finish === "gold" || finish === "silver" || finish === "rose";
@@ -219,7 +227,7 @@ export function FinishMaterial({
   if (blueprint) {
     return <shaderMaterial transparent depthWrite toneMapped={false} uniforms={fade} vertexShader={BLUE_VERT} fragmentShader={BLUE_FRAG} clippingPlanes={planes} />;
   }
-  if (clear && glass && !clearHigh) return <ClearGlass opacity={opacity !== undefined ? opacity : 0.14} color={color} clippingPlanes={planes} />;
+  if (clear && glass && !clearHigh) return <ClearGlass opacity={typeof opacity === "number" ? opacity : 0.14} color={color} clippingPlanes={planes} />;
 
   return (
     <meshPhysicalMaterial
@@ -228,7 +236,7 @@ export function FinishMaterial({
       flatShading={flat}
       map={wood ?? paper?.map ?? undefined}
       bumpMap={leather ?? paper?.bump ?? undefined}
-      bumpScale={leather ? 0.35 : paper ? 0.35 : 0}
+      bumpScale={leather ? 0.35 : paper ? 0.55 : 0}
       emissive="#000000"
       emissiveIntensity={0}
       metalness={metal ? 1 : 0}
@@ -243,7 +251,7 @@ export function FinishMaterial({
       clearcoatRoughness={metal ? 0.12 : 0.04}
       attenuationColor={gp ? color : "#fff8ee"}
       attenuationDistance={gp ? 36 : 160}
-      envMapIntensity={metal ? 1.65 : gp ? 1.7 : matte ? 0.35 : 0.7}
+      envMapIntensity={metal ? 1.65 : gp ? 1.7 : matte ? 0.08 : 0.7}
       clippingPlanes={planes}
       specularIntensity={gp || metal ? 1 : matte ? 0.4 : 0.3}
       transparent={!!gp}
@@ -266,25 +274,53 @@ export function WrapMaterial({
   section?: boolean;
 }) {
   const cutaway = useLab((s) => s.cutaway);
-  const paper = useMemo(() => (finish === "paper-texture" || finish === "matte" ? paperMaps() : null), [finish]);
+  const paper = useMemo(() => {
+    if (finish !== "paper-texture" && finish !== "matte" && finish !== "soft-touch") return null;
+    const maps = paperMaps();
+    if (finish !== "soft-touch") return maps;
+    const map = maps.map.clone();
+    const rough = maps.rough.clone();
+    map.repeat.set(2.6, 2.6);
+    rough.repeat.set(2.6, 2.6);
+    map.needsUpdate = true;
+    rough.needsUpdate = true;
+    return { map, rough };
+  }, [finish]);
   const velvet = useMemo(() => (finish === "velvet" ? velvetMaps() : null), [finish]);
+  useEffect(() => {
+    if (finish !== "soft-touch" || !paper) return undefined;
+    return () => {
+      paper.map.dispose();
+      paper.rough.dispose();
+    };
+  }, [finish, paper]);
   const planes = section && cutaway ? sectionPlanes : undefined;
   const pile = finish === "velvet";
   const gloss = finish === "gloss";
+  const soft = finish === "soft-touch";
   return (
     <meshPhysicalMaterial
       color={color}
       map={pile ? velvet?.map : paper?.map}
       roughnessMap={pile ? velvet?.rough : paper?.rough}
       metalness={0}
-      roughness={gloss ? 0.16 : pile ? 0.82 : finish === "soft-touch" ? 0.68 : board === "carton" ? 0.9 : 0.84}
-      clearcoat={gloss ? 0.75 : finish === "soft-touch" ? 0.18 : 0}
-      clearcoatRoughness={gloss ? 0.18 : 0.45}
-      sheen={pile ? 1 : finish === "soft-touch" ? 0.22 : 0}
+      roughness={gloss ? 0.16 : pile ? 0.82 : soft ? 0.62 : board === "carton" ? 0.86 : 0.8}
+      clearcoat={gloss ? 0.75 : soft ? 0.34 : 0.08}
+      clearcoatRoughness={gloss ? 0.18 : 0.42}
+      sheen={pile ? 1 : soft ? 0.38 : 0.12}
       sheenColor={color}
-      sheenRoughness={pile ? 0.38 : 0.6}
-      envMapIntensity={gloss ? 0.85 : pile ? 0.45 : 0.28}
+      sheenRoughness={pile ? 0.38 : 0.55}
+      envMapIntensity={gloss ? 0.9 : pile ? 0.55 : soft ? 0.62 : 0.48}
       clippingPlanes={planes}
+      onBeforeCompile={(shader) => {
+        shader.fragmentShader = shader.fragmentShader.replace(
+          "#include <dithering_fragment>",
+          `float wrapNd = clamp(dot(normalize(normal), normalize(vViewPosition)), 0.0, 1.0);
+           gl_FragColor.rgb += vec3(0.93, 0.86, 0.72) * pow(1.0 - wrapNd, 2.5) * 0.2;
+           #include <dithering_fragment>`,
+        );
+      }}
+      customProgramCacheKey={() => "wrap-edge"}
     />
   );
 }

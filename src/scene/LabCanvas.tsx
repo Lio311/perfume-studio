@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ComponentProps } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { AdaptiveDpr, Grid, OrbitControls, PerformanceMonitor } from "@react-three/drei";
 import * as THREE from "three";
@@ -9,7 +9,7 @@ import type { PartKey } from "../model/types.ts";
 import type { ViewPreset } from "../store/labStore.ts";
 import { Assembly } from "./Assembly.tsx";
 import { releaseFocus } from "./focusClick.ts";
-import { assemblyBounds, fitPose, FOCUS_FILL, orbitLimits, partBounds, readStageFrame } from "./framing.ts";
+import { assemblyBounds, BOX_FILL, boxViewportFrame, fitPose, FOCUS_FILL, orbitLimits, partBounds, readStageFrame } from "./framing.ts";
 import { cameraProbe, sceneSpan } from "./limits.ts";
 import { clampPolarOffset, decayGlide, emptyGlide, PAN_SPEED, PAN_STEP, PITCH_STEP, polarAngle, poseBroken, pushGlide, ROTATE_SPEED, takeStep, YAW_STEP, type Glide } from "./orbitGlide.ts";
 import { Exposure, PixelRatio, StageFloor, StudioEnv, StudioLights } from "./studio.tsx";
@@ -191,9 +191,10 @@ function CameraRig() {
     const box = bounds ?? (state.solo
       ? partBounds(state.design, state.explode, state.solo, state.stage, true, lid)
       : assemblyBounds(state.design, state.explode, state.stage, lid));
-    const frame = readStageFrame(gl.domElement);
+    const boxScene = state.stage === "box" && !state.solo && !bounds;
+    const frame = boxScene ? boxViewportFrame(size.width, size.height) : readStageFrame(gl.domElement);
     const fov = camera instanceof THREE.PerspectiveCamera ? camera.fov : 30;
-    return fitPose(box, dir, fov, frame, fill);
+    return fitPose(box, dir, fov, frame, fill ?? (boxScene ? BOX_FILL : undefined));
   };
 
   const aimPart = (part: PartKey) => {
@@ -215,13 +216,17 @@ function CameraRig() {
     direction.current.copy(dir);
     const state = useLab.getState();
     const framed = dir.clone();
-    if (state.stage !== "bottle" && state.boxOpen && !state.solo) {
+    const boxScene = state.stage === "box" && !state.solo;
+    if (boxScene) {
+      framed.set(state.boxOpen ? 0.85 : 0.72, state.boxOpen ? 1.4 : 0.46, state.boxOpen ? 0.62 : 1);
+      framed.normalize();
+    } else if (state.stage !== "bottle" && state.boxOpen && !state.solo) {
       framed.set(0.62, 0.92, 1);
       framed.normalize();
     }
     const present = state.present;
     const exploded = state.explode > 0.12 && !state.aimed && !state.solo;
-    const pose = poseFor(framed, undefined, present ? 0.58 : exploded ? 0.72 : undefined);
+    const pose = poseFor(framed, undefined, exploded ? 0.72 : boxScene ? BOX_FILL : present ? 0.58 : undefined);
     goalPos.current.copy(pose.position);
     goalTarget.current.copy(pose.target);
     if (pullBack > 1) {
@@ -559,6 +564,24 @@ function StageFog() {
   return null;
 }
 
+function StageGrid(props: ComponentProps<typeof Grid>) {
+  const ref = useRef<THREE.Mesh>(null);
+  useLayoutEffect(() => {
+    const material = ref.current?.material;
+    if (!material || Array.isArray(material)) return;
+    // drei's grid material is transparent, so it is drawn after transmissive
+    // glass and the lines composite on top of the liquid. Drawing it opaque
+    // puts the lines in the transmission buffer, behind the bottle. Alpha to
+    // coverage keeps the distance fade. Depth write stays off so a line can
+    // never hide the liquid.
+    material.transparent = false;
+    material.depthWrite = false;
+    material.alphaToCoverage = true;
+    material.needsUpdate = true;
+  }, []);
+  return <Grid ref={ref} renderOrder={-1} {...props} />;
+}
+
 function Stage() {
   const theme = useLab((s) => themes[s.theme]);
   const voice = useLab((s) => s.voice);
@@ -584,10 +607,8 @@ function Stage() {
       <StudioLights />
       <StageFloor />
       {showGrid && (
-        <Grid
+        <StageGrid
           args={[400, 400]}
-          renderOrder={-1}
-          material-depthWrite={false}
           position={[0, 0.15, 0]}
           cellSize={16}
           cellThickness={blueprint ? 1.15 : 0.9}
@@ -601,10 +622,8 @@ function Stage() {
         />
       )}
       {blueprint && stage !== "together" && voice !== 2 && (
-        <Grid
+        <StageGrid
           args={[340, 220]}
-          renderOrder={-1}
-          material-depthWrite={false}
           position={[0, 100, stage === "box" ? -150 : -190]}
           rotation={[Math.PI / 2, 0, 0]}
           cellSize={16}

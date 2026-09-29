@@ -1,5 +1,5 @@
 import { Component, useEffect, useLayoutEffect, useState, type ErrorInfo, type ReactNode } from "react";
-import { noteStudioFrame } from "../boot/splash.ts";
+import { noteAppMounted, noteStudioFrame } from "../boot/splash.ts";
 import { createPortal } from "react-dom";
 import { SUPPLIER_DB_NAME } from "../import/supplierDb.ts";
 import { pauseLabStorageWrites, readStorageValue, resetPersistedPayload } from "../store/hydrate.ts";
@@ -355,6 +355,10 @@ interface BoundaryState {
 function AppCrash({ onReload, onReset }: { onReload: () => void; onReset: () => void }) {
   const text = COPY[useLang()];
   const [confirming, setConfirming] = useState(false);
+  useEffect(() => {
+    noteAppMounted();
+    noteStudioFrame();
+  }, []);
   if (confirming) {
     return (
       <FallbackScreen

@@ -3,7 +3,7 @@ import type { Lang, PartKey } from "../model/types.ts";
 const he = {
   appHe: "מעבדת הבושם",
   appEn: "Perfume Lab",
-  brandLine: "PERFUME LAB · מעבדת בקבוקים",
+  brandLine: "PERFUME LAB",
   kicker: "Private label",
   project: "פרויקט",
   library: "ספרייה",
@@ -187,6 +187,7 @@ const he = {
   outlineHint: "גררו את קו המתאר כדי לתקן אותו",
   tempShape: "צורה זמנית",
   specSaved: "המפרט ירד",
+  specFailed: "לא הצלחנו להוריד את המפרט",
   pngSaved: "התמונה ירדה",
   unitMm: "מ״מ",
   unitCm: "ס״מ",
@@ -328,7 +329,7 @@ const he = {
 const en: typeof he = {
   appHe: "מעבדת הבושם",
   appEn: "Perfume Lab",
-  brandLine: "PERFUME LAB · Bottle atelier",
+  brandLine: "PERFUME LAB",
   kicker: "Private label",
   project: "Project",
   library: "Library",
@@ -512,6 +513,7 @@ const en: typeof he = {
   outlineHint: "Drag the outline to correct it",
   tempShape: "Stand-in shape",
   specSaved: "Spec downloaded",
+  specFailed: "Couldn't download the spec",
   pngSaved: "Image downloaded",
   unitMm: "mm",
   unitCm: "cm",

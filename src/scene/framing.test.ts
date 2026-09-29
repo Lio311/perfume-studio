@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import * as THREE from "three";
 import { applyVariant, createDefaultDesign } from "../model/design.ts";
 import type { PartKey } from "../model/types.ts";
-import { assemblyBounds, FOCUS_FILL, fitPose, orbitLimits, partBounds, safeRect, type StageFrame } from "./framing.ts";
+import { assemblyBounds, BOX_FILL, boxViewportFrame, FOCUS_FILL, fitPose, orbitLimits, partBounds, safeRect, type StageFrame } from "./framing.ts";
 
 function macbook(): StageFrame {
   const stageLeft = 338;
@@ -90,6 +90,28 @@ describe("focus framing on a MacBook stage", () => {
       expect(box.minX, dir.y.toFixed(2)).toBeGreaterThanOrEqual(safe.left - 2);
       expect(box.maxX, dir.y.toFixed(2)).toBeLessThanOrEqual(safe.right + 2);
     }
+  });
+
+  it("fills 55 to 70 percent of the viewport height with a closed and an open carton", () => {
+    const frame = boxViewportFrame(1280, 800);
+    const design = createDefaultDesign();
+    design.box.structure = "lift-off";
+    design.box.liftOff = { ...design.box.liftOff, variant: "telescope-full" };
+    for (const open of [false, true]) {
+      const bounds = assemblyBounds(design, 0, "box", open);
+      const dir = new THREE.Vector3(open ? 0.5 : 0.72, open ? 1.18 : 0.46, open ? 0.8 : 1).normalize();
+      const pose = fitPose(bounds, dir, 30, frame, BOX_FILL);
+      const box = projected(pose, bounds, frame);
+      const ratio = box.h / frame.height;
+      expect(ratio, open ? "open" : "closed").toBeGreaterThan(0.55);
+      expect(ratio, open ? "open" : "closed").toBeLessThanOrEqual(0.7);
+    }
+    design.box.structure = "drawer";
+    const openDrawer = assemblyBounds(design, 0, "box", true);
+    const drawerPose = fitPose(openDrawer, new THREE.Vector3(0.5, 1.18, 0.8).normalize(), 30, frame, BOX_FILL);
+    const drawer = projected(drawerPose, openDrawer, frame);
+    expect(drawer.h / frame.height).toBeGreaterThan(0.55);
+    expect(drawer.h / frame.height).toBeLessThanOrEqual(0.7);
   });
 
   it("keeps the camera outside the bottle and short of the world edge", () => {

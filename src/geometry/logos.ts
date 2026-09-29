@@ -291,6 +291,7 @@ export function labelFontFamily(font: LogoFont, text: string): string {
 
 const DARK_PLATE = "#16130f";
 const LIGHT_PLATE = "#f7f2e8";
+const DEFAULT_INK = "#e6cc98";
 
 /** sRGB byte to the linear channel THREE.Color stores. Matches ColorManagement in three r152+. */
 function srgbChannelToLinear(channel: number): number {
@@ -307,9 +308,9 @@ function linearFromBytes(red: number, green: number, blue: number): { r: number;
 
 /**
  * Linear channels for a CSS colour, matching THREE.Color.
- * An unknown colour stays white, which is what THREE.Color leaves in place when setStyle fails.
+ * An unknown name keeps the previous ink, or the default gold when nothing came before.
  */
-function parsedColor(input: string): { r: number; g: number; b: number } {
+function parsedColor(input: string, previous?: { r: number; g: number; b: number }): { r: number; g: number; b: number } {
   const value = input.trim();
   const short = /^#([0-9a-f]{3})$/i.exec(value);
   if (short) {
@@ -327,13 +328,16 @@ function parsedColor(input: string): { r: number; g: number; b: number } {
   }
   const rgb = /^rgba?\(\s*([0-9.]+)\s*,\s*([0-9.]+)\s*,\s*([0-9.]+)/i.exec(value);
   if (rgb) return linearFromBytes(Number(rgb[1]), Number(rgb[2]), Number(rgb[3]));
-  if (value.toLowerCase() === "black") return { r: 0, g: 0, b: 0 };
-  return { r: 1, g: 1, b: 1 };
+  const named = value.toLowerCase();
+  if (named === "black") return { r: 0, g: 0, b: 0 };
+  if (named === "white") return { r: 1, g: 1, b: 1 };
+  return previous ?? parsedColor(DEFAULT_INK);
 }
 
 /** WCAG relative luminance. Channels are linear, matching THREE.Color. */
-export function relativeLuminance(color: string): number {
-  const parsed = parsedColor(color);
+export function relativeLuminance(color: string, fallback = DEFAULT_INK): number {
+  const previous = fallback === color ? undefined : parsedColor(fallback);
+  const parsed = parsedColor(color, previous);
   return 0.2126 * parsed.r + 0.7152 * parsed.g + 0.0722 * parsed.b;
 }
 
@@ -713,6 +717,18 @@ function fitWord(ctx: CanvasRenderingContext2D, word: string, family: string, ma
 
 const TYPE_MARKS = new Set<LogoSpec["mark"]>(["word", "horizon", "stacked", "vertical", "numeral"]);
 
+/**
+ * Ground behind carton ink.
+ * Flat print is `decal`. Foil, emboss, and engrave stay clear.
+ * Print keeps an opaque plate only when a plate colour is set.
+ */
+export function cartonMarkPlate(application: LogoApplication | "print", plateColour?: string | null): string | "clear" {
+  const print = application === "decal" || application === "print";
+  if (!print) return "clear";
+  const colour = plateColour?.trim() ?? "";
+  return colour ? colour : "clear";
+}
+
 export function paintLabel(
   ctx: CanvasRenderingContext2D,
   spec: Pick<LogoSpec, "mark" | "font" | "frame">,
@@ -720,6 +736,7 @@ export function paintLabel(
   ink: string,
   w: number,
   h: number,
+  plate: "contrast" | "clear" | string = "contrast",
 ): LabelLineLayout {
   const family = labelFontFamily(spec.font, text);
   const weight = labelFontWeight(spec.font, text);
@@ -729,8 +746,12 @@ export function paintLabel(
   if (canvasEl?.setAttribute) canvasEl.setAttribute("dir", direction);
   ctx.save();
   ctx.direction = direction;
-  ctx.fillStyle = contrastingPlate(ink);
-  ctx.fillRect(0, 0, w, h);
+  if (plate === "clear") {
+    ctx.clearRect(0, 0, w, h);
+  } else {
+    ctx.fillStyle = plate === "contrast" ? contrastingPlate(ink) : plate;
+    ctx.fillRect(0, 0, w, h);
+  }
 
   const layout = layoutLabelLines(text, Math.max(8, w * 0.86), h * (typeMark ? 0.78 : 0.58), (line, px) => {
     ctx.font = `${weight} ${px}px ${family}`;

@@ -96,7 +96,7 @@ export interface GlassProps {
   ior: number;
 }
 
-export function computeGlassProps(finish: FinishId, slider?: number): GlassProps | null {
+export function computeGlassProps(finish: FinishId, slider?: number | null): GlassProps | null {
   const glass = glassFinish(finish);
   if (!glass) return null;
 
@@ -112,7 +112,7 @@ export function computeGlassProps(finish: FinishId, slider?: number): GlassProps
   };
 }
 
-export function effectiveGlassOpacity(finish: FinishId, opacity?: number): number | null {
+export function effectiveGlassOpacity(finish: FinishId, opacity?: number | null): number | null {
   const glass = glassFinish(finish);
   if (!glass) return null;
   return opacity ?? DEFAULT_GLASS_OPACITY[glass];
@@ -133,7 +133,7 @@ export function usesFlatGlassAlpha(finish: FinishId): boolean {
 }
 
 /** Opacity actually rendered, shared by the material, the slider label, and the spec sheet. */
-export function renderedGlassOpacity(finish: FinishId, opacity?: number): number | null {
+export function renderedGlassOpacity(finish: FinishId, opacity?: number | null): number | null {
   const slider = effectiveGlassOpacity(finish, opacity);
   if (slider === null) return null;
   if (usesFlatGlassAlpha(finish)) return mappedGlassOpacity(slider);
@@ -141,28 +141,29 @@ export function renderedGlassOpacity(finish: FinishId, opacity?: number): number
 }
 
 /** Clear-glass shader fade for a slider value. 1 is the untouched default. */
-export function clearGlassFade(opacity?: number): number {
+export function clearGlassFade(opacity?: number | null): number {
   return (opacity ?? DEFAULT_GLASS_OPACITY.clear) / DEFAULT_GLASS_OPACITY.clear;
 }
 
 /** Write that fade onto the shader uniform before the first frame is drawn. */
-export function assignClearGlassFade(uniforms: { uFade: { value: number } }, opacity?: number): number {
+export function assignClearGlassFade(uniforms: { uFade: { value: number } }, opacity?: number | null): number {
   const userFade = clearGlassFade(opacity);
   uniforms.uFade.value = userFade;
   return userFade;
 }
 
 /** Per-frame glass target taken from the design, not from a material snapshot. */
-export function bottleGlassSetting(finish: FinishId, opacity?: number): { fade: number | null; alpha: number | null } {
+export function bottleGlassSetting(finish: FinishId, opacity?: number | null): { fade: number | null; alpha: number | null } {
   if (finish === "clear") return { fade: clearGlassFade(opacity), alpha: null };
   return { fade: null, alpha: renderedGlassOpacity(finish, opacity) };
 }
 
-/** Stored transmission for a finish. The renderer reads `computeGlassProps`, which also follows the slider. */
-export function glassTransmission(finish: FinishId, opacity?: number): number {
+/** Explicit opacity uses `1 - opacity`. Otherwise the transmission stored with that finish's default opacity.
+ * The renderer reads `computeGlassProps`, which also follows the slider. */
+export function glassTransmission(finish: FinishId, opacity?: number | null): number {
   const glass = glassFinish(finish);
   if (!glass) return 0;
-  if (opacity !== undefined) return 1 - opacity;
+  if (typeof opacity === "number" && Number.isFinite(opacity)) return 1 - opacity;
   return GLASS_FINISH_DEFAULTS[glass].transmission;
 }
 
@@ -177,7 +178,7 @@ const GLASS_SURFACE: Record<GlassFinish, { roughness: number; thickness: number;
  * Frosted and tinted follow `clamp(base · (1 - s) / (1 - s0), 0, 1)`.
  * Clear glass keeps its refractive default.
  */
-export function glassDrawTransmission(finish: FinishId, opacity?: number): number {
+export function glassDrawTransmission(finish: FinishId, opacity?: number | null): number {
   if (!isGlass(finish)) return 0;
   const glass = glassFinish(finish);
   if (!glass || glass === "clear") return Math.max(0.01, glassTransmission(finish));
@@ -187,8 +188,11 @@ export function glassDrawTransmission(finish: FinishId, opacity?: number): numbe
   return Math.min(1, Math.max(0, (base * (1 - s)) / (1 - s0)));
 }
 
-/** 0 at and below the per-finish default slider, 1 at slider 1. */
-function opaqueMix(glass: GlassFinish, opacity?: number): number {
+/**
+ * 0 at and below the per-finish default slider, 1 at slider 1.
+ * Used so tint darkening never moves the untouched default.
+ */
+function opaqueMix(glass: GlassFinish, opacity?: number | null): number {
   const s0 = DEFAULT_GLASS_OPACITY[glass];
   const s = opacity ?? s0;
   if (s <= s0 || s0 >= 1) return 0;
@@ -198,8 +202,13 @@ function opaqueMix(glass: GlassFinish, opacity?: number): number {
 /** At slider 1 the tint albedo is this fraction of the design colour. Hue stays put. */
 const TINTED_OPAQUE_SCALE = 0.4;
 
-/** Tinted glass colour for a slider position. At and below the default this is the design colour. */
-export function tintedGlassColor(color: string, opacity?: number): string {
+/**
+ * Tinted glass colour for a slider position. At and below the default this is the
+ * design colour. Toward opaque it gets darker by the same ratio on every channel,
+ * so the grey-green hue does not shift to a lighter mint. Attenuation stays the
+ * design colour. Frosted is not passed through here.
+ */
+export function tintedGlassColor(color: string, opacity?: number | null): string {
   const factor = 1 - (1 - TINTED_OPAQUE_SCALE) * opaqueMix("tinted", opacity);
   const hex = color.trim().replace("#", "");
   const value = Number.parseInt(hex, 16);
@@ -211,9 +220,12 @@ export function tintedGlassColor(color: string, opacity?: number): string {
 
 /**
  * Params the frosted or tinted physical material draws.
- * The glass stays transparent and does not write depth, including at slider 1.
+ * The glass stays transparent and does not write depth at every slider position,
+ * including 1, so opacity can reach 1 without a mode switch and without hiding
+ * the liquid in the depth buffer. The floor grid is drawn opaque, behind the bottle,
+ * so its lines are not composited on top of the liquid.
  */
-export function effectiveGlassDraw(finish: FinishId, opacity?: number): {
+export function effectiveGlassDraw(finish: FinishId, opacity?: number | null): {
   opacity: number;
   transmission: number;
   roughness: number;

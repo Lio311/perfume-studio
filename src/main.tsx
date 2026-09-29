@@ -22,6 +22,18 @@ import App from "./App.tsx";
 import { AppErrorBoundary } from "./ui/FallbackScreen.tsx";
 import "./index.css";
 
+const PRELOAD_RELOAD_KEY = "perfume-lab-preload-reloaded";
+window.addEventListener("vite:preloadError", (event) => {
+  event.preventDefault();
+  try {
+    if (sessionStorage.getItem(PRELOAD_RELOAD_KEY)) return;
+    sessionStorage.setItem(PRELOAD_RELOAD_KEY, "1");
+  } catch {
+    return;
+  }
+  window.location.reload();
+});
+
 document.fonts?.load('300 16px Heebo', "אבג ABC");
 document.fonts?.load('400 16px Heebo', "אבג ABC");
 document.fonts?.load('500 28px Heebo', "אבג ABC");

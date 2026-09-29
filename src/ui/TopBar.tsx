@@ -98,6 +98,9 @@ export function TopBar() {
       downloadSpec(design, lang);
       setNotice(t.specSaved);
       window.setTimeout(() => setNotice(""), 1600);
+    }).catch(() => {
+      setNotice(t.specFailed);
+      window.setTimeout(() => setNotice(""), 2200);
     });
     setMenu(null);
   }

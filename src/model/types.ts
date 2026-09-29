@@ -226,7 +226,7 @@ export interface BottleState {
   heightMm: number;
   widthMm: number;
   depthMm: number;
-  opacity?: number;
+  opacity?: number | null;
   visible: boolean;
 }
 

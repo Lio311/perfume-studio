@@ -16,6 +16,7 @@ import {
   cartonMarkSize,
   cartonTextAspect,
   paintCartonMark,
+  cartonMarkPlate,
   paintLabel,
   paintLabelEmissive,
   paintLabelSurface,
@@ -79,6 +80,13 @@ describe("label text layout", () => {
     expect(contrastingPlate("rgb(255, 255, 255)")).toBe("#16130f");
     expect(contrastingPlate("#44bbdd")).toBe("#16130f");
     expect(contrastingPlate("#c9a36a")).toBe("#16130f");
+  });
+
+  it("keeps the previous or default ink when a colour name is unknown", () => {
+    expect(relativeLuminance("not-a-colour")).toBeCloseTo(relativeLuminance("#e6cc98"), 5);
+    expect(relativeLuminance("not-a-colour")).not.toBeCloseTo(1, 1);
+    expect(relativeLuminance("chartreuse", "#112233")).toBeCloseTo(relativeLuminance("#112233"), 5);
+    expect(contrastingPlate("not-a-colour")).toBe(contrastingPlate("#e6cc98"));
   });
 
   it("keeps at least 3:1 contrast for every label palette colour", () => {
@@ -245,6 +253,17 @@ describe("label text layout", () => {
   it("repaints only when a new face loads", () => {
     expect(shouldRepaintLabel(true)).toBe(false);
     expect(shouldRepaintLabel(false)).toBe(true);
+  });
+
+  it("keeps the carton plaque clear unless print has a plate colour", () => {
+    expect(cartonMarkPlate("foil", "#111111")).toBe("clear");
+    expect(cartonMarkPlate("emboss", "#111111")).toBe("clear");
+    expect(cartonMarkPlate("engrave", "#111111")).toBe("clear");
+    expect(cartonMarkPlate("decal", null)).toBe("clear");
+    expect(cartonMarkPlate("decal", "  ")).toBe("clear");
+    expect(cartonMarkPlate("print", "")).toBe("clear");
+    expect(cartonMarkPlate("print", "#f4efe6")).toBe("#f4efe6");
+    expect(cartonMarkPlate("decal", "#f4efe6")).toBe("#f4efe6");
   });
 
   it("paints carton foil and engrave on a clear ground, and keeps a plate only for print", () => {
