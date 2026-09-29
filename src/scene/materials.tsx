@@ -136,7 +136,7 @@ const CLEAR_FRAG = `
     revealColor += vec3(1.0) * spec * 1.45;
     color = mix(color, revealColor, uReveal);
     float cover = 0.08 + clamp(uOpacity, 0.0, 1.0) * 0.92;
-    float revealCover = 0.30 + fresHard * 0.55;
+    float revealCover = 0.62 + fresHard * 0.32;
     cover = mix(cover, revealCover, uReveal);
     gl_FragColor = vec4(color, cover * uFade);
   }
