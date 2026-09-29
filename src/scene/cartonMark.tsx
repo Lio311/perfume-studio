@@ -34,9 +34,8 @@ export function LabelFinishMaterial({
         map={map}
         toneMapped={false}
         transparent={open}
-        alphaTest={open ? 0.1 : 0}
         depthWrite={overlay ? true : !open}
-        polygonOffset
+        polygonOffset={!overlay}
         polygonOffsetFactor={-4}
         polygonOffsetUnits={-4}
       />
@@ -64,10 +63,10 @@ export function LabelFinishMaterial({
       emissiveMap={finish.emissive > 0 ? emissiveMap ?? undefined : undefined}
       toneMapped={finish.metalness < 0.5}
       transparent={open}
-      alphaTest={open ? 0.1 : 0}
+      alphaTest={overlay ? 0.4 : 0}
       depthWrite={overlay ? true : !open}
       premultipliedAlpha={!open}
-      polygonOffset
+      polygonOffset={!overlay}
       polygonOffsetFactor={-4}
       polygonOffsetUnits={-4}
     />
@@ -90,7 +89,7 @@ export function CartonMark({ w, y, z }: { w: number; y: number; z: number }) {
   const { color: tex, mask, emissive, normal } = useLabelMaps(canvas, ink, application);
   if (blueprint || text.trim().length === 0) return null;
   return (
-    <mesh position={[0, y, z + 2.2]} renderOrder={6}>
+    <mesh position={[0, y, z]}>
       <planeGeometry args={[planeW, planeH]} />
       <LabelFinishMaterial map={tex} mask={mask} emissiveMap={emissive} normalMap={normal} ink={ink} application={application} overlay />
     </mesh>
