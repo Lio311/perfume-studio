@@ -14,6 +14,11 @@ export function liftClosedY(dims: ClosureDims): number {
   return Math.max(0, dims.h - dims.lidH);
 }
 
+/** Full telescope sleeve. Partial and shoulder-neck keep a lid that stays over the base. */
+function fullTelescope(dims: ClosureDims): boolean {
+  return dims.neckH <= 0 && dims.lidH >= dims.h * 0.9;
+}
+
 function layout(
   box: { w: number; h: number; d: number },
   wall: number,
@@ -75,19 +80,27 @@ const spec: ClosureSpec = {
       channels: [
         sizedChannel(
           "translate",
+          "x",
+          () => 0,
+          (dims) => (fullTelescope(dims) ? -dims.w * 1.08 : 0),
+          (dims) => (fullTelescope(dims) ? -dims.w * 1.25 : 0),
+          () => 0,
+        ),
+        sizedChannel(
+          "translate",
           "y",
           (dims) => liftClosedY(dims),
-          (dims) => liftClosedY(dims) + dims.h * 0.62,
+          (dims) => liftClosedY(dims) + dims.h * (fullTelescope(dims) ? 0.14 : 0.62),
           (dims) => liftClosedY(dims),
-          (dims) => liftClosedY(dims) + dims.h * 0.7,
+          (dims) => liftClosedY(dims) + dims.h * (fullTelescope(dims) ? 0.22 : 0.7),
         ),
         sizedChannel(
           "translate",
           "z",
           () => 0,
-          (dims) => dims.d * 0.32,
+          (dims) => (fullTelescope(dims) ? dims.d * 0.16 : dims.d * 0.32),
           () => 0,
-          (dims) => dims.d * 0.4,
+          (dims) => (fullTelescope(dims) ? dims.d * 0.28 : dims.d * 0.4),
         ),
       ],
     },

@@ -4,6 +4,7 @@ import { stopSpeaking } from "./audio/speech.ts";
 import { partLabel, tx, wizardTitle } from "./i18n/copy.ts";
 import { acknowledgePackLoads, adoptLoadedSuppliers, loadPacks } from "./import/supplierDb.ts";
 import { isKnownPack, withInnerStructure } from "./model/boxFields.ts";
+import { shotHeightMm, stripShotQuery } from "./model/shotQuery.ts";
 import { packById } from "./model/closures/registry.ts";
 import { hydrateDesign } from "./model/design.ts";
 import { clampLabelText } from "./geometry/logos.ts";
@@ -11,6 +12,7 @@ import { applyIncomingShareHash, invalidShareMessage, missingPartsMessage, respo
 import { backSurface, handleHistoryPop, syncHistoryTrap, wizardStepAfterPop, type BackAction, type Trap } from "./nav/backHistory.ts";
 import { requestShot } from "./scene/capture.ts";
 import { useLab } from "./store/labStore.ts";
+import { demoSessionHold } from "./store/hydrate.ts";
 import { applyTheme } from "./theme/themes.ts";
 import { BudgetBrief } from "./ui/BudgetBrief.tsx";
 import { BudgetMeter } from "./ui/BudgetMeter.tsx";
@@ -47,6 +49,7 @@ function applyBackAction(action: Exclude<BackAction, "leave">, trap: Trap) {
     useLab.setState({
       design: { ...design, step },
       stage: step === 6 ? "box" : "bottle",
+      demoHold: null,
     });
   } else if (action === "mode") {
     // Zero before setMode so the assemble tween does not leave explode open and re-arm history.
@@ -97,6 +100,7 @@ export default function App() {
   const [savingsOpen, setSavingsOpen] = useState(false);
   const step = design.step ?? 7;
   const prevStep = useRef(step);
+  const demoShot = useRef(false);
 
   useEffect(() => {
     noteAppMounted();
@@ -163,7 +167,7 @@ export default function App() {
         noteInvalid: () => {
           useLab.setState({ toast: invalidShareMessage(useLab.getState().lang) });
         },
-        apply: (design) => useLab.setState({ design }),
+        apply: (design) => useLab.setState({ design, demoHold: null }),
         replaceState: (state, title, url) => history.replaceState(state, title, url),
       }).finally(() => {
         if (!cancelled) setShareLock(false);
@@ -212,16 +216,22 @@ export default function App() {
       if (!isKnownPack(closure)) return;
       const choice = packById(closure);
       if (!choice) return;
-      const design = hydrateDesign(useLab.getState().design);
+      const state = useLab.getState();
+      const hold = demoSessionHold(state);
+      const design = hydrateDesign(state.design);
       design.box.structure = choice.structure.id;
       design.box.latch = choice.latch;
       design.box.layers = withInnerStructure(design.box.layers, choice.structure.id, choice.latch);
       const variant = params.get("variant");
-      if (variant && choice.structure.liftOff?.variants.some((item) => item.id === variant)) {
-        design.box.liftOff = { ...design.box.liftOff, variant };
+      if (choice.structure.liftOff) {
+        const known = Boolean(variant && choice.structure.liftOff.variants.some((item) => item.id === variant));
+        design.box.liftOff = {
+          ...design.box.liftOff,
+          variant: known ? variant ?? choice.structure.liftOff.defaults.variant : choice.structure.liftOff.defaults.variant,
+        };
       }
       const pull = params.get("pull");
-      if (pull === "ribbon" || pull === "notch" || pull === "none") design.box.drawerPull = pull;
+      design.box.drawerPull = pull === "ribbon" || pull === "notch" ? pull : "none";
       design.box.visible = true;
       design.bottle.visible = true;
       design.cap.visible = true;
@@ -229,7 +239,6 @@ export default function App() {
       design.collar.visible = true;
       design.liquid.visible = true;
       design.label.visible = true;
-      if (params.get("orient") === "lying") design.box.insert.orientation = "lying";
       const latch = params.get("latch");
       if (latch === "ribbon" || latch === "magnet" || latch === "none") {
         design.box.latch = latch;
@@ -237,8 +246,18 @@ export default function App() {
           layer.structure === choice.structure.id ? { ...layer, latch } : layer,
         );
       }
-      if (params.get("shape") === "octagon") design.box.shape = { type: "polygon", sides: 8 };
-      if (params.get("shape") === "cylinder") design.box.shape = { type: "cylinder" };
+      const shape = params.get("shape");
+      design.box.shape = shape === "octagon"
+        ? { type: "polygon", sides: 8 }
+        : shape === "cylinder"
+          ? { type: "cylinder" }
+          : { type: "rect" };
+      const insert = params.get("insert");
+      design.box.insert = {
+        ...design.box.insert,
+        material: insert === "pulp" || insert === "card" || insert === "velvet-foam" ? insert : "eva",
+        orientation: params.get("orient") === "lying" ? "lying" : "standing",
+      };
       if (params.get("sleeve") === "0") design.box.layers = design.box.layers.filter((layer) => layer.structure !== "sleeve");
       const brand = params.get("brand");
       if (brand) design.label.text = clampLabelText(brand);
@@ -249,7 +268,15 @@ export default function App() {
       }
       const board = params.get("board");
       if (board === "carton" || board === "rigid") design.box.material = board;
+      const height = shotHeightMm(params.get("height"));
+      if (height != null) {
+        design.box.heightMm = height;
+        design.box.linked = false;
+      }
       const tier = params.get("tier") === "fallback" ? "fallback" as const : "high" as const;
+      design.step = 7;
+      const wizardPicked = new Set(useLab.getState().wizardPicked);
+      wizardPicked.add("box");
       useLab.setState({
         design,
         stage: "box",
@@ -259,11 +286,17 @@ export default function App() {
         tierLock: true,
         theme: params.get("theme") === "dark" ? "dark" : "light",
         libraryOpen: false,
-        sideOpen: false,
+        sideOpen: true,
         explode: 0,
         blueprint: false,
+        aimed: false,
         selected: "box",
+        wizardPicked,
+        demoHold: hold,
       });
+      demoShot.current = true;
+      const next = `${location.pathname}${stripShotQuery(location.search)}${location.hash}`;
+      history.replaceState(history.state, "", next);
     };
     if (useLab.persist.hasHydrated()) applyShot();
     return useLab.persist.onFinishHydration(() => {
@@ -299,7 +332,9 @@ export default function App() {
 
   useEffect(() => {
     if (!useLab.persist.hasHydrated()) return;
-    if ((prevStep.current ?? 7) < 7 && step >= 7) setSavingsOpen(true);
+    const shot = demoShot.current || isKnownPack(new URLSearchParams(location.search).get("closure") ?? new URLSearchParams(location.search).get("structure"));
+    if (!shot && (prevStep.current ?? 7) < 7 && step >= 7) setSavingsOpen(true);
+    if (shot && step >= 7) demoShot.current = false;
     prevStep.current = step;
   }, [step]);
 

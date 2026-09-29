@@ -304,23 +304,14 @@ export function WrapMaterial({
       map={pile ? velvet?.map : paper?.map}
       roughnessMap={pile ? velvet?.rough : paper?.rough}
       metalness={0}
-      roughness={gloss ? 0.16 : pile ? 0.82 : soft ? 0.62 : board === "carton" ? 0.86 : 0.8}
-      clearcoat={gloss ? 0.75 : soft ? 0.34 : 0.08}
-      clearcoatRoughness={gloss ? 0.18 : 0.42}
-      sheen={pile ? 1 : soft ? 0.38 : 0.12}
+      roughness={gloss ? 0.16 : pile ? 0.82 : soft ? 0.72 : board === "carton" ? 0.86 : 0.8}
+      clearcoat={gloss ? 0.75 : soft ? 0.16 : 0.06}
+      clearcoatRoughness={gloss ? 0.18 : 0.48}
+      sheen={pile ? 1 : soft ? 0.28 : 0.12}
       sheenColor={color}
       sheenRoughness={pile ? 0.38 : 0.55}
-      envMapIntensity={gloss ? 0.9 : pile ? 0.55 : soft ? 0.62 : 0.48}
+      envMapIntensity={gloss ? 0.9 : pile ? 0.55 : soft ? 0.32 : 0.4}
       clippingPlanes={planes}
-      onBeforeCompile={(shader) => {
-        shader.fragmentShader = shader.fragmentShader.replace(
-          "#include <dithering_fragment>",
-          `float wrapNd = clamp(dot(normalize(normal), normalize(vViewPosition)), 0.0, 1.0);
-           gl_FragColor.rgb += vec3(0.93, 0.86, 0.72) * pow(1.0 - wrapNd, 2.5) * 0.2;
-           #include <dithering_fragment>`,
-        );
-      }}
-      customProgramCacheKey={() => "wrap-edge"}
     />
   );
 }

@@ -842,6 +842,10 @@ export function paintCartonMark(
   }
   ctx.font = `${weight} ${layout.px}px ${family}`;
   ctx.fillStyle = ink;
+  ctx.strokeStyle = ink;
+  ctx.lineJoin = "round";
+  ctx.miterLimit = 2;
+  ctx.lineWidth = Math.max(1.25, layout.px * 0.06);
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   const leading = layout.px * 1.16;
@@ -849,6 +853,7 @@ export function paintCartonMark(
   let y = (h - block) / 2 + leading * 0.5;
   for (const line of layout.lines) {
     ctx.direction = layout.direction;
+    ctx.strokeText(line, w / 2, y);
     ctx.fillText(line, w / 2, y);
     y += leading;
   }
@@ -871,7 +876,7 @@ export function cartonMarkCanvas(
     probeCtx.font = `${weight} ${px}px ${family}`;
     return probeCtx.measureText(line).width || 1;
   });
-  const longSide = 1024;
+  const longSide = 1536;
   const width = aspect >= 1 ? longSide : Math.max(64, Math.round(longSide * aspect));
   const height = aspect >= 1 ? Math.max(64, Math.round(longSide / aspect)) : longSide;
   const canvas = document.createElement("canvas");

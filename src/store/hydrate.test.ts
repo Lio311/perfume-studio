@@ -3,7 +3,7 @@ import { hydrateBox } from "../model/boxFields.ts";
 import { setImportedCatalog } from "../model/catalog.ts";
 import { createDefaultDesign } from "../model/design.ts";
 import type { Design, LogoSpec } from "../model/types.ts";
-import { createLabStorage, DEFAULT_BUDGET_BRIEF, LAB_PERSIST_VERSION, mergePersistedLab, migratePersisted, partializeLabState, readStorageValue, resetPersistedPayload, resumeLabStorageWrites, sanitizeDesign, type HydratedSlice } from "./hydrate.ts";
+import { createLabStorage, DEFAULT_BUDGET_BRIEF, demoSessionHold, LAB_PERSIST_VERSION, mergePersistedLab, migratePersisted, partializeLabState, readStorageValue, resetPersistedPayload, resumeLabStorageWrites, sanitizeDesign, type HydratedSlice } from "./hydrate.ts";
 import { useLab } from "./labStore.ts";
 
 function slice(design: Design = createDefaultDesign()): HydratedSlice {
@@ -858,6 +858,77 @@ describe("saved design hydration", () => {
       libraryOpen: false,
       sideOpen: false,
     });
+  });
+
+  it("freezes only the design while a demo link is up, and releases on the first edit", () => {
+    const saved = createDefaultDesign();
+    saved.label = { ...saved.label, text: "KEPT" };
+    saved.box = { ...saved.box, color: "#112233" };
+    const before = { ...slice(saved), theme: "dark" as const, demoHold: null, stage: "bottle", boxOpen: false };
+    const hold = demoSessionHold(before);
+    expect((hold.design as Design).label.text).toBe("KEPT");
+    expect(hold.past).toEqual([]);
+    expect(hold.future).toEqual([]);
+    const shot = createDefaultDesign();
+    shot.step = 7;
+    shot.label = { ...shot.label, text: "SHOT" };
+    shot.box = { ...shot.box, shape: { type: "rect" }, color: "#e4d8c4" };
+    const sketch = { id: "cfg-kept", name: "סקיצה", design: saved, thumb: "", createdAt: 4 };
+    const during = {
+      ...before,
+      design: shot,
+      theme: "light" as const,
+      lang: "en" as const,
+      chat: [{ id: "m1", role: "user" as const, text: "שלום" }],
+      saved: [sketch],
+      stage: "box",
+      boxOpen: true,
+      demoHold: hold,
+    };
+    const written = partializeLabState(during);
+    expect(written).not.toBe(hold);
+    expect(written.design).toBe(hold.design);
+    expect((written.design as Design).label.text).toBe("KEPT");
+    expect((written.design as Design).box.color).toBe("#112233");
+    expect(written.theme).toBe("light");
+    expect(written.lang).toBe("en");
+    expect(written.chat).toEqual(during.chat);
+    expect(written.saved).toEqual([sketch]);
+    expect("demoHold" in written).toBe(false);
+    expect("stage" in written).toBe(false);
+    expect("past" in written).toBe(false);
+    const again = demoSessionHold(during);
+    expect(again).toBe(hold);
+    expect((partializeLabState({ ...during, design: shot, theme: "light", demoHold: again }).design as Design).label.text).toBe("KEPT");
+
+    const prior = useLab.getState();
+    useLab.setState({ design: shot, theme: "light", saved: [sketch], demoHold: hold });
+    expect(partializeLabState(useLab.getState()).saved).toEqual([sketch]);
+    useLab.getState().patch("label", { text: "EDIT" });
+    expect(useLab.getState().demoHold).toBeNull();
+    expect((partializeLabState(useLab.getState()).design as Design).label.text).toBe("EDIT");
+    useLab.setState({ design: prior.design, theme: prior.theme, saved: prior.saved, demoHold: null, past: prior.past, future: prior.future });
+  });
+
+  it("keeps the pre-link design after a save while the hold is set", () => {
+    const saved = createDefaultDesign();
+    saved.label = { ...saved.label, text: "KEPT" };
+    const hold = demoSessionHold({ ...slice(saved), past: [], future: [] });
+    const shot = createDefaultDesign();
+    shot.label = { ...shot.label, text: "SHOT" };
+    const prior = useLab.getState();
+    useLab.setState({ design: shot, saved: prior.saved, demoHold: hold, past: [], future: [] });
+    useLab.getState().saveDesign("during", "");
+    expect(useLab.getState().demoHold).toBe(hold);
+    const written = partializeLabState(useLab.getState());
+    expect((written.design as Design).label.text).toBe("KEPT");
+    expect((written.saved as { name: string }[])[0]?.name).toBe("during");
+    useLab.getState().applyCommands([{ type: "select", part: "box" }]);
+    expect(useLab.getState().demoHold).toBe(hold);
+    expect((partializeLabState(useLab.getState()).design as Design).label.text).toBe("KEPT");
+    useLab.getState().applyCommands([{ type: "text", text: "EDIT" }]);
+    expect(useLab.getState().demoHold).toBeNull();
+    useLab.setState({ design: prior.design, theme: prior.theme, saved: prior.saved, demoHold: null, past: prior.past, future: prior.future });
   });
 });
 
