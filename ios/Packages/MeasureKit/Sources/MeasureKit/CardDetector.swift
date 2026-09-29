@@ -1,3 +1,4 @@
+import CoreGraphics
 import CoreVideo
 import Foundation
 import ImageIO
@@ -37,22 +38,21 @@ extension VisionImageOrientation {
 /// the sensor buffer is landscape and Vision must be told that. Corners are mapped
 /// back into the buffer before anyone uses `ARCamera.intrinsics`.
 public enum CardDetector {
+    /// Saved JPEG path. Corners come back in that image's pixels (no luma refine).
+    public static func detect(
+        in image: CGImage,
+        orientation: VisionImageOrientation = .backCameraPortrait
+    ) -> CardDetection? {
+        let request = makeRequest()
+        let handler = VNImageRequestHandler(cgImage: image, orientation: orientation.exif, options: [:])
+        return finish(request, handler: handler, width: Double(image.width), height: Double(image.height), orientation: orientation)
+    }
+
     public static func detect(
         in pixelBuffer: CVPixelBuffer,
         orientation: VisionImageOrientation = .backCameraPortrait
     ) -> CardDetection? {
-        let request = VNDetectRectanglesRequest()
-        let tuning = CardDetectorTuning.id1
-        // Vision's aspect ratio is shorter/longer and must stay in [0, 1].
-        // 1.586 ± 0.1 becomes about 0.593...0.673.
-        let minimum = min(1, max(0, tuning.visionMinimumAspectRatio))
-        let maximum = min(1, max(minimum, tuning.visionMaximumAspectRatio))
-        request.minimumAspectRatio = Float(minimum)
-        request.maximumAspectRatio = Float(maximum)
-        request.minimumSize = Float(tuning.minimumSize)
-        request.maximumObservations = tuning.maximumObservations
-        request.quadratureTolerance = Float(tuning.quadratureToleranceDegrees)
-
+        let request = makeRequest()
         let handler = VNImageRequestHandler(cvPixelBuffer: pixelBuffer, orientation: orientation.exif, options: [:])
         guard (try? handler.perform([request])) != nil else { return nil }
         guard let observation = request.results?.first else { return nil }
@@ -75,6 +75,48 @@ public enum CardDetector {
             pixel(observation.bottomLeft),
         ]
         let corners = refine(coarse, in: pixelBuffer) ?? coarse
+        return CardDetection(corners: corners, confidence: Double(observation.confidence))
+    }
+
+    private static func makeRequest() -> VNDetectRectanglesRequest {
+        let request = VNDetectRectanglesRequest()
+        let tuning = CardDetectorTuning.id1
+        // Vision's aspect ratio is shorter/longer and must stay in [0, 1].
+        // 1.586 ± 0.1 becomes about 0.593...0.673.
+        let minimum = min(1, max(0, tuning.visionMinimumAspectRatio))
+        let maximum = min(1, max(minimum, tuning.visionMaximumAspectRatio))
+        request.minimumAspectRatio = Float(minimum)
+        request.maximumAspectRatio = Float(maximum)
+        request.minimumSize = Float(tuning.minimumSize)
+        request.maximumObservations = tuning.maximumObservations
+        request.quadratureTolerance = Float(tuning.quadratureToleranceDegrees)
+        return request
+    }
+
+    private static func finish(
+        _ request: VNDetectRectanglesRequest,
+        handler: VNImageRequestHandler,
+        width: Double,
+        height: Double,
+        orientation: VisionImageOrientation
+    ) -> CardDetection? {
+        guard (try? handler.perform([request])) != nil else { return nil }
+        guard let observation = request.results?.first else { return nil }
+        guard width > 1, height > 1 else { return nil }
+        func pixel(_ point: CGPoint) -> SIMD2<Double> {
+            CapturedImageSpace.pixel(
+                fromVisionNormalized: SIMD2(Double(point.x), Double(point.y)),
+                orientation: orientation,
+                width: width,
+                height: height
+            )
+        }
+        let corners = [
+            pixel(observation.topLeft),
+            pixel(observation.topRight),
+            pixel(observation.bottomRight),
+            pixel(observation.bottomLeft),
+        ]
         return CardDetection(corners: corners, confidence: Double(observation.confidence))
     }
 

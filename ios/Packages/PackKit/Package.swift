@@ -8,6 +8,7 @@ let package = Package(
     products: [.library(name: "PackKit", targets: ["PackKit"])],
     targets: [
         .target(name: "PackKit", resources: [.copy("supplier-pack.schema.json")]),
+        .executableTarget(name: "RenderMeasureSamples", dependencies: ["PackKit"]),
         .testTarget(name: "PackKitTests", dependencies: ["PackKit"], resources: [.copy("Fixtures")]),
     ]
 )

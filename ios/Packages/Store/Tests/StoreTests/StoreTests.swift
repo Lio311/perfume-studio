@@ -70,6 +70,78 @@ final class StoreTests: XCTestCase {
         XCTAssertEqual(listed.map(\.sequence.partId), [newer.partId, older.partId])
     }
 
+    func testMeasurementRoundTripsValidatesAndSurvivesAnotherSave() throws {
+        let store = try makeStore()
+        let partId = UUID()
+        var sequence = CaptureSequence(partId: partId, kind: .cap)
+        let photo = samplePhoto(angle: .side, fileName: "side.jpg")
+        XCTAssertTrue(sequence.capture(photo))
+        let measurement = DraftMeasurement(
+            widthMm: 25,
+            heightMm: 30,
+            depthMm: 25,
+            lathe: [0.4, 0.8, 1, 0.9, 0.5],
+            neckOuterDiameterMm: 18,
+            profile: "cylinder",
+            measurements: [
+                Measurements(key: "widthMm", value: 25, source: "reference-card", toleranceMm: 5),
+                Measurements(key: "heightMm", value: 30, source: "reference-card", toleranceMm: 5),
+                Measurements(key: "depthMm", value: 25, source: "reference-card", toleranceMm: 5),
+            ],
+            scan: ScanInfo(
+                method: "photo-lathe",
+                capturedAt: "2026-09-29T00:00:00Z",
+                device: "iPhone15,4",
+                appVersion: "0.1.0",
+                material: nil,
+                scale: "reference-card",
+                referenceObject: "ISO/IEC 7810 ID-1 card 85.60x53.98mm",
+                confidence: 0.9,
+                neckSuggestion: nil,
+                dimsVerifiedBySupplier: true,
+                toleranceMm: 1
+            )
+        )
+        XCTAssertEqual(measurement.scan.dimsVerifiedBySupplier, false)
+        XCTAssertEqual(measurement.scan.toleranceMm, 5)
+        XCTAssertEqual(measurement.validationIssues(kind: .cap), [])
+
+        try store.save(
+            sequence: sequence,
+            images: ["side.jpg": Data([0xFF, 0xD8])],
+            measurement: measurement,
+            now: Date(timeIntervalSince1970: 30)
+        )
+        let loaded = store.load(partId: partId)
+        XCTAssertEqual(loaded?.measurement, measurement)
+        XCTAssertEqual(loaded?.measurement?.lathe, [0.4, 0.8, 1, 0.9, 0.5])
+
+        let url = store.root
+            .appendingPathComponent(partId.uuidString.lowercased(), isDirectory: true)
+            .appendingPathComponent("part.json")
+        let json = try String(contentsOf: url, encoding: .utf8)
+        XCTAssertTrue(json.contains("\"lathe\""))
+        XCTAssertTrue(json.contains("\"dimsVerifiedBySupplier\":false"))
+        XCTAssertTrue(json.contains("\"toleranceMm\":5"))
+        XCTAssertTrue(json.contains("\"measurements\""))
+
+        try store.save(sequence: sequence, images: [:], now: Date(timeIntervalSince1970: 40))
+        XCTAssertEqual(store.load(partId: partId)?.measurement, measurement)
+        XCTAssertEqual(store.load(partId: partId)?.updatedAt, Date(timeIntervalSince1970: 40))
+
+        let tooSmall = DraftMeasurement(
+            widthMm: 5,
+            heightMm: 30,
+            depthMm: 25,
+            lathe: nil,
+            neckOuterDiameterMm: nil,
+            profile: "cylinder",
+            measurements: [],
+            scan: measurement.scan
+        )
+        XCTAssertTrue(tooSmall.validationIssues(kind: .cap).contains { $0.code == "dimension_range" })
+    }
+
     func testRejectsPathTraversalAndDeleteIsIdempotent() throws {
         let store = try makeStore()
         var sequence = CaptureSequence(partId: UUID(), kind: .bottle)

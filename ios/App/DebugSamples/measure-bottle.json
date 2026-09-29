@@ -1,0 +1,39 @@
+{
+  "depthMm" : 40,
+  "heightMm" : 100,
+  "id" : "bottle-100",
+  "kind" : "bottle",
+  "labelHe" : "בקבוק 100 מ״מ",
+  "photos" : [
+    {
+      "angle" : "side",
+      "corners" : [
+        {
+          "x" : 29.120000000000005,
+          "y" : 142.836
+        },
+        {
+          "x" : 337.28,
+          "y" : 142.836
+        },
+        {
+          "x" : 337.28,
+          "y" : 337.164
+        },
+        {
+          "x" : 29.120000000000005,
+          "y" : 337.164
+        }
+      ],
+      "cx" : 320,
+      "cy" : 240,
+      "distanceMm" : 250,
+      "file" : "measure-bottle.jpg",
+      "fx" : 900,
+      "fy" : 900,
+      "pixelHeight" : 480,
+      "pixelWidth" : 640
+    }
+  ],
+  "widthMm" : 40
+}

@@ -22,8 +22,18 @@ final class DraftLibrary: ObservableObject {
         drafts = (try? store.list()) ?? []
     }
 
-    func save(sequence: CaptureSequence, images: [String: Data]) throws {
-        try store.save(sequence: sequence, images: images)
+    func save(
+        sequence: CaptureSequence,
+        images: [String: Data],
+        measurement: DraftMeasurement? = nil,
+        clearMeasurement: Bool = false
+    ) throws {
+        try store.save(
+            sequence: sequence,
+            images: images,
+            measurement: measurement,
+            replaceMeasurement: clearMeasurement
+        )
         reload()
     }
 

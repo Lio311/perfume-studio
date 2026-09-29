@@ -1,0 +1,68 @@
+{
+  "depthMm" : 46,
+  "heightMm" : 120,
+  "id" : "box",
+  "kind" : "box",
+  "labelHe" : "קופסה",
+  "photos" : [
+    {
+      "angle" : "front",
+      "corners" : [
+        {
+          "x" : 29.120000000000005,
+          "y" : 142.836
+        },
+        {
+          "x" : 337.28,
+          "y" : 142.836
+        },
+        {
+          "x" : 337.28,
+          "y" : 337.164
+        },
+        {
+          "x" : 29.120000000000005,
+          "y" : 337.164
+        }
+      ],
+      "cx" : 320,
+      "cy" : 240,
+      "distanceMm" : 250,
+      "file" : "measure-box-front.jpg",
+      "fx" : 900,
+      "fy" : 900,
+      "pixelHeight" : 480,
+      "pixelWidth" : 640
+    },
+    {
+      "angle" : "side",
+      "corners" : [
+        {
+          "x" : 29.120000000000005,
+          "y" : 142.836
+        },
+        {
+          "x" : 337.28,
+          "y" : 142.836
+        },
+        {
+          "x" : 337.28,
+          "y" : 337.164
+        },
+        {
+          "x" : 29.120000000000005,
+          "y" : 337.164
+        }
+      ],
+      "cx" : 320,
+      "cy" : 240,
+      "distanceMm" : 250,
+      "file" : "measure-box-side.jpg",
+      "fx" : 900,
+      "fy" : 900,
+      "pixelHeight" : 480,
+      "pixelWidth" : 640
+    }
+  ],
+  "widthMm" : 76
+}

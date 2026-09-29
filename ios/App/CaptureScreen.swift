@@ -8,25 +8,40 @@ import UIParts
 struct CaptureFlowView: View {
     @ObservedObject var library: DraftLibrary
     @StateObject private var model = CaptureModel()
+    @StateObject private var measureModel: MeasureModel
     @State private var sequence: CaptureSequence
     @AppStorage("distance.targetCm") private var targetCm = 20.0
     @AppStorage("distance.halfBandCm") private var halfBandCm = 0.5
     @AppStorage("distance.autoCapture") private var autoCapture = false
     @AppStorage("distance.haptic") private var haptic = true
+    @AppStorage("measure.referenceKind") private var referenceKindRaw = MeasureReferenceKind.creditCard.rawValue
+    @AppStorage("measure.printedWidthMm") private var printedWidthMm = 85.60
+    @AppStorage("measure.printedHeightMm") private var printedHeightMm = 53.98
     @State private var showSettings = false
     @State private var saveFailed = false
+    @State private var showMeasure: Bool
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
 
-    init(library: DraftLibrary, sequence: CaptureSequence) {
+    init(library: DraftLibrary, sequence: CaptureSequence, startsOnMeasure: Bool = false) {
         self.library = library
         _sequence = State(initialValue: sequence)
+        _showMeasure = State(initialValue: startsOnMeasure)
+        _measureModel = StateObject(wrappedValue: MeasureModel(
+            library: library,
+            sequence: sequence,
+            referenceKind: MeasureReferenceKind(rawValue: UserDefaults.standard.string(forKey: "measure.referenceKind") ?? "") ?? .creditCard,
+            printedWidthMm: Self.storedDouble("measure.printedWidthMm", fallback: 85.60),
+            printedHeightMm: Self.storedDouble("measure.printedHeightMm", fallback: 53.98)
+        ))
     }
 
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
-            if model.cameraDenied {
+            if showMeasure {
+                measure
+            } else if model.cameraDenied {
                 permissionDenied
             } else if let pending = model.pending {
                 review(pending)
@@ -52,6 +67,8 @@ struct CaptureFlowView: View {
                 halfBandCm: $halfBandCm,
                 autoCapture: $autoCapture,
                 haptic: $haptic,
+                printedWidthMm: $printedWidthMm,
+                printedHeightMm: $printedHeightMm,
                 source: model.source,
                 lidarSupported: model.lidarSupported,
                 recordDistance: debugRecordBinding
@@ -63,8 +80,21 @@ struct CaptureFlowView: View {
         } message: {
             Text("לא ניתן לשמור את הטיוטה במכשיר.")
         }
-        .onAppear(perform: appear)
+        .onAppear {
+            if !showMeasure { appear() }
+        }
         .onDisappear { model.stop() }
+        .onChange(of: showMeasure) { _, show in
+            if show {
+                model.stop()
+                syncMeasureSettings()
+            } else {
+                appear()
+            }
+        }
+        .onChange(of: referenceKindRaw) { _, _ in syncMeasureSettings() }
+        .onChange(of: printedWidthMm) { _, _ in syncMeasureSettings() }
+        .onChange(of: printedHeightMm) { _, _ in syncMeasureSettings() }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active { model.refreshCameraAccess() }
         }
@@ -256,8 +286,15 @@ struct CaptureFlowView: View {
                         summaryCell(index: index, step: step)
                     }
                 }
+                Button("מדוד") {
+                    syncMeasureSettings()
+                    showMeasure = true
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(!canMeasure)
+                .accessibilityLabel("מדוד")
                 Button("סיום") { finish() }
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(.bordered)
                     .disabled(!sequence.isComplete)
                     .frame(maxWidth: .infinity, alignment: .center)
                     .padding(.top, 8)
@@ -315,6 +352,37 @@ struct CaptureFlowView: View {
         #endif
     }
 
+    private var canMeasure: Bool {
+        sequence.steps.contains { step in
+            guard step.photo != nil else { return false }
+            if sequence.kind == .box || sequence.kind == .label { return step.angle == .front }
+            return step.angle == .side
+        }
+    }
+
+    private var measure: some View {
+        MeasureScreen(model: measureModel, sequence: sequence, onRetake: retakeAngle, onClose: { showMeasure = false })
+    }
+
+    private func retakeAngle(_ angle: CaptureAngle) {
+        showMeasure = false
+        guard let index = sequence.steps.firstIndex(where: { $0.angle == angle }) else { return }
+        retake(index)
+    }
+
+    private func syncMeasureSettings() {
+        if let kind = MeasureReferenceKind(rawValue: referenceKindRaw) {
+            measureModel.referenceKind = kind
+        }
+        measureModel.printedWidthMm = printedWidthMm
+        measureModel.printedHeightMm = printedHeightMm
+    }
+
+    private static func storedDouble(_ key: String, fallback: Double) -> Double {
+        guard UserDefaults.standard.object(forKey: key) != nil else { return fallback }
+        return UserDefaults.standard.double(forKey: key)
+    }
+
     private func appear() {
         model.setTarget(centimetres: targetCm)
         model.setHalfBand(centimetres: halfBandCm)
@@ -358,7 +426,7 @@ struct CaptureFlowView: View {
     private func retake(_ index: Int) {
         var updated = sequence
         guard updated.retake(index: index) else { return }
-        guard commit(updated, images: [:]) else { return }
+        guard commit(updated, images: [:], clearMeasurement: true) else { return }
         model.discardPending()
         syncAngle()
     }
@@ -370,9 +438,9 @@ struct CaptureFlowView: View {
     }
 
     @discardableResult
-    private func commit(_ updated: CaptureSequence, images: [String: Data]) -> Bool {
+    private func commit(_ updated: CaptureSequence, images: [String: Data], clearMeasurement: Bool = false) -> Bool {
         do {
-            try library.save(sequence: updated, images: images)
+            try library.save(sequence: updated, images: images, clearMeasurement: clearMeasurement)
             sequence = updated
             return true
         } catch {
@@ -392,6 +460,8 @@ struct CaptureSettingsSheet: View {
     @Binding var halfBandCm: Double
     @Binding var autoCapture: Bool
     @Binding var haptic: Bool
+    @Binding var printedWidthMm: Double
+    @Binding var printedHeightMm: Double
     var source: DistanceSourceInfo?
     var lidarSupported: Bool
     var recordDistance: Binding<Bool>? = nil
@@ -418,6 +488,10 @@ struct CaptureSettingsSheet: View {
                         Toggle("הקלט מרחק", isOn: recordDistance)
                     }
                     #endif
+                }
+                Section("כרטיס סריקה מודפס") {
+                    TextField("רוחב מ״מ", value: $printedWidthMm, format: .number)
+                    TextField("גובה מ״מ", value: $printedHeightMm, format: .number)
                 }
                 Section("מקור המרחק") {
                     LabeledContent("פעיל") {
