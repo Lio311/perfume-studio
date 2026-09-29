@@ -518,10 +518,18 @@ function fixtureScene(shot: ShotView): "card" | "close" | "ok" | "far" | "held" 
 
 function fixtureShots(): Array<{ label: string; thumb: string }> {
   return [
-    { label: "צד", thumb: "" },
-    { label: "למעלה", thumb: "" },
-    { label: "למטה", thumb: "" },
+    { label: "צד", thumb: thumbScene("ok") },
+    { label: "למעלה", thumb: thumbScene("card") },
+    { label: "למטה", thumb: thumbScene("far") },
   ];
+}
+
+function thumbScene(scene: "card" | "close" | "ok" | "far" | "held" | "review" | "result"): string {
+  const canvas = document.createElement("canvas");
+  canvas.width = 96;
+  canvas.height = 128;
+  drawStage(canvas, scene);
+  return canvas.toDataURL("image/jpeg", 0.7);
 }
 
 function fixturePack(quotedAt: string): ScanPackResult {
