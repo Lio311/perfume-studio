@@ -1,4 +1,5 @@
-import { bottleById, boxById, capById, collarById, logoById, pumpById } from "../model/catalog.ts";
+import { tx } from "../i18n/copy.ts";
+import { bottleById, boxById, capById, collarById, logoById, pumpById, resolvedLabelApplication } from "../model/catalog.ts";
 import { computeFit, type Fit } from "../model/fit.ts";
 import { FINISHES, renderedGlassOpacity } from "../model/materials.ts";
 import { isNeckId, NECKS } from "../model/necks.ts";
@@ -28,7 +29,14 @@ export function buildSpecHtml(design: Design, lang: Lang, render: string): strin
   const neck = isNeckId(neckId) ? NECKS[neckId] : null;
   const fit = neck ? computeFit(design, false) : null;
   const supplier = bottle.supplier;
+  const t = tx(lang);
   const title = lang === "he" ? "מפרט לספק" : "Supplier specification";
+  const applicationName = {
+    decal: t.logoPrint,
+    engrave: t.logoEngrave,
+    emboss: t.logoEmboss,
+    foil: t.logoFoil,
+  }[resolvedLabelApplication(design.label)];
   const supplierLine = supplier ? `${supplier.name}${supplier.ref ? ` · ${supplier.ref}` : ""}` : "—";
   const ferrule = neck
     ? `${neck.ferrule.innerMm} / ${neck.ferrule.outerMm} / ${neck.ferrule.heightMinMm}–${neck.ferrule.heightMaxMm} mm`
@@ -70,6 +78,7 @@ export function buildSpecHtml(design: Design, lang: Lang, render: string): strin
     ${row(lang === "he" ? "משאבה" : "Pump", sized(pump.name[lang], fit, (part) => `Ø${(part.headR * 2).toFixed(1)} mm`))}
     ${row(lang === "he" ? "צווארון" : "Collar", sized(collar.name[lang], fit, (part) => `Ø${(part.collarOuter * 2).toFixed(1)} / Ø${(part.collarInner * 2).toFixed(1)} × ${part.collarHeight.toFixed(1)} mm`))}
     ${row(lang === "he" ? "סימון" : "Mark", `${logo.name[lang]} · ${design.label.text}`)}
+    ${row(t.logoApplication, applicationName)}
     ${row(lang === "he" ? "קופסה" : "Box", sized(box.name[lang], fit, (part) => `${part.boxW.toFixed(1)} × ${part.boxD.toFixed(1)} × ${part.boxH.toFixed(1)} mm`))}
     ${row(lang === "he" ? "נוזל" : "Liquid", `${Math.round(design.liquid.fill * 100)}% · ${design.liquid.color}`)}
   </table>

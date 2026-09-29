@@ -8,7 +8,7 @@ import { setUnboxingMuted, useUnboxingTrack } from "../audio/unboxingTrack.ts";
 import { DEFAULT_INSERT_MOTION, INSERT_MATERIALS, OUTER_WRAPS, sleeveOverActive, withInnerStructure, withNeckHeight, withSleeveOver, withSleeveWindow } from "../model/boxFields.ts";
 import { listClosures } from "../model/closures/registry.ts";
 import type { BoxLatch, FinishId, InsertMaterial, InsertOrientation, LogoApplication, NeckId, OuterWrap, PartKey, VariantPart } from "../model/types.ts";
-import { partLabel, tx } from "../i18n/copy.ts";
+import { copy, partLabel, tx } from "../i18n/copy.ts";
 import { useLab } from "../store/labStore.ts";
 import { Alternatives } from "./BudgetSuggestions.tsx";
 import { clampLabelText } from "../geometry/logos.ts";
@@ -97,6 +97,8 @@ export function Inspector() {
           </div>
           {!hidden && part !== "liquid" && <PartPriceEditor kind={part as VariantPart} partId={design[part].variantId} />}
           {!hidden && <Alternatives />}
+          {!(part === "label" && (resolvedLabelApplication(design.label) === "emboss" || resolvedLabelApplication(design.label) === "engrave")) && (
+          <>
           <h3>{t.color}</h3>
           <div className="swatches">
             {(part === "liquid" ? LIQUID_PALETTE : PALETTE).map((color) => {
@@ -122,6 +124,8 @@ export function Inspector() {
               }} />
             </label>
           </div>
+          </>
+          )}
           {part !== "liquid" && (
             <>
               <h3>{t.finish}</h3>
@@ -252,20 +256,20 @@ export function Inspector() {
               <div className="chips">
                 {(
                   [
-                    ["decal", "הדפסה", "Print"],
-                    ["engrave", "חריטה", "Engrave"],
-                    ["emboss", "הטבעה", "Emboss"],
-                    ["foil", "פויל", "Foil"],
-                  ] as const satisfies ReadonlyArray<readonly [LogoApplication, string, string]>
-                ).map(([id, he, en]) => (
+                    ["decal", "logoPrint"],
+                    ["engrave", "logoEngrave"],
+                    ["emboss", "logoEmboss"],
+                    ["foil", "logoFoil"],
+                  ] as const satisfies ReadonlyArray<readonly [LogoApplication, "logoPrint" | "logoEngrave" | "logoEmboss" | "logoFoil"]>
+                ).map(([id, key]) => (
                   <button
                     key={id}
                     type="button"
                     className={resolvedLabelApplication(design.label) === id ? "chip is-on" : "chip"}
                     onClick={() => patch("label", { application: id })}
                   >
-                    {lang === "he" ? he : en}
-                    <span dir="ltr">{lang === "he" ? en : he}</span>
+                    {copy[lang][key]}
+                    <span dir="ltr">{lang === "he" ? copy.en[key] : copy.he[key]}</span>
                   </button>
                 ))}
               </div>

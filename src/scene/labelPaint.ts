@@ -1,6 +1,6 @@
 import { createContext, createElement, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import * as THREE from "three";
-import { cartonMarkCanvas, labelEmissiveCanvas, labelFinish, labelFontSpec, labelInk, labelNormalCanvas, labelSurfaceCanvas, logoTexture, shouldRepaintLabel } from "../geometry/logos.ts";
+import { cartonMarkCanvas, contrastingPlate, embossHeightCanvas, labelEmissiveCanvas, labelFinish, labelFontSpec, labelInk, labelNormalCanvas, labelSurfaceCanvas, logoTexture, shouldRepaintLabel } from "../geometry/logos.ts";
 import { logoById, resolvedLabelApplication } from "../model/catalog.ts";
 import { computeFit } from "../model/fit.ts";
 import type { LogoApplication, LogoFont } from "../model/types.ts";
@@ -92,7 +92,8 @@ export function LabelPaintProvider({ children }: { children: ReactNode }) {
   const spec = logoById(design.label.variantId);
   const application = resolvedLabelApplication(design.label);
   const fit = computeFit(design, false);
-  const ink = labelInk(design.label.color, application, design.bottle.color);
+  const ground = application === "emboss" || application === "engrave" ? contrastingPlate(design.label.color) : undefined;
+  const ink = labelInk(design.label.color, application, ground);
   const fontTick = useLabelFontTick(spec.font, design.label.text);
   const aspect = fit.labelW / Math.max(4, fit.labelH);
   const longSide = 2048;
@@ -113,7 +114,8 @@ export function useCartonLabelCanvas(): HTMLCanvasElement {
   const design = useLab((s) => s.design);
   const spec = logoById(design.label.variantId);
   const application = resolvedLabelApplication(design.label);
-  const ink = labelInk(design.label.color, application, design.box.color);
+  const ground = application === "emboss" || application === "engrave" ? design.box.color : undefined;
+  const ink = labelInk(design.label.color, application, ground);
   const fontTick = useLabelFontTick(spec.font, design.label.text);
   const immediate = [spec.id, application, spec.font, fontTick].join("\u0000");
   const deferred = [design.label.text, ink].join("\u0000");
@@ -136,7 +138,7 @@ export function useLabelMaps(canvas: HTMLCanvasElement, ink: string, application
     return map;
   }, [canvas]);
   const mask = useMemo(() => {
-    if (finish.metalness === 0 && finish.bumpScale === 0) return null;
+    if (application === "engrave" || (finish.metalness === 0 && finish.bumpScale === 0)) return null;
     const surface = labelSurfaceCanvas(canvas, ink, application);
     const map = new THREE.CanvasTexture(surface);
     map.colorSpace = THREE.NoColorSpace;
@@ -159,7 +161,7 @@ export function useLabelMaps(canvas: HTMLCanvasElement, ink: string, application
   }, [canvas, ink, application, finish.emissive]);
   const normal = useMemo(() => {
     if (application !== "emboss") return null;
-    const surface = labelNormalCanvas(canvas, application);
+    const surface = labelNormalCanvas(embossHeightCanvas(canvas), application);
     const map = new THREE.CanvasTexture(surface);
     map.colorSpace = THREE.NoColorSpace;
     map.anisotropy = 8;

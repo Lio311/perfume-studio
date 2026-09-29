@@ -1,4 +1,3 @@
-import * as THREE from "three";
 import type { LogoApplication, LogoFont, LogoFrame, LogoMark, LogoSpec } from "../model/types.ts";
 
 const TYPEFACE: Record<LogoFont, string> = {
@@ -61,38 +60,55 @@ export function shouldRepaintLabel(alreadyLoaded: boolean): boolean {
   return !alreadyLoaded;
 }
 
-/** Saturated gold. A pale cream clipped to white under the unmapped foil emissive. */
+/** Reference metals. Foil uses the chosen label colour; these stay for saves that picked them. */
 export const FOIL_GOLD = "#d4a017";
 export const FOIL_SILVER = "#f3f6fb";
 /** Raised mark when the caller has no substrate colour yet. */
 export const EMBOSS_SUBSTRATE = "#cfc8bc";
 
-function foilMetal(color: string): string {
-  const parsed = parsedColor(color);
-  const cool = parsed.b > parsed.r * 0.92 && parsed.b >= parsed.g * 0.8;
-  return cool ? FOIL_SILVER : FOIL_GOLD;
+/** Linear 0–1 channel to an sRGB byte. */
+function linearToSrgbByte(channel: number): number {
+  const clamped = Math.min(1, Math.max(0, channel));
+  const srgb = clamped <= 0.0031308 ? clamped * 12.92 : 1.055 * clamped ** (1 / 2.4) - 0.055;
+  return Math.max(0, Math.min(255, Math.round(srgb * 255)));
 }
 
-/** Darker, desaturated etch so an engrave cannot stay the print ink. */
+function hexFromLinear(color: { r: number; g: number; b: number }): string {
+  const r = linearToSrgbByte(color.r).toString(16).padStart(2, "0");
+  const g = linearToSrgbByte(color.g).toString(16).padStart(2, "0");
+  const b = linearToSrgbByte(color.b).toString(16).padStart(2, "0");
+  return `#${r}${g}${b}`;
+}
+
+/**
+ * Darker, desaturated etch for an engrave that has no substrate yet.
+ * Linear mix, same curve as the old `THREE.Color` lerp, without importing three.
+ */
 function engraveEtch(color: string): string {
   const parsed = parsedColor(color);
   const grey = (parsed.r + parsed.g + parsed.b) / 3;
-  parsed.setRGB(grey, grey, Math.min(1, grey * 1.04));
-  parsed.lerp(new THREE.Color("#1c1a17"), 0.62);
-  return `#${parsed.getHexString()}`;
+  const tint = { r: grey, g: grey, b: Math.min(1, grey * 1.04) };
+  const ground = parsedColor("#1c1a17");
+  const mix = 0.62;
+  return hexFromLinear({
+    r: tint.r + (ground.r - tint.r) * mix,
+    g: tint.g + (ground.g - tint.g) * mix,
+    b: tint.b + (ground.b - tint.b) * mix,
+  });
 }
 
 /**
  * Colour of the glyph itself.
- * Print keeps the chosen ink on its plate. Foil is a bright gold or silver.
- * Engrave is a darker etch. Emboss matches the substrate.
+ * Print keeps the chosen ink. Foil is that same colour, including black, so a saved tint stays put.
+ * Engrave and emboss have no ink of their own and take the substrate.
  */
 export function labelInk(color: string, application: LogoApplication = "decal", substrate?: string): string {
-  if (application === "foil") return foilMetal(color);
-  if (application === "engrave") return engraveEtch(color);
-  if (application === "emboss") {
+  if (application === "foil") return color;
+  if (application === "engrave" || application === "emboss") {
     const ground = substrate?.trim();
-    return ground || EMBOSS_SUBSTRATE;
+    if (ground) return ground;
+    if (application === "engrave") return engraveEtch(color);
+    return EMBOSS_SUBSTRATE;
   }
   return color;
 }
@@ -100,7 +116,7 @@ export function labelInk(color: string, application: LogoApplication = "decal", 
 /**
  * Ink colour stored designs used before the label colour became the ink.
  * Foil was always cream. Other applications picked a light or dark ink from the plate luminance.
- * The luminance matches that old helper, including its second pass over linear `THREE.Color` channels.
+ * The luminance matches that old helper, including its second pass over already-linear channels.
  */
 export function legacyLabelInk(application: string, plate: string): string {
   const color = parsedColor(plate);
@@ -336,8 +352,8 @@ function clampIndex(value: number, max: number): number {
 
 /**
  * Bakes a finish into the colour canvas so the four applications stay apart even under flat light.
- * Print is left as coloured ink on its plate. Foil gains a bright specular lip.
- * Engrave becomes frosted glass with a dark inner rim. Emboss lights a raised bevel.
+ * Print is left as coloured ink on its plate. Foil keeps its hue and gains a white specular lip.
+ * Engrave becomes an even frost. Emboss lights a raised bevel.
  */
 export function relieveLabelPixels(
   data: Uint8ClampedArray,
@@ -361,49 +377,22 @@ export function relieveLabelPixels(
       if (application === "foil") {
         const lip = alphaAt(x, y - radius) < alpha * 0.45;
         if (lip) {
-          data[index] = Math.min(255, Math.round(src[index] * 0.55 + 255 * 0.45));
-          data[index + 1] = Math.min(230, Math.round(src[index + 1] * 0.55 + 210 * 0.45));
-          data[index + 2] = Math.min(120, Math.round(src[index + 2] * 0.4 + 70 * 0.6));
+          data[index] = Math.min(255, Math.round(src[index] + (255 - src[index]) * 0.45));
+          data[index + 1] = Math.min(255, Math.round(src[index + 1] + (255 - src[index + 1]) * 0.45));
+          data[index + 2] = Math.min(255, Math.round(src[index + 2] + (255 - src[index + 2]) * 0.45));
         } else {
           data[index] = Math.round(src[index] * 0.94);
-          data[index + 1] = Math.round(src[index + 1] * 0.86);
-          data[index + 2] = Math.round(src[index + 2] * 0.62);
+          data[index + 1] = Math.round(src[index + 1] * 0.94);
+          data[index + 2] = Math.round(src[index + 2] * 0.94);
         }
         continue;
       }
       if (application === "engrave") {
-        // A thin rim on thick letters. A hairline emblem is thinner than that band, so the
-        // same test used to paint the whole diamond near-black and it fell apart.
-        const band = Math.max(2, Math.round(radius * 0.55));
-        const run = (dx: number, dy: number) => {
-          let steps = 0;
-          for (let i = 1; i <= band; i += 1) {
-            if (alphaAt(x + dx * i, y + dy * i) < 128) break;
-            steps += 1;
-          }
-          return steps;
-        };
-        const across = Math.min(run(-1, 0) + run(1, 0), run(0, -1) + run(0, 1));
-        const filled =
-          alpha >= 128 &&
-          ((alphaAt(x + 1, y) >= 128 && alphaAt(x, y + 1) >= 128 && alphaAt(x + 1, y + 1) >= 128) ||
-            (alphaAt(x - 1, y) >= 128 && alphaAt(x, y - 1) >= 128 && alphaAt(x - 1, y - 1) >= 128) ||
-            (alphaAt(x + 1, y) >= 128 && alphaAt(x, y - 1) >= 128 && alphaAt(x + 1, y - 1) >= 128) ||
-            (alphaAt(x - 1, y) >= 128 && alphaAt(x, y + 1) >= 128 && alphaAt(x - 1, y + 1) >= 128));
-        // Hairlines have no filled block, so the rim sample must not black them out.
-        const thin = across < band || !filled;
-        const shadow = !thin && alphaAt(x - band, y - band) < alpha * 0.55;
-        if (shadow) {
-          data[index] = 22;
-          data[index + 1] = 24;
-          data[index + 2] = 28;
-        } else {
-          // Cool and clearly dimmer than a lit emboss highlight, so the etch does not read as cream.
-          data[index] = 168;
-          data[index + 1] = 178;
-          data[index + 2] = 190;
-        }
-        if (alpha >= 80) data[index + 3] = 255;
+        // Even frost. A near-black inner rim disappeared into a dark label and bit the letters.
+        data[index] = 168;
+        data[index + 1] = 178;
+        data[index + 2] = 190;
+        data[index + 3] = engraveAlpha(alpha);
         continue;
       }
       const slopeX = (alphaAt(x + radius, y) - alphaAt(x - radius, y)) / 255;
@@ -423,6 +412,19 @@ export function relieveLabelPixels(
       }
     }
   }
+}
+
+/** Smooth edge instead of a hard cut at 80, so a solid stroke stays above alphaTest 0.35. */
+export function engraveAlpha(alpha: number): number {
+  const t = Math.max(0, Math.min(1, alpha / 255));
+  const eased = t * t * (3 - 2 * t);
+  return Math.round(eased * 255);
+}
+
+/** Smallest stroke that still reads. Print may stay a hairline; every other finish keeps about 2px. */
+export function hairlineWidth(span: number, ratio: number, application: LogoApplication = "decal"): number {
+  const minPx = application === "decal" ? 1 : 2;
+  return Math.max(minPx, span * ratio);
 }
 
 export function applyLabelRelief(canvas: HTMLCanvasElement, application: LogoApplication): void {
@@ -510,18 +512,58 @@ export function labelFontFamily(font: LogoFont, text: string): string {
 
 const DARK_PLATE = "#16130f";
 const LIGHT_PLATE = "#f7f2e8";
+const DEFAULT_INK = "#e6cc98";
 
-function parsedColor(input: string): THREE.Color {
-  try {
-    return new THREE.Color(input);
-  } catch {
-    return new THREE.Color(0);
-  }
+/** sRGB byte to the linear channel THREE.Color stores. Matches ColorManagement in three r152+. */
+function srgbChannelToLinear(channel: number): number {
+  return channel < 0.04045 ? channel * 0.0773993808 : (channel * 0.9478672986 + 0.0521327014) ** 2.4;
 }
 
-/** WCAG relative luminance. THREE.Color components are already linear. */
-export function relativeLuminance(color: string): number {
-  const parsed = parsedColor(color);
+function linearFromBytes(red: number, green: number, blue: number): { r: number; g: number; b: number } {
+  return {
+    r: srgbChannelToLinear(red / 255),
+    g: srgbChannelToLinear(green / 255),
+    b: srgbChannelToLinear(blue / 255),
+  };
+}
+
+/**
+ * Linear channels for a CSS colour, matching THREE.Color.
+ * An unknown name keeps the previous ink, or the default gold when nothing came before.
+ */
+function parsedColor(input: string, previous?: { r: number; g: number; b: number }): { r: number; g: number; b: number } {
+  const value = input.trim();
+  const short = /^#([0-9a-f]{3})$/i.exec(value);
+  if (short) {
+    const hex = short[1];
+    return linearFromBytes(
+      Number.parseInt(hex[0] + hex[0], 16),
+      Number.parseInt(hex[1] + hex[1], 16),
+      Number.parseInt(hex[2] + hex[2], 16),
+    );
+  }
+  const long = /^#([0-9a-f]{6})$/i.exec(value);
+  if (long) {
+    const hex = Number.parseInt(long[1], 16);
+    return linearFromBytes((hex >> 16) & 255, (hex >> 8) & 255, hex & 255);
+  }
+  const rgb = /^rgba?\(\s*([0-9.]+)\s*,\s*([0-9.]+)\s*,\s*([0-9.]+)/i.exec(value);
+  if (rgb) return linearFromBytes(Number(rgb[1]), Number(rgb[2]), Number(rgb[3]));
+  const named = value.toLowerCase();
+  if (named === "black") return { r: 0, g: 0, b: 0 };
+  if (named === "white") return { r: 1, g: 1, b: 1 };
+  return previous ?? parsedColor(DEFAULT_INK);
+}
+
+function srgbBytes(input: string): [number, number, number] {
+  const linear = parsedColor(input);
+  return [linearToSrgbByte(linear.r), linearToSrgbByte(linear.g), linearToSrgbByte(linear.b)];
+}
+
+/** WCAG relative luminance. Channels are linear, matching THREE.Color. */
+export function relativeLuminance(color: string, fallback = DEFAULT_INK): number {
+  const previous = fallback === color ? undefined : parsedColor(fallback);
+  const parsed = parsedColor(color, previous);
   return 0.2126 * parsed.r + 0.7152 * parsed.g + 0.0722 * parsed.b;
 }
 
@@ -664,10 +706,10 @@ function initial(text: string): string {
   return Array.from(clean)[0]?.toUpperCase() ?? "";
 }
 
-function drawFrame(ctx: CanvasRenderingContext2D, frame: LogoFrame, s: number, ink: string) {
+function drawFrame(ctx: CanvasRenderingContext2D, frame: LogoFrame, s: number, ink: string, minStroke = 1) {
   ctx.save();
   ctx.strokeStyle = ink;
-  ctx.lineWidth = Math.max(1, s * 0.012);
+  ctx.lineWidth = Math.max(minStroke, s * 0.012);
   const m = s * 0.1;
   if (frame === "hairline" || frame === "double") {
     ctx.strokeRect(m, m, s - m * 2, s - m * 2);
@@ -708,7 +750,7 @@ function drawFrame(ctx: CanvasRenderingContext2D, frame: LogoFrame, s: number, i
   ctx.restore();
 }
 
-function drawMark(ctx: CanvasRenderingContext2D, mark: LogoMark, font: LogoFont, text: string, s: number, ink: string) {
+function drawMark(ctx: CanvasRenderingContext2D, mark: LogoMark, font: LogoFont, text: string, s: number, ink: string, minStroke = 1) {
   ctx.save();
   ctx.fillStyle = ink;
   ctx.strokeStyle = ink;
@@ -730,7 +772,7 @@ function drawMark(ctx: CanvasRenderingContext2D, mark: LogoMark, font: LogoFont,
     fitWord(ctx, label, family, s * 0.16, s * 0.85, "500");
     ctx.fillText(label, s / 2, s * 0.56, s * 0.85);
     if (mark === "horizon") {
-      ctx.lineWidth = Math.max(1, s * 0.01);
+      ctx.lineWidth = Math.max(minStroke, s * 0.01);
       ctx.beginPath();
       ctx.moveTo(s * 0.22, s * 0.68);
       ctx.lineTo(s * 0.78, s * 0.68);
@@ -748,7 +790,7 @@ function drawMark(ctx: CanvasRenderingContext2D, mark: LogoMark, font: LogoFont,
       ctx.fillText(row, s / 2, s * 0.4 + i * s * 0.16, s * 0.85);
     });
   } else if (mark === "seal") {
-    ctx.lineWidth = Math.max(1, s * 0.015);
+    ctx.lineWidth = Math.max(minStroke, s * 0.015);
     ctx.beginPath();
     ctx.arc(s / 2, s / 2, s * 0.34, 0, Math.PI * 2);
     ctx.stroke();
@@ -763,7 +805,7 @@ function drawMark(ctx: CanvasRenderingContext2D, mark: LogoMark, font: LogoFont,
     ctx.font = `500 ${s * 0.1}px ${family}`;
     ctx.fillText(initial(label), s / 2, s * 0.58);
   } else if (mark === "diamond") {
-    ctx.lineWidth = Math.max(1, s * 0.012);
+    ctx.lineWidth = Math.max(minStroke, s * 0.012);
     ctx.beginPath();
     ctx.moveTo(s / 2, s * 0.18);
     ctx.lineTo(s * 0.8, s / 2);
@@ -774,7 +816,7 @@ function drawMark(ctx: CanvasRenderingContext2D, mark: LogoMark, font: LogoFont,
     ctx.font = `500 ${s * 0.12}px ${family}`;
     ctx.fillText(initial(label), s / 2, s / 2);
   } else if (mark === "sun") {
-    ctx.lineWidth = Math.max(1, s * 0.01);
+    ctx.lineWidth = Math.max(minStroke, s * 0.01);
     ctx.beginPath();
     ctx.arc(s / 2, s / 2, s * 0.16, 0, Math.PI * 2);
     ctx.stroke();
@@ -786,7 +828,7 @@ function drawMark(ctx: CanvasRenderingContext2D, mark: LogoMark, font: LogoFont,
       ctx.stroke();
     }
   } else if (mark === "wave") {
-    ctx.lineWidth = Math.max(1, s * 0.012);
+    ctx.lineWidth = Math.max(minStroke, s * 0.012);
     for (let i = 0; i < 3; i++) {
       ctx.beginPath();
       const y = s * (0.4 + i * 0.1);
@@ -796,7 +838,7 @@ function drawMark(ctx: CanvasRenderingContext2D, mark: LogoMark, font: LogoFont,
       ctx.stroke();
     }
   } else if (mark === "crest") {
-    ctx.lineWidth = Math.max(1, s * 0.012);
+    ctx.lineWidth = Math.max(minStroke, s * 0.012);
     ctx.beginPath();
     ctx.moveTo(s * 0.28, s * 0.24);
     ctx.lineTo(s * 0.72, s * 0.24);
@@ -807,7 +849,7 @@ function drawMark(ctx: CanvasRenderingContext2D, mark: LogoMark, font: LogoFont,
     ctx.font = `500 ${s * 0.12}px ${family}`;
     ctx.fillText(initial(label), s / 2, s * 0.48);
   } else if (mark === "star") {
-    ctx.lineWidth = Math.max(1, s * 0.012);
+    ctx.lineWidth = Math.max(minStroke, s * 0.012);
     ctx.beginPath();
     for (let i = 0; i < 8; i++) {
       const a = -Math.PI / 2 + (i / 8) * Math.PI * 2;
@@ -820,14 +862,14 @@ function drawMark(ctx: CanvasRenderingContext2D, mark: LogoMark, font: LogoFont,
     ctx.closePath();
     ctx.stroke();
   } else if (mark === "deco") {
-    ctx.lineWidth = Math.max(1, s * 0.01);
+    ctx.lineWidth = Math.max(minStroke, s * 0.01);
     for (let i = 0; i < 7; i++) {
       ctx.beginPath();
       ctx.arc(s / 2, s * 0.72, s * (0.08 + i * 0.045), Math.PI, 0);
       ctx.stroke();
     }
   } else if (mark === "laurel") {
-    ctx.lineWidth = Math.max(1, s * 0.01);
+    ctx.lineWidth = Math.max(minStroke, s * 0.01);
     ctx.beginPath();
     ctx.arc(s * 0.42, s / 2, s * 0.28, Math.PI * 0.65, Math.PI * 1.35);
     ctx.stroke();
@@ -841,11 +883,11 @@ function drawMark(ctx: CanvasRenderingContext2D, mark: LogoMark, font: LogoFont,
       const a = (i / 9) * Math.PI * 2;
       const r = s * (0.12 + (i % 3) * 0.08);
       ctx.beginPath();
-      ctx.arc(s / 2 + Math.cos(a) * r, s / 2 + Math.sin(a) * r * 0.8, s * 0.012, 0, Math.PI * 2);
+      ctx.arc(s / 2 + Math.cos(a) * r, s / 2 + Math.sin(a) * r * 0.8, Math.max(minStroke * 0.5, s * 0.012), 0, Math.PI * 2);
       ctx.fill();
     }
   } else if (mark === "chevron") {
-    ctx.lineWidth = Math.max(1, s * 0.012);
+    ctx.lineWidth = Math.max(minStroke, s * 0.012);
     ctx.beginPath();
     ctx.moveTo(s * 0.28, s * 0.62);
     ctx.lineTo(s / 2, s * 0.38);
@@ -854,14 +896,14 @@ function drawMark(ctx: CanvasRenderingContext2D, mark: LogoMark, font: LogoFont,
     fitWord(ctx, label.slice(0, 14), family, s * 0.1, s * 0.8, "500");
     ctx.fillText(label.slice(0, 14), s / 2, s * 0.74, s * 0.85);
   } else if (mark === "oval") {
-    ctx.lineWidth = Math.max(1, s * 0.012);
+    ctx.lineWidth = Math.max(minStroke, s * 0.012);
     ctx.beginPath();
     ctx.ellipse(s / 2, s / 2, s * 0.28, s * 0.36, 0, 0, Math.PI * 2);
     ctx.stroke();
     ctx.font = `500 ${s * 0.1}px ${family}`;
     ctx.fillText(initial(label), s / 2, s / 2);
   } else if (mark === "bars") {
-    ctx.lineWidth = Math.max(1, s * 0.01);
+    ctx.lineWidth = Math.max(minStroke, s * 0.01);
     for (let i = 0; i < 5; i++) {
       const y = s * (0.32 + i * 0.09);
       ctx.beginPath();
@@ -903,12 +945,12 @@ const TYPE_MARKS = new Set<LogoSpec["mark"]>(["word", "horizon", "stacked", "ver
 
 /**
  * Ground behind carton ink.
- * Flat print is `decal`. Foil, emboss, and engrave stay clear.
- * Print keeps an opaque plate only when a plate colour is set.
+ * Print and emboss keep a plate. Foil and engrave stay clear.
+ * An empty colour stays clear so a missing board does not paint black.
  */
 export function cartonMarkPlate(application: LogoApplication | "print", plateColour?: string | null): string | "clear" {
-  const print = application === "decal" || application === "print";
-  if (!print) return "clear";
+  const plated = application === "decal" || application === "print" || application === "emboss";
+  if (!plated) return "clear";
   const colour = plateColour?.trim() ?? "";
   return colour ? colour : "clear";
 }
@@ -921,6 +963,7 @@ export function paintLabel(
   w: number,
   h: number,
   plate: "contrast" | "clear" | string = "contrast",
+  minStroke = 1,
 ): LabelLineLayout {
   const family = labelFontFamily(spec.font, text);
   const weight = labelFontWeight(spec.font, text);
@@ -953,12 +996,12 @@ export function paintLabel(
     const markBox = Math.min(w * 0.62, Math.max(8, textTop * 0.9));
     ctx.save();
     ctx.translate((w - markBox) / 2, Math.max(h * 0.045, (textTop - markBox) / 2));
-    drawFrame(ctx, spec.frame, markBox, ink);
-    drawMark(ctx, spec.mark, spec.font, text, markBox, ink);
+    drawFrame(ctx, spec.frame, markBox, ink, minStroke);
+    drawMark(ctx, spec.mark, spec.font, text, markBox, ink, minStroke);
     ctx.restore();
   } else if (spec.frame !== "none") {
     ctx.strokeStyle = ink;
-    ctx.lineWidth = Math.max(1.5, Math.min(w, h) * 0.012);
+    ctx.lineWidth = Math.max(Math.max(minStroke, 1.5), Math.min(w, h) * 0.012);
     const m = Math.min(w, h) * 0.055;
     ctx.strokeRect(m, m, w - m * 2, h - m * 2);
   }
@@ -978,7 +1021,7 @@ export function paintLabel(
     y += leading;
   }
   if (spec.mark === "horizon") {
-    ctx.lineWidth = Math.max(1.5, h * 0.012);
+    ctx.lineWidth = Math.max(Math.max(minStroke, 1.5), h * 0.012);
     ctx.beginPath();
     ctx.moveTo(w * 0.18, Math.min(h - h * 0.08, y));
     ctx.lineTo(w * 0.82, Math.min(h - h * 0.08, y));
@@ -990,7 +1033,8 @@ export function paintLabel(
 
 /**
  * Brand line for the carton face.
- * Foil, emboss, and engrave sit on the paper. Only print (decal) gets a contrasting plate.
+ * Foil and engrave sit on the paper. Print gets a contrasting plate.
+ * Emboss is drawn clear here; the plate is composited afterwards so glyph alpha can still build a normal.
  */
 export function paintCartonMark(
   ctx: CanvasRenderingContext2D,
@@ -1066,6 +1110,7 @@ export function cartonMarkCanvas(
   if (ctx) {
     paintCartonMark(ctx, spec, text, ink, width, height, application);
     applyLabelRelief(canvas, application);
+    if (application === "emboss") sealEmbossPlate(canvas, ink);
   }
   return canvas;
 }
@@ -1097,7 +1142,45 @@ export function logoTexture(
   canvas.height = h;
   const ctx = canvas.getContext("2d");
   if (!ctx) return canvas;
-  paintLabel(ctx, spec, text, ink, w, h, application === "decal" ? "contrast" : "clear");
+  const minStroke = application === "decal" ? 1 : 2;
+  paintLabel(ctx, spec, text, ink, w, h, application === "decal" ? "contrast" : "clear", minStroke);
   applyLabelRelief(canvas, application);
+  if (application === "emboss") sealEmbossPlate(canvas, ink);
   return canvas;
+}
+
+const embossHeights = new WeakMap<HTMLCanvasElement, HTMLCanvasElement>();
+
+/** Glyph alpha captured before the emboss plate is painted, so the normal map still has relief. */
+export function embossHeightCanvas(canvas: HTMLCanvasElement): HTMLCanvasElement {
+  return embossHeights.get(canvas) ?? canvas;
+}
+
+/** Put the substrate behind transparent pixels and keep an opaque plate. Glyph colour stays. */
+export function compositeEmbossPlatePixels(data: Uint8ClampedArray, plate: readonly [number, number, number]): void {
+  for (let index = 0; index < data.length; index += 4) {
+    const alpha = data[index + 3] / 255;
+    if (alpha >= 1) {
+      data[index + 3] = 255;
+      continue;
+    }
+    data[index] = Math.round(data[index] * alpha + plate[0] * (1 - alpha));
+    data[index + 1] = Math.round(data[index + 1] * alpha + plate[1] * (1 - alpha));
+    data[index + 2] = Math.round(data[index + 2] * alpha + plate[2] * (1 - alpha));
+    data[index + 3] = 255;
+  }
+}
+
+function sealEmbossPlate(canvas: HTMLCanvasElement, plate: string): void {
+  const copy = document.createElement("canvas");
+  copy.width = canvas.width;
+  copy.height = canvas.height;
+  const copyCtx = copy.getContext("2d");
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  if (!copyCtx || !ctx || canvas.width < 1 || canvas.height < 1) return;
+  copyCtx.drawImage(canvas, 0, 0);
+  embossHeights.set(canvas, copy);
+  const image = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  compositeEmbossPlatePixels(image.data, srgbBytes(plate));
+  ctx.putImageData(image, 0, 0);
 }

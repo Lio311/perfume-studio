@@ -10,12 +10,12 @@ import { isGlass } from "../model/materials.ts";
 import type { BoxForm, PartKey, PumpStyle } from "../model/types.ts";
 import { ClosureBox } from "./boxClosure.tsx";
 import { buildBottleGeometry, buildCapGeometry, buildLabelPatch } from "../geometry/sweep.ts";
-import { labelInk } from "../geometry/logos.ts";
+import { contrastingPlate, labelInk } from "../geometry/logos.ts";
 import { LabelPaintProvider, useLabelMaps, useSharedLabelCanvas } from "./labelPaint.ts";
 import { CartonMark, LabelFinishMaterial } from "./cartonMark.tsx";
 import { useLab } from "../store/labStore.ts";
 import { latheGeometry, latheProfile } from "../import/lathe.ts";
-import { clickPart, doubleClickPart, markPartPointer, swapFlashOn } from "./focusClick.ts";
+import { clickPart, doubleClickPart, markPartPointer, partIsGhost, swapFlashOn } from "./focusClick.ts";
 import { restoredOpacityTarget } from "./materialFade.ts";
 import { FinishMaterial, JuiceMaterial } from "./materials.tsx";
 import { Callouts } from "./Callouts.tsx";
@@ -78,7 +78,7 @@ function PartShell({
     const state = useLab.getState();
     const isolated = state.solo === part;
     const faded = Boolean(state.solo) && state.solo !== part;
-    const ghost = Boolean(state.aimed && state.selected && state.selected !== part && !state.solo);
+    const ghost = partIsGhost(state, part);
     const local = isolated ? 0 : explodeLocal(index, clock.current);
     pop.current = THREE.MathUtils.damp(pop.current, 1, 6, dt);
     const shown = visible && !faded ? pop.current : 0.001;
@@ -164,6 +164,7 @@ function PartShell({
         if (mat.transparent !== newTransparent) mat.transparent = newTransparent;
         const newOpacity = THREE.MathUtils.damp(mat.opacity, target, 7, dt);
         if (Math.abs(mat.opacity - newOpacity) > 0.001) mat.opacity = newOpacity;
+        mat.userData.fadeWrote = mat.opacity;
         const newDepthWrite = mat.opacity > 0.5;
         if (mat.depthWrite !== newDepthWrite) mat.depthWrite = newDepthWrite;
       }
@@ -665,7 +666,8 @@ function LabelPart() {
   const spec = logoById(design.label.variantId);
   const application = resolvedLabelApplication(design.label);
   const fit = computeFit(design, false);
-  const ink = labelInk(design.label.color, application, design.bottle.color);
+  const ground = application === "emboss" || application === "engrave" ? contrastingPlate(design.label.color) : undefined;
+  const ink = labelInk(design.label.color, application, ground);
   const shared = useSharedLabelCanvas();
   const canvas = useMemo(() => shared ?? document.createElement("canvas"), [shared]);
   const { color: texture, mask, emissive, normal } = useLabelMaps(canvas, ink, application);

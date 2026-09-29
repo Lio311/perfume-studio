@@ -280,9 +280,6 @@ export function VoiceGrade() {
   const quality = useLab((s) => s.quality);
   const [off, setOff] = useState(false);
   const composerOn = !off && gl.capabilities.isWebGL2 && quality === "high";
-  useFrame(() => {
-    if (!composerOn) gl.setRenderTarget(null);
-  });
   if (!composerOn) return null;
   const fail = () => setOff(true);
   return (

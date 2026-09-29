@@ -1,5 +1,17 @@
 import type { PartKey } from "../model/types.ts";
-import { useLab } from "../store/labStore.ts";
+import { useLab, type StageMode } from "../store/labStore.ts";
+
+/**
+ * A focused part ghosts the others. The box stage keeps the label selected,
+ * and that must not fade the carton the label is printed on.
+ */
+export function partIsGhost(
+  state: { aimed: boolean; selected: PartKey | null; solo: PartKey | null; stage: StageMode },
+  part: PartKey,
+): boolean {
+  if (state.stage === "box" && state.selected === "label" && part === "box") return false;
+  return Boolean(state.aimed && state.selected && state.selected !== part && !state.solo);
+}
 
 export function partClickAction(
   state: { selected: PartKey | null; aimed: boolean; solo: PartKey | null },

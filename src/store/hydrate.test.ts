@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { labelInk } from "../geometry/logos.ts";
 import { hydrateBox } from "../model/boxFields.ts";
 import { setImportedCatalog } from "../model/catalog.ts";
 import { createDefaultDesign } from "../model/design.ts";
@@ -674,6 +675,12 @@ describe("saved design hydration", () => {
     expect(missing.label).toEqual(base);
 
     expect(sanitizeDesign({ label: { ...base, application: "stamp" } }).label.application).toBe("decal");
+
+    const foil = sanitizeDesign({ label: { ...base, color: "#b76e79", application: "foil" } });
+    expect(foil.label.color).toBe("#b76e79");
+    expect(foil.label.application).toBe("foil");
+    expect(labelInk(foil.label.color, "foil")).toBe("#b76e79");
+    expect(labelInk("#000000", "foil")).toBe("#000000");
 
     const merged = mergePersistedLab(
       {

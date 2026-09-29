@@ -74,6 +74,8 @@ describe("spec sheet HTML escaping", () => {
     expect(html).toContain("FEA15");
     expect(html).toContain("#c98a2b");
     expect(html).toContain("Supplier specification");
+    expect(html).toContain("Logo application");
+    expect(html).toContain(">Foil<");
   });
 
   it("does not treat inherited keys as a neck", () => {

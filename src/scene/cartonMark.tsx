@@ -25,9 +25,8 @@ export function LabelFinishMaterial({
   const finish = labelFinish(application);
   const flat = finish.metalness === 0 && finish.bumpScale === 0 && !normalMap;
   const open = overlay || application !== "decal";
-  // Engrave and emboss are baked into the colour map (frost + inner rim, substrate + bevel).
-  // A lit standard material in this studio crushes both to the same dark grey.
-  const baked = application === "engrave" || application === "emboss";
+  // Engrave is baked frost and stays unlit. Emboss uses the normal map so it is lit, on the bottle and the carton.
+  const baked = application === "engrave";
   if (baked || flat || !mask) {
     return (
       <meshBasicMaterial
@@ -53,7 +52,7 @@ export function LabelFinishMaterial({
       metalnessMap={mask}
       roughness={1}
       roughnessMap={mask}
-      bumpMap={finish.bumpScale !== 0 ? mask : undefined}
+      bumpMap={finish.bumpScale !== 0 && !normalMap ? mask : undefined}
       bumpScale={finish.bumpScale}
       normalMap={normalMap ?? undefined}
       normalScale={normalMap ? [2.4, 2.4] : undefined}
@@ -82,7 +81,8 @@ export function CartonMark({ w, y, z }: { w: number; y: number; z: number }) {
   const stored = useLab((s) => s.design.label.application);
   const boxColor = useLab((s) => s.design.box.color);
   const application = resolvedLabelApplication({ variantId, application: stored });
-  const ink = labelInk(color, application, boxColor);
+  const ground = application === "emboss" || application === "engrave" ? boxColor : undefined;
+  const ink = labelInk(color, application, ground);
   const canvas = useCartonLabelCanvas();
   const aspect = Number(canvas.dataset.aspect);
   const { width: planeW, height: planeH } = cartonMarkSize(w, aspect);
