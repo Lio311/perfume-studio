@@ -1,5 +1,5 @@
 import DOMPurify from "dompurify";
-import { clearLatheProfiles, setLatheProfile } from "./lathe.ts";
+import { clearLatheProfiles, setLatheProfile } from "./latheProfile.ts";
 import type { PackNotice } from "./notices.ts";
 import { setImportedCatalog } from "../model/catalog.ts";
 import { isNeckId } from "../model/necks.ts";
