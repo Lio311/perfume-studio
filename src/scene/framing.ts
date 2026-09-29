@@ -83,6 +83,10 @@ export function assemblyBounds(design: Design, explode: number, stage: StageMode
         box.max.y += fit.boxH * 0.22;
         box.max.z += fit.boxD * 0.32;
         box.min.z -= fit.boxD * 0.06;
+      } else if (structure === "tube") {
+        box.max.y += fit.boxH * 0.95;
+        box.max.z += fit.boxD * 0.42;
+        box.min.z -= fit.boxD * 0.08;
       } else {
         box.max.y += drawer ? fit.capH * 0.45 : fit.boxH * 0.72;
         box.max.z += drawer ? fit.boxD * 0.98 : fit.boxD * 0.42;

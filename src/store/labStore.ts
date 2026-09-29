@@ -118,6 +118,8 @@ interface LabState {
   wizardPicked: ReadonlySet<PartKey>;
   /** Pre-link design and undo stack. Not itself persisted. Cleared on the first real edit. */
   demoHold: DemoHold | null;
+  /** Theme from before a demo link. Written until setTheme, then cleared. Not itself persisted. */
+  keptTheme: ThemeId | null;
   select: (part: PartKey | null) => void;
   hover: (part: PartKey | null, x?: number, y?: number) => void;
   patch: (part: PartKey, partial: Record<string, unknown>) => void;
@@ -435,6 +437,7 @@ export const useLab = create<LabState>()(
       tierLock: false,
       wizardPicked: new Set<PartKey>(),
       demoHold: null,
+      keptTheme: null,
       theme: "dark",
       lang: "he",
       libraryOpen: false,
@@ -587,7 +590,7 @@ export const useLab = create<LabState>()(
           aimed: false,
           solo: null,
         })),
-      setTheme: (theme) => { applyTheme(theme); set({ theme }); },
+      setTheme: (theme) => { applyTheme(theme); set({ theme, keptTheme: null }); },
       setLang: (lang) => set({ lang }),
       setLibraryOpen: (libraryOpen) => set({ libraryOpen }),
       setSideOpen: (sideOpen) => set({ sideOpen }),

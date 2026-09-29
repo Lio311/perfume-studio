@@ -49,5 +49,29 @@ export function prismShell(outerRadius: number, innerRadius: number, height: num
   });
   geo.rotateX(-Math.PI / 2);
   geo.computeVertexNormals();
+  if (n >= 24) smoothRadialWalls(geo);
   return geo;
+}
+
+/**
+ * A fine prism reads as a cylinder. Flat facet normals leave vertical bands,
+ * so wall vertices point straight out from the axis. Caps stay axial.
+ */
+function smoothRadialWalls(geo: THREE.BufferGeometry): void {
+  const pos = geo.getAttribute("position");
+  const norm = geo.getAttribute("normal");
+  if (!pos || !norm) return;
+  for (let i = 0; i < pos.count; i += 1) {
+    if (Math.abs(norm.getY(i)) > 0.45) continue;
+    const x = pos.getX(i);
+    const z = pos.getZ(i);
+    const len = Math.hypot(x, z);
+    if (len < 1e-3) continue;
+    const rx = x / len;
+    const rz = z / len;
+    const outward = norm.getX(i) * rx + norm.getZ(i) * rz;
+    const sign = outward < 0 ? -1 : 1;
+    norm.setXYZ(i, sign * rx, 0, sign * rz);
+  }
+  norm.needsUpdate = true;
 }

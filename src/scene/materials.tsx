@@ -312,9 +312,20 @@ export function WrapMaterial({
       sheenRoughness={pile ? 0.38 : 0.55}
       envMapIntensity={gloss ? 0.9 : pile ? 0.55 : soft ? 0.32 : 0.4}
       clippingPlanes={planes}
+      onBeforeCompile={(shader) => {
+        shader.fragmentShader = shader.fragmentShader.replace(
+          "#include <dithering_fragment>",
+          `${WRAP_EDGE_GLOW}\n#include <dithering_fragment>`,
+        );
+      }}
+      customProgramCacheKey={() => "wrap-edge-glow"}
     />
   );
 }
+
+/** Warm rim on the wrap. No noise texture and no triplanar lattice. */
+const WRAP_EDGE_GLOW = `float wrapNd = clamp(dot(normalize(normal), normalize(vViewPosition)), 0.0, 1.0);
+gl_FragColor.rgb += vec3(0.96, 0.9, 0.78) * pow(1.0 - wrapNd, 2.4) * 0.2;`;
 
 const JUICE_VERT = `
   varying vec3 vNormal;

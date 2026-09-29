@@ -3,9 +3,9 @@ import { useFrame } from "@react-three/fiber";
 import { RoundedBox } from "@react-three/drei";
 import * as THREE from "three";
 import { bottleById, boxById, capById, collarById, logoById, pumpById } from "../model/catalog.ts";
-import { closureForForm } from "../model/boxFields.ts";
+import { usesLegacyBoxMesh } from "../model/boxFields.ts";
 import { insertSeatNow, trayLiftNow } from "./trayLift.ts";
-import { computeFit, type Fit } from "../model/fit.ts";
+import { boxContentsSeat, computeFit, type Fit } from "../model/fit.ts";
 import { isGlass } from "../model/materials.ts";
 import type { BoxForm, PartKey, PumpStyle } from "../model/types.ts";
 import { ClosureBox } from "./boxClosure.tsx";
@@ -103,7 +103,7 @@ function PartShell({
       tz = park[2];
     } else if (state.stage === "box" && part !== "box") {
       const lying = state.design.box.insert?.orientation === "lying" && !state.solo && !state.aimed;
-      if (!lying) ty += (state.design.box.boardMm ?? 2.2) + 5;
+      if (!lying) ty += boxContentsSeat(state.design);
     }
     const yaw = isolated ? 0 : local * 0.14 * (index % 2 === 0 ? 1 : -1);
     group.rotation.y = THREE.MathUtils.damp(group.rotation.y, yaw, 5, dt);
@@ -885,30 +885,8 @@ function BoxFormMesh({
     state.setBoxOpen(!state.boxOpen);
   };
   const structure = useLab((s) => s.design.box.structure ?? "lift-off");
-  const legacyForm = (form === "tube" || form === "plinth") && structure === closureForForm(form).structure;
+  const legacyForm = usesLegacyBoxMesh(form, structure);
   if (!legacyForm) return <ClosureBox form={form} fit={fit} />;
-  if (form === "tube") {
-    return (
-      <group>
-        <group ref={mover}>
-          <mesh
-            position={[0, h / 2, 0]}
-            onPointerDown={stopLid}
-            onClick={toggleLid}
-          >
-            <cylinderGeometry args={[Math.min(w, d) / 2, Math.min(w, d) / 2, h, 96, 1, true]} />
-            <FinishMaterial finish={finish} color={color} />
-            <GoldRim part="box" stamp="box" />
-          </mesh>
-          <CartonMark w={w} y={h * 0.62} z={Math.min(w, d) / 2 + 0.4} />
-        </group>
-        <mesh position={[0, wall / 2, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-          <circleGeometry args={[Math.min(w, d) / 2 - 1.2, 40]} />
-          {liningMaterial()}
-        </mesh>
-      </group>
-    );
-  }
   if (form === "plinth") {
     return (
       <group>

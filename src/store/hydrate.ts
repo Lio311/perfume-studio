@@ -46,7 +46,7 @@ const EPHEMERAL_KEYS = new Set([
   "viewToken", "focusToken", "libraryOpen", "sideOpen", "modal", "units", "suppliers",
   "voice", "soundOn", "stage", "blueprint", "fullToken", "aimed", "solo", "present",
   "exporting", "palette", "help", "boxOpen", "toast", "shareUrl", "briefEditing", "cutaway", "quality", "tierLock", "packNotices",
-  "wizardPicked", "demoHold",
+  "wizardPicked", "demoHold", "keptTheme",
 ]);
 
 let storageWritesOpen = true;
@@ -698,7 +698,11 @@ const PERSISTED_FIELDS = ["design", "theme", "lang", "chat", "saved", "pending",
  * data) is copied through so the next write does not erase it. Functions and live UI
  * fields, including `shareUrl`, brief editing, cutaway, quality, and the tier lock, are left out.
  */
-/** Design and undo stack from before a `?closure=` link. Nothing else is frozen. */
+/**
+ * Design and undo stack from before a `?closure=` link.
+ * The pre-link theme is `keptTheme`, separate from this hold, so an edit can
+ * drop the design snapshot without writing the demo theme.
+ */
 export interface DemoHold {
   design: unknown;
   past: unknown;
@@ -740,6 +744,7 @@ export function partializeLabState(state: object): Record<string, unknown> {
     out[key] = value;
   }
   if (isDemoHold(source.demoHold)) out.design = source.demoHold.design;
+  if (source.keptTheme === "light" || source.keptTheme === "dark") out.theme = source.keptTheme;
   return out;
 }
 

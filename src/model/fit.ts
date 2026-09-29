@@ -256,3 +256,13 @@ export function computeFit(design: Design, exploded = false): Fit {
     explode,
   };
 }
+
+let seatCache: { design: Design; seat: number } | null = null;
+
+/** Y added to parts seated in the box. The insert floor is part of the seat. */
+export function boxContentsSeat(design: Design): number {
+  if (seatCache?.design === design) return seatCache.seat;
+  const seat = computeFit(design, false).seatY;
+  seatCache = { design, seat };
+  return seat;
+}

@@ -277,7 +277,9 @@ export default function App() {
         cutaway: params.get("cut") === "1",
         quality: tier,
         tierLock: true,
+        // The shot theme is this visit only. keptTheme is the theme from before the link.
         theme: params.get("theme") === "dark" ? "dark" : "light",
+        keptTheme: state.keptTheme ?? state.theme,
         libraryOpen: false,
         sideOpen: true,
         explode: 0,

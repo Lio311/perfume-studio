@@ -6,7 +6,9 @@ import type { Fit } from "../../../model/fit.ts";
 import { useLab } from "../../../store/labStore.ts";
 import { prismFrontFacet } from "../prism.ts";
 import { trayLiftNow } from "../../trayLift.ts";
-import { BrandMark, InsertBlock, InsertFinish, Magnet, MARK_FACE_GAP, PrismMesh, PullTab, Ribbon, Skin, Tub } from "../kit.tsx";
+import { TubeMark } from "../tubeMark.tsx";
+import { BrandMark, InsertBlock, InsertFinish, Magnet, MARK_FACE_GAP, PrismMesh, PullTab, RIBBON_COLOR, Ribbon, Skin, Tub } from "../kit.tsx";
+import { closurePull, cylinderRibbonLayout, cylinderRibbonYaw, facetRibbonDiameter, facetRibbonYaw, rectRibbonLayout } from "../ribbonPose.ts";
 import type { ClosureBuilder } from "../types.ts";
 
 /** Width passed to the carton mark, and the plane's z, for the facet that faces the camera. */
@@ -107,7 +109,9 @@ const LiftOff: ClosureBuilder = ({ form, fit, spec, dims, bind, ribbon, pullTab,
   const tied = ribbon || latch === "ribbon";
   const telescope = !shoulder && dims.lidH >= dims.h * 0.9;
   const trayH = telescope ? Math.max(dims.wall * 6, dims.h * 0.38) : dims.baseH;
+  const rectRibbon = rectRibbonLayout(dims.h, lid[1], dims.w + 0.6, lidW + 0.6);
   if (shape.type === "cylinder" || shape.type === "polygon") {
+    const cylinder = shape.type === "cylinder";
     const sides = shape.type === "polygon" ? Math.min(12, Math.max(3, Math.round(shape.sides ?? 8))) : 48;
     const radius = Math.min(dims.w, dims.d) / 2 - 0.4;
     const wall = Math.max(dims.wall, 1.6);
@@ -115,8 +119,11 @@ const LiftOff: ClosureBuilder = ({ form, fit, spec, dims, bind, ribbon, pullTab,
     const neckR = Math.max(inner * 0.86, radius * 0.62);
     const lidR = radius + 0.7;
     const lidInner = Math.max(lidR - wall, lidR * 0.78);
-    const face = octagonMarkPlacement(lidR, sides);
-    const baseFace = octagonMarkPlacement(radius, sides);
+    const face = cylinder ? null : octagonMarkPlacement(lidR, sides);
+    const baseFace = cylinder ? null : octagonMarkPlacement(radius, sides);
+    const yaw = cylinder ? cylinderRibbonYaw(radius, lidR, dims.w, lidR * 2) : facetRibbonYaw(sides);
+    const ribbonSpan = cylinderRibbonLayout(dims.h, lid[1], radius, lidR);
+    const pull = closurePull(tied, pullTab);
     return (
       <group>
         <PrismMesh radius={radius - 0.15} inner={0} height={dims.wall} sides={sides} />
@@ -126,11 +133,30 @@ const LiftOff: ClosureBuilder = ({ form, fit, spec, dims, bind, ribbon, pullTab,
         <group ref={bind("lid")} userData={{ hinge: "lid" }} position={lid}>
           <PrismMesh radius={lidR} inner={lidInner} height={Math.max(wall, dims.lidH - dims.wall)} sides={sides} />
           <PrismMesh radius={lidR} inner={0} height={dims.wall} sides={sides} y={Math.max(0, dims.lidH - dims.wall)} />
-          {telescope && <BrandMark w={face.width} y={dims.lidH * 0.55} z={face.z} />}
-          {pullTab && <PullTab w={Math.min(dims.w, face.width)} z={face.z} />}
+          {cylinder && telescope && <TubeMark radius={lidR} y={dims.lidH * 0.55} />}
+          {face && telescope && <BrandMark w={face.width} y={dims.lidH * 0.55} z={face.z} />}
+          {pull === "ribbon" && ribbonSpan.above && (cylinder ? (
+            <Ribbon w={dims.w} h={ribbonSpan.above.h} d={ribbonSpan.above.radius * 2} y={ribbonSpan.above.y - lid[1]} color={RIBBON_COLOR} bend={{ radius: ribbonSpan.above.radius, yaw }} />
+          ) : (
+            <group rotation={[0, yaw, 0]}>
+              <Ribbon w={dims.w} h={ribbonSpan.above.h} d={facetRibbonDiameter(lidR, sides)} y={ribbonSpan.above.y - lid[1]} color={RIBBON_COLOR} />
+            </group>
+          ))}
+          {pull === "tab" && (
+            <group rotation={[0, yaw, 0]}>
+              <PullTab w={dims.w} y={-2} z={lidR + 0.4} color={RIBBON_COLOR} />
+            </group>
+          )}
         </group>
-        {!telescope && <BrandMark w={baseFace.width} y={trayH * 0.55} z={baseFace.z} />}
-        {tied && <Ribbon w={dims.w} h={dims.h * 0.42} d={radius * 2 + (telescope ? 2.4 : 0)} y={dims.h * 0.28} />}
+        {cylinder && !telescope && <TubeMark radius={radius} y={trayH * 0.55} />}
+        {baseFace && !telescope && <BrandMark w={baseFace.width} y={trayH * 0.55} z={baseFace.z} />}
+        {pull === "ribbon" && ribbonSpan.below && (cylinder ? (
+          <Ribbon w={dims.w} h={ribbonSpan.below.h} d={ribbonSpan.below.radius * 2} y={ribbonSpan.below.y} cap={false} color={RIBBON_COLOR} bend={{ radius: ribbonSpan.below.radius, yaw, flareTo: ribbonSpan.above?.radius }} />
+        ) : (
+          <group rotation={[0, yaw, 0]}>
+            <Ribbon w={dims.w} h={ribbonSpan.below.h} d={facetRibbonDiameter(radius, sides)} y={ribbonSpan.below.y} cap={false} color={RIBBON_COLOR} />
+          </group>
+        ))}
       </group>
     );
   }
@@ -159,10 +185,15 @@ const LiftOff: ClosureBuilder = ({ form, fit, spec, dims, bind, ribbon, pullTab,
           </>
         )}
         {telescope && <BrandMark w={lidW} y={dims.lidH * 0.46} z={lidD / 2 + MARK_FACE_GAP} />}
-        {pullTab && <PullTab w={dims.w} z={lidD / 2 + MARK_FACE_GAP} />}
+        {closurePull(tied, pullTab) === "tab" && <PullTab w={dims.w} x={lidW / 2 + 0.4} y={-2} z={0} color={RIBBON_COLOR} side />}
+        {closurePull(tied, pullTab) === "ribbon" && rectRibbon.above && (
+          <Ribbon w={dims.w} h={rectRibbon.above.h} d={rectRibbon.above.d} y={rectRibbon.above.y - lid[1]} across="x" color={RIBBON_COLOR} />
+        )}
       </group>
       {!telescope && <BrandMark w={dims.w} y={trayH * 0.48} z={dims.d / 2 + MARK_FACE_GAP} />}
-      {tied && <Ribbon w={dims.w} h={dims.h * 0.42} d={telescope ? dims.d + 3.2 : dims.d} y={dims.h * 0.28} />}
+      {closurePull(tied, pullTab) === "ribbon" && rectRibbon.below && (
+        <Ribbon w={dims.w} h={rectRibbon.below.h} d={rectRibbon.below.d} y={rectRibbon.below.y} across="x" cap={false} color={RIBBON_COLOR} />
+      )}
     </group>
   );
 };
