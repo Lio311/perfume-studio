@@ -95,6 +95,7 @@ export default function App() {
   const [savingsOpen, setSavingsOpen] = useState(false);
   const step = design.step ?? 7;
   const prevStep = useRef(step);
+  const demoShot = useRef(false);
 
   const sig = `${design.bottle.variantId}|${design.cap.variantId}|${design.pump.variantId}|${design.collar.variantId}|${design.label.variantId}|${design.box.variantId}`;
   const seen = useRef(sig);
@@ -285,6 +286,7 @@ export default function App() {
         wizardPicked,
         demoHold: hold,
       });
+      demoShot.current = true;
       const next = `${location.pathname}${location.hash}`;
       history.replaceState(history.state, "", next);
     };
@@ -322,8 +324,9 @@ export default function App() {
 
   useEffect(() => {
     if (!useLab.persist.hasHydrated()) return;
-    const shot = isKnownPack(new URLSearchParams(location.search).get("closure") ?? new URLSearchParams(location.search).get("structure"));
+    const shot = demoShot.current || isKnownPack(new URLSearchParams(location.search).get("closure") ?? new URLSearchParams(location.search).get("structure"));
     if (!shot && (prevStep.current ?? 7) < 7 && step >= 7) setSavingsOpen(true);
+    if (shot && step >= 7) demoShot.current = false;
     prevStep.current = step;
   }, [step]);
 
