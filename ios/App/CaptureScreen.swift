@@ -20,6 +20,7 @@ struct CaptureFlowView: View {
     @State private var showSettings = false
     @State private var saveFailed = false
     @State private var showMeasure: Bool
+    @State private var showPreview = false
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
 
@@ -39,7 +40,12 @@ struct CaptureFlowView: View {
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
-            if showMeasure {
+            if showPreview, let draft = library.store.load(partId: sequence.partId), let measurement = draft.measurement {
+                ModelPreviewScreen(draft: draft, measurement: measurement, onRetake: {
+                    showPreview = false
+                    retake(0)
+                })
+            } else if showMeasure {
                 measure
             } else if model.cameraDenied {
                 permissionDenied
@@ -293,6 +299,13 @@ struct CaptureFlowView: View {
                 .buttonStyle(.borderedProminent)
                 .disabled(!canMeasure)
                 .accessibilityLabel("מדוד")
+                
+                if library.store.load(partId: sequence.partId)?.measurement != nil {
+                    Button("תצוגת תלת ממד") {
+                        showPreview = true
+                    }
+                    .buttonStyle(.bordered)
+                }
                 Button("סיום") { finish() }
                     .buttonStyle(.bordered)
                     .disabled(!sequence.isComplete)
@@ -361,7 +374,16 @@ struct CaptureFlowView: View {
     }
 
     private var measure: some View {
-        MeasureScreen(model: measureModel, sequence: sequence, onRetake: retakeAngle, onClose: { showMeasure = false })
+        MeasureScreen(
+            model: measureModel,
+            sequence: sequence,
+            onRetake: retakeAngle,
+            onClose: { showMeasure = false },
+            onSave: {
+                showMeasure = false
+                showPreview = true
+            }
+        )
     }
 
     private func retakeAngle(_ angle: CaptureAngle) {

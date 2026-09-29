@@ -11,6 +11,7 @@ struct MeasureScreen: View {
     var sequence: CaptureSequence
     var onRetake: (CaptureAngle) -> Void
     var onClose: () -> Void
+    var onSave: (() -> Void)? = nil
 
     @State private var editing = false
     @State private var editAxis: MeasureAxis = .height
@@ -58,7 +59,11 @@ struct MeasureScreen: View {
                 }
                 Button("שמור מידות") {
                     if model.save(sequence: sequence) {
-                        onClose()
+                        if let onSave = onSave {
+                            onSave()
+                        } else {
+                            onClose()
+                        }
                     }
                 }
                 .buttonStyle(.borderedProminent)
