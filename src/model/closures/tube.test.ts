@@ -17,7 +17,8 @@ describe("open tube", () => {
     expect(base).toBeLessThan(dims.h * 0.3);
     expect(tubeSleeveHeight(dims)).toBeGreaterThan(dims.h * 0.6);
     const glassTop = fit.seatY + bottleH;
-    expect(openBottom).toBeGreaterThan(glassTop);
+    const capTop = fit.seatY + fit.capBottom + fit.capH;
+    expect(openBottom).toBeGreaterThan(capTop);
     const visible = Math.min(openBottom, glassTop) - Math.max(base, fit.seatY);
     expect(visible / bottleH).toBeGreaterThan(0.6);
   });

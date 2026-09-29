@@ -9,9 +9,12 @@ export function tubeClosedY(dims: ClosureDims): number {
   return Math.max(0, dims.h - dims.lidH);
 }
 
+/** Fraction of the canister height the sleeve rises. High enough to clear the bottle cap. */
+const TUBE_OPEN_LIFT = 0.92;
+
 /** Cap origin when the lift channel is fully open. */
 export function tubeOpenLidY(dims: ClosureDims): number {
-  return tubeClosedY(dims) + dims.h * 0.62;
+  return tubeClosedY(dims) + dims.h * TUBE_OPEN_LIFT;
 }
 
 function tubeWall(dims: ClosureDims): number {
@@ -24,8 +27,8 @@ function tubeWall(dims: ClosureDims): number {
  */
 export function tubeBaseHeight(dims: ClosureDims): number {
   const wall = tubeWall(dims);
-  const wanted = Math.max(wall * 3.2, Math.min(dims.h * 0.22, 28));
-  return Math.min(wanted, Math.max(wall * 2, dims.h * 0.34));
+  const wanted = Math.max(wall * 3.2, Math.min(dims.h * 0.15, 18));
+  return Math.min(wanted, Math.max(wall * 2, dims.h * 0.28));
 }
 
 /** How far the sleeve mesh overlaps the base so the closed seam does not flash. */
@@ -90,7 +93,7 @@ const spec: ClosureSpec = {
           (dims) => tubeClosedY(dims),
           (dims) => tubeOpenLidY(dims),
           (dims) => tubeClosedY(dims),
-          (dims) => tubeClosedY(dims) + dims.h * 0.72,
+          (dims) => tubeClosedY(dims) + dims.h * 1.05,
         ),
       ],
     },
