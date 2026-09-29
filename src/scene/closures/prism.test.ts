@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import * as THREE from "three";
 import { cartonMarkSize } from "../../geometry/logos.ts";
-import { octagonMarkPlacement } from "./build/lift-off.tsx";
+import { BOX_CLOSED_MARK_AZIMUTH } from "../boxCamera.ts";
+import { octagonMarkPlacement, octagonMarkWorld } from "./build/lift-off.tsx";
 import { prismFrontFacet, prismShell } from "./prism.ts";
 import { MARK_FACE_GAP } from "./kit.tsx";
 
@@ -88,6 +89,10 @@ describe("prism shell", () => {
     expect(place.z - facet.z).toBeLessThan(0.5);
     expect(sized.width).toBeLessThanOrEqual(facet.width);
     expect(sized.width).toBeGreaterThan(facet.width * 0.85);
+    expect(place.yaw).toBeCloseTo(BOX_CLOSED_MARK_AZIMUTH, 5);
+    const world = octagonMarkWorld(radius, sides, 24);
+    expect(Math.atan2(world.x, world.z)).toBeCloseTo(BOX_CLOSED_MARK_AZIMUTH, 5);
+    expect(Math.hypot(world.x, world.z)).toBeCloseTo(place.z, 5);
     geo.dispose();
   });
 

@@ -41,6 +41,13 @@ export function tubeMarkBand(radius: number, aspect = 3): {
   };
 }
 
+/** Centre of the curved band. Theta 0 is +Z and grows toward +X. */
+export function tubeMarkCentre(radius: number, y = 0, aspect = 3): { x: number; y: number; z: number } {
+  const band = tubeMarkBand(radius, aspect);
+  const theta = band.thetaStart + band.angle / 2;
+  return { x: Math.sin(theta) * band.radius, y, z: Math.cos(theta) * band.radius };
+}
+
 /** Brand line wrapped on a cylinder, facing the closed shot camera. */
 export function TubeMark({ radius, y }: { radius: number; y: number }) {
   const blueprint = useLab((s) => s.blueprint);

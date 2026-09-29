@@ -10,7 +10,7 @@ import type { ViewPreset } from "../store/labStore.ts";
 import { Assembly } from "./Assembly.tsx";
 import { releaseFocus } from "./focusClick.ts";
 import { isKnownPack } from "../model/boxFields.ts";
-import { BOX_CLOSED_CAM_X, BOX_CLOSED_CAM_Y, BOX_CLOSED_CAM_Z } from "./boxCamera.ts";
+import { BOX_CLOSED_CAM_X, BOX_CLOSED_CAM_Y, BOX_CLOSED_CAM_Z, BOX_FRONT_CAM_X, BOX_FRONT_CAM_Y, BOX_FRONT_CAM_Z } from "./boxCamera.ts";
 import { boxCameraSnap } from "./boxOrbit.ts";
 import { assemblyBounds, BOX_FILL, boxViewportFrame, clearToolbar, fitPose, FOCUS_FILL, orbitLimits, partBounds, readStageFrame } from "./framing.ts";
 import { prefersReducedMotion } from "./motion.ts";
@@ -25,7 +25,7 @@ import { getUnboxPlayback, subscribeUnbox } from "./unbox/playback.ts";
 
 const VIEW_DIR: Record<ViewPreset | "three", THREE.Vector3> = {
   home: new THREE.Vector3(0.78, 0.22, 1).normalize(),
-  front: new THREE.Vector3(0.02, 0.3, 1).normalize(),
+  front: new THREE.Vector3(BOX_FRONT_CAM_X, BOX_FRONT_CAM_Y, BOX_FRONT_CAM_Z).normalize(),
   three: new THREE.Vector3(0.9, 0.42, 1.08).normalize(),
   top: new THREE.Vector3(0.42, 0.78, 0.95).normalize(),
   side: new THREE.Vector3(1, 0.24, 0.05).normalize(),

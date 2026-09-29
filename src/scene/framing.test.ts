@@ -3,7 +3,9 @@ import * as THREE from "three";
 import { applyVariant, createDefaultDesign } from "../model/design.ts";
 import type { PartKey } from "../model/types.ts";
 import { computeFit } from "../model/fit.ts";
-import { BOX_CLOSED_CAM_X, BOX_CLOSED_CAM_Y, BOX_CLOSED_CAM_Z } from "./boxCamera.ts";
+import { BOX_CLOSED_CAM_X, BOX_CLOSED_CAM_Y, BOX_CLOSED_CAM_Z, BOX_CLOSED_MARK_AZIMUTH, BOX_FRONT_CAM_X, BOX_FRONT_CAM_Y, BOX_FRONT_CAM_Z } from "./boxCamera.ts";
+import { octagonMarkWorld } from "./closures/build/lift-off.tsx";
+import { tubeMarkCentre } from "./closures/tubeMark.tsx";
 import { assemblyBounds, BOX_FILL, boxViewportFrame, clearToolbar, FOCUS_FILL, fitPose, orbitLimits, partBounds, safeRect, TOOLBAR_COVER_PX, type StageFrame } from "./framing.ts";
 
 function macbook(): StageFrame {
@@ -50,6 +52,16 @@ function projected(pose: { position: THREE.Vector3; target: THREE.Vector3 }, bou
     }
   }
   return { minX, maxX, minY, maxY, h: maxY - minY, w: maxX - minX };
+}
+
+function projectX(pose: { position: THREE.Vector3; target: THREE.Vector3 }, point: THREE.Vector3, frame: StageFrame) {
+  const camera = new THREE.PerspectiveCamera(30, frame.width / frame.height, 0.4, 8000);
+  camera.position.copy(pose.position);
+  camera.up.set(0, 1, 0);
+  camera.lookAt(pose.target);
+  camera.updateMatrixWorld();
+  const projectedPoint = point.clone().project(camera);
+  return (projectedPoint.x * 0.5 + 0.5) * frame.width;
 }
 
 describe("focus framing on a MacBook stage", () => {
@@ -132,7 +144,7 @@ describe("focus framing on a MacBook stage", () => {
     design.box.structure = "tube";
     design.box.shape = { type: "cylinder" };
     const bounds = assemblyBounds(design, 0, "box", false);
-    const frontDir = new THREE.Vector3(0.02, 0.3, 1).normalize();
+    const frontDir = new THREE.Vector3(BOX_FRONT_CAM_X, BOX_FRONT_CAM_Y, BOX_FRONT_CAM_Z).normalize();
     const closedDir = new THREE.Vector3(BOX_CLOSED_CAM_X, BOX_CLOSED_CAM_Y, BOX_CLOSED_CAM_Z).normalize();
     const fitted = fitPose(bounds, frontDir, 30, frame, BOX_FILL);
     const cleared = clearToolbar(fitted, bounds, frame, 30);
@@ -162,6 +174,39 @@ describe("focus framing on a MacBook stage", () => {
     expect(restoredBox.minY).toBeGreaterThanOrEqual(TOOLBAR_COVER_PX - 1);
     expect(restored.position.distanceTo(restored.target)).toBeCloseTo(raised.position.distanceTo(raised.target), 4);
     expect(Math.abs(restoredBox.h - tucked.h) / tucked.h).toBeLessThan(0.02);
+  });
+
+  it("centres the tube and octagon marks on the front view", () => {
+    const frame = boxViewportFrame(1280, 800);
+    const frontDir = new THREE.Vector3(BOX_FRONT_CAM_X, BOX_FRONT_CAM_Y, BOX_FRONT_CAM_Z).normalize();
+    const closedDir = new THREE.Vector3(BOX_CLOSED_CAM_X, BOX_CLOSED_CAM_Y, BOX_CLOSED_CAM_Z).normalize();
+    expect(Math.atan2(frontDir.x, frontDir.z)).toBeCloseTo(BOX_CLOSED_MARK_AZIMUTH, 5);
+
+    const fraction = (bounds: THREE.Box3, dir: THREE.Vector3, mark: { x: number; y: number; z: number }, clear: boolean) => {
+      const fitted = fitPose(bounds, dir, 30, frame, BOX_FILL);
+      const pose = clear ? clearToolbar(fitted, bounds, frame, 30) : fitted;
+      const box = projected(pose, bounds, frame);
+      const sx = projectX(pose, new THREE.Vector3(mark.x, mark.y, mark.z), frame);
+      return Math.abs(sx - (box.minX + box.maxX) / 2) / box.w;
+    };
+
+    const tube = createDefaultDesign();
+    tube.box.structure = "tube";
+    tube.box.shape = { type: "cylinder" };
+    const tubeBounds = assemblyBounds(tube, 0, "box", false);
+    const tubeMark = tubeMarkCentre(34, (tubeBounds.min.y + tubeBounds.max.y) / 2);
+    expect(Math.atan2(tubeMark.x, tubeMark.z)).toBeCloseTo(BOX_CLOSED_MARK_AZIMUTH, 5);
+    expect(fraction(tubeBounds, frontDir, tubeMark, true)).toBeLessThan(0.02);
+    expect(fraction(tubeBounds, closedDir, tubeMark, false)).toBeLessThan(0.02);
+
+    const octagon = createDefaultDesign();
+    octagon.box.structure = "lift-off";
+    octagon.box.shape = { type: "polygon", sides: 8 };
+    const octagonBounds = assemblyBounds(octagon, 0, "box", false);
+    const octagonMark = octagonMarkWorld(34, 8, (octagonBounds.min.y + octagonBounds.max.y) / 2);
+    expect(Math.atan2(octagonMark.x, octagonMark.z)).toBeCloseTo(BOX_CLOSED_MARK_AZIMUTH, 5);
+    expect(fraction(octagonBounds, frontDir, octagonMark, true)).toBeLessThan(0.02);
+    expect(fraction(octagonBounds, closedDir, octagonMark, false)).toBeLessThan(0.02);
   });
 
   it("keeps the camera outside the bottle and short of the world edge", () => {
