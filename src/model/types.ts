@@ -246,6 +246,8 @@ export interface LabelState {
   text: string;
   scale: number;
   visible: boolean;
+  /** Overrides the catalog finish for this design. Missing means use the logo spec. */
+  application?: LogoApplication;
 }
 
 export interface PumpState {

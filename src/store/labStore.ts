@@ -746,7 +746,7 @@ export const useLab = create<LabState>()(
       setStage: (stage) =>
         set((state) => ({
           stage,
-          selected: stage === "box" ? "box" : null,
+          selected: stage === "box" ? (state.selected === "label" ? "label" : "box") : null,
           aimed: false,
           solo: null,
           fullToken: state.fullToken + 1,

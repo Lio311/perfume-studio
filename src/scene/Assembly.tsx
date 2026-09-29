@@ -2,7 +2,7 @@ import { useContext, useEffect, useLayoutEffect, useMemo, useRef, type ReactNode
 import { useFrame } from "@react-three/fiber";
 import { RoundedBox } from "@react-three/drei";
 import * as THREE from "three";
-import { bottleById, boxById, capById, collarById, logoById, pumpById } from "../model/catalog.ts";
+import { bottleById, boxById, capById, collarById, logoById, pumpById, resolvedLabelApplication } from "../model/catalog.ts";
 import { usesLegacyBoxMesh } from "../model/boxFields.ts";
 import { insertSeatNow, trayLiftNow } from "./trayLift.ts";
 import { boxContentsSeat, computeFit, type Fit } from "../model/fit.ts";
@@ -10,12 +10,13 @@ import { isGlass } from "../model/materials.ts";
 import type { BoxForm, PartKey, PumpStyle } from "../model/types.ts";
 import { ClosureBox } from "./boxClosure.tsx";
 import { buildBottleGeometry, buildCapGeometry, buildLabelPatch } from "../geometry/sweep.ts";
-import { labelInk } from "../geometry/logos.ts";
+import { contrastingPlate, labelInk } from "../geometry/logos.ts";
 import { LabelPaintProvider, useLabelMaps, useSharedLabelCanvas } from "./labelPaint.ts";
 import { CartonMark, LabelFinishMaterial } from "./cartonMark.tsx";
 import { useLab } from "../store/labStore.ts";
 import { latheGeometry, latheProfile } from "../import/lathe.ts";
-import { clickPart, doubleClickPart, markPartPointer, swapFlashOn } from "./focusClick.ts";
+import { clickPart, doubleClickPart, markPartPointer, partIsGhost, swapFlashOn } from "./focusClick.ts";
+import { restoredOpacityTarget } from "./materialFade.ts";
 import { FinishMaterial, JuiceMaterial } from "./materials.tsx";
 import { Callouts } from "./Callouts.tsx";
 import { explodeLocal } from "./explodeCurve.ts";
@@ -77,7 +78,7 @@ function PartShell({
     const state = useLab.getState();
     const isolated = state.solo === part;
     const faded = Boolean(state.solo) && state.solo !== part;
-    const ghost = Boolean(state.aimed && state.selected && state.selected !== part && !state.solo);
+    const ghost = partIsGhost(state, part);
     const local = isolated ? 0 : explodeLocal(index, clock.current);
     pop.current = THREE.MathUtils.damp(pop.current, 1, 6, dt);
     const shown = visible && !faded ? pop.current : 0.001;
@@ -155,12 +156,15 @@ function PartShell({
           if (mat.depthWrite !== newDepthWrite) mat.depthWrite = newDepthWrite;
           continue;
         }
-        const intended = (mat.userData.intendedOpacity as number | undefined) ?? mat.opacity;
-        const target = ghost ? intended * 0.1 : intended;
+        const fade = restoredOpacityTarget(mat.userData, mat.opacity, ghost);
+        mat.userData.intendedOpacity = fade.intendedOpacity;
+        const intended = fade.intendedOpacity;
+        const target = fade.target;
         const newTransparent = ghost || intended < 0.999;
         if (mat.transparent !== newTransparent) mat.transparent = newTransparent;
         const newOpacity = THREE.MathUtils.damp(mat.opacity, target, 7, dt);
         if (Math.abs(mat.opacity - newOpacity) > 0.001) mat.opacity = newOpacity;
+        mat.userData.fadeWrote = mat.opacity;
         const newDepthWrite = mat.opacity > 0.5;
         if (mat.depthWrite !== newDepthWrite) mat.depthWrite = newDepthWrite;
       }
@@ -660,11 +664,13 @@ function LabelPart() {
   const onStage = stage !== "box" || boxOpen;
   const bottle = bottleById(design.bottle.variantId);
   const spec = logoById(design.label.variantId);
+  const application = resolvedLabelApplication(design.label);
   const fit = computeFit(design, false);
-  const ink = labelInk(design.label.color, spec.application);
+  const ground = application === "emboss" || application === "engrave" ? contrastingPlate(design.label.color) : undefined;
+  const ink = labelInk(design.label.color, application, ground);
   const shared = useSharedLabelCanvas();
   const canvas = useMemo(() => shared ?? document.createElement("canvas"), [shared]);
-  const { color: texture, mask, emissive } = useLabelMaps(canvas, ink, spec.application);
+  const { color: texture, mask, emissive, normal } = useLabelMaps(canvas, ink, application);
   const plate = useDisposable(() => buildLabelPatch({
     height: design.bottle.heightMm,
     width: design.bottle.widthMm,
@@ -681,9 +687,17 @@ function LabelPart() {
     patchW: fit.labelW,
   }), [fit.labelW, fit.labelH, fit.labelY, fit.neckR, design.bottle.heightMm, design.bottle.widthMm, design.bottle.depthMm, bottle]);
   return (
-    <PartShell part="label" index={4} home={[0, fit.labelY, fit.labelZ]} explode={fit.explode.label} visible={design.label.visible && onStage} variantKey={spec.id + design.label.text + bottle.id}>
+    <PartShell part="label" index={4} home={[0, fit.labelY, fit.labelZ]} explode={fit.explode.label} visible={design.label.visible && onStage} variantKey={spec.id + design.label.text + bottle.id + application}>
       <mesh geometry={plate} renderOrder={8}>
-        <LabelFinishMaterial map={texture} mask={mask} emissiveMap={emissive} ink={ink} application={spec.application} />
+        <LabelFinishMaterial
+          map={texture}
+          mask={mask}
+          emissiveMap={emissive}
+          normalMap={normal}
+          ink={application === "foil" ? design.label.color : ink}
+          application={application}
+          substrate={application === "foil" ? design.bottle.color : undefined}
+        />
         <GoldRim part="label" stamp={spec.id + design.label.text} />
       </mesh>
     </PartShell>

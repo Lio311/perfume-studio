@@ -1,7 +1,7 @@
 import { createContext, createElement, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import * as THREE from "three";
-import { cartonMarkCanvas, labelEmissiveCanvas, labelFinish, labelFontSpec, labelInk, labelSurfaceCanvas, logoTexture, shouldRepaintLabel } from "../geometry/logos.ts";
-import { logoById } from "../model/catalog.ts";
+import { cartonMarkCanvas, contrastingPlate, embossHeightCanvas, foilDisplayInk, labelEmissiveCanvas, labelFinish, labelFontSpec, labelInk, labelNormalCanvas, labelSurfaceCanvas, logoTexture, shouldRepaintLabel, type FoilRelief } from "../geometry/logos.ts";
+import { logoById, resolvedLabelApplication } from "../model/catalog.ts";
 import { computeFit } from "../model/fit.ts";
 import type { LogoApplication, LogoFont } from "../model/types.ts";
 import { useLab } from "../store/labStore.ts";
@@ -10,6 +10,7 @@ export interface LabelTextureSet<T extends { dispose(): void }> {
   color: T;
   mask: T | null;
   emissive: T | null;
+  normal?: T | null;
 }
 
 /**
@@ -23,6 +24,7 @@ export function disposeReplacedLabelTextures<T extends { dispose(): void }>(
   if (previous.color !== next.color) previous.color.dispose();
   if (previous.mask && previous.mask !== next.mask) previous.mask.dispose();
   if (previous.emissive && previous.emissive !== next.emissive) previous.emissive.dispose();
+  if (previous.normal && previous.normal !== next.normal) previous.normal.dispose();
 }
 
 const LabelPaintContext = createContext<HTMLCanvasElement | null>(null);
@@ -88,17 +90,20 @@ export function useDebouncedLabelCanvas(
 export function LabelPaintProvider({ children }: { children: ReactNode }) {
   const design = useLab((s) => s.design);
   const spec = logoById(design.label.variantId);
+  const application = resolvedLabelApplication(design.label);
   const fit = computeFit(design, false);
-  const ink = labelInk(design.label.color, spec.application);
+  const ground = application === "emboss" || application === "engrave" ? contrastingPlate(design.label.color) : undefined;
+  const foil: FoilRelief | undefined = application === "foil" ? { ink: design.label.color, substrate: design.bottle.color } : undefined;
+  const ink = foil ? foilDisplayInk(foil.ink, foil.substrate) : labelInk(design.label.color, application, ground);
   const fontTick = useLabelFontTick(spec.font, design.label.text);
   const aspect = fit.labelW / Math.max(4, fit.labelH);
   const longSide = 2048;
   const width = aspect >= 1 ? longSide : Math.max(256, Math.round(longSide * aspect));
   const height = aspect >= 1 ? Math.max(256, Math.round(longSide / Math.min(4.5, aspect))) : longSide;
-  const immediate = [spec.id, spec.application, fontTick].join("\u0000");
+  const immediate = [spec.id, application, fontTick].join("\u0000");
   const deferred = [design.label.text, ink, width, height].join("\u0000");
   const canvas = useDebouncedLabelCanvas(immediate, deferred, () => {
-    const drawn = logoTexture(spec, design.label.text, ink, width, height);
+    const drawn = logoTexture(spec, design.label.text, ink, width, height, application, foil);
     drawn.dataset.fonts = String(fontTick);
     return drawn;
   });
@@ -109,12 +114,15 @@ export function LabelPaintProvider({ children }: { children: ReactNode }) {
 export function useCartonLabelCanvas(): HTMLCanvasElement {
   const design = useLab((s) => s.design);
   const spec = logoById(design.label.variantId);
-  const ink = labelInk(design.label.color, spec.application);
+  const application = resolvedLabelApplication(design.label);
+  const ground = application === "emboss" || application === "engrave" ? design.box.color : undefined;
+  const foil: FoilRelief | undefined = application === "foil" ? { ink: design.label.color, substrate: design.box.color } : undefined;
+  const ink = foil ? foilDisplayInk(foil.ink, foil.substrate) : labelInk(design.label.color, application, ground);
   const fontTick = useLabelFontTick(spec.font, design.label.text);
-  const immediate = [spec.id, spec.application, spec.font, fontTick].join("\u0000");
-  const deferred = [design.label.text, ink].join("\u0000");
+  const immediate = [spec.id, application, spec.font, fontTick].join("\u0000");
+  const deferred = [design.label.text, ink, foil?.substrate ?? ""].join("\u0000");
   return useDebouncedLabelCanvas(immediate, deferred, () => {
-    const drawn = cartonMarkCanvas(spec, design.label.text, ink, spec.application);
+    const drawn = cartonMarkCanvas(spec, design.label.text, ink, application, foil);
     drawn.dataset.fonts = String(fontTick);
     return drawn;
   });
@@ -132,7 +140,7 @@ export function useLabelMaps(canvas: HTMLCanvasElement, ink: string, application
     return map;
   }, [canvas]);
   const mask = useMemo(() => {
-    if (finish.metalness === 0 && finish.bumpScale === 0) return null;
+    if (application === "engrave" || (finish.metalness === 0 && finish.bumpScale === 0)) return null;
     const surface = labelSurfaceCanvas(canvas, ink, application);
     const map = new THREE.CanvasTexture(surface);
     map.colorSpace = THREE.NoColorSpace;
@@ -153,12 +161,23 @@ export function useLabelMaps(canvas: HTMLCanvasElement, ink: string, application
     map.needsUpdate = true;
     return map;
   }, [canvas, ink, application, finish.emissive]);
+  const normal = useMemo(() => {
+    if (application !== "emboss") return null;
+    const surface = labelNormalCanvas(embossHeightCanvas(canvas), application);
+    const map = new THREE.CanvasTexture(surface);
+    map.colorSpace = THREE.NoColorSpace;
+    map.anisotropy = 8;
+    map.flipY = true;
+    map.generateMipmaps = true;
+    map.needsUpdate = true;
+    return map;
+  }, [canvas, application]);
   const held = useRef<LabelTextureSet<THREE.Texture> | null>(null);
   useEffect(() => {
-    const next = { color, mask, emissive };
+    const next = { color, mask, emissive, normal };
     if (held.current) disposeReplacedLabelTextures(held.current, next);
     held.current = next;
-  }, [color, mask, emissive]);
+  }, [color, mask, emissive, normal]);
   useEffect(() => () => {
     const latest = held.current;
     held.current = null;
@@ -166,6 +185,7 @@ export function useLabelMaps(canvas: HTMLCanvasElement, ink: string, application
     latest.color.dispose();
     latest.mask?.dispose();
     latest.emissive?.dispose();
+    latest.normal?.dispose();
   }, []);
-  return { color, mask, emissive };
+  return { color, mask, emissive, normal };
 }

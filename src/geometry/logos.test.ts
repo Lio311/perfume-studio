@@ -4,7 +4,12 @@ import {
   clampLabelText,
   contrastingPlate,
   contrastRatio,
+  EMBOSS_SUBSTRATE,
+  FOIL_CONTRAST_FLOOR,
   FOIL_ENV_FLOOR,
+  FOIL_LOW_METALNESS,
+  FOIL_METAL_MIN,
+  foilDisplayInk,
   labelDirection,
   labelEmissive,
   labelFinish,
@@ -17,10 +22,14 @@ import {
   cartonTextAspect,
   paintCartonMark,
   cartonMarkPlate,
+  compositeEmbossPlatePixels,
+  engraveAlpha,
+  hairlineWidth,
   paintLabel,
   paintLabelEmissive,
   paintLabelSurface,
   relativeLuminance,
+  relieveLabelPixels,
   shouldRepaintLabel,
 } from "./logos.ts";
 
@@ -144,21 +153,30 @@ describe("label text layout", () => {
     }
   });
 
-  it("keeps the chosen ink and finishes each application differently", () => {
-    expect(labelInk("#D6B26A", "foil")).toBe("#D6B26A");
-    expect(labelInk("#D6B26A", "emboss")).toBe("#D6B26A");
-    expect(labelInk("#D6B26A", "engrave")).toBe("#D6B26A");
+  it("gives each application its own ink and finish", () => {
     expect(labelInk("#D6B26A", "decal")).toBe("#D6B26A");
+    expect(labelInk("#d4a017", "foil")).toBe("#d4a017");
+    expect(labelInk("#f3f6fb", "foil")).toBe("#f3f6fb");
+    expect(labelInk("#D6B26A", "foil")).toBe("#D6B26A");
+    expect(labelInk("#b76e79", "foil")).toBe("#b76e79");
+    expect(labelInk("#000000", "foil")).toBe("#000000");
+    expect(labelInk("#111111", "foil")).not.toBe("#f3f6fb");
+    expect(labelInk("#D6B26A", "emboss")).toBe(EMBOSS_SUBSTRATE);
+    expect(labelInk("#D6B26A", "emboss", "#16130f")).toBe("#16130f");
+    expect(labelInk("#D6B26A", "engrave", "#16130f")).toBe("#16130f");
+    expect(labelInk("#D6B26A", "engrave")).toBe(EMBOSS_SUBSTRATE);
     expect(labelFinish("decal")).toEqual({ metalness: 0, roughness: 1, bumpScale: 0, envMapIntensity: 1, emissive: 0 });
-    expect(labelFinish("foil")).toEqual({ metalness: 1, roughness: 0.4, bumpScale: 0, envMapIntensity: FOIL_ENV_FLOOR, emissive: 0.36 });
-    expect(labelFinish("emboss")).toEqual({ metalness: 0.04, roughness: 0.55, bumpScale: 3.2, envMapIntensity: 1, emissive: 0 });
-    expect(labelFinish("engrave")).toEqual({ metalness: 0.04, roughness: 0.55, bumpScale: -3.2, envMapIntensity: 1, emissive: 0 });
+    expect(labelFinish("foil")).toEqual({ metalness: 0.86, roughness: 0.18, bumpScale: 0, envMapIntensity: 2.8, emissive: 1.05 });
+    expect(labelFinish("emboss")).toEqual({ metalness: 0.02, roughness: 0.42, bumpScale: 16, envMapIntensity: 0.35, emissive: 0 });
+    expect(labelFinish("engrave")).toEqual({ metalness: 0, roughness: 0.94, bumpScale: -14, envMapIntensity: 0.15, emissive: 0 });
   });
 
   it("pins foil roughness, an environment floor, and emissive in the ink colour", () => {
     const foil = labelFinish("foil");
-    expect(foil.roughness).toBeGreaterThanOrEqual(0.35);
-    expect(foil.roughness).toBeLessThanOrEqual(0.45);
+    expect(foil.roughness).toBeGreaterThan(0.05);
+    expect(foil.roughness).toBeLessThanOrEqual(0.22);
+    expect(foil.metalness).toBeGreaterThan(0.45);
+    expect(foil.emissive).toBeGreaterThanOrEqual(1);
     expect(FOIL_ENV_FLOOR).toBeGreaterThan(0);
     expect(foil.envMapIntensity).toBeGreaterThanOrEqual(FOIL_ENV_FLOOR);
     expect(foil.emissive).toBeGreaterThan(0);
@@ -184,7 +202,7 @@ describe("label text layout", () => {
         source[index] = rgb[0];
         source[index + 1] = rgb[1];
         source[index + 2] = rgb[2];
-        source[index + 3] = 255;
+        source[index + 3] = on ? 255 : 0;
       }
     }
     const target = new Uint8ClampedArray(source.length);
@@ -212,7 +230,7 @@ describe("label text layout", () => {
         source[index] = rgb[0];
         source[index + 1] = rgb[1];
         source[index + 2] = rgb[2];
-        source[index + 3] = 255;
+        source[index + 3] = on ? 255 : 0;
       }
     }
     const target = new Uint8ClampedArray(source.length);
@@ -250,20 +268,198 @@ describe("label text layout", () => {
     expect(target[4]).toBeGreaterThan(0);
   });
 
+  it("bakes a different mark for foil, engrave, and emboss", () => {
+    const width = 40;
+    const height = 32;
+    const source = new Uint8ClampedArray(width * height * 4);
+    for (let y = 0; y < height; y += 1) {
+      for (let x = 0; x < width; x += 1) {
+        const index = (y * width + x) * 4;
+        const on = x >= 8 && x < 30 && y >= 6 && y < 26;
+        source[index] = on ? 0xff : 0;
+        source[index + 1] = on ? 0xe7 : 0;
+        source[index + 2] = on ? 0xa6 : 0;
+        source[index + 3] = on ? 255 : 0;
+      }
+    }
+    const mean = (a: Uint8ClampedArray, b: Uint8ClampedArray) => {
+      let sum = 0;
+      let count = 0;
+      for (let i = 0; i < a.length; i += 4) {
+        if (a[i + 3] === 0 && b[i + 3] === 0) continue;
+        sum += Math.abs(a[i] - b[i]) + Math.abs(a[i + 1] - b[i + 1]) + Math.abs(a[i + 2] - b[i + 2]);
+        count += 3;
+      }
+      return count === 0 ? 0 : sum / count;
+    };
+    const foil = new Uint8ClampedArray(source);
+    const engrave = new Uint8ClampedArray(source);
+    const emboss = new Uint8ClampedArray(source);
+    const print = new Uint8ClampedArray(source);
+    relieveLabelPixels(foil, width, height, "foil");
+    relieveLabelPixels(engrave, width, height, "engrave");
+    relieveLabelPixels(emboss, width, height, "emboss");
+    relieveLabelPixels(print, width, height, "decal");
+    expect(mean(print, source)).toBe(0);
+    expect(mean(foil, engrave)).toBeGreaterThan(25);
+    expect(mean(foil, emboss)).toBeGreaterThan(15);
+    expect(mean(engrave, emboss)).toBeGreaterThan(25);
+    const at = (buf: Uint8ClampedArray, x: number, y: number) => {
+      const index = (y * width + x) * 4;
+      return [buf[index], buf[index + 1], buf[index + 2]] as const;
+    };
+    const luma = (rgb: readonly [number, number, number]) => 0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2];
+    const frost = at(engrave, 20, 16);
+    const rim = at(engrave, 8, 6);
+    expect(luma(frost)).toBeGreaterThan(150);
+    expect(luma(frost)).toBeLessThan(200);
+    expect(frost[2]).toBeGreaterThan(frost[0] + 10);
+    expect(luma(rim)).toBeGreaterThan(150);
+    expect(engrave[(6 * width + 8) * 4 + 3]).toBe(255);
+    const grey = new Uint8ClampedArray(source);
+    for (let i = 0; i < grey.length; i += 4) {
+      if (grey[i + 3] === 0) continue;
+      grey[i] = 160;
+      grey[i + 1] = 154;
+      grey[i + 2] = 146;
+    }
+    relieveLabelPixels(grey, width, height, "emboss");
+    const face = at(grey, 20, 16);
+    let brightest = 0;
+    let darkest = 255;
+    for (let y = 6; y < 26; y += 1) {
+      for (let x = 8; x < 30; x += 1) {
+        const value = luma(at(grey, x, y));
+        brightest = Math.max(brightest, value);
+        darkest = Math.min(darkest, value);
+      }
+    }
+    expect(luma(face)).toBeGreaterThan(140);
+    expect(luma(face)).toBeLessThan(190);
+    expect(brightest).toBeGreaterThan(luma(face) + 8);
+    expect(brightest).toBeLessThan(220);
+    expect(darkest).toBeLessThan(luma(face) - 20);
+    const foilBody = at(foil, 20, 16);
+    expect(foilBody[0]).toBeGreaterThan(foilBody[2] + 40);
+    expect(foilBody[2]).toBeGreaterThan(140);
+    const black = new Uint8ClampedArray(source);
+    const rose = new Uint8ClampedArray(source);
+    const silver = new Uint8ClampedArray(source);
+    for (let i = 0; i < source.length; i += 4) {
+      if (source[i + 3] === 0) continue;
+      black[i] = 0;
+      black[i + 1] = 0;
+      black[i + 2] = 0;
+      rose[i] = 183;
+      rose[i + 1] = 110;
+      rose[i + 2] = 121;
+      silver[i] = 243;
+      silver[i + 1] = 246;
+      silver[i + 2] = 251;
+    }
+    relieveLabelPixels(black, width, height, "foil");
+    relieveLabelPixels(rose, width, height, "foil");
+    relieveLabelPixels(silver, width, height, "foil");
+    const blackBody = at(black, 20, 16);
+    const roseBody = at(rose, 20, 16);
+    expect(blackBody[0]).toBeLessThan(20);
+    expect(blackBody[2]).toBeLessThan(20);
+    const lifted = foilDisplayInk("#000000", "#000000");
+    expect(contrastRatio("#000000", "#000000")).toBeLessThan(FOIL_CONTRAST_FLOOR);
+    expect(relativeLuminance(lifted)).toBeGreaterThanOrEqual(FOIL_METAL_MIN - 0.001);
+    expect(foilDisplayInk("#d4a017", "#000000")).toBe("#d4a017");
+    expect(FOIL_LOW_METALNESS).toBeCloseTo(0.3, 5);
+    const onBlack = new Uint8ClampedArray(source);
+    for (let i = 0; i < onBlack.length; i += 4) {
+      if (onBlack[i + 3] === 0) continue;
+      onBlack[i] = 0;
+      onBlack[i + 1] = 0;
+      onBlack[i + 2] = 0;
+    }
+    relieveLabelPixels(onBlack, width, height, "foil", { ink: "#000000", substrate: "#000000" });
+    const liftedBody = at(onBlack, 20, 16);
+    expect(luma(liftedBody)).toBeGreaterThan(40);
+    expect(luma(liftedBody)).toBeLessThan(60);
+    const foilRim = at(onBlack, 8, 6);
+    expect(luma(foilRim)).toBeGreaterThan(luma(liftedBody) + 40);
+    expect(luma(foilRim)).toBeLessThanOrEqual(130);
+    expect(roseBody[0]).toBeGreaterThan(roseBody[2]);
+    expect(roseBody[0]).toBeGreaterThan(roseBody[1]);
+    expect(at(silver, 20, 16)[2]).toBeGreaterThan(at(silver, 20, 16)[0] - 15);
+    const cream = new Uint8ClampedArray(source);
+    for (let i = 0; i < cream.length; i += 4) {
+      if (cream[i + 3] === 0) continue;
+      cream[i] = 243;
+      cream[i + 1] = 239;
+      cream[i + 2] = 230;
+    }
+    relieveLabelPixels(cream, width, height, "emboss");
+    let creamPeak = 0;
+    for (let y = 6; y < 26; y += 1) {
+      for (let x = 8; x < 30; x += 1) {
+        const rgb = at(cream, x, y);
+        creamPeak = Math.max(creamPeak, rgb[0], rgb[1], rgb[2]);
+      }
+    }
+    expect(creamPeak).toBeGreaterThan(243);
+    expect(creamPeak).toBeLessThanOrEqual(250);
+    const outline = new Uint8ClampedArray(width * height * 4);
+    const onOutline = (x: number, y: number) =>
+      (x === 4 || x === 34 || y === 4 || y === 26) && x >= 4 && x <= 34 && y >= 4 && y <= 26;
+    for (let y = 0; y < height; y += 1) {
+      for (let x = 0; x < width; x += 1) {
+        if (!onOutline(x, y)) continue;
+        const index = (y * width + x) * 4;
+        outline[index] = 40;
+        outline[index + 1] = 36;
+        outline[index + 2] = 30;
+        outline[index + 3] = 255;
+      }
+    }
+    relieveLabelPixels(outline, width, height, "engrave");
+    let frostPixels = 0;
+    let darkPixels = 0;
+    let stroked = 0;
+    for (let y = 0; y < height; y += 1) {
+      for (let x = 0; x < width; x += 1) {
+        if (!onOutline(x, y)) continue;
+        stroked += 1;
+        const rgb = at(outline, x, y);
+        if (luma(rgb) > 140) frostPixels += 1;
+        if (luma(rgb) < 50) darkPixels += 1;
+      }
+    }
+    expect(stroked).toBeGreaterThan(40);
+    expect(frostPixels).toBe(stroked);
+    expect(darkPixels).toBe(0);
+  });
+
   it("repaints only when a new face loads", () => {
     expect(shouldRepaintLabel(true)).toBe(false);
     expect(shouldRepaintLabel(false)).toBe(true);
   });
 
   it("keeps the carton plaque clear unless print has a plate colour", () => {
-    expect(cartonMarkPlate("foil", "#111111")).toBe("clear");
-    expect(cartonMarkPlate("emboss", "#111111")).toBe("clear");
-    expect(cartonMarkPlate("engrave", "#111111")).toBe("clear");
+    const painted = (application: "foil" | "emboss" | "engrave" | "decal", colour: string | null) => {
+      const ctx = fakeCtx();
+      paintCartonMark(ctx as unknown as CanvasRenderingContext2D, { font: "cinzel" }, "ATELIER", "#c9a36a", 640, 180, application, colour);
+      return ctx.plate === "" ? "clear" : ctx.plate;
+    };
+    expect(painted("foil", "#111111")).toBe(cartonMarkPlate("foil", "#111111"));
+    expect(painted("emboss", "#111111")).toBe("clear");
+    expect(painted("emboss", "#111111")).toBe(cartonMarkPlate("emboss", "#111111"));
+    expect(painted("emboss", "  ")).toBe(cartonMarkPlate("emboss", "  "));
+    expect(painted("engrave", "#111111")).toBe(cartonMarkPlate("engrave", "#111111"));
     expect(cartonMarkPlate("decal", null)).toBe("clear");
-    expect(cartonMarkPlate("decal", "  ")).toBe("clear");
+    expect(painted("decal", "  ")).toBe("clear");
     expect(cartonMarkPlate("print", "")).toBe("clear");
     expect(cartonMarkPlate("print", "#f4efe6")).toBe("#f4efe6");
-    expect(cartonMarkPlate("decal", "#f4efe6")).toBe("#f4efe6");
+    expect(painted("decal", "#f4efe6")).toBe("#f4efe6");
+    expect(painted("decal", "#f4efe6")).toBe(cartonMarkPlate("decal", "#f4efe6"));
+    const emboss = fakeCtx();
+    paintCartonMark(emboss as unknown as CanvasRenderingContext2D, { font: "cinzel" }, "ATELIER", "#c9a36a", 640, 180, "emboss");
+    expect(emboss.strokes.length).toBeGreaterThan(0);
+    expect(Math.min(...emboss.strokes)).toBeGreaterThanOrEqual(hairlineWidth(1, 0, "emboss"));
   });
 
   it("paints carton foil and engrave on a clear ground, and keeps a plate only for print", () => {
@@ -279,9 +475,23 @@ describe("label text layout", () => {
     const emboss = fakeCtx();
     paintCartonMark(emboss as unknown as CanvasRenderingContext2D, { font: "cinzel" }, "ATELIER", "#c9a36a", 640, 180, "emboss");
     expect(emboss.plate).toBe("");
+    const platePixels = new Uint8ClampedArray([10, 20, 30, 0, 40, 50, 60, 255]);
+    compositeEmbossPlatePixels(platePixels, [22, 19, 15]);
+    expect(Array.from(platePixels.slice(0, 4))).toEqual([22, 19, 15, 255]);
+    expect(Array.from(platePixels.slice(4, 8))).toEqual([40, 50, 60, 255]);
+    expect(hairlineWidth(80, 0.012, "decal")).toBeCloseTo(1, 5);
+    expect(hairlineWidth(80, 0.012, "engrave")).toBe(2);
+    expect(hairlineWidth(80, 0.012, "emboss")).toBe(2);
+    expect(hairlineWidth(80, 0.012, "foil")).toBe(2);
+    expect(hairlineWidth(400, 0.012, "foil")).toBeCloseTo(4.8, 5);
+    expect(engraveAlpha(255)).toBe(255);
+    expect(engraveAlpha(0)).toBe(0);
+    expect(engraveAlpha(40)).toBeLessThan(80);
+    expect(engraveAlpha(255)).toBeGreaterThan(0.35 * 255);
     const print = fakeCtx();
     paintCartonMark(print as unknown as CanvasRenderingContext2D, { font: "cinzel" }, "ATELIER", "#c9a36a", 640, 180, "decal");
     expect(print.plate).toBe("#16130f");
+    expect(print.strokes).toHaveLength(0);
     expect(print.texts.some((call) => call.text === "ATELIER")).toBe(true);
   });
 
@@ -377,9 +587,11 @@ function fakeCtx() {
     textBaseline: "alphabetic",
     direction: "ltr" as "rtl" | "ltr",
     lineWidth: 1,
+    lineJoin: "miter",
     plate: "",
     cleared: false,
     texts,
+    strokes: [] as number[],
     clearRect() {
       ctx.cleared = true;
     },
@@ -389,7 +601,9 @@ function fakeCtx() {
     fillText(text: string) {
       texts.push({ text, direction: ctx.direction, font: ctx.font, fill: String(ctx.fillStyle) });
     },
-    strokeText() {},
+    strokeText() {
+      ctx.strokes.push(ctx.lineWidth);
+    },
     measureText(text: string) {
       const px = Number(/(\d+(?:\.\d+)?)px/.exec(ctx.font)?.[1] ?? 16);
       return { width: [...text].length * px * 0.55 };

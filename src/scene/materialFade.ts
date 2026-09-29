@@ -36,6 +36,30 @@ export function materialOpacityTarget(
   return { baseOpacity, target: ghost ? GHOST_FADE : baseOpacity };
 }
 
+/**
+ * Ghost fade for a mesh material. The authored opacity is kept on the first
+ * frame and reused after that. Reading the live opacity again would treat an
+ * in-progress fade as the new base, so a carton (and the foil on it) would
+ * ratchet toward nothing and stay translucent after focus moved on.
+ * `fadeWrote` is the last opacity this fade assigned. If the material's value
+ * has moved away from that, a caller authored a new opacity (cellophane to paper)
+ * and that value becomes the base.
+ */
+export function restoredOpacityTarget(
+  state: { intendedOpacity?: number; fadeWrote?: number },
+  liveOpacity: number,
+  ghost: boolean,
+): { intendedOpacity: number; target: number } {
+  const authored =
+    typeof state.fadeWrote === "number" && Math.abs(liveOpacity - state.fadeWrote) > 0.001;
+  const intendedOpacity = authored
+    ? liveOpacity
+    : typeof state.intendedOpacity === "number"
+      ? state.intendedOpacity
+      : liveOpacity;
+  return { intendedOpacity, target: ghost ? intendedOpacity * GHOST_FADE : intendedOpacity };
+}
+
 export interface BottleGlassMaterial {
   opacity: number;
   transparent: boolean;

@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { labelInk } from "../geometry/logos.ts";
 import { hydrateBox } from "../model/boxFields.ts";
 import { setImportedCatalog } from "../model/catalog.ts";
 import { createDefaultDesign } from "../model/design.ts";
@@ -654,6 +655,42 @@ describe("saved design hydration", () => {
     const merged = mergePersistedLab(migrated, slice());
     expect(merged.design.pump.variantId).toBe("pump-crimp");
     expect(merged.design.bottle.visible).toBe(true);
+  });
+
+  it("keeps a logo application and sanitises an unknown one to decal", () => {
+    const base = {
+      variantId: "lg-foil-diamond",
+      finish: "gold" as const,
+      color: "#e6cc98",
+      text: "NOIR",
+      scale: 1,
+      visible: true,
+    };
+    const kept = sanitizeDesign({ label: { ...base, application: "emboss" } });
+    expect(kept.label.application).toBe("emboss");
+    expect(partializeLabState({ design: kept }).design).toMatchObject({ label: { application: "emboss" } });
+
+    const missing = sanitizeDesign({ label: base });
+    expect(missing.label.application).toBeUndefined();
+    expect(missing.label).toEqual(base);
+
+    expect(sanitizeDesign({ label: { ...base, application: "stamp" } }).label.application).toBe("decal");
+
+    const foil = sanitizeDesign({ label: { ...base, color: "#b76e79", application: "foil" } });
+    expect(foil.label.color).toBe("#b76e79");
+    expect(foil.label.application).toBe("foil");
+    expect(labelInk(foil.label.color, "foil")).toBe("#b76e79");
+    expect(labelInk("#000000", "foil")).toBe("#000000");
+
+    const merged = mergePersistedLab(
+      {
+        design: { label: { ...base, application: "nope" } },
+        past: [{ ...createDefaultDesign(), label: { ...base, application: "foil" } }],
+      },
+      slice(),
+    );
+    expect(merged.design.label.application).toBe("decal");
+    expect(merged.past[0]?.label.application).toBe("foil");
   });
 
   it("keeps a trailing emoji whole when stored label text is capped", () => {

@@ -10,6 +10,23 @@ describe("share links", () => {
     setImportedCatalog({ bottles: [], caps: [], labels: [], pumps: [], collars: [], boxes: [] });
   });
 
+  it("round-trips a logo application and replaces an unknown one with decal", () => {
+    const design = createDefaultDesign();
+    design.label.application = "emboss";
+    design.label.text = "NOIR";
+    expect(decodeShareDesign(encodeShareDesign(design))?.label.application).toBe("emboss");
+    expect(decodeShareDesign(encodeShareDesign(design))).toEqual(design);
+
+    expect(mergeShareDesign({
+      version: 6,
+      label: { variantId: "lg-foil-diamond", application: "stamp", text: "NOIR" },
+    })?.label.application).toBe("decal");
+    expect(mergeShareDesign({
+      version: 6,
+      label: { variantId: "lg-foil-diamond", text: "NOIR" },
+    })?.label.application).toBeUndefined();
+  });
+
   it("round-trips a design, including Hebrew label text", () => {
     const design = createDefaultDesign();
     design.label.text = "אור נואר";
