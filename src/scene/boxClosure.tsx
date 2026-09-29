@@ -3,13 +3,15 @@ import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { renderedShape, sleeveOverActive, trayLiftMm } from "../model/boxFields.ts";
 import { closureById } from "../model/closures/registry.ts";
-import { channelValue, closureDims, groupAmount, type ClosureLayoutInput, type ClosureSpec } from "../model/closures/types.ts";
+import { channelValue, closureDims, groupAmount, type ClosureDims, type ClosureLayoutInput, type ClosureSpec } from "../model/closures/types.ts";
+import { prefersReducedMotion } from "./motion.ts";
 import type { BoxForm } from "../model/types.ts";
 import type { Fit } from "../model/fit.ts";
 import { useLab } from "../store/labStore.ts";
 import { ClipSync, OuterSkin } from "./closures/kit.tsx";
 import { builderFor } from "./closures/registry.ts";
 import type { GroupBind } from "./closures/types.ts";
+import { drawerInsertSeatOffset } from "./closures/build/drawer.tsx";
 import { insertSeatNow, trayLiftNow } from "./trayLift.ts";
 
 export function ClosureBox({ form, fit }: { form: BoxForm; fit: Fit }) {
@@ -51,6 +53,9 @@ export function ClosureBox({ form, fit }: { form: BoxForm; fit: Fit }) {
   motionRef.current = insertMotion;
   const pullRef = useRef(pull || ribbonOn || insertMotion?.pullTab === true);
   pullRef.current = pull || ribbonOn || insertMotion?.pullTab === true;
+  const dimMemo = useRef<{ id: string; w: number; h: number; d: number; board: number; variant?: string; neck?: number; lid?: number; value: ClosureDims } | null>(null);
+  const outerMemo = useRef<{ w: number; h: number; d: number; board: number; value: ClosureDims } | null>(null);
+  const reducedMotion = useRef(prefersReducedMotion());
 
   const bind = useCallback<GroupBind>((id) => (node) => {
     groups.current[id] = node;
@@ -77,13 +82,47 @@ export function ClosureBox({ form, fit }: { form: BoxForm; fit: Fit }) {
   const applyPose = (poseAmount: number) => {
     const current = specRef.current;
     const live = fitRef.current;
+    let wall = live.boardMm;
     if (current) {
-      const dims = closureDims({ w: live.boxW, h: live.boxH, d: live.boxD, boardMm: live.boardMm }, current, layoutRef.current);
+      const layout = layoutRef.current;
+      const prev = dimMemo.current;
+      const dims = prev
+        && prev.id === current.id
+        && prev.w === live.boxW
+        && prev.h === live.boxH
+        && prev.d === live.boxD
+        && prev.board === live.boardMm
+        && prev.variant === layout.variant
+        && prev.neck === layout.neckMm
+        && prev.lid === layout.lidDepthMm
+        ? prev.value
+        : closureDims({ w: live.boxW, h: live.boxH, d: live.boxD, boardMm: live.boardMm }, current, layout);
+      if (!prev || dims !== prev.value) {
+        dimMemo.current = {
+          id: current.id,
+          w: live.boxW,
+          h: live.boxH,
+          d: live.boxD,
+          board: live.boardMm,
+          variant: layout.variant,
+          neck: layout.neckMm,
+          lid: layout.lidDepthMm,
+          value: dims,
+        };
+      }
+      wall = dims.wall;
       writeChannels(current, groups.current, dims, poseAmount);
     }
     const outer = sleeveRef.current;
     if (outer) {
-      const dims = closureDims({ w: live.boxW + 10, h: live.boxH + 8, d: live.boxD + 10, boardMm: live.boardMm }, outer);
+      const prev = outerMemo.current;
+      const w = live.boxW + 10;
+      const h = live.boxH + 8;
+      const d = live.boxD + 10;
+      const dims = prev && prev.w === w && prev.h === h && prev.d === d && prev.board === live.boardMm
+        ? prev.value
+        : closureDims({ w, h, d, boardMm: live.boardMm }, outer);
+      if (!prev || dims !== prev.value) outerMemo.current = { w, h, d, board: live.boardMm, value: dims };
       writeChannels(outer, sleeveGroups.current, dims, poseAmount);
     }
     const motion = motionRef.current;
@@ -91,7 +130,7 @@ export function ClosureBox({ form, fit }: { form: BoxForm; fit: Fit }) {
     const tray = current?.id === "drawer" ? groups.current.tray : null;
     if (tray) {
       insertSeatNow.x = tray.position.x;
-      insertSeatNow.y = tray.position.y;
+      insertSeatNow.y = tray.position.y + drawerInsertSeatOffset(wall, live.boardMm);
       insertSeatNow.z = tray.position.z;
       insertSeatNow.active = true;
     } else {
@@ -108,6 +147,17 @@ export function ClosureBox({ form, fit }: { form: BoxForm; fit: Fit }) {
     applyPose(live);
   }, [stage, open, structure, sleeveOn, liftOff?.variant, liftOff?.neckMm, liftOff?.lidDepthMm, insertMotion?.trayLift.height, insertMotion?.trayLift.trigger, fit.boxW, fit.boxH, fit.boxD, fit.boardMm]);
 
+  useEffect(() => {
+    if (typeof window.matchMedia !== "function") return undefined;
+    const query = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const sync = () => {
+      reducedMotion.current = query.matches;
+    };
+    sync();
+    query.addEventListener?.("change", sync);
+    return () => query.removeEventListener?.("change", sync);
+  }, []);
+
   useEffect(() => () => {
     trayLiftNow.mm = 0;
     insertSeatNow.x = 0;
@@ -118,7 +168,7 @@ export function ClosureBox({ form, fit }: { form: BoxForm; fit: Fit }) {
 
   useFrame((_, dt) => {
     const live = stage !== "bottle" && open ? 1 : 0;
-    amount.current = THREE.MathUtils.damp(amount.current, live, 5.5, dt);
+    amount.current = reducedMotion.current ? live : THREE.MathUtils.damp(amount.current, live, 5.5, dt);
     applyPose(amount.current);
   });
 
@@ -133,8 +183,6 @@ export function ClosureBox({ form, fit }: { form: BoxForm; fit: Fit }) {
         <SleeveBuilder form={form} fit={fit} spec={sleeveSpec} dims={outerDims} bind={bindSleeve} ribbon={false} pullTab={false} latch="none" drawerPull="none" shape={{ type: "rect" }} shellOnly window={sleeveWindow} />
       )}
       <OuterSkin w={outerDims.w} h={outerDims.h} d={outerDims.d} amount={amount} />
-      <pointLight position={[0, dims.h * 0.42, 0]} intensity={6} distance={Math.max(80, dims.h * 2.4)} decay={2} color="#fff6ea" />
-      <pointLight position={[0, dims.h * 0.78, dims.d * 0.15]} intensity={3.2} distance={Math.max(70, dims.h * 2)} decay={2} color="#f3efe6" />
     </group>
   );
 }

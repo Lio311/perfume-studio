@@ -5,6 +5,7 @@ import { decodeShare, encodeShare } from "./share.ts";
 import type { BoxState, CapProfileName, Design } from "./types.ts";
 import {
   cavityFromDesign,
+  closureForForm,
   DEFAULT_INSERT_MOTION,
   deriveCavity,
   deriveEnvelope,
@@ -12,10 +13,12 @@ import {
   renderedShape,
   sleeveOverActive,
   trayLiftMm,
+  usesLegacyBoxMesh,
   validateBoxFields,
   withSleeveOver,
   type CavityInput,
 } from "./boxFields.ts";
+import { builderFor } from "../scene/closures/registry.ts";
 
 function cavityInput(overrides: Partial<CavityInput> = {}): CavityInput {
   return {
@@ -153,6 +156,9 @@ describe("box pack defaults and migration", () => {
     applyVariant(design, "box", "box-tube");
     expect(design.box.structure).toBe("tube");
     expect(design.box.latch).toBe("none");
+    expect(usesLegacyBoxMesh("tube", "tube")).toBe(false);
+    expect(typeof builderFor("tube")).toBe("function");
+    expect(usesLegacyBoxMesh("plinth", closureForForm("plinth").structure)).toBe(true);
     expect(design.box.layers.at(-1)?.structure).toBe("tube");
     expect(design.box.insert.orientation).toBe("standing");
   });

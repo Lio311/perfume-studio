@@ -1,4 +1,4 @@
-import { labelPatchExtent } from "../geometry/sweep.ts";
+import { labelPatchExtent } from "../geometry/labelPatch.ts";
 import { envelopeFromDesign } from "./boxFields.ts";
 import { bottleById, capById, collarById, logoById, pumpById } from "./catalog.ts";
 import { NECKS, neckRadius, neckStandard } from "./necks.ts";
@@ -255,4 +255,14 @@ export function computeFit(design: Design, exploded = false): Fit {
     anchors,
     explode,
   };
+}
+
+let seatCache: { design: Design; seat: number } | null = null;
+
+/** Y added to parts seated in the box. The insert floor is part of the seat. */
+export function boxContentsSeat(design: Design): number {
+  if (seatCache?.design === design) return seatCache.seat;
+  const seat = computeFit(design, false).seatY;
+  seatCache = { design, seat };
+  return seat;
 }

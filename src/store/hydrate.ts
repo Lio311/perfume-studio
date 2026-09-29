@@ -46,7 +46,7 @@ const EPHEMERAL_KEYS = new Set([
   "viewToken", "focusToken", "libraryOpen", "sideOpen", "modal", "units", "suppliers",
   "voice", "soundOn", "stage", "blueprint", "fullToken", "aimed", "solo", "present",
   "exporting", "palette", "help", "boxOpen", "toast", "shareUrl", "briefEditing", "cutaway", "quality", "tierLock", "packNotices",
-  "wizardPicked",
+  "wizardPicked", "demoHold", "keptTheme",
 ]);
 
 let storageWritesOpen = true;
@@ -702,6 +702,36 @@ const PERSISTED_FIELDS = ["design", "theme", "lang", "chat", "saved", "pending",
  * data) is copied through so the next write does not erase it. Functions and live UI
  * fields, including `shareUrl`, brief editing, cutaway, quality, and the tier lock, are left out.
  */
+/**
+ * Design and undo stack from before a `?closure=` link.
+ * The pre-link theme is `keptTheme`, separate from this hold, so an edit can
+ * drop the design snapshot without writing the demo theme.
+ */
+export interface DemoHold {
+  design: unknown;
+  past: unknown;
+  future: unknown;
+}
+
+function isDemoHold(value: unknown): value is DemoHold {
+  return isRecord(value) && Object.hasOwn(value, "design");
+}
+
+/**
+ * Snapshot taken before a screenshot link mutates the design.
+ * A second apply keeps the first snapshot. Past and future stay with it so the
+ * link's undo stack is not what gets written.
+ */
+export function demoSessionHold(state: object): DemoHold {
+  const source = state as Record<string, unknown>;
+  if (isDemoHold(source.demoHold)) return source.demoHold;
+  return {
+    design: source.design,
+    past: source.past ?? [],
+    future: source.future ?? [],
+  };
+}
+
 export function partializeLabState(state: object): Record<string, unknown> {
   const source = state as Record<string, unknown>;
   const out: Record<string, unknown> = {};
@@ -717,6 +747,8 @@ export function partializeLabState(state: object): Record<string, unknown> {
     if (value === undefined || typeof value === "function") continue;
     out[key] = value;
   }
+  if (isDemoHold(source.demoHold)) out.design = source.demoHold.design;
+  if (source.keptTheme === "light" || source.keptTheme === "dark") out.theme = source.keptTheme;
   return out;
 }
 

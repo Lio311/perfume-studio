@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import * as THREE from "three";
 import { applyVariant, createDefaultDesign } from "../model/design.ts";
 import type { PartKey } from "../model/types.ts";
+import { computeFit } from "../model/fit.ts";
+import { BOX_CLOSED_CAM_X, BOX_CLOSED_CAM_Y, BOX_CLOSED_CAM_Z } from "./boxCamera.ts";
 import { assemblyBounds, BOX_FILL, boxViewportFrame, FOCUS_FILL, fitPose, orbitLimits, partBounds, safeRect, type StageFrame } from "./framing.ts";
 
 function macbook(): StageFrame {
@@ -99,7 +101,7 @@ describe("focus framing on a MacBook stage", () => {
     design.box.liftOff = { ...design.box.liftOff, variant: "telescope-full" };
     for (const open of [false, true]) {
       const bounds = assemblyBounds(design, 0, "box", open);
-      const dir = new THREE.Vector3(open ? 0.5 : 0.72, open ? 1.18 : 0.46, open ? 0.8 : 1).normalize();
+      const dir = new THREE.Vector3(open ? 0.82 : BOX_CLOSED_CAM_X, open ? 0.95 : BOX_CLOSED_CAM_Y, open ? 0.78 : BOX_CLOSED_CAM_Z).normalize();
       const pose = fitPose(bounds, dir, 30, frame, BOX_FILL);
       const box = projected(pose, bounds, frame);
       const ratio = box.h / frame.height;
@@ -108,10 +110,16 @@ describe("focus framing on a MacBook stage", () => {
     }
     design.box.structure = "drawer";
     const openDrawer = assemblyBounds(design, 0, "box", true);
-    const drawerPose = fitPose(openDrawer, new THREE.Vector3(0.5, 1.18, 0.8).normalize(), 30, frame, BOX_FILL);
+    const drawerPose = fitPose(openDrawer, new THREE.Vector3(0.82, 0.95, 0.78).normalize(), 30, frame, BOX_FILL);
     const drawer = projected(drawerPose, openDrawer, frame);
     expect(drawer.h / frame.height).toBeGreaterThan(0.55);
     expect(drawer.h / frame.height).toBeLessThanOrEqual(0.7);
+    const tube = createDefaultDesign();
+    tube.box.structure = "tube";
+    const fit = computeFit(tube, false);
+    const closed = assemblyBounds(tube, 0, "box", false);
+    const openTube = assemblyBounds(tube, 0, "box", true);
+    expect(openTube.max.y - closed.max.y).toBeCloseTo(fit.boxH * 0.95, 5);
   });
 
   it("keeps the camera outside the bottle and short of the world edge", () => {

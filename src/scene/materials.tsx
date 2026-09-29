@@ -268,8 +268,8 @@ export function boardSurface(board: BoxBoard, finish: WrapFinish): { roughness: 
   const pile = finish === "velvet";
   const soft = finish === "soft-touch";
   return {
-    roughness: gloss ? 0.16 : pile ? 0.82 : soft ? 0.62 : board === "carton" ? 0.86 : 0.8,
-    envMapIntensity: gloss ? 0.9 : pile ? 0.55 : soft ? 0.62 : 0.48,
+    roughness: gloss ? 0.16 : pile ? 0.82 : soft ? 0.72 : board === "carton" ? 0.86 : 0.8,
+    envMapIntensity: gloss ? 0.9 : pile ? 0.55 : soft ? 0.32 : 0.4,
   };
 }
 
@@ -317,9 +317,9 @@ export function WrapMaterial({
       roughnessMap={pile ? velvet?.rough : paper?.rough}
       metalness={0}
       roughness={surface.roughness}
-      clearcoat={gloss ? 0.75 : soft ? 0.34 : 0.08}
-      clearcoatRoughness={gloss ? 0.18 : 0.42}
-      sheen={pile ? 1 : soft ? 0.38 : 0.12}
+      clearcoat={gloss ? 0.75 : soft ? 0.16 : 0.06}
+      clearcoatRoughness={gloss ? 0.18 : 0.48}
+      sheen={pile ? 1 : soft ? 0.28 : 0.12}
       sheenColor={color}
       sheenRoughness={pile ? 0.38 : 0.55}
       envMapIntensity={surface.envMapIntensity}
@@ -327,15 +327,17 @@ export function WrapMaterial({
       onBeforeCompile={(shader) => {
         shader.fragmentShader = shader.fragmentShader.replace(
           "#include <dithering_fragment>",
-          `float wrapNd = clamp(dot(normalize(normal), normalize(vViewPosition)), 0.0, 1.0);
-           gl_FragColor.rgb += vec3(0.93, 0.86, 0.72) * pow(1.0 - wrapNd, 2.5) * 0.2;
-           #include <dithering_fragment>`,
+          `${WRAP_EDGE_GLOW}\n#include <dithering_fragment>`,
         );
       }}
-      customProgramCacheKey={() => "wrap-edge"}
+      customProgramCacheKey={() => "wrap-edge-glow"}
     />
   );
 }
+
+/** Warm rim on the wrap. No noise texture and no triplanar lattice. */
+const WRAP_EDGE_GLOW = `float wrapNd = clamp(dot(normalize(normal), normalize(vViewPosition)), 0.0, 1.0);
+gl_FragColor.rgb += vec3(0.96, 0.9, 0.78) * pow(1.0 - wrapNd, 2.4) * 0.2;`;
 
 const JUICE_VERT = `
   varying vec3 vNormal;

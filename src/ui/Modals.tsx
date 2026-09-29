@@ -1,20 +1,29 @@
-import { useState } from "react";
+import { lazy, Suspense, useState } from "react";
 import { tx } from "../i18n/copy.ts";
 import { bottleById, capById } from "../model/catalog.ts";
 import type { VariantPart } from "../model/types.ts";
 import { requestShot } from "../scene/capture.ts";
 import { useLab } from "../store/labStore.ts";
 import { thumbFor } from "../thumbnails/thumbs.ts";
-import { PhotoTo3D } from "./PhotoTo3D.tsx";
-import { SupplierImport } from "./SupplierImport.tsx";
+
+const PhotoTo3D = lazy(() => import("./PhotoTo3D.tsx").then((mod) => ({ default: mod.PhotoTo3D })));
+const SupplierImport = lazy(() => import("./SupplierImport.tsx").then((mod) => ({ default: mod.SupplierImport })));
 
 export function Modals() {
   const modal = useLab((s) => s.modal);
   if (modal === "save") return <SaveModal />;
   if (modal === "compare") return <CompareModal />;
   if (modal === "upload") return <UploadModal />;
-  if (modal === "supplier") return <SupplierImport />;
-  if (modal === "photo") return <PhotoTo3D />;
+  if (modal === "supplier") return (
+    <Suspense fallback={null}>
+      <SupplierImport />
+    </Suspense>
+  );
+  if (modal === "photo") return (
+    <Suspense fallback={null}>
+      <PhotoTo3D />
+    </Suspense>
+  );
   return null;
 }
 

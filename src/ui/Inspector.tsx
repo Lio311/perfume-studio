@@ -1,4 +1,4 @@
-import { useId } from "react";
+import { lazy, Suspense, useId } from "react";
 import { formatMoney } from "../budget/money.ts";
 import { bottleById, boxById, capById, collarById, logoById, pumpById, resolvedLabelApplication } from "../model/catalog.ts";
 import { computeFit } from "../model/fit.ts";
@@ -10,7 +10,7 @@ import { listClosures } from "../model/closures/registry.ts";
 import type { BoxLatch, FinishId, InsertMaterial, InsertOrientation, LogoApplication, NeckId, OuterWrap, PartKey, VariantPart } from "../model/types.ts";
 import { copy, partLabel, tx } from "../i18n/copy.ts";
 import { useLab } from "../store/labStore.ts";
-import { Alternatives } from "./BudgetSuggestions.tsx";
+const Alternatives = lazy(() => import("./BudgetSuggestions.tsx").then((mod) => ({ default: mod.Alternatives })));
 import { clampLabelText } from "../geometry/logos.ts";
 import { BrandTextField, labelVisibleAfterTextChange } from "./brandField.tsx";
 import { ExamplePriceMark, PartialMark, PartPriceEditor } from "./PriceTag.tsx";
@@ -96,7 +96,11 @@ export function Inspector() {
             )}
           </div>
           {!hidden && part !== "liquid" && <PartPriceEditor kind={part as VariantPart} partId={design[part].variantId} />}
-          {!hidden && <Alternatives />}
+          {!hidden && budget.summary.over && (
+            <Suspense fallback={null}>
+              <Alternatives />
+            </Suspense>
+          )}
           {!(part === "label" && (resolvedLabelApplication(design.label) === "emboss" || resolvedLabelApplication(design.label) === "engrave")) && (
           <>
           <h3>{t.color}</h3>

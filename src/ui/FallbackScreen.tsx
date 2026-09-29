@@ -1,4 +1,5 @@
-import { Component, useLayoutEffect, useState, type ErrorInfo, type ReactNode } from "react";
+import { Component, useEffect, useLayoutEffect, useState, type ErrorInfo, type ReactNode } from "react";
+import { noteAppMounted, noteStudioFrame } from "../boot/splash.ts";
 import { createPortal } from "react-dom";
 import { SUPPLIER_DB_NAME } from "../import/supplierDb.ts";
 import { pauseLabStorageWrites, readStorageValue, resetPersistedPayload } from "../store/hydrate.ts";
@@ -201,14 +202,29 @@ export function ConfirmReset({
   return <FallbackScreen page={page} title={title} body={body} actionLabel={text.reset} onAction={() => setConfirming(true)} />;
 }
 
+function ReleaseSplash() {
+  useEffect(() => {
+    noteStudioFrame();
+  }, []);
+  return null;
+}
+
 export function WebglFallback({ onRetry }: { onRetry?: () => void }) {
   const text = COPY[useLang()];
-  return <FallbackScreen title={text.webglTitle} body={text.webglBody} actionLabel={text.retry} onAction={onRetry} />;
+  return (
+    <>
+      <ReleaseSplash />
+      <FallbackScreen title={text.webglTitle} body={text.webglBody} actionLabel={text.retry} onAction={onRetry} />
+    </>
+  );
 }
 
 export function DesignFallback({ onReset, onRetry }: { onReset: () => void; onRetry: () => void }) {
   const text = COPY[useLang()];
   const [confirming, setConfirming] = useState(false);
+  useEffect(() => {
+    noteStudioFrame();
+  }, []);
   if (confirming) {
     return (
       <FallbackScreen
@@ -339,6 +355,10 @@ interface BoundaryState {
 function AppCrash({ onReload, onReset }: { onReload: () => void; onReset: () => void }) {
   const text = COPY[useLang()];
   const [confirming, setConfirming] = useState(false);
+  useEffect(() => {
+    noteAppMounted();
+    noteStudioFrame();
+  }, []);
   if (confirming) {
     return (
       <FallbackScreen

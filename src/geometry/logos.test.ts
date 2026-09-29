@@ -91,6 +91,13 @@ describe("label text layout", () => {
     expect(contrastingPlate("#c9a36a")).toBe("#16130f");
   });
 
+  it("keeps the previous or default ink when a colour name is unknown", () => {
+    expect(relativeLuminance("not-a-colour")).toBeCloseTo(relativeLuminance("#e6cc98"), 5);
+    expect(relativeLuminance("not-a-colour")).not.toBeCloseTo(1, 1);
+    expect(relativeLuminance("chartreuse", "#112233")).toBeCloseTo(relativeLuminance("#112233"), 5);
+    expect(contrastingPlate("not-a-colour")).toBe(contrastingPlate("#e6cc98"));
+  });
+
   it("keeps at least 3:1 contrast for every label palette colour", () => {
     for (const ink of PALETTE) {
       const plate = contrastingPlate(ink);

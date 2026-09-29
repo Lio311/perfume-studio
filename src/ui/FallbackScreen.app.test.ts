@@ -55,6 +55,21 @@ describe("app error boundary", () => {
     useLab.setState({ lang: "he" });
   });
 
+  it("releases the splash so the crash actions are not covered", () => {
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const splash = document.createElement("div");
+    splash.id = "studio-splash";
+    splash.className = "studio-splash";
+    document.body.appendChild(splash);
+    const view = mount(createElement(AppErrorBoundary, null, createElement(Boom)));
+    expect(splash.classList.contains("is-out")).toBe(true);
+    expect(view.el.textContent).toContain("רענון");
+    expect(view.el.textContent).toContain("איפוס עיצוב");
+    splash.dispatchEvent(new Event("transitionend"));
+    expect(document.getElementById("studio-splash")).toBeNull();
+    view.root.unmount();
+  });
+
   it("offers reload and a confirmed reset in the page language", () => {
     vi.spyOn(console, "error").mockImplementation(() => undefined);
     useLab.setState({ lang: "he" });

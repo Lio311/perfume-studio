@@ -42,8 +42,9 @@ export function LabelFinishMaterial({
         map={map}
         toneMapped={false}
         transparent={open}
-        depthWrite={overlay ? true : !open}
-        polygonOffset={!overlay}
+        alphaTest={overlay ? 0.35 : 0}
+        depthWrite={!open}
+        polygonOffset
         polygonOffsetFactor={-4}
         polygonOffsetUnits={-4}
       />
@@ -80,10 +81,10 @@ export function LabelFinishMaterial({
       emissiveMap={emissiveIntensity > 0 ? emissiveMap ?? undefined : undefined}
       toneMapped={metalness < 0.5}
       transparent={open}
-      alphaTest={overlay ? 0.4 : 0}
-      depthWrite={overlay ? true : !open}
+      alphaTest={overlay ? 0.35 : 0}
+      depthWrite={!open}
       premultipliedAlpha={!open}
-      polygonOffset={!overlay}
+      polygonOffset
       polygonOffsetFactor={-4}
       polygonOffsetUnits={-4}
     />

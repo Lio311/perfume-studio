@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import * as THREE from "three";
-import { prismShell } from "./prism.ts";
+import { cartonMarkSize } from "../../geometry/logos.ts";
+import { octagonMarkPlacement } from "./build/lift-off.tsx";
+import { prismFrontFacet, prismShell } from "./prism.ts";
+import { MARK_FACE_GAP } from "./kit.tsx";
 
 function boundaryEdges(geo: THREE.BufferGeometry): number {
   const pos = geo.getAttribute("position");
@@ -51,4 +54,89 @@ describe("prism shell", () => {
     expect(maxR).toBeLessThan(31.5);
     geo.dispose();
   });
+
+  it("points an octagon facet at +z and keeps the brand mark on that facet", () => {
+    const radius = 30;
+    const sides = 8;
+    const facet = prismFrontFacet(radius, sides);
+    expect(facet.normal[2]).toBeGreaterThan(0.99);
+    expect(Math.hypot(facet.normal[0], facet.normal[1])).toBeLessThan(0.01);
+    const geo = prismShell(radius, 26, 48, sides);
+    const pos = geo.getAttribute("position");
+    const a = new THREE.Vector3();
+    const b = new THREE.Vector3();
+    const c = new THREE.Vector3();
+    const ab = new THREE.Vector3();
+    const ac = new THREE.Vector3();
+    const normal = new THREE.Vector3();
+    let facing = 0;
+    for (let i = 0; i < pos.count; i += 3) {
+      a.fromBufferAttribute(pos, i);
+      b.fromBufferAttribute(pos, i + 1);
+      c.fromBufferAttribute(pos, i + 2);
+      normal.crossVectors(ab.subVectors(b, a), ac.subVectors(c, a));
+      if (normal.lengthSq() < 1e-6) continue;
+      normal.normalize();
+      const cz = (a.z + b.z + c.z) / 3;
+      if (normal.z > 0.9 && Math.abs(normal.x) < 0.2 && Math.abs(normal.y) < 0.25 && Math.abs(cz - facet.z) < 1.2) facing += 1;
+    }
+    expect(facing).toBeGreaterThan(0);
+    const place = octagonMarkPlacement(radius, sides);
+    const sized = cartonMarkSize(place.width, 3.5);
+    expect(place.width).toBeCloseTo(facet.width, 5);
+    expect(place.z - facet.z).toBeCloseTo(MARK_FACE_GAP, 5);
+    expect(place.z - facet.z).toBeLessThan(0.5);
+    expect(sized.width).toBeLessThanOrEqual(facet.width);
+    expect(sized.width).toBeGreaterThan(facet.width * 0.85);
+    geo.dispose();
+  });
+
+  it("points a fine cylinder's wall normals out from the axis and leaves an octagon faceted", () => {
+    const tube = prismShell(34, 30, 80, 48);
+    const octagon = prismShell(30, 26, 48, 8);
+    expect(wallAngleError(tube, 32)).toBeLessThan(0.02);
+    expect(capNormalsStayAxial(tube, 80)).toBeGreaterThan(8);
+    expect(wallAngleError(octagon, 28)).toBeGreaterThan(0.25);
+    tube.dispose();
+    octagon.dispose();
+  });
 });
+
+function angleDelta(a: number, b: number): number {
+  let d = Math.abs(a - b);
+  if (d > Math.PI) d = Math.PI * 2 - d;
+  return d;
+}
+
+/** Largest gap between a wall normal's heading and the radial heading. Flat facets miss the corners. */
+function wallAngleError(geo: THREE.BufferGeometry, midRadius: number): number {
+  const pos = geo.getAttribute("position");
+  const nor = geo.getAttribute("normal");
+  let worst = 0;
+  let seen = 0;
+  for (let i = 0; i < pos.count; i += 1) {
+    if (Math.abs(nor.getY(i)) > 0.35) continue;
+    const x = pos.getX(i);
+    const z = pos.getZ(i);
+    const radius = Math.hypot(x, z);
+    if (radius < 1) continue;
+    const outward = radius > midRadius ? 1 : -1;
+    const err = angleDelta(Math.atan2(nor.getX(i), nor.getZ(i)), Math.atan2(outward * x, outward * z));
+    worst = Math.max(worst, err);
+    seen += 1;
+  }
+  expect(seen).toBeGreaterThan(12);
+  return worst;
+}
+
+function capNormalsStayAxial(geo: THREE.BufferGeometry, height: number): number {
+  const pos = geo.getAttribute("position");
+  const nor = geo.getAttribute("normal");
+  let caps = 0;
+  for (let i = 0; i < pos.count; i += 1) {
+    const y = pos.getY(i);
+    if (y > 0.4 && y < height - 0.4) continue;
+    if (Math.abs(nor.getY(i)) > 0.8) caps += 1;
+  }
+  return caps;
+}

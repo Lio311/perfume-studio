@@ -186,6 +186,15 @@ export function closureForForm(form: BoxForm): { structure: string; latch: BoxLa
   return { structure: match.id, latch: match.preset.latch };
 }
 
+/**
+ * The catalog tube is drawn by the closure builder.
+ * A plinth still uses the older mesh; there is no plinth closure yet.
+ */
+export function usesLegacyBoxMesh(form: BoxForm, structure: string): boolean {
+  if (form === "tube") return false;
+  return form === "plinth" && structure === closureForForm(form).structure;
+}
+
 /** A structure id, a preset id, or a legacy closure id such as "magnetic". Does not warn. */
 export function isKnownPack(value: unknown): value is string {
   return typeof value === "string" && value.length > 0 && Boolean(packById(value));

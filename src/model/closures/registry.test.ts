@@ -104,6 +104,14 @@ describe("closure registry", () => {
     expect(partial.lidH).toBeLessThan(SAMPLE.h * 0.6);
     expect(partial.baseH).toBe(SAMPLE.h);
     expect(spec.liftOff?.defaults.variant).toBe("shoulder-neck");
+    const fullOpen = openPose(spec, full);
+    const fullX = fullOpen.find((sample) => sample.group === "lid" && sample.axis === "x");
+    const fullY = fullOpen.find((sample) => sample.group === "lid" && sample.axis === "y");
+    expect(fullX?.value).toBeLessThan(-SAMPLE.w * 0.9);
+    expect(fullY?.value).toBeGreaterThan(0);
+    expect(fullY?.value).toBeLessThan(SAMPLE.h * 0.35);
+    const shoulderOpen = openPose(spec, shoulder);
+    expect(shoulderOpen.find((sample) => sample.group === "lid" && sample.axis === "x")?.value ?? 0).toBe(0);
   });
 
   it("keeps unfold, rotate, and flaps as data on an entry", () => {
