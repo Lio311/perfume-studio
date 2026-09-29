@@ -1,34 +1,33 @@
 import Foundation
 
-/// Decides which camera frames run rectangle detection.
-/// A frame is dropped while a detection is still in flight.
-/// When a detection takes longer than `slowSeconds` (1/20 s), the next frame
-/// is skipped as well, so detection runs on at most every second frame and the
-/// camera can stay at or above 20 fps.
+/// Picks the latest camera frame for rectangle detection and drops the rest.
+/// Detection runs one frame at a time, off the main thread. A result whose token
+/// is no longer `latest` is stale and must be discarded — the caller then starts
+/// `latest`. The scheduler does not retain pixel buffers or ARFrames.
 public struct VisionFrameScheduler: Equatable {
-    public var slowSeconds: TimeInterval
-    private var inFlight = false
-    private var skipNext = false
+    public private(set) var latest = 0
+    public private(set) var inFlight: Int?
 
-    public init(slowSeconds: TimeInterval = 1.0 / 20.0) {
-        self.slowSeconds = slowSeconds
+    public init() {}
+
+    /// A new camera frame arrived. Returns its token. Older tokens are stale.
+    public mutating func arrived() -> Int {
+        latest += 1
+        return latest
     }
 
-    /// Call once per delivered camera frame, before starting detection.
-    public mutating func shouldDetect() -> Bool {
-        if inFlight { return false }
-        if skipNext {
-            skipNext = false
-            return false
-        }
-        inFlight = true
+    /// Begin detection for `token` when nothing is running and `token` is still latest.
+    public mutating func start(_ token: Int) -> Bool {
+        guard inFlight == nil, token == latest else { return false }
+        inFlight = token
         return true
     }
 
-    public mutating func detectionFinished(elapsed: TimeInterval) {
-        inFlight = false
-        if elapsed > slowSeconds {
-            skipNext = true
-        }
+    /// Finish the detection that started with `token`.
+    /// True only when that frame is still the latest one.
+    public mutating func finish(_ token: Int) -> Bool {
+        guard inFlight == token else { return false }
+        inFlight = nil
+        return token == latest
     }
 }

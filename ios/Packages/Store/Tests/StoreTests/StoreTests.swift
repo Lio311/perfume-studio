@@ -112,7 +112,7 @@ private func samplePhoto(angle: CaptureAngle, fileName: String) -> CapturedPhoto
         guideState: .yellow,
         cardCorners: nil,
         tiltDegrees: nil,
-        deviceModel: "iPhone15,4",
+        deviceModel: "iPhone17,3",
         hasLiDAR: false
     )
 }

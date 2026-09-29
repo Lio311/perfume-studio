@@ -1,4 +1,3 @@
-import ARKit
 import AVFoundation
 import CoreVideo
 import Foundation
@@ -6,6 +5,13 @@ import PackKit
 import CaptureKit
 import MeasureKit
 import UIKit
+
+#if DEBUG
+struct ShareTrace: Identifiable {
+    let id = UUID()
+    let url: URL
+}
+#endif
 
 struct PendingCapture: Identifiable {
     var id: UUID { photo.id }
@@ -27,6 +33,9 @@ final class CaptureModel: ObservableObject {
     @Published private(set) var sigmaMm: Double = 0
     @Published private(set) var framesPerSecond: Double = 0
     @Published private(set) var distanceUnavailable = true
+    @Published private(set) var dimmed = false
+    @Published private(set) var rejectedFrames = 0
+    @Published private(set) var orientationLabel = VisionImageOrientation.backCameraPortrait.rawValue
     @Published var showDebug = false
     @Published private(set) var flash = false
     @Published private(set) var sessionFailed = false
@@ -36,23 +45,25 @@ final class CaptureModel: ObservableObject {
     @Published var pending: PendingCapture?
     #if DEBUG
     @Published var simulatedCentimetres = 20.0
+    @Published var recordDistance = false
+    @Published var shareItem: ShareTrace?
     #endif
 
-    private var distance = DistanceSession()
+    private var pipeline = DistancePipeline()
     private var frameRate = FrameRateMeter()
-    private var chooser = DistanceSourceChooser()
-    private var sampleHold = DistanceSampleHold()
     private var scheduler = VisionFrameScheduler()
     private var hapticEnabled = true
     private var requestingAccess = false
     private var latestTilt: Double?
     private var captureAngle: CaptureAngle?
     private var capturing = false
-    private var frameSerial = 0
-    private var nextSerial = 0
-    private var readyFrames: [Int: (corners: [SIMD2<Double>]?, snapshot: CaptureSnapshot)] = [:]
+    private var latestPixels: CVPixelBuffer?
+    private var latestSnapshot: CaptureSnapshot?
     private let visionQueue = DispatchQueue(label: "com.perfumestudio.vision", qos: .userInitiated)
-    private let assembleQueue = DispatchQueue(label: "com.perfumestudio.assemble")
+    #if DEBUG
+    private var traceLines: [String] = []
+    private var traceStart: TimeInterval?
+    #endif
     #if DEBUG
     private var simulationTimer: Timer?
     #endif
@@ -61,12 +72,12 @@ final class CaptureModel: ObservableObject {
     var lidarSupported: Bool { capture.isLiDARSupported }
 
     var autoCaptureEnabled = false {
-        didSet { distance.autoCaptureEnabled = autoCaptureEnabled }
+        didSet { pipeline.autoCaptureEnabled = autoCaptureEnabled }
     }
 
     init() {
-        capture.onFrame = { [weak self] frame, snapshot in
-            self?.handle(frame: frame, snapshot: snapshot)
+        capture.onFrame = { [weak self] pixels, snapshot in
+            self?.handle(pixels: pixels, snapshot: snapshot)
         }
         capture.onSessionFailed = { [weak self] in
             DispatchQueue.main.async {
@@ -130,11 +141,11 @@ final class CaptureModel: ObservableObject {
     }
 
     func setTarget(centimetres: Double) {
-        distance.setTarget(mm: centimetres * 10)
+        pipeline.setTarget(mm: centimetres * 10)
     }
 
     func setHalfBand(centimetres: Double) {
-        distance.setHalfBand(mm: centimetres * 10)
+        pipeline.setHalfBand(mm: centimetres * 10)
     }
 
     func setHapticEnabled(_ enabled: Bool) {
@@ -235,97 +246,146 @@ final class CaptureModel: ObservableObject {
         )
     }
 
-    /// Called on the capture queue. Detection runs off that queue; frames that arrive
-    /// while it is in flight are not detected. Slow detections also skip the next frame.
-    private func handle(frame: ARFrame, snapshot: CaptureSnapshot) {
-        let serial = frameSerial
-        frameSerial += 1
-        if scheduler.shouldDetect() {
-            let held = frame
-            visionQueue.async { [weak self] in
-                guard let self else { return }
-                let started = CACurrentMediaTime()
-                let corners = CardDetector.detect(in: held.capturedImage)
-                let elapsed = CACurrentMediaTime() - started
-                self.capture.queue.async {
-                    self.scheduler.detectionFinished(elapsed: elapsed)
-                }
-                self.enqueue(serial: serial, corners: corners, snapshot: snapshot)
-            }
-        } else {
-            enqueue(serial: serial, corners: nil, snapshot: snapshot)
-        }
-    }
-
-    private func enqueue(serial: Int, corners: [SIMD2<Double>]?, snapshot: CaptureSnapshot) {
-        assembleQueue.async { [weak self] in
+    /// Called on the capture queue. `pixels` is already a copy, so the ARFrame is not retained.
+    /// Vision runs off the main thread on the latest copy only; a stale result is dropped.
+    private func handle(pixels: CVPixelBuffer, snapshot: CaptureSnapshot) {
+        latestPixels = pixels
+        latestSnapshot = snapshot
+        _ = scheduler.arrived()
+        let time = snapshot.time
+        DispatchQueue.main.async { [weak self] in
             guard let self else { return }
-            self.readyFrames[serial] = (corners, snapshot)
-            while let item = self.readyFrames.removeValue(forKey: self.nextSerial) {
-                let corners = item.corners
-                let snapshot = item.snapshot
-                self.nextSerial += 1
-                DispatchQueue.main.async { [weak self] in
-                    self?.consume(corners: corners, snapshot: snapshot)
+            self.framesPerSecond = self.frameRate.push(time: time)
+        }
+        pumpDetection()
+    }
+
+    private func pumpDetection() {
+        guard let pixels = latestPixels, let snapshot = latestSnapshot else { return }
+        let token = scheduler.latest
+        guard scheduler.start(token) else { return }
+        let orientation = VisionImageOrientation.backCameraPortrait
+        visionQueue.async { [weak self] in
+            let detection = CardDetector.detect(in: pixels, orientation: orientation)
+            guard let self else { return }
+            self.capture.queue.async {
+                let fresh = self.scheduler.finish(token)
+                if fresh {
+                    let corners = detection?.corners
+                    let confidence = detection?.confidence ?? 0
+                    DispatchQueue.main.async {
+                        self.consume(corners: corners, confidence: confidence, snapshot: snapshot, orientation: orientation)
+                    }
                 }
+                self.pumpDetection()
             }
         }
     }
 
-    private func consume(corners: [SIMD2<Double>]?, snapshot: CaptureSnapshot) {
-        let pose = corners.flatMap {
-            CardPose.estimate(imageCorners: $0, intrinsics: snapshot.intrinsics)
-        }
-        let choice = chooser.update(
-            cardDepthMm: pose?.depthMm,
-            cardTiltDegrees: pose?.tiltDegrees,
-            lidarMm: snapshot.lidarMillimetres,
-            vioMm: snapshot.vioMillimetres,
-            time: snapshot.time
+    private func consume(
+        corners: [SIMD2<Double>]?,
+        confidence: Double,
+        snapshot: CaptureSnapshot,
+        orientation: VisionImageOrientation
+    ) {
+        let frame = DistanceFrame(
+            time: snapshot.time,
+            corners: corners,
+            confidence: confidence,
+            intrinsics: snapshot.intrinsics,
+            imageSize: PixelSize(width: Double(snapshot.imageWidth), height: Double(snapshot.imageHeight)),
+            lidarMillimetres: snapshot.lidarMillimetres,
+            vioMillimetres: snapshot.vioMillimetres,
+            orientation: orientation
         )
-        ingest(choice: choice, time: snapshot.time)
+        apply(pipeline.push(frame), recorded: frame)
     }
 
     #if DEBUG
     private func simulate(centimetres: Double, time: TimeInterval) {
-        let choice = DistanceChooser.Choice(rawZMm: centimetres * 10, source: .card, tiltDegrees: 0)
-        ingest(choice: choice, time: time)
+        let frame = DistanceFrame(
+            time: time,
+            intrinsics: CameraIntrinsics(fx: 1500, fy: 1500, cx: 0, cy: 0),
+            imageSize: PixelSize(width: 1, height: 1),
+            forcedMeasurement: DistanceChooser.Choice(rawZMm: centimetres * 10, source: .card, tiltDegrees: 0)
+        )
+        apply(pipeline.push(frame), recorded: frame)
     }
     #endif
 
-    private func ingest(choice: DistanceChooser.Choice?, time: TimeInterval) {
-        framesPerSecond = frameRate.push(time: time)
-        let reading: DistanceReading?
-        if let choice {
-            let update = distance.update(
-                rawZMm: choice.rawZMm,
-                source: choice.source,
-                tiltDegrees: choice.tiltDegrees,
-                time: time
-            )
-            reading = update.accepted ? update : nil
-        } else {
-            reading = nil
-        }
-        let fresh = sampleHold.update(hasSample: reading != nil, time: time)
-        guard fresh, let reading, let guide = reading.guide else {
-            if !fresh { clearReading() }
+    private func apply(_ result: DistanceFrameResult, recorded frame: DistanceFrame) {
+        #if DEBUG
+        appendTrace(frame: frame, result: result)
+        #else
+        _ = frame
+        #endif
+        rejectedFrames = result.rejectedFrames
+        orientationLabel = result.orientation.rawValue
+        dimmed = result.dimmed
+        guard !result.distanceUnavailable, let guide = result.guide else {
+            clearReading()
             return
         }
-        source = reading.source
-        rawMm = reading.rawMm
-        filteredMm = reading.filteredMm
-        sigmaMm = reading.sigmaMm
-        latestTilt = choice?.tiltDegrees
+        source = result.source
+        rawMm = result.rawMillimetres
+        filteredMm = result.filteredMillimetres
+        sigmaMm = result.sigmaMillimetres
+        latestTilt = result.tiltDegrees
         distanceUnavailable = false
         self.guide = guide
-        if guide.enteredGreen, hapticEnabled {
+        if !result.dimmed, guide.enteredGreen, hapticEnabled {
             hapticTick += 1
         }
-        if reading.shouldAutoCapture {
+        if result.shouldAutoCapture {
             beginShutter()
         }
     }
+
+    #if DEBUG
+    func setRecording(_ on: Bool) {
+        if on {
+            recordDistance = true
+            traceLines = [DistanceTrace.header]
+            traceStart = nil
+            shareItem = nil
+        } else if recordDistance {
+            recordDistance = false
+            if traceLines.count > 1 {
+                finishTrace()
+            } else {
+                traceLines = []
+                traceStart = nil
+            }
+        }
+    }
+
+    private func appendTrace(frame: DistanceFrame, result: DistanceFrameResult) {
+        guard recordDistance else { return }
+        if traceStart == nil { traceStart = frame.time }
+        traceLines.append(DistanceTrace.line(DistanceTraceRow(frame: frame, result: result)))
+        if let traceStart, frame.time - traceStart >= 10 {
+            recordDistance = false
+            finishTrace()
+        }
+    }
+
+    private func finishTrace() {
+        let text = traceLines.joined(separator: "\n") + "\n"
+        traceLines = []
+        let started = traceStart
+        traceStart = nil
+        guard started != nil else { return }
+        let folder = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        let stamp = ISO8601DateFormatter().string(from: Date()).replacingOccurrences(of: ":", with: "-")
+        let url = folder.appendingPathComponent("distance-\(stamp).csv")
+        do {
+            try text.write(to: url, atomically: true, encoding: .utf8)
+            shareItem = ShareTrace(url: url)
+        } catch {
+            shareItem = nil
+        }
+    }
+    #endif
 
     private func clearReading() {
         guide = nil
@@ -335,6 +395,7 @@ final class CaptureModel: ObservableObject {
         sigmaMm = 0
         latestTilt = nil
         distanceUnavailable = true
+        dimmed = false
     }
 
     deinit {

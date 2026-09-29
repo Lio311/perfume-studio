@@ -1,26 +1,33 @@
 import SwiftUI
 import PackKit
 
-/// Debug numbers shown after a long press: source, raw Z, filtered Z, σ over 1 s, and fps.
+/// Debug numbers shown after a long press: source, raw Z, filtered Z, σ over 1 s,
+/// fps, rejected-frame count, and the Vision orientation.
 public struct DistanceDebugStrip: Equatable, Sendable {
     public var source: DistanceSourceInfo?
     public var rawMillimetres: Double?
     public var filteredMillimetres: Double?
     public var sigmaMillimetres: Double
     public var framesPerSecond: Double
+    public var rejectedFrames: Int
+    public var orientation: String
 
     public init(
         source: DistanceSourceInfo?,
         rawMillimetres: Double?,
         filteredMillimetres: Double?,
         sigmaMillimetres: Double,
-        framesPerSecond: Double
+        framesPerSecond: Double,
+        rejectedFrames: Int = 0,
+        orientation: String = VisionImageOrientation.backCameraPortrait.rawValue
     ) {
         self.source = source
         self.rawMillimetres = rawMillimetres
         self.filteredMillimetres = filteredMillimetres
         self.sigmaMillimetres = sigmaMillimetres
         self.framesPerSecond = framesPerSecond
+        self.rejectedFrames = rejectedFrames
+        self.orientation = orientation
     }
 
     public var sourceLabel: String {
@@ -37,6 +44,8 @@ public struct DistanceOverlay: View {
     public var debug: DistanceDebugStrip?
     /// Neutral copy when there is no distance to show, for example "אין מדידת מרחק".
     public var statusText: String?
+    /// True while the last good reading is being held across a short detection gap.
+    public var dimmed: Bool
 
     public init(
         state: DistanceGuide.State?,
@@ -44,7 +53,8 @@ public struct DistanceOverlay: View {
         distanceCm: Double?,
         showsApproximateBadge: Bool,
         debug: DistanceDebugStrip? = nil,
-        statusText: String? = nil
+        statusText: String? = nil,
+        dimmed: Bool = false
     ) {
         self.state = state
         self.direction = direction
@@ -52,12 +62,13 @@ public struct DistanceOverlay: View {
         self.showsApproximateBadge = showsApproximateBadge
         self.debug = debug
         self.statusText = statusText
+        self.dimmed = dimmed
     }
 
     public var body: some View {
         ZStack {
             RoundedRectangle(cornerRadius: 28, style: .continuous)
-                .stroke(ringColor, lineWidth: 10)
+                .stroke(ringColor.opacity(dimmed ? 0.35 : 1), lineWidth: 10)
                 .padding(12)
             VStack(spacing: 10) {
                 if let debug {
@@ -114,6 +125,8 @@ public struct DistanceOverlay: View {
             Text(millimetres("מסונן", debug.filteredMillimetres))
             Text(String(format: "σ: %.2f מ״מ", debug.sigmaMillimetres))
             Text(String(format: "fps: %.0f", debug.framesPerSecond))
+            Text("נדחו: \(debug.rejectedFrames)")
+            Text("כיוון: \(debug.orientation)")
         }
         .font(.caption.monospacedDigit())
         .foregroundStyle(.white)

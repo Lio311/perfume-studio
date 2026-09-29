@@ -492,7 +492,7 @@ private enum Synthetic {
             reference: .card(cardCorners(tilt: tilt, axis: axis, noise: noise, seed: seed, centerX: centerX)),
             front: mask,
             outlineEdited: outlineEdited,
-            device: "iPhone15,4"
+            device: "iPhone17,3"
         ))
     }
 

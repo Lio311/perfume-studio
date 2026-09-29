@@ -53,7 +53,8 @@ struct CaptureFlowView: View {
                 autoCapture: $autoCapture,
                 haptic: $haptic,
                 source: model.source,
-                lidarSupported: model.lidarSupported
+                lidarSupported: model.lidarSupported,
+                recordDistance: debugRecordBinding
             )
             .presentationDetents([.medium, .large])
         }
@@ -73,6 +74,11 @@ struct CaptureFlowView: View {
         .onChange(of: haptic) { _, value in model.setHapticEnabled(value) }
         .sensoryFeedback(.impact(weight: .light, intensity: 0.55), trigger: model.hapticTick)
         .sensoryFeedback(.impact(weight: .medium, intensity: 0.8), trigger: model.captureHaptic)
+        #if DEBUG
+        .sheet(item: $model.shareItem) { item in
+            ActivityShareSheet(url: item.url)
+        }
+        #endif
     }
 
     private var live: some View {
@@ -89,7 +95,8 @@ struct CaptureFlowView: View {
                 distanceCm: model.guide?.distanceCm,
                 showsApproximateBadge: model.source?.isApproximate == true,
                 debug: model.showDebug ? debugStrip : nil,
-                statusText: model.distanceUnavailable ? DistanceText.noDistance : nil
+                statusText: model.distanceUnavailable ? DistanceText.noDistance : nil,
+                dimmed: model.dimmed
             )
             .ignoresSafeArea()
             if model.flash {
@@ -294,8 +301,18 @@ struct CaptureFlowView: View {
             rawMillimetres: model.rawMm,
             filteredMillimetres: model.filteredMm,
             sigmaMillimetres: model.sigmaMm,
-            framesPerSecond: model.framesPerSecond
+            framesPerSecond: model.framesPerSecond,
+            rejectedFrames: model.rejectedFrames,
+            orientation: model.orientationLabel
         )
+    }
+
+    private var debugRecordBinding: Binding<Bool>? {
+        #if DEBUG
+        Binding(get: { model.recordDistance }, set: { model.setRecording($0) })
+        #else
+        nil
+        #endif
     }
 
     private func appear() {
@@ -377,6 +394,7 @@ struct CaptureSettingsSheet: View {
     @Binding var haptic: Bool
     var source: DistanceSourceInfo?
     var lidarSupported: Bool
+    var recordDistance: Binding<Bool>? = nil
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -395,6 +413,11 @@ struct CaptureSettingsSheet: View {
                     Slider(value: $halfBandCm, in: 0.1...2, step: 0.1)
                     Toggle("צילום אוטומטי", isOn: $autoCapture)
                     Toggle("רטט בכניסה לירוק", isOn: $haptic)
+                    #if DEBUG
+                    if let recordDistance {
+                        Toggle("הקלט מרחק", isOn: recordDistance)
+                    }
+                    #endif
                 }
                 Section("מקור המרחק") {
                     LabeledContent("פעיל") {
@@ -413,3 +436,15 @@ struct CaptureSettingsSheet: View {
         }
     }
 }
+
+#if DEBUG
+struct ActivityShareSheet: UIViewControllerRepresentable {
+    let url: URL
+
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: [url], applicationActivities: nil)
+    }
+
+    func updateUIViewController(_ controller: UIActivityViewController, context: Context) {}
+}
+#endif
