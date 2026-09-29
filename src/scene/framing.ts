@@ -75,11 +75,12 @@ export function assemblyBounds(design: Design, explode: number, stage: StageMode
     expandFrame(box, frame, explode, 4);
     box.max.y += explode * fit.boxH * 0.42;
     if (lidOpen) {
-      box.max.y += fit.boxH * 0.95;
-      box.min.z -= fit.boxD * 0.4;
-      box.max.z += fit.boxD * 0.75;
-      box.max.x += fit.boxW * 0.9;
-      box.expandByPoint(new THREE.Vector3(0, fit.bottleH + 12, 0));
+      const structure = design.box.structure ?? "lift-off";
+      const drawer = structure === "drawer";
+      box.max.y += drawer ? fit.capH * 0.45 : fit.boxH * 0.72;
+      box.max.z += drawer ? fit.boxD * 0.98 : fit.boxD * 0.42;
+      box.min.z -= fit.boxD * (structure === "book" ? 0.35 : 0.08);
+      box.expandByPoint(new THREE.Vector3(0, fit.seatY + fit.bottleH + fit.capH * 0.35, drawer ? fit.boxD * 0.7 : 0));
     }
     return box;
   }
@@ -142,6 +143,25 @@ function cornersOf(box: THREE.Box3): THREE.Vector3[] {
 
 const FILL = 0.66;
 export const FOCUS_FILL = 0.6;
+/** Box stage target, as a fraction of the viewport-height safe rect. Lands near 60% of the viewport. */
+export const BOX_FILL = 0.66;
+
+/** Full-viewport frame for the carton, so the dock slot does not shrink the product. */
+export function boxViewportFrame(width: number, height: number): StageFrame {
+  const w = Math.max(1, width);
+  const h = Math.max(1, height);
+  return {
+    width: w,
+    height: h,
+    stageLeft: w * 0.04,
+    stageTop: 0,
+    stageWidth: w * 0.92,
+    stageHeight: h,
+    gutter: 0,
+    openTop: h * 0.03,
+    openHeight: h * 0.94,
+  };
+}
 
 export function safeRect(frame: StageFrame): { left: number; right: number; top: number; bottom: number; width: number; height: number } {
   const gutter = Math.min(frame.gutter, 96) * 0.55;

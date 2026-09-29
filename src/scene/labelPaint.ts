@@ -1,6 +1,6 @@
 import { createContext, createElement, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import * as THREE from "three";
-import { cartonMarkCanvas, labelEmissiveCanvas, labelFinish, labelFontSpec, labelInk, labelSurfaceCanvas, logoTexture, shouldRepaintLabel } from "../geometry/logos.ts";
+import { cartonMarkCanvas, labelEmissiveCanvas, labelFinish, labelFontSpec, labelInk, labelNormalCanvas, labelSurfaceCanvas, logoTexture, shouldRepaintLabel } from "../geometry/logos.ts";
 import { logoById, resolvedLabelApplication } from "../model/catalog.ts";
 import { computeFit } from "../model/fit.ts";
 import type { LogoApplication, LogoFont } from "../model/types.ts";
@@ -10,6 +10,7 @@ export interface LabelTextureSet<T extends { dispose(): void }> {
   color: T;
   mask: T | null;
   emissive: T | null;
+  normal?: T | null;
 }
 
 /**
@@ -23,6 +24,7 @@ export function disposeReplacedLabelTextures<T extends { dispose(): void }>(
   if (previous.color !== next.color) previous.color.dispose();
   if (previous.mask && previous.mask !== next.mask) previous.mask.dispose();
   if (previous.emissive && previous.emissive !== next.emissive) previous.emissive.dispose();
+  if (previous.normal && previous.normal !== next.normal) previous.normal.dispose();
 }
 
 const LabelPaintContext = createContext<HTMLCanvasElement | null>(null);
@@ -90,7 +92,7 @@ export function LabelPaintProvider({ children }: { children: ReactNode }) {
   const spec = logoById(design.label.variantId);
   const application = resolvedLabelApplication(design.label);
   const fit = computeFit(design, false);
-  const ink = labelInk(design.label.color, application);
+  const ink = labelInk(design.label.color, application, design.bottle.color);
   const fontTick = useLabelFontTick(spec.font, design.label.text);
   const aspect = fit.labelW / Math.max(4, fit.labelH);
   const longSide = 2048;
@@ -99,7 +101,7 @@ export function LabelPaintProvider({ children }: { children: ReactNode }) {
   const immediate = [spec.id, application, fontTick].join("\u0000");
   const deferred = [design.label.text, ink, width, height].join("\u0000");
   const canvas = useDebouncedLabelCanvas(immediate, deferred, () => {
-    const drawn = logoTexture(spec, design.label.text, ink, width, height);
+    const drawn = logoTexture(spec, design.label.text, ink, width, height, application);
     drawn.dataset.fonts = String(fontTick);
     return drawn;
   });
@@ -111,7 +113,7 @@ export function useCartonLabelCanvas(): HTMLCanvasElement {
   const design = useLab((s) => s.design);
   const spec = logoById(design.label.variantId);
   const application = resolvedLabelApplication(design.label);
-  const ink = labelInk(design.label.color, application);
+  const ink = labelInk(design.label.color, application, design.box.color);
   const fontTick = useLabelFontTick(spec.font, design.label.text);
   const immediate = [spec.id, application, spec.font, fontTick].join("\u0000");
   const deferred = [design.label.text, ink].join("\u0000");
@@ -155,12 +157,23 @@ export function useLabelMaps(canvas: HTMLCanvasElement, ink: string, application
     map.needsUpdate = true;
     return map;
   }, [canvas, ink, application, finish.emissive]);
+  const normal = useMemo(() => {
+    if (application !== "emboss") return null;
+    const surface = labelNormalCanvas(canvas, application);
+    const map = new THREE.CanvasTexture(surface);
+    map.colorSpace = THREE.NoColorSpace;
+    map.anisotropy = 8;
+    map.flipY = true;
+    map.generateMipmaps = true;
+    map.needsUpdate = true;
+    return map;
+  }, [canvas, application]);
   const held = useRef<LabelTextureSet<THREE.Texture> | null>(null);
   useEffect(() => {
-    const next = { color, mask, emissive };
+    const next = { color, mask, emissive, normal };
     if (held.current) disposeReplacedLabelTextures(held.current, next);
     held.current = next;
-  }, [color, mask, emissive]);
+  }, [color, mask, emissive, normal]);
   useEffect(() => () => {
     const latest = held.current;
     held.current = null;
@@ -168,6 +181,7 @@ export function useLabelMaps(canvas: HTMLCanvasElement, ink: string, application
     latest.color.dispose();
     latest.mask?.dispose();
     latest.emissive?.dispose();
+    latest.normal?.dispose();
   }, []);
-  return { color, mask, emissive };
+  return { color, mask, emissive, normal };
 }

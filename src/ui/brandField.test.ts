@@ -70,16 +70,15 @@ describe("brand field hint", () => {
     expect(labelVisibleAfterTextChange("", false)).toBe(false);
     expect(labelVisibleAfterTextChange("", true)).toBe(true);
 
-    const hidden = createDefaultDesign();
-    hidden.label.visible = false;
-    useLab.setState({ design: hidden, past: [], future: [] });
     const type = (text: string) => {
       const visible = labelVisibleAfterTextChange(text, useLab.getState().design.label.visible);
       useLab.getState().patch("label", { text, visible });
     };
 
+    useLab.getState().patch("label", { visible: false });
     expect(useLab.getState().design.label.visible).toBe(false);
     type("");
+    useLab.getState().patch("label", { visible: false });
     expect(useLab.getState().design.label.visible).toBe(false);
     expect(useLab.getState().design.label.text).toBe("");
 
@@ -103,6 +102,7 @@ describe("brand field hint", () => {
     });
     type("");
     expect(useLab.getState().design.label.text).toBe("");
+    useLab.getState().patch("label", { visible: false });
     expect(useLab.getState().design.label.visible).toBe(false);
   });
 

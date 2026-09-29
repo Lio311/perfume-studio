@@ -76,6 +76,13 @@ describe("labStore", () => {
     expect(useLab.getState().design.label.text).toBe(clampLabelText(text));
     expect(text.slice(0, 32)).not.toBe(text);
   });
+  it("saves a design and reports success", () => {
+    const before = useLab.getState().saved.length;
+    const result = useLab.getState().saveDesign("בדיקה", "");
+    expect(result.ok).toBe(true);
+    expect(useLab.getState().saved[0]?.name).toBe("בדיקה");
+    expect(useLab.getState().saved).toHaveLength(before + 1);
+  });
 
   it("uses a count when a single warning is longer than 120 characters", () => {
     useLab.getState().showPackNotices([{

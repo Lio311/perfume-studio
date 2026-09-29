@@ -4,7 +4,10 @@ import {
   clampLabelText,
   contrastingPlate,
   contrastRatio,
+  EMBOSS_SUBSTRATE,
   FOIL_ENV_FLOOR,
+  FOIL_GOLD,
+  FOIL_SILVER,
   labelDirection,
   labelEmissive,
   labelFinish,
@@ -16,10 +19,12 @@ import {
   cartonMarkSize,
   cartonTextAspect,
   paintCartonMark,
+  cartonMarkPlate,
   paintLabel,
   paintLabelEmissive,
   paintLabelSurface,
   relativeLuminance,
+  relieveLabelPixels,
   shouldRepaintLabel,
 } from "./logos.ts";
 
@@ -136,21 +141,27 @@ describe("label text layout", () => {
     }
   });
 
-  it("keeps the chosen ink and finishes each application differently", () => {
-    expect(labelInk("#D6B26A", "foil")).toBe("#D6B26A");
-    expect(labelInk("#D6B26A", "emboss")).toBe("#D6B26A");
-    expect(labelInk("#D6B26A", "engrave")).toBe("#D6B26A");
+  it("gives each application its own ink and finish", () => {
     expect(labelInk("#D6B26A", "decal")).toBe("#D6B26A");
+    expect(labelInk("#D6B26A", "foil")).toBe(FOIL_GOLD);
+    expect(labelInk("#d5d8de", "foil")).toBe(FOIL_SILVER);
+    expect(labelInk("#D6B26A", "emboss")).toBe(EMBOSS_SUBSTRATE);
+    expect(labelInk("#D6B26A", "emboss", "#2a2c2b")).toBe("#2a2c2b");
+    const etch = labelInk("#D6B26A", "engrave");
+    expect(etch).not.toBe("#D6B26A");
+    expect(relativeLuminance(etch)).toBeLessThan(relativeLuminance("#D6B26A"));
     expect(labelFinish("decal")).toEqual({ metalness: 0, roughness: 1, bumpScale: 0, envMapIntensity: 1, emissive: 0 });
-    expect(labelFinish("foil")).toEqual({ metalness: 1, roughness: 0.4, bumpScale: 0, envMapIntensity: FOIL_ENV_FLOOR, emissive: 0.36 });
-    expect(labelFinish("emboss")).toEqual({ metalness: 0.04, roughness: 0.55, bumpScale: 3.2, envMapIntensity: 1, emissive: 0 });
-    expect(labelFinish("engrave")).toEqual({ metalness: 0.04, roughness: 0.55, bumpScale: -3.2, envMapIntensity: 1, emissive: 0 });
+    expect(labelFinish("foil")).toEqual({ metalness: 0.78, roughness: 0.16, bumpScale: 0, envMapIntensity: 2.4, emissive: 0.82 });
+    expect(labelFinish("emboss")).toEqual({ metalness: 0.02, roughness: 0.42, bumpScale: 16, envMapIntensity: 0.35, emissive: 0 });
+    expect(labelFinish("engrave")).toEqual({ metalness: 0, roughness: 0.94, bumpScale: -14, envMapIntensity: 0.15, emissive: 0 });
   });
 
   it("pins foil roughness, an environment floor, and emissive in the ink colour", () => {
     const foil = labelFinish("foil");
-    expect(foil.roughness).toBeGreaterThanOrEqual(0.35);
-    expect(foil.roughness).toBeLessThanOrEqual(0.45);
+    expect(foil.roughness).toBeGreaterThan(0.05);
+    expect(foil.roughness).toBeLessThanOrEqual(0.22);
+    expect(foil.metalness).toBeGreaterThan(0.6);
+    expect(foil.emissive).toBeGreaterThanOrEqual(0.7);
     expect(FOIL_ENV_FLOOR).toBeGreaterThan(0);
     expect(foil.envMapIntensity).toBeGreaterThanOrEqual(FOIL_ENV_FLOOR);
     expect(foil.emissive).toBeGreaterThan(0);
@@ -176,7 +187,7 @@ describe("label text layout", () => {
         source[index] = rgb[0];
         source[index + 1] = rgb[1];
         source[index + 2] = rgb[2];
-        source[index + 3] = 255;
+        source[index + 3] = on ? 255 : 0;
       }
     }
     const target = new Uint8ClampedArray(source.length);
@@ -204,7 +215,7 @@ describe("label text layout", () => {
         source[index] = rgb[0];
         source[index + 1] = rgb[1];
         source[index + 2] = rgb[2];
-        source[index + 3] = 255;
+        source[index + 3] = on ? 255 : 0;
       }
     }
     const target = new Uint8ClampedArray(source.length);
@@ -242,9 +253,58 @@ describe("label text layout", () => {
     expect(target[4]).toBeGreaterThan(0);
   });
 
+  it("bakes a different mark for foil, engrave, and emboss", () => {
+    const width = 40;
+    const height = 32;
+    const source = new Uint8ClampedArray(width * height * 4);
+    for (let y = 0; y < height; y += 1) {
+      for (let x = 0; x < width; x += 1) {
+        const index = (y * width + x) * 4;
+        const on = x >= 8 && x < 30 && y >= 6 && y < 26;
+        source[index] = on ? 0xff : 0;
+        source[index + 1] = on ? 0xe7 : 0;
+        source[index + 2] = on ? 0xa6 : 0;
+        source[index + 3] = on ? 255 : 0;
+      }
+    }
+    const mean = (a: Uint8ClampedArray, b: Uint8ClampedArray) => {
+      let sum = 0;
+      let count = 0;
+      for (let i = 0; i < a.length; i += 4) {
+        if (a[i + 3] === 0 && b[i + 3] === 0) continue;
+        sum += Math.abs(a[i] - b[i]) + Math.abs(a[i + 1] - b[i + 1]) + Math.abs(a[i + 2] - b[i + 2]);
+        count += 3;
+      }
+      return count === 0 ? 0 : sum / count;
+    };
+    const foil = new Uint8ClampedArray(source);
+    const engrave = new Uint8ClampedArray(source);
+    const emboss = new Uint8ClampedArray(source);
+    const print = new Uint8ClampedArray(source);
+    relieveLabelPixels(foil, width, height, "foil");
+    relieveLabelPixels(engrave, width, height, "engrave");
+    relieveLabelPixels(emboss, width, height, "emboss");
+    relieveLabelPixels(print, width, height, "decal");
+    expect(mean(print, source)).toBe(0);
+    expect(mean(foil, engrave)).toBeGreaterThan(25);
+    expect(mean(foil, emboss)).toBeGreaterThan(15);
+    expect(mean(engrave, emboss)).toBeGreaterThan(25);
+  });
+
   it("repaints only when a new face loads", () => {
     expect(shouldRepaintLabel(true)).toBe(false);
     expect(shouldRepaintLabel(false)).toBe(true);
+  });
+
+  it("keeps the carton plaque clear unless print has a plate colour", () => {
+    expect(cartonMarkPlate("foil", "#111111")).toBe("clear");
+    expect(cartonMarkPlate("emboss", "#111111")).toBe("clear");
+    expect(cartonMarkPlate("engrave", "#111111")).toBe("clear");
+    expect(cartonMarkPlate("decal", null)).toBe("clear");
+    expect(cartonMarkPlate("decal", "  ")).toBe("clear");
+    expect(cartonMarkPlate("print", "")).toBe("clear");
+    expect(cartonMarkPlate("print", "#f4efe6")).toBe("#f4efe6");
+    expect(cartonMarkPlate("decal", "#f4efe6")).toBe("#f4efe6");
   });
 
   it("paints carton foil and engrave on a clear ground, and keeps a plate only for print", () => {

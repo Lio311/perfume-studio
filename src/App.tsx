@@ -23,6 +23,7 @@ import { acknowledgePackLoads, adoptLoadedSuppliers, loadPacks } from "./import/
 import { isKnownPack, withInnerStructure } from "./model/boxFields.ts";
 import { packById } from "./model/closures/registry.ts";
 import { hydrateDesign } from "./model/design.ts";
+import { clampLabelText } from "./geometry/logos.ts";
 
 function applyBackAction(action: Exclude<BackAction, "leave">, trap: Trap) {
   const lab = useLab.getState();
@@ -232,6 +233,8 @@ export default function App() {
       if (params.get("shape") === "octagon") design.box.shape = { type: "polygon", sides: 8 };
       if (params.get("shape") === "cylinder") design.box.shape = { type: "cylinder" };
       if (params.get("sleeve") === "0") design.box.layers = design.box.layers.filter((layer) => layer.structure !== "sleeve");
+      const brand = params.get("brand");
+      if (brand) design.label.text = clampLabelText(brand);
       const color = params.get("color");
       if (color && /^#[0-9a-f]{6}$/i.test(color)) {
         design.box.color = color;

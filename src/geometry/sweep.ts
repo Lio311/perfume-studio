@@ -305,8 +305,8 @@ function prepareLabelPatch(args: LabelPatchArgs) {
   let hi = Math.PI * 0.46;
   for (let i = 0; i < 16; i += 1) {
     const span = (lo + hi) / 2;
-    // Size the span from the widest row, not the midline, so a round bottle
-    // does not draw a plate wider than the width fit reported.
+    // Size the span from the widest point on the arc across all rows, so a round
+    // bottle does not draw a plate wider than the width fit reported.
     const edge = widestAbsX(args, y0, y1, height, width, depth, neckR, span);
     if (edge < half) lo = span;
     else hi = span;

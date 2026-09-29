@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useRef, type MutableRefObject } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
-import { logoById } from "../../model/catalog.ts";
 import type { InsertMaterial } from "../../model/types.ts";
 import type { Fit } from "../../model/fit.ts";
-import { logoTexture } from "../../geometry/logos.ts";
 import { useLab } from "../../store/labStore.ts";
+import { CartonMark } from "../cartonMark.tsx";
 import { FinishMaterial, WrapMaterial } from "../materials.tsx";
+import { prismShell } from "./prism.ts";
 import { sectionPlane } from "../sectionPlane.ts";
 import { trayLiftNow } from "../trayLift.ts";
 
@@ -29,24 +29,30 @@ export function Skin({ section = true }: { section?: boolean }) {
   return <WrapMaterial color={wrap?.color || color} finish={wrap?.finish || "soft-touch"} board={board || "rigid"} section={section} />;
 }
 
+
+/** Foil or print on the board. No dark plate unless print is given a plate colour. */
 export function BrandMark({ w, y, z }: { w: number; y: number; z: number }) {
-  const blueprint = useLab((s) => s.blueprint);
-  const text = useLab((s) => s.design.label.text);
-  const variantId = useLab((s) => s.design.label.variantId);
-  const tex = useMemo(() => {
-    const planeW = Math.min(w * 0.48, 52);
-    const canvas = logoTexture(logoById(variantId), text, "#f6f1e6", 1024, Math.max(96, Math.round((1024 * 18) / planeW)));
-    const texture = new THREE.CanvasTexture(canvas);
-    texture.colorSpace = THREE.SRGBColorSpace;
-    texture.anisotropy = 4;
-    return texture;
-  }, [text, variantId, w]);
-  useEffect(() => () => tex.dispose(), [tex]);
-  if (blueprint) return null;
+  return <CartonMark w={w} y={y} z={z} />;
+}
+
+export function PrismMesh({
+  radius,
+  inner,
+  height,
+  sides,
+  y = 0,
+}: {
+  radius: number;
+  inner: number;
+  height: number;
+  sides: number;
+  y?: number;
+}) {
+  const geo = useMemo(() => prismShell(radius, inner, height, sides), [radius, inner, height, sides]);
+  useEffect(() => () => geo.dispose(), [geo]);
   return (
-    <mesh position={[0, y, z]}>
-      <planeGeometry args={[Math.min(w * 0.48, 52), 18]} />
-      <meshBasicMaterial map={tex} transparent toneMapped={false} depthWrite={false} />
+    <mesh geometry={geo} position={[0, y, 0]}>
+      <Skin />
     </mesh>
   );
 }
@@ -93,7 +99,8 @@ export function InsertBlock({ fit }: { fit: Fit }) {
   const maxD = Math.max(12, fit.boxD - wall * 2 - 1.2);
   const width = Math.min(fit.insertW, maxW);
   const depth = Math.min(fit.insertD, maxD);
-  const well = useWell(width, depth, Math.min(fit.cavityH, fit.boxH * 0.72), fit.cavityW, fit.cavityD);
+  const wellH = Math.min(Math.max(12, fit.cavityH * 0.4), fit.boxH * 0.36);
+  const well = useWell(width, depth, wellH, fit.cavityW, fit.cavityD);
   const planes = cutaway ? [sectionPlane] : undefined;
   const y0 = wall;
   const ref = useRef<THREE.Group>(null);
@@ -110,7 +117,7 @@ export function InsertBlock({ fit }: { fit: Fit }) {
       <group ref={ref} position={[0, y0, 0]}>
         <mesh position={[0, fit.floorMm / 2, 0]}>
           <boxGeometry args={[width, fit.floorMm, depth]} />
-          <meshPhysicalMaterial color={color} roughness={velvet ? 0.8 : 0.9} sheen={velvet ? 1 : 0} sheenColor={color} sheenRoughness={0.4} clippingPlanes={planes} />
+          <meshPhysicalMaterial color={color} roughness={velvet ? 0.8 : 0.9} sheen={velvet ? 1 : 0} sheenColor={color} sheenRoughness={0.4} envMapIntensity={0.72} clippingPlanes={planes} />
         </mesh>
         <mesh position={[-(channelW / 2 + side / 2), fit.floorMm + channelH / 2, 0]}>
           <boxGeometry args={[side, channelH, depth - end * 2]} />
@@ -138,7 +145,7 @@ export function InsertBlock({ fit }: { fit: Fit }) {
         <meshPhysicalMaterial color={color} roughness={velvet ? 0.78 : 0.92} sheen={velvet ? 1 : 0} sheenColor={color} sheenRoughness={0.42} clippingPlanes={planes} />
       </mesh>
       <mesh geometry={well} position={[0, fit.floorMm, 0]}>
-        <meshPhysicalMaterial color={color} roughness={velvet ? 0.8 : 0.9} sheen={velvet ? 1 : 0} sheenColor={color} sheenRoughness={0.4} clippingPlanes={planes} />
+        <meshPhysicalMaterial color={color} roughness={velvet ? 0.8 : 0.9} sheen={velvet ? 1 : 0} sheenColor={color} sheenRoughness={0.4} envMapIntensity={0.72} clippingPlanes={planes} />
       </mesh>
     </group>
   );

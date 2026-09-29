@@ -1,5 +1,5 @@
 import { partPivot } from "../../../model/closures/registry.ts";
-import { BrandMark, InsertBlock, Magnet, PullTab, Ribbon, Skin, Tub } from "../kit.tsx";
+import { BrandMark, InsertBlock, Magnet, PrismMesh, PullTab, Ribbon, Skin, Tub } from "../kit.tsx";
 import type { ClosureBuilder } from "../types.ts";
 
 function LidShell({ w, h, d, wall }: { w: number; h: number; d: number; wall: number }) {
@@ -38,46 +38,36 @@ const LiftOff: ClosureBuilder = ({ form, fit, spec, dims, bind, ribbon, pullTab,
   const overlap = shoulder ? Math.min(dims.lidH * 0.35, 8) : 0;
   const neckRise = dims.neckH + overlap;
   const tied = ribbon || latch === "ribbon";
+  const telescope = !shoulder && dims.baseH >= dims.h * 0.9;
+  const trayH = telescope ? Math.max(dims.wall * 6, dims.h * 0.38) : dims.baseH;
   if (shape.type === "cylinder" || shape.type === "polygon") {
+    const sides = shape.type === "polygon" ? Math.min(12, Math.max(3, Math.round(shape.sides ?? 8))) : 48;
     const radius = Math.min(dims.w, dims.d) / 2 - 0.4;
-    const segments = shape.type === "polygon" ? Math.min(12, Math.max(3, Math.round(shape.sides ?? 8))) : 48;
-    const neckR = Math.max(radius * 0.72, radius - dims.wall * 2.2);
-    const lidR = radius + 0.8;
+    const wall = Math.max(dims.wall, 1.6);
+    const inner = Math.max(radius * 0.72, radius - wall);
+    const neckR = Math.max(inner * 0.86, radius * 0.62);
+    const lidR = radius + 0.7;
+    const lidInner = Math.max(lidR - wall, lidR * 0.78);
     return (
       <group>
-        <mesh position={[0, dims.wall / 2, 0]}>
-          <cylinderGeometry args={[radius - 0.4, radius - 0.4, dims.wall, segments]} />
-          <Skin />
-        </mesh>
-        <mesh position={[0, dims.baseH / 2, 0]}>
-          <cylinderGeometry args={[radius, radius, dims.baseH, segments, 1, true]} />
-          <Skin />
-        </mesh>
-        {shoulder && (
-          <mesh position={[0, dims.baseH + neckRise / 2, 0]}>
-            <cylinderGeometry args={[neckR, neckR, neckRise, Math.max(8, segments), 1, true]} />
-            <Skin />
-          </mesh>
-        )}
+        <PrismMesh radius={radius - 0.15} inner={0} height={dims.wall} sides={sides} />
+        <PrismMesh radius={radius} inner={inner} height={trayH} sides={sides} />
+        {shoulder && <PrismMesh radius={neckR} inner={Math.max(neckR - wall, neckR * 0.72)} height={neckRise} sides={Math.max(8, sides)} y={dims.baseH} />}
         <InsertBlock fit={fit} />
         <group ref={bind("lid")} userData={{ hinge: "lid" }} position={lid}>
-          <mesh position={[0, dims.lidH - dims.wall / 2, 0]}>
-            <cylinderGeometry args={[lidR, lidR, dims.wall, segments]} />
-            <Skin />
-          </mesh>
-          <mesh position={[0, dims.lidH / 2, 0]}>
-            <cylinderGeometry args={[lidR, lidR, dims.lidH, segments, 1, true]} />
-            <Skin />
-          </mesh>
-          {pullTab && <PullTab w={dims.w} z={radius + 1} />}
+          <PrismMesh radius={lidR} inner={lidInner} height={Math.max(wall, dims.lidH - dims.wall)} sides={sides} />
+          <PrismMesh radius={lidR} inner={0} height={dims.wall} sides={sides} y={Math.max(0, dims.lidH - dims.wall)} />
+          {telescope && <BrandMark w={dims.w * 0.9} y={dims.lidH * 0.46} z={lidR + 0.35} />}
+          {pullTab && <PullTab w={dims.w} z={lidR + 1} />}
         </group>
-        {tied && <Ribbon w={dims.w} h={dims.h * 0.42} d={dims.d} y={dims.h * 0.28} />}
+        {!telescope && <BrandMark w={dims.w} y={trayH * 0.55} z={radius + 0.55} />}
+        {tied && <Ribbon w={dims.w} h={dims.h * 0.42} d={radius * 2 + (telescope ? 2.4 : 0)} y={dims.h * 0.28} />}
       </group>
     );
   }
   return (
     <group>
-      <Tub w={dims.w} h={dims.baseH} d={dims.d} wall={dims.wall} />
+      <Tub w={dims.w} h={trayH} d={dims.d} wall={dims.wall} />
       {shoulder && (
         <mesh position={[0, dims.baseH + neckRise / 2, 0]}>
           <boxGeometry args={[dims.w - dims.wall * 3.2, neckRise, dims.d - dims.wall * 3.2]} />
@@ -99,10 +89,11 @@ const LiftOff: ClosureBuilder = ({ form, fit, spec, dims, bind, ribbon, pullTab,
             <Magnet position={[dims.w * 0.28, dims.wall + 0.6, dims.d * 0.18]} />
           </>
         )}
+        {telescope && <BrandMark w={lidW} y={dims.lidH * 0.46} z={lidD / 2 + 0.4} />}
         {pullTab && <PullTab w={dims.w} z={lidD / 2 + 0.4} />}
       </group>
-      <BrandMark w={dims.w} y={dims.baseH * 0.48} z={dims.d / 2 + 0.55} />
-      {tied && <Ribbon w={dims.w} h={dims.h * 0.42} d={dims.d} y={dims.h * 0.28} />}
+      {!telescope && <BrandMark w={dims.w} y={trayH * 0.48} z={dims.d / 2 + 0.55} />}
+      {tied && <Ribbon w={dims.w} h={dims.h * 0.42} d={telescope ? dims.d + 3.2 : dims.d} y={dims.h * 0.28} />}
     </group>
   );
 };
