@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, type MutableRefObject } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, type MutableRefObject, type ReactNode } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import type { InsertMaterial } from "../../model/types.ts";
@@ -10,6 +10,7 @@ import { outerWrapMaterialProps } from "./outerWrap.ts";
 import { prismShell } from "./prism.ts";
 import { sectionPlane } from "../sectionPlane.ts";
 import { trayLiftNow } from "../trayLift.ts";
+import { trackRibbon, untrackRibbon } from "../unbox/ribbonSlip.ts";
 
 const INSERT_COLOR: Record<InsertMaterial, string> = {
   eva: "#2c2e33",
@@ -212,6 +213,18 @@ export function Tub({ w, h, d, wall, front = "full", body }: { w: number; h: num
 /** Satin ribbon. Callers pass a ribbon or accent colour; the default is the pull-ribbon red. */
 export const RIBBON_COLOR = "#8d1d32";
 
+/** Local slip while the cinematic unties a ribbon. Zero at rest and at the open pose. */
+function RibbonSlip({ children, tug = false }: { children: ReactNode; tug?: boolean }) {
+  const ref = useRef<THREE.Group>(null);
+  useLayoutEffect(() => {
+    const node = ref.current;
+    if (!node) return undefined;
+    trackRibbon(node, tug);
+    return () => untrackRibbon(node);
+  }, [tug]);
+  return <group ref={ref}>{children}</group>;
+}
+
 /** Width of the vertical bands. Shared with the cylinder yaw so the ribbon clears the mark. */
 export function ribbonBandWidth(w: number, d: number): number {
   return Math.max(8, Math.min(w, d) * 0.1);
@@ -263,6 +276,7 @@ export function Ribbon({ w, h, d, y, color = RIBBON_COLOR, cap = true, across = 
     const bodyH = h - flareH;
     const innerTop = flareTo == null ? inner : Math.max(0.4, flareTo - RIBBON_ARC_THICKNESS);
     return (
+      <RibbonSlip>
       <group position={[0, y, 0]}>
         {bodyH > 0.2 && (
           <>
@@ -295,9 +309,11 @@ export function Ribbon({ w, h, d, y, color = RIBBON_COLOR, cap = true, across = 
           </mesh>
         )}
       </group>
+      </RibbonSlip>
     );
   }
   return (
+    <RibbonSlip>
     <group position={[0, y, 0]} rotation={across === "x" ? [0, Math.PI / 2, 0] : undefined}>
       <mesh position={[0, h / 2, d / 2 + 0.3]}>
         <boxGeometry args={[band, h, 0.45]} />
@@ -310,10 +326,11 @@ export function Ribbon({ w, h, d, y, color = RIBBON_COLOR, cap = true, across = 
       {cap && (
         <mesh position={[0, h + 0.3, 0]}>
           <boxGeometry args={[band, 0.45, d]} />
-          {satin(color, THREE.FrontSide)}
-        </mesh>
+        {satin(color, THREE.FrontSide)}
+      </mesh>
       )}
     </group>
+    </RibbonSlip>
   );
 }
 
@@ -332,10 +349,12 @@ export function Magnet({ position, rotation }: { position: [number, number, numb
 
 export function PullRibbon({ y, z }: { y: number; z: number }) {
   return (
-    <mesh position={[0, y, z]} rotation={[0, 0, Math.PI]}>
-      <torusGeometry args={[8, 0.85, 10, 28, Math.PI]} />
-      <meshStandardMaterial color="#8d1d32" roughness={0.42} />
-    </mesh>
+    <RibbonSlip tug>
+      <mesh position={[0, y, z]} rotation={[0, 0, Math.PI]}>
+        <torusGeometry args={[8, 0.85, 10, 28, Math.PI]} />
+        <meshStandardMaterial color="#8d1d32" roughness={0.42} />
+      </mesh>
+    </RibbonSlip>
   );
 }
 

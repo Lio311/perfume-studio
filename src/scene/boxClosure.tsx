@@ -13,6 +13,8 @@ import { builderFor } from "./closures/registry.ts";
 import type { GroupBind } from "./closures/types.ts";
 import { drawerInsertSeatOffset } from "./closures/build/drawer.tsx";
 import { insertSeatNow, trayLiftNow } from "./trayLift.ts";
+import { getUnboxPlayback } from "./unbox/playback.ts";
+import { applyRibbonSlip } from "./unbox/ribbonSlip.ts";
 
 export function ClosureBox({ form, fit }: { form: BoxForm; fit: Fit }) {
   const structure = useLab((s) => s.design.box.structure ?? "lift-off");
@@ -142,6 +144,12 @@ export function ClosureBox({ form, fit }: { form: BoxForm; fit: Fit }) {
   };
 
   useLayoutEffect(() => {
+    const playback = getUnboxPlayback();
+    if (playback.phase === "playing") {
+      amount.current = playback.openAmount;
+      applyPose(playback.openAmount);
+      return;
+    }
     const live = stage !== "bottle" && open ? 1 : 0;
     amount.current = live;
     applyPose(live);
@@ -167,9 +175,17 @@ export function ClosureBox({ form, fit }: { form: BoxForm; fit: Fit }) {
   }, []);
 
   useFrame((_, dt) => {
+    const playback = getUnboxPlayback();
+    if (playback.phase === "playing") {
+      amount.current = playback.openAmount;
+      applyPose(amount.current);
+      applyRibbonSlip();
+      return;
+    }
     const live = stage !== "bottle" && open ? 1 : 0;
     amount.current = reducedMotion.current ? live : THREE.MathUtils.damp(amount.current, live, 5.5, dt);
     applyPose(amount.current);
+    applyRibbonSlip();
   });
 
   if (!spec || !Builder) return null;

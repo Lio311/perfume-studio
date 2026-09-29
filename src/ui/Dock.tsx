@@ -1,7 +1,8 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useSyncExternalStore } from "react";
 import { partLabel, tx } from "../i18n/copy.ts";
 import type { PartKey } from "../model/types.ts";
 import { useLab, type ViewPreset } from "../store/labStore.ts";
+import { getUnboxPlayback, skipUnboxing, subscribeUnbox } from "../scene/unbox/playback.ts";
 import { HandsFree } from "./HandsFree.tsx";
 import { SonicLayer } from "./SonicLayer.tsx";
 import { VoiceAssistant } from "./VoiceAssistant.tsx";
@@ -34,6 +35,8 @@ export function Dock() {
   const boxOpen = useLab((s) => s.boxOpen);
   const setBoxOpen = useLab((s) => s.setBoxOpen);
   const resetView = useLab((s) => s.resetView);
+  const unboxPhase = useSyncExternalStore(subscribeUnbox, () => getUnboxPlayback().phase, () => "idle" as const);
+  const unboxing = unboxPhase === "playing";
   return (
     <div className="dock" dir={lang === "he" ? "rtl" : "ltr"}>
       {stage !== "box" && (
@@ -85,6 +88,12 @@ export function Dock() {
           {boxOpen ? t.closeBox : t.openBox}
         </button>
       )}
+      {stage !== "bottle" && (
+        <button type="button" data-unbox-play className={unboxing ? "is-on" : ""} onClick={() => void playCinematic(unboxing)}>
+          {unboxing ? t.unboxSkip : t.unboxPlay}
+        </button>
+      )}
+      <UnboxSkip />
       <button type="button" className={present ? "is-on" : ""} onClick={() => setPresent(!present)} title={t.kPresent}>
         {present ? t.presentExit : t.present}
       </button>
@@ -95,6 +104,46 @@ export function Dock() {
       </div>
     </div>
   );
+}
+
+let unboxLoad: Promise<void> | null = null;
+
+function playCinematic(playing: boolean): void {
+  if (playing || getUnboxPlayback().phase === "playing") {
+    skipUnboxing();
+    return;
+  }
+  if (unboxLoad) return;
+  unboxLoad = import("../scene/unbox/play.ts")
+    .then((mod) => {
+      mod.playUnboxing();
+    })
+    .finally(() => {
+      unboxLoad = null;
+    });
+}
+
+function UnboxSkip() {
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || getUnboxPlayback().phase !== "playing") return;
+      event.preventDefault();
+      skipUnboxing();
+    };
+    const onClick = (event: MouseEvent) => {
+      if (getUnboxPlayback().phase !== "playing") return;
+      const target = event.target;
+      if (!(target instanceof Element) || !target.closest(".stage-canvas")) return;
+      skipUnboxing();
+    };
+    window.addEventListener("keydown", onKey);
+    window.addEventListener("click", onClick);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("click", onClick);
+    };
+  }, []);
+  return null;
 }
 
 const STEPS: Array<{ part: PartKey; at: number }> = [
