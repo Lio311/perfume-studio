@@ -90,4 +90,53 @@ describe("prism shell", () => {
     expect(sized.width).toBeGreaterThan(facet.width * 0.85);
     geo.dispose();
   });
+
+  it("points a fine cylinder's wall normals out from the axis and leaves an octagon faceted", () => {
+    const tube = prismShell(34, 30, 80, 48);
+    const octagon = prismShell(30, 26, 48, 8);
+    expect(wallAngleError(tube, 32)).toBeLessThan(0.02);
+    expect(capNormalsStayAxial(tube, 80)).toBeGreaterThan(8);
+    expect(wallAngleError(octagon, 28)).toBeGreaterThan(0.25);
+    tube.dispose();
+    octagon.dispose();
+  });
 });
+
+function angleDelta(a: number, b: number): number {
+  let d = Math.abs(a - b);
+  if (d > Math.PI) d = Math.PI * 2 - d;
+  return d;
+}
+
+/** Largest gap between a wall normal's heading and the radial heading. Flat facets miss the corners. */
+function wallAngleError(geo: THREE.BufferGeometry, midRadius: number): number {
+  const pos = geo.getAttribute("position");
+  const nor = geo.getAttribute("normal");
+  let worst = 0;
+  let seen = 0;
+  for (let i = 0; i < pos.count; i += 1) {
+    if (Math.abs(nor.getY(i)) > 0.35) continue;
+    const x = pos.getX(i);
+    const z = pos.getZ(i);
+    const radius = Math.hypot(x, z);
+    if (radius < 1) continue;
+    const outward = radius > midRadius ? 1 : -1;
+    const err = angleDelta(Math.atan2(nor.getX(i), nor.getZ(i)), Math.atan2(outward * x, outward * z));
+    worst = Math.max(worst, err);
+    seen += 1;
+  }
+  expect(seen).toBeGreaterThan(12);
+  return worst;
+}
+
+function capNormalsStayAxial(geo: THREE.BufferGeometry, height: number): number {
+  const pos = geo.getAttribute("position");
+  const nor = geo.getAttribute("normal");
+  let caps = 0;
+  for (let i = 0; i < pos.count; i += 1) {
+    const y = pos.getY(i);
+    if (y > 0.4 && y < height - 0.4) continue;
+    if (Math.abs(nor.getY(i)) > 0.8) caps += 1;
+  }
+  return caps;
+}

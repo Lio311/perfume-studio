@@ -256,3 +256,8 @@ export function computeFit(design: Design, exploded = false): Fit {
     explode,
   };
 }
+
+/** Y added to parts seated in the box. The insert floor is part of the seat. */
+export function boxContentsSeat(design: Design): number {
+  return computeFit(design, false).seatY;
+}

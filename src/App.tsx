@@ -277,6 +277,7 @@ export default function App() {
         cutaway: params.get("cut") === "1",
         quality: tier,
         tierLock: true,
+        // Session only. partialize writes demoHold.theme, the theme from before this link.
         theme: params.get("theme") === "dark" ? "dark" : "light",
         libraryOpen: false,
         sideOpen: true,

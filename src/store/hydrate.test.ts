@@ -860,7 +860,7 @@ describe("saved design hydration", () => {
     });
   });
 
-  it("freezes only the design while a demo link is up, and releases on the first edit", () => {
+  it("freezes the pre-link design and theme while a demo link is up, and releases on the first edit", () => {
     const saved = createDefaultDesign();
     saved.label = { ...saved.label, text: "KEPT" };
     saved.box = { ...saved.box, color: "#112233" };
@@ -890,7 +890,8 @@ describe("saved design hydration", () => {
     expect(written.design).toBe(hold.design);
     expect((written.design as Design).label.text).toBe("KEPT");
     expect((written.design as Design).box.color).toBe("#112233");
-    expect(written.theme).toBe("light");
+    expect(during.theme).toBe("light");
+    expect(written.theme).toBe("dark");
     expect(written.lang).toBe("en");
     expect(written.chat).toEqual(during.chat);
     expect(written.saved).toEqual([sketch]);
@@ -907,6 +908,7 @@ describe("saved design hydration", () => {
     useLab.getState().patch("label", { text: "EDIT" });
     expect(useLab.getState().demoHold).toBeNull();
     expect((partializeLabState(useLab.getState()).design as Design).label.text).toBe("EDIT");
+    expect(partializeLabState(useLab.getState()).theme).toBe("light");
     useLab.setState({ design: prior.design, theme: prior.theme, saved: prior.saved, demoHold: null, past: prior.past, future: prior.future });
   });
 

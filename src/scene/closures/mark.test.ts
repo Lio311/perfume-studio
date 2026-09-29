@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { cartonMarkSize } from "../../geometry/logos.ts";
 import { MARK_FACE_GAP } from "./kit.tsx";
 import { sleeveInnerDepth, sleeveInnerMarkZ } from "./build/sleeve.tsx";
-import { tubeInnerRadius, tubeInsertOuter, tubeInsertRadius, tubeMarkWidth } from "./build/tube.tsx";
+import { tubeInnerRadius, tubeInsertOuter, tubeInsertRadius, tubeMarkBand } from "./build/tube.tsx";
 
 describe("carton mark placement", () => {
   it("keeps the brand offset under half a millimetre", () => {
@@ -22,15 +22,16 @@ describe("carton mark placement", () => {
     expect(z).toBeGreaterThan(inner / 2);
   });
 
-  it("shrinks the tube mark once so the flat chord stays near the cylinder", () => {
-    const radius = 34;
-    const chord = tubeMarkWidth(radius);
-    const plane = cartonMarkSize(chord, 4).width;
-    expect(plane).toBeCloseTo(Math.min(52, chord * 0.92), 4);
-    expect(plane).toBeGreaterThan(16);
-    const half = plane / 2;
-    const sagitta = radius - Math.sqrt(radius * radius - half * half);
-    expect(sagitta).toBeLessThan(1.6);
+  it("wraps the tube mark in a band about 35 mm wide and 60 degrees", () => {
+    const radius = 33.6;
+    const band = tubeMarkBand(radius);
+    expect(band.radius).toBeCloseTo(radius + MARK_FACE_GAP, 5);
+    expect(band.angle).toBeCloseTo(Math.PI / 3, 5);
+    expect(band.thetaStart).toBeCloseTo(-band.angle / 2, 5);
+    expect(band.arc).toBeGreaterThan(34);
+    expect(band.arc).toBeLessThan(37);
+    const sized = cartonMarkSize(band.arc, 4);
+    expect(sized.width).toBeGreaterThan(30);
   });
 
   it("keeps the round tube insert inside the cylinder", () => {

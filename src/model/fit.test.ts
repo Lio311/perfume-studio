@@ -3,7 +3,7 @@ import { buildLabelPatch } from "../geometry/sweep.ts";
 import { syncRegistry, type SupplierPart } from "../import/registry.ts";
 import { bottleById } from "./catalog.ts";
 import { applyVariant, createDefaultDesign } from "./design.ts";
-import { computeFit } from "./fit.ts";
+import { boxContentsSeat, computeFit } from "./fit.ts";
 import { neckRadius } from "./necks.ts";
 import { bottleRadii } from "./sample.ts";
 
@@ -13,6 +13,18 @@ function withPlate(bottleId: string, labelId: string) {
   applyVariant(design, "label", labelId);
   return design;
 }
+
+describe("box contents seat", () => {
+  it("uses the fit seat, board plus the insert floor", () => {
+    const design = createDefaultDesign();
+    design.box.boardMm = 3.4;
+    const fit = computeFit(design, false);
+    expect(boxContentsSeat(design)).toBeCloseTo(fit.seatY, 5);
+    expect(fit.seatY).toBeCloseTo(fit.boardMm + fit.floorMm, 5);
+    expect(fit.floorMm).toBeGreaterThan(0);
+    expect(boxContentsSeat(design)).toBeCloseTo(3.4 + fit.floorMm, 5);
+  });
+});
 
 describe("label plate fit", () => {
   it("keeps each plate's own proportions on Cara 50", () => {

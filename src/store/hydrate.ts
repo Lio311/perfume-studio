@@ -698,11 +698,15 @@ const PERSISTED_FIELDS = ["design", "theme", "lang", "chat", "saved", "pending",
  * data) is copied through so the next write does not erase it. Functions and live UI
  * fields, including `shareUrl`, brief editing, cutaway, quality, and the tier lock, are left out.
  */
-/** Design and undo stack from before a `?closure=` link. Nothing else is frozen. */
+/**
+ * Design, undo stack, and theme from before a `?closure=` link.
+ * The link still changes the live theme for this visit. The write keeps the previous one.
+ */
 export interface DemoHold {
   design: unknown;
   past: unknown;
   future: unknown;
+  theme?: unknown;
 }
 
 function isDemoHold(value: unknown): value is DemoHold {
@@ -721,6 +725,7 @@ export function demoSessionHold(state: object): DemoHold {
     design: source.design,
     past: source.past ?? [],
     future: source.future ?? [],
+    theme: source.theme,
   };
 }
 
@@ -739,7 +744,10 @@ export function partializeLabState(state: object): Record<string, unknown> {
     if (value === undefined || typeof value === "function") continue;
     out[key] = value;
   }
-  if (isDemoHold(source.demoHold)) out.design = source.demoHold.design;
+  if (isDemoHold(source.demoHold)) {
+    out.design = source.demoHold.design;
+    if (source.demoHold.theme !== undefined) out.theme = source.demoHold.theme;
+  }
   return out;
 }
 
