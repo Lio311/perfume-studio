@@ -52,10 +52,10 @@ export function LabelFinishMaterial({
   // Roughness is multiplied by the map. The uniform stays 1 so the plate (green = 1) stays matte
   // and the ink uses labelFinish().roughness, stored in that channel. Metalness uses the blue channel.
   // Carton emboss skips that map and uses the board's roughness and environment instead.
-  // Foil keeps an environment floor and a small ink-coloured emissive so the face stays the ink colour
-  // when the studio behind the camera is dark. The emissive map is black on the plate.
+  // Foil keeps an environment floor and a small ink-coloured emissive so a coloured tint stays itself
+  // when the studio behind the camera is dark. A lifted black tint skips that glow, or the face reads as silver.
   const envMapIntensity = application === "foil"
-    ? Math.max(finish.envMapIntensity, FOIL_ENV_FLOOR)
+    ? (lowFoil ? 0.85 : Math.max(finish.envMapIntensity, FOIL_ENV_FLOOR))
     : embossBoard
       ? surface.envMapIntensity
       : finish.envMapIntensity;
