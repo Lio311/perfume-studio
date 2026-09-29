@@ -174,7 +174,7 @@ describe("app error boundary", () => {
     expect(stored.state.lang).toBe("he");
     expect("shareUrl" in stored.state).toBe(false);
     expect(stored.state.workshopNote).toBe("עבודה");
-    expect(stored.state.brief).toEqual({ ceilingIls: 30, volumeMl: 50, confirmed: false });
+    expect(stored.state.brief).toEqual({ ceilingIls: 200, volumeMl: 50, confirmed: false });
     expect(localStorage.getItem("perfume-lab-draft")).toBeNull();
     const kept = localStorage.getItem(DESIGN_STORAGE_KEY);
     createLabStorage().setItem(DESIGN_STORAGE_KEY, { state: { design: { bottle: { variantId: "wiped" } } }, version: 5 });

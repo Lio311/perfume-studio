@@ -75,9 +75,10 @@ export function useBudgetModel(): BudgetModel {
       amounts.push(amount);
     }
     const summary = summarizeBudget(amounts, brief.ceilingIls);
+    if (!brief.confirmed) summary.over = false;
     const foreign = [...new Set(lines.filter((line) => line.price.currency !== "ILS" && !line.price.unknownCurrency).map((line) => line.price.currency))];
     let alternatives: Alternative[] = [];
-    if (summary.over && selected && selected !== "liquid") {
+    if (brief.confirmed && summary.over && selected && selected !== "liquid") {
       const line = lines.find((item) => item.kind === selected);
       if (line?.price.ils != null) {
         const maxPriceIls = brief.ceilingIls - (summary.totalIls - line.price.ils);
@@ -121,5 +122,5 @@ export function useBudgetModel(): BudgetModel {
       belowMoq: lines.some((line) => quantityBelowMoq(brief.quantity, line.price.moq)),
     };
     // suppliers refreshes imported prices and facts after a pack sync.
-  }, [brief.ceilingIls, brief.quantity, brief.volumeMl, design, overrides, rates, selected, suppliers]);
+  }, [brief.ceilingIls, brief.quantity, brief.volumeMl, brief.confirmed, design, overrides, rates, selected, suppliers]);
 }

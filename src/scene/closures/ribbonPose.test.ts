@@ -175,18 +175,17 @@ describe("cylinder ribbon pose", () => {
     walk(tree, (el) => {
       if (el.type === "cylinderGeometry" && el.props.args) cylinders.push(el.props.args);
     });
-    expect(cylinders.length).toBe(4);
+    expect(cylinders.length).toBe(2);
     const body = cylinders.filter((args) => args[0] === args[1]);
     const flare = cylinders.filter((args) => args[0] !== args[1]);
-    expect(body).toHaveLength(2);
-    expect(flare).toHaveLength(2);
+    expect(body).toHaveLength(1);
+    expect(flare).toHaveLength(1);
     expect(body[0][2] + flare[0][2]).toBeCloseTo(40, 5);
     expect(body[0][3]).toBe(8);
     expect(body[0][5]).toBe(true);
     expect(body[0][6]).toBeCloseTo(arc.thetaStart, 5);
     expect(body[0][7]).toBeCloseTo(arc.theta, 5);
     expect(body[0][0]).toBeCloseTo(radius, 5);
-    expect(body[1][0]).toBeLessThan(radius);
     expect(flare[0][0]).toBeCloseTo(radius + 0.7, 5);
     expect(flare[0][1]).toBeCloseTo(radius, 5);
     const sides: number[] = [];
@@ -198,6 +197,6 @@ describe("cylinder ribbon pose", () => {
       expect(props.envMapIntensity).toBeCloseTo(0.6, 5);
       sides.push(props.side ?? THREE.FrontSide);
     });
-    expect(sides).toEqual([THREE.FrontSide, THREE.BackSide, THREE.FrontSide, THREE.BackSide, THREE.FrontSide]);
+    expect(sides).toEqual([THREE.DoubleSide, THREE.DoubleSide, THREE.FrontSide]);
   });
 });

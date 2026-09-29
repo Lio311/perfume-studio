@@ -410,7 +410,6 @@ export default function App() {
         <TopBar />
         <Library />
         <div className="stage-slot">
-          <BudgetMeter onSavings={() => setSavingsOpen(true)} />
           <div style={{ position: 'absolute', top: 12, right: 12, display: 'flex', gap: 8, pointerEvents: 'auto', zIndex: 10 }} dir={lang === "he" ? "rtl" : "ltr"}>
             <button type="button" className="icon-btn" style={{ background: 'var(--bg)' }} onClick={() => undo()} disabled={past === 0}>{t.undo}</button>
             <button type="button" className="icon-btn" style={{ background: 'var(--bg)' }} onClick={() => redo()} disabled={future === 0}>{t.redo}</button>
@@ -463,6 +462,7 @@ export default function App() {
           <Dock />
         </div>
         <div className={`side-col ${sideOpen ? "is-open" : ""}`}>
+          <BudgetMeter onSavings={() => setSavingsOpen(true)} />
           <Inspector />
           {/* <ChatPanel /> */}
         </div>

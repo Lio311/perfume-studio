@@ -18,7 +18,9 @@ describe("studio splash", () => {
     noteAppMounted();
     expect(document.getElementById("studio-splash")).toBe(splash);
     expect(splash.classList.contains("is-out")).toBe(false);
+    sessionStorage.setItem("perfume-lab-preload-reloaded", "1");
     noteStudioFrame();
+    expect(sessionStorage.getItem("perfume-lab-preload-reloaded")).toBeNull();
     expect(splash.classList.contains("is-out")).toBe(true);
     splash.dispatchEvent(new Event("transitionend"));
     expect(document.getElementById("studio-splash")).toBeNull();
