@@ -34,6 +34,9 @@ export function tubeBaseHeight(dims: ClosureDims): number {
 /** How far the sleeve mesh overlaps the base so the closed seam does not flash. */
 const TUBE_SLEEVE_SEAM = 0.4;
 
+/** Sleeve radius past the base, so the shared seam does not z-fight. */
+export const TUBE_SLEEVE_RADIUS_GAP = 0.05;
+
 /** Sleeve length, including the seam tucked into the base. */
 export function tubeSleeveHeight(dims: ClosureDims): number {
   return Math.max(tubeWall(dims), dims.h - tubeBaseHeight(dims) + TUBE_SLEEVE_SEAM);

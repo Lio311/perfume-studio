@@ -10,6 +10,7 @@ import type { ViewPreset } from "../store/labStore.ts";
 import { Assembly } from "./Assembly.tsx";
 import { releaseFocus } from "./focusClick.ts";
 import { isKnownPack } from "../model/boxFields.ts";
+import { BOX_CLOSED_CAM_X, BOX_CLOSED_CAM_Y, BOX_CLOSED_CAM_Z } from "./boxCamera.ts";
 import { boxCameraSnap } from "./boxOrbit.ts";
 import { assemblyBounds, BOX_FILL, boxViewportFrame, fitPose, FOCUS_FILL, orbitLimits, partBounds, readStageFrame } from "./framing.ts";
 import { prefersReducedMotion } from "./motion.ts";
@@ -229,7 +230,7 @@ function CameraRig() {
     const framed = dir.clone();
     const refit = dir.distanceTo(direction.current) < 1e-3;
     if (canned) {
-      framed.set(state.boxOpen ? 0.82 : 0.72, state.boxOpen ? 0.95 : 0.46, state.boxOpen ? 0.78 : 1);
+      framed.set(state.boxOpen ? 0.82 : BOX_CLOSED_CAM_X, state.boxOpen ? 0.95 : BOX_CLOSED_CAM_Y, state.boxOpen ? 0.78 : BOX_CLOSED_CAM_Z);
     } else if (boxScene && pullBack <= 1 && refit) {
       const live = camera.position.clone().sub(look.current);
       if (live.length() > 8) framed.copy(live);

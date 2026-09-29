@@ -7,6 +7,19 @@ export function drawerTrayFront(h: number, wall: number): { trayH: number; y: nu
   return { trayH: opening - 0.8, y: wall + 0.2, opening };
 }
 
+/** Insert wall thickness inside the drawer tray. */
+export function drawerTrayWall(wall: number): number {
+  return Math.max(1.2, wall * 0.85);
+}
+
+/**
+ * Extra Y on the tray group so the bottle meets the insert floor.
+ * The tray front and the insert wall sit above the group; the board is already in the seat.
+ */
+export function drawerInsertSeatOffset(wall: number, board: number): number {
+  return drawerTrayFront(0, wall).y + drawerTrayWall(wall) - board;
+}
+
 /** Half-torus radius plus the tube, the distance the pull hangs below its center. */
 export const DRAWER_RIBBON_REACH = 8 + 0.85;
 
@@ -23,7 +36,7 @@ const Drawer: ClosureBuilder = ({ fit, dims, bind, ribbon, pullTab, latch, drawe
   const trayH = front.trayH;
   const trayW = dims.w - dims.wall * 2.6;
   const trayD = dims.d - dims.wall * 2.2;
-  const trayWall = Math.max(1.2, dims.wall * 0.85);
+  const trayWall = drawerTrayWall(dims.wall);
   const pull = drawerRibbonPose(drawerPull, trayH, trayD, dims.wall);
   return (
     <group>

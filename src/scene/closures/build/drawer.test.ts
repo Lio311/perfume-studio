@@ -5,7 +5,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { PullRibbon } from "../kit.tsx";
-import { DRAWER_RIBBON_REACH, drawerRibbonPose, drawerTrayFront } from "./drawer.tsx";
+import { DRAWER_RIBBON_REACH, drawerInsertSeatOffset, drawerRibbonPose, drawerTrayFront, drawerTrayWall } from "./drawer.tsx";
 
 describe("drawer front", () => {
   it("covers the sleeve opening when closed", () => {
@@ -17,6 +17,11 @@ describe("drawer front", () => {
     expect(front.y).toBeCloseTo(wall + 0.2, 5);
     expect(front.y).toBeGreaterThan(wall);
     expect(front.y + front.trayH).toBeLessThan(height - wall);
+    const board = 2.2;
+    const offset = drawerInsertSeatOffset(wall, board);
+    expect(offset).toBeCloseTo(front.y + drawerTrayWall(wall) - board, 5);
+    expect(offset).toBeGreaterThan(1.5);
+    expect(offset).toBeLessThan(3);
   });
 
   it("renders a ribbon when the pull is ribbon", () => {

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { bottleById } from "../catalog.ts";
 import { createDefaultDesign } from "../design.ts";
 import { computeFit } from "../fit.ts";
-import spec, { tubeBaseHeight, tubeOpenSleeveBottom, tubeSleeveHeight } from "./tube.ts";
+import spec, { TUBE_SLEEVE_RADIUS_GAP, tubeBaseHeight, tubeOpenSleeveBottom, tubeSleeveHeight } from "./tube.ts";
 import { closureDims } from "./types.ts";
 
 describe("open tube", () => {
@@ -21,5 +21,6 @@ describe("open tube", () => {
     expect(openBottom).toBeGreaterThan(capTop);
     const visible = Math.min(openBottom, glassTop) - Math.max(base, fit.seatY);
     expect(visible / bottleH).toBeGreaterThan(0.6);
+    expect(TUBE_SLEEVE_RADIUS_GAP).toBeCloseTo(0.05, 5);
   });
 });

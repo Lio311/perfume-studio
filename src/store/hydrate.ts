@@ -46,7 +46,7 @@ const EPHEMERAL_KEYS = new Set([
   "viewToken", "focusToken", "libraryOpen", "sideOpen", "modal", "units", "suppliers",
   "voice", "soundOn", "stage", "blueprint", "fullToken", "aimed", "solo", "present",
   "exporting", "palette", "help", "boxOpen", "toast", "shareUrl", "briefEditing", "cutaway", "quality", "tierLock", "packNotices",
-  "wizardPicked", "demoHold",
+  "wizardPicked", "demoHold", "keptTheme",
 ]);
 
 let storageWritesOpen = true;
@@ -699,14 +699,14 @@ const PERSISTED_FIELDS = ["design", "theme", "lang", "chat", "saved", "pending",
  * fields, including `shareUrl`, brief editing, cutaway, quality, and the tier lock, are left out.
  */
 /**
- * Design, undo stack, and theme from before a `?closure=` link.
- * The link still changes the live theme for this visit. The write keeps the previous one.
+ * Design and undo stack from before a `?closure=` link.
+ * The pre-link theme is `keptTheme`, separate from this hold, so an edit can
+ * drop the design snapshot without writing the demo theme.
  */
 export interface DemoHold {
   design: unknown;
   past: unknown;
   future: unknown;
-  theme?: unknown;
 }
 
 function isDemoHold(value: unknown): value is DemoHold {
@@ -725,7 +725,6 @@ export function demoSessionHold(state: object): DemoHold {
     design: source.design,
     past: source.past ?? [],
     future: source.future ?? [],
-    theme: source.theme,
   };
 }
 
@@ -744,10 +743,8 @@ export function partializeLabState(state: object): Record<string, unknown> {
     if (value === undefined || typeof value === "function") continue;
     out[key] = value;
   }
-  if (isDemoHold(source.demoHold)) {
-    out.design = source.demoHold.design;
-    if (source.demoHold.theme !== undefined) out.theme = source.demoHold.theme;
-  }
+  if (isDemoHold(source.demoHold)) out.design = source.demoHold.design;
+  if (source.keptTheme === "light" || source.keptTheme === "dark") out.theme = source.keptTheme;
   return out;
 }
 

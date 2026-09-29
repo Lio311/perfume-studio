@@ -864,11 +864,12 @@ describe("saved design hydration", () => {
     const saved = createDefaultDesign();
     saved.label = { ...saved.label, text: "KEPT" };
     saved.box = { ...saved.box, color: "#112233" };
-    const before = { ...slice(saved), theme: "dark" as const, demoHold: null, stage: "bottle", boxOpen: false };
+    const before = { ...slice(saved), theme: "dark" as const, keptTheme: null, demoHold: null, stage: "bottle", boxOpen: false };
     const hold = demoSessionHold(before);
     expect((hold.design as Design).label.text).toBe("KEPT");
     expect(hold.past).toEqual([]);
     expect(hold.future).toEqual([]);
+    expect("theme" in hold).toBe(false);
     const shot = createDefaultDesign();
     shot.step = 7;
     shot.label = { ...shot.label, text: "SHOT" };
@@ -878,6 +879,7 @@ describe("saved design hydration", () => {
       ...before,
       design: shot,
       theme: "light" as const,
+      keptTheme: "dark" as const,
       lang: "en" as const,
       chat: [{ id: "m1", role: "user" as const, text: "שלום" }],
       saved: [sketch],
@@ -896,6 +898,7 @@ describe("saved design hydration", () => {
     expect(written.chat).toEqual(during.chat);
     expect(written.saved).toEqual([sketch]);
     expect("demoHold" in written).toBe(false);
+    expect("keptTheme" in written).toBe(false);
     expect("stage" in written).toBe(false);
     expect("past" in written).toBe(false);
     const again = demoSessionHold(during);
@@ -903,13 +906,14 @@ describe("saved design hydration", () => {
     expect((partializeLabState({ ...during, design: shot, theme: "light", demoHold: again }).design as Design).label.text).toBe("KEPT");
 
     const prior = useLab.getState();
-    useLab.setState({ design: shot, theme: "light", saved: [sketch], demoHold: hold });
+    useLab.setState({ design: shot, theme: "light", keptTheme: "dark", saved: [sketch], demoHold: hold });
     expect(partializeLabState(useLab.getState()).saved).toEqual([sketch]);
     useLab.getState().patch("label", { text: "EDIT" });
     expect(useLab.getState().demoHold).toBeNull();
+    expect(useLab.getState().keptTheme).toBe("dark");
     expect((partializeLabState(useLab.getState()).design as Design).label.text).toBe("EDIT");
-    expect(partializeLabState(useLab.getState()).theme).toBe("light");
-    useLab.setState({ design: prior.design, theme: prior.theme, saved: prior.saved, demoHold: null, past: prior.past, future: prior.future });
+    expect(partializeLabState(useLab.getState()).theme).toBe("dark");
+    useLab.setState({ design: prior.design, theme: prior.theme, saved: prior.saved, demoHold: null, keptTheme: null, past: prior.past, future: prior.future });
   });
 
   it("keeps the pre-link design after a save while the hold is set", () => {
@@ -930,7 +934,74 @@ describe("saved design hydration", () => {
     expect((partializeLabState(useLab.getState()).design as Design).label.text).toBe("KEPT");
     useLab.getState().applyCommands([{ type: "text", text: "EDIT" }]);
     expect(useLab.getState().demoHold).toBeNull();
-    useLab.setState({ design: prior.design, theme: prior.theme, saved: prior.saved, demoHold: null, past: prior.past, future: prior.future });
+    useLab.setState({ design: prior.design, theme: prior.theme, saved: prior.saved, demoHold: null, keptTheme: null, past: prior.past, future: prior.future });
+  });
+
+  function memoryStorage() {
+    const memory = new Map<string, string>();
+    vi.stubGlobal("localStorage", {
+      getItem: (key: string) => memory.get(key) ?? null,
+      setItem: (key: string, value: string) => {
+        memory.set(key, value);
+      },
+      removeItem: (key: string) => {
+        memory.delete(key);
+      },
+      key: (index: number) => [...memory.keys()][index] ?? null,
+      get length() {
+        return memory.size;
+      },
+    });
+    vi.stubGlobal("document", {
+      documentElement: {
+        dataset: {},
+        style: { setProperty() {}, colorScheme: "" },
+      },
+    });
+    return memory;
+  }
+
+  it("keeps a theme chosen with setTheme during the hold, after reload", async () => {
+    const memory = memoryStorage();
+    const prior = useLab.getState();
+    const saved = createDefaultDesign();
+    saved.label = { ...saved.label, text: "KEPT" };
+    const hold = demoSessionHold({ design: saved, past: [], future: [] });
+    const shot = createDefaultDesign();
+    shot.label = { ...shot.label, text: "SHOT" };
+    useLab.setState({ design: shot, theme: "light", keptTheme: "dark", demoHold: hold, past: [], future: [] });
+    useLab.getState().setTheme("light");
+    expect(useLab.getState().keptTheme).toBeNull();
+    expect(useLab.getState().demoHold).toBe(hold);
+    const written = JSON.parse(memory.get("perfume-lab-v1") ?? "{}") as { state: { theme: string } };
+    expect(written.state.theme).toBe("light");
+    expect(JSON.stringify(written)).not.toContain("keptTheme");
+    await useLab.persist.rehydrate();
+    expect(useLab.getState().theme).toBe("light");
+    useLab.setState({ design: prior.design, theme: prior.theme, saved: prior.saved, demoHold: null, keptTheme: null, past: prior.past, future: prior.future });
+  });
+
+  it("keeps the pre-link theme after an edit, after reload", async () => {
+    const memory = memoryStorage();
+    const prior = useLab.getState();
+    const saved = createDefaultDesign();
+    saved.label = { ...saved.label, text: "KEPT" };
+    const hold = demoSessionHold({ design: saved, past: [], future: [] });
+    const shot = createDefaultDesign();
+    shot.label = { ...shot.label, text: "SHOT" };
+    useLab.setState({ design: shot, theme: "light", keptTheme: "dark", demoHold: hold, past: [], future: [] });
+    useLab.getState().patch("label", { text: "EDIT" });
+    expect(useLab.getState().demoHold).toBeNull();
+    expect(useLab.getState().theme).toBe("light");
+    expect(useLab.getState().keptTheme).toBe("dark");
+    const written = JSON.parse(memory.get("perfume-lab-v1") ?? "{}") as { state: { theme: string; design: Design } };
+    expect(written.state.theme).toBe("dark");
+    expect(written.state.design.label.text).toBe("EDIT");
+    expect(JSON.stringify(written)).not.toContain("keptTheme");
+    await useLab.persist.rehydrate();
+    expect(useLab.getState().theme).toBe("dark");
+    expect(useLab.getState().design.label.text).toBe("EDIT");
+    useLab.setState({ design: prior.design, theme: prior.theme, saved: prior.saved, demoHold: null, keptTheme: null, past: prior.past, future: prior.future });
   });
 });
 

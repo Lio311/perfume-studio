@@ -6,6 +6,7 @@ import type { Fit } from "../../../model/fit.ts";
 import { useLab } from "../../../store/labStore.ts";
 import { prismFrontFacet } from "../prism.ts";
 import { trayLiftNow } from "../../trayLift.ts";
+import { TubeMark } from "../tubeMark.tsx";
 import { BrandMark, InsertBlock, InsertFinish, Magnet, MARK_FACE_GAP, PrismMesh, PullTab, Ribbon, Skin, Tub } from "../kit.tsx";
 import type { ClosureBuilder } from "../types.ts";
 
@@ -108,6 +109,7 @@ const LiftOff: ClosureBuilder = ({ form, fit, spec, dims, bind, ribbon, pullTab,
   const telescope = !shoulder && dims.lidH >= dims.h * 0.9;
   const trayH = telescope ? Math.max(dims.wall * 6, dims.h * 0.38) : dims.baseH;
   if (shape.type === "cylinder" || shape.type === "polygon") {
+    const cylinder = shape.type === "cylinder";
     const sides = shape.type === "polygon" ? Math.min(12, Math.max(3, Math.round(shape.sides ?? 8))) : 48;
     const radius = Math.min(dims.w, dims.d) / 2 - 0.4;
     const wall = Math.max(dims.wall, 1.6);
@@ -115,8 +117,8 @@ const LiftOff: ClosureBuilder = ({ form, fit, spec, dims, bind, ribbon, pullTab,
     const neckR = Math.max(inner * 0.86, radius * 0.62);
     const lidR = radius + 0.7;
     const lidInner = Math.max(lidR - wall, lidR * 0.78);
-    const face = octagonMarkPlacement(lidR, sides);
-    const baseFace = octagonMarkPlacement(radius, sides);
+    const face = cylinder ? null : octagonMarkPlacement(lidR, sides);
+    const baseFace = cylinder ? null : octagonMarkPlacement(radius, sides);
     return (
       <group>
         <PrismMesh radius={radius - 0.15} inner={0} height={dims.wall} sides={sides} />
@@ -126,10 +128,12 @@ const LiftOff: ClosureBuilder = ({ form, fit, spec, dims, bind, ribbon, pullTab,
         <group ref={bind("lid")} userData={{ hinge: "lid" }} position={lid}>
           <PrismMesh radius={lidR} inner={lidInner} height={Math.max(wall, dims.lidH - dims.wall)} sides={sides} />
           <PrismMesh radius={lidR} inner={0} height={dims.wall} sides={sides} y={Math.max(0, dims.lidH - dims.wall)} />
-          {telescope && <BrandMark w={face.width} y={dims.lidH * 0.55} z={face.z} />}
-          {pullTab && <PullTab w={Math.min(dims.w, face.width)} z={face.z} />}
+          {cylinder && telescope && <TubeMark radius={lidR} y={dims.lidH * 0.55} />}
+          {face && telescope && <BrandMark w={face.width} y={dims.lidH * 0.55} z={face.z} />}
+          {pullTab && <PullTab w={Math.min(dims.w, face?.width ?? radius)} z={face?.z ?? lidR} />}
         </group>
-        {!telescope && <BrandMark w={baseFace.width} y={trayH * 0.55} z={baseFace.z} />}
+        {cylinder && !telescope && <TubeMark radius={radius} y={trayH * 0.55} />}
+        {baseFace && !telescope && <BrandMark w={baseFace.width} y={trayH * 0.55} z={baseFace.z} />}
         {tied && <Ribbon w={dims.w} h={dims.h * 0.42} d={radius * 2 + (telescope ? 2.4 : 0)} y={dims.h * 0.28} />}
       </group>
     );

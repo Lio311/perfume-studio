@@ -11,6 +11,7 @@ import { useLab } from "../store/labStore.ts";
 import { ClipSync, OuterSkin } from "./closures/kit.tsx";
 import { builderFor } from "./closures/registry.ts";
 import type { GroupBind } from "./closures/types.ts";
+import { drawerInsertSeatOffset } from "./closures/build/drawer.tsx";
 import { insertSeatNow, trayLiftNow } from "./trayLift.ts";
 
 export function ClosureBox({ form, fit }: { form: BoxForm; fit: Fit }) {
@@ -81,6 +82,7 @@ export function ClosureBox({ form, fit }: { form: BoxForm; fit: Fit }) {
   const applyPose = (poseAmount: number) => {
     const current = specRef.current;
     const live = fitRef.current;
+    let wall = live.boardMm;
     if (current) {
       const layout = layoutRef.current;
       const prev = dimMemo.current;
@@ -108,6 +110,7 @@ export function ClosureBox({ form, fit }: { form: BoxForm; fit: Fit }) {
           value: dims,
         };
       }
+      wall = dims.wall;
       writeChannels(current, groups.current, dims, poseAmount);
     }
     const outer = sleeveRef.current;
@@ -127,7 +130,7 @@ export function ClosureBox({ form, fit }: { form: BoxForm; fit: Fit }) {
     const tray = current?.id === "drawer" ? groups.current.tray : null;
     if (tray) {
       insertSeatNow.x = tray.position.x;
-      insertSeatNow.y = tray.position.y;
+      insertSeatNow.y = tray.position.y + drawerInsertSeatOffset(wall, live.boardMm);
       insertSeatNow.z = tray.position.z;
       insertSeatNow.active = true;
     } else {
