@@ -40,6 +40,19 @@ export function orbitLimits(radius: number, fovDeg: number): { min: number; max:
   };
 }
 
+/** Space kept clear under the gesture hint. */
+export const STAGE_HINT_MARGIN = 36;
+/** Fallback clearance when the dock has not been measured yet. */
+export const STAGE_DOCK_MARGIN = 108;
+
+/** Open slot between the hint row and the dock. Dock height is added to the bottom margin. */
+export function stageOpenSlot(stageTop: number, stageHeight: number, dockHeight = 0): { openTop: number; openHeight: number } {
+  const openTop = stageTop + STAGE_HINT_MARGIN;
+  const dock = Math.max(0, dockHeight);
+  const openHeight = Math.max(120, stageHeight - STAGE_HINT_MARGIN - STAGE_DOCK_MARGIN - dock);
+  return { openTop, openHeight };
+}
+
 export function readStageFrame(canvas: HTMLCanvasElement): StageFrame {
   const canvasRect = canvas.getBoundingClientRect();
   const width = canvasRect.width || canvas.clientWidth || 1;
@@ -50,8 +63,9 @@ export function readStageFrame(canvas: HTMLCanvasElement): StageFrame {
   const stageWidth = slot && slot.width > 80 ? slot.width : width * 0.6;
   const stageHeight = slot && slot.height > 80 ? slot.height : height * 0.76;
   const gutter = gutterFor(stageWidth);
-  const openTop = stageTop + 36;
-  const openHeight = Math.max(120, stageHeight - 36 - 108);
+  const dock = document.querySelector(".dock")?.getBoundingClientRect();
+  const dockHeight = dock && dock.height > 0 ? dock.height : 0;
+  const { openTop, openHeight } = stageOpenSlot(stageTop, stageHeight, dockHeight);
   return { width, height, stageLeft, stageTop, stageWidth, stageHeight, gutter, openTop, openHeight };
 }
 

@@ -6,7 +6,7 @@ import { encodeShareDesign } from "../../model/share.ts";
 import { demoSessionHold, partializeLabState } from "../../store/hydrate.ts";
 import { useLab } from "../../store/labStore.ts";
 import { getUnboxPlayback } from "./playback.ts";
-import { playUnboxing, resetUnboxForTests, skipUnboxing } from "./play.ts";
+import { advanceUnboxForTests, playUnboxing, resetUnboxForTests, skipUnboxing } from "./play.ts";
 
 afterEach(() => {
   resetUnboxForTests();
@@ -21,12 +21,12 @@ afterEach(() => {
 });
 
 describe("cinematic unboxing playback", () => {
-  it("skips to the open pose without touching the saved design", () => {
+  it("skips to the open pose without touching the saved design", async () => {
     const design = useLab.getState().design;
     const hold = demoSessionHold(useLab.getState());
     useLab.setState({ stage: "box", boxOpen: false, demoHold: hold });
     const shared = encodeShareDesign(design);
-    playUnboxing({ reducedMotion: false });
+    await playUnboxing({ reducedMotion: false });
     expect(getUnboxPlayback().phase).toBe("playing");
     skipUnboxing();
     expect(getUnboxPlayback().phase).toBe("idle");
@@ -44,9 +44,9 @@ describe("cinematic unboxing playback", () => {
     expect(stored.design).toBe(hold.design);
   });
 
-  it("jumps straight to the open pose when reduced motion is requested", () => {
+  it("jumps straight to the open pose when reduced motion is requested", async () => {
     const design = useLab.getState().design;
-    playUnboxing({ reducedMotion: true });
+    await playUnboxing({ reducedMotion: true });
     expect(getUnboxPlayback().phase).toBe("idle");
     expect(getUnboxPlayback().openAmount).toBe(1);
     expect(getUnboxPlayback().ribbon).toBe(0);
@@ -56,7 +56,7 @@ describe("cinematic unboxing playback", () => {
     expect(partializeLabState(useLab.getState()).boxOpen).toBeUndefined();
   });
 
-  it("follows prefers-reduced-motion and does not play a timeline", () => {
+  it("follows prefers-reduced-motion and does not play a timeline", async () => {
     window.matchMedia = ((query: string) => ({
       matches: query.includes("prefers-reduced-motion"),
       media: query,
@@ -68,18 +68,18 @@ describe("cinematic unboxing playback", () => {
       onchange: null,
     })) as typeof window.matchMedia;
     const design = useLab.getState().design;
-    playUnboxing();
+    await playUnboxing();
     expect(getUnboxPlayback().phase).toBe("idle");
     expect(getUnboxPlayback().openAmount).toBe(1);
     expect(useLab.getState().boxOpen).toBe(true);
     expect(useLab.getState().design).toBe(design);
   });
 
-  it("replays from an open carton and skip still lands on the open pose", () => {
+  it("replays from an open carton and skip still lands on the open pose", async () => {
     const design = useLab.getState().design;
-    playUnboxing({ reducedMotion: true });
+    await playUnboxing({ reducedMotion: true });
     expect(useLab.getState().boxOpen).toBe(true);
-    playUnboxing({ reducedMotion: false });
+    await playUnboxing({ reducedMotion: false });
     expect(getUnboxPlayback().phase).toBe("playing");
     expect(getUnboxPlayback().openAmount).toBeGreaterThan(0.5);
     skipUnboxing();
@@ -87,10 +87,44 @@ describe("cinematic unboxing playback", () => {
     expect(getUnboxPlayback().openAmount).toBeCloseTo(1);
     expect(useLab.getState().boxOpen).toBe(true);
     expect(useLab.getState().design).toBe(design);
-    playUnboxing({ reducedMotion: false });
+    await playUnboxing({ reducedMotion: false });
     expect(getUnboxPlayback().phase).toBe("playing");
     skipUnboxing();
     expect(getUnboxPlayback().openAmount).toBeCloseTo(1);
     expect(getUnboxPlayback().phase).toBe("idle");
+  });
+
+  it("stays closed when the box is closed a second into the opening", async () => {
+    useLab.setState({ stage: "box", boxOpen: true });
+    await playUnboxing({ reducedMotion: false });
+    expect(getUnboxPlayback().phase).toBe("playing");
+    advanceUnboxForTests(1);
+    expect(getUnboxPlayback().phase).toBe("playing");
+    const mid = getUnboxPlayback().openAmount;
+    useLab.getState().setBoxOpen(false);
+    advanceUnboxForTests(8);
+    expect(useLab.getState().boxOpen).toBe(false);
+    expect(useLab.getState().stage).toBe("box");
+    expect(getUnboxPlayback().phase).toBe("idle");
+    expect(getUnboxPlayback().openAmount).toBe(0);
+    expect(getUnboxPlayback().camera).toBe(0);
+    expect(getUnboxPlayback().cameraToken).toBe(0);
+    expect(mid).toBeGreaterThan(0);
+  });
+
+  it("stays on the bottle tab when the stage changes a second into the opening", async () => {
+    useLab.setState({ stage: "box", boxOpen: false });
+    await playUnboxing({ reducedMotion: false });
+    expect(getUnboxPlayback().phase).toBe("playing");
+    advanceUnboxForTests(1);
+    expect(getUnboxPlayback().openAmount).toBeGreaterThan(0);
+    useLab.getState().setStage("bottle");
+    advanceUnboxForTests(8);
+    expect(useLab.getState().stage).toBe("bottle");
+    expect(useLab.getState().boxOpen).toBe(false);
+    expect(getUnboxPlayback().phase).toBe("idle");
+    expect(getUnboxPlayback().openAmount).toBe(0);
+    expect(getUnboxPlayback().camera).toBe(0);
+    expect(getUnboxPlayback().cameraToken).toBe(0);
   });
 });

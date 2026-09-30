@@ -115,8 +115,9 @@ function playCinematic(playing: boolean): void {
   }
   if (unboxLoad) return;
   unboxLoad = import("../scene/unbox/play.ts")
-    .then((mod) => {
-      mod.playUnboxing();
+    .then((mod) => mod.playUnboxing())
+    .catch(() => {
+      useLab.getState().setBoxOpen(true);
     })
     .finally(() => {
       unboxLoad = null;

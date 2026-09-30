@@ -21,6 +21,8 @@ export interface UnboxPlayback {
   camera: number;
   runToken: number;
   cameraToken: number;
+  /** False while the hero frame is held. Orbit or another gesture sets it true. */
+  heroReleased: boolean;
   look: UnboxLook | null;
   snap: UnboxLook | null;
 }
@@ -40,6 +42,7 @@ const playback: UnboxPlayback = {
   camera: 0,
   runToken: 0,
   cameraToken: 0,
+  heroReleased: true,
   look: null,
   snap: null,
 };
@@ -78,6 +81,7 @@ export function resetUnboxPlayback(): void {
   playback.camera = 0;
   playback.runToken = 0;
   playback.cameraToken = 0;
+  playback.heroReleased = true;
   playback.look = null;
   playback.snap = null;
   notifyUnbox();
