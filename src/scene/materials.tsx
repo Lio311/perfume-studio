@@ -265,8 +265,8 @@ export function FinishMaterial({
       color={color}
       flatShading={flat}
       map={wood ?? paper?.map ?? undefined}
-      bumpMap={leather ?? paper?.bump ?? undefined}
-      bumpScale={leather ? 0.35 : paper ? 0.55 : 0}
+      bumpMap={leather ?? paper?.bump ?? wood ?? undefined}
+      bumpScale={leather ? 0.35 : paper ? 0.55 : wood ? 0.15 : 0}
       emissive="#000000"
       emissiveIntensity={0}
       metalness={metal ? 1 : 0}

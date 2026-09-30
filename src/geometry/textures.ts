@@ -22,11 +22,11 @@ let shadow: THREE.CanvasTexture | null = null;
 
 export function woodMap(): THREE.CanvasTexture {
   wood ??= canvasTexture((ctx, s) => {
-    ctx.fillStyle = "#8d5d3c";
+    ctx.fillStyle = "#ffffff";
     ctx.fillRect(0, 0, s, s);
     for (let i = 0; i < 90; i++) {
       const y = (i / 90) * s + Math.sin(i) * 2;
-      ctx.strokeStyle = `rgba(${40 + (i % 5) * 8}, ${22 + (i % 3) * 4}, 12, ${0.15 + (i % 4) * 0.08})`;
+      ctx.strokeStyle = `rgba(0, 0, 0, ${0.05 + (i % 4) * 0.08})`;
       ctx.lineWidth = 1 + (i % 3);
       ctx.beginPath();
       ctx.moveTo(0, y);
