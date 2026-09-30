@@ -390,6 +390,7 @@ const JUICE_FRAG = `
   uniform float uFade;
   uniform float uTop;
   void main() {
+    if (vY > uTop) discard;
     vec3 N = normalize(vNormal);
     vec3 V = normalize(cameraPosition - vWorld);
     float ndv = max(dot(N, V), 0.0);

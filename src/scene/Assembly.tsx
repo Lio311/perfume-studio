@@ -1,5 +1,36 @@
-import { useContext, useEffect, useLayoutEffect, useMemo, useRef, type ReactNode } from "react";
+import { useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useFrame } from "@react-three/fiber";
+
+function useThrottled<T>(value: T, limitMs: number, active: boolean): T {
+  const [throttledValue, setThrottledValue] = useState(value);
+  const lastUpdate = useRef(performance.now());
+  const timeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (!active) {
+      if (timeout.current) clearTimeout(timeout.current);
+      setThrottledValue(value);
+      return;
+    }
+    const now = performance.now();
+    const elapsed = now - lastUpdate.current;
+    if (elapsed >= limitMs) {
+      if (timeout.current) clearTimeout(timeout.current);
+      setThrottledValue(value);
+      lastUpdate.current = now;
+    } else {
+      if (!timeout.current) {
+        timeout.current = setTimeout(() => {
+          setThrottledValue(value);
+          lastUpdate.current = performance.now();
+          timeout.current = null;
+        }, limitMs - elapsed);
+      }
+    }
+  }, [value, limitMs, active]);
+
+  return active ? throttledValue : value;
+}
 import { RoundedBox } from "@react-three/drei";
 import * as THREE from "three";
 import { bottleById, boxById, capById, collarById, logoById, pumpById, resolvedLabelApplication } from "../model/catalog.ts";
@@ -212,12 +243,12 @@ function PartShell({
   );
 }
 
-function GoldRim({ part, stamp, hull = true }: { part: PartKey; stamp: string; hull?: boolean }) {
+function GoldRim({ part, hull = true }: { part: PartKey; hull?: boolean }) {
   const ref = useRef<THREE.Group>(null);
   const built = useRef("");
   useLayoutEffect(() => {
     built.current = "";
-  }, [stamp]);
+  }, []);
   useEffect(() => {
     return () => {
       if (!ref.current) return;
@@ -234,8 +265,8 @@ function GoldRim({ part, stamp, hull = true }: { part: PartKey; stamp: string; h
     const group = ref.current;
     const mesh = group?.parent as THREE.Mesh | undefined;
     if (!group || !mesh?.geometry) return;
-    if (built.current !== stamp) {
-      built.current = stamp;
+    if (built.current !== mesh.geometry.uuid) {
+      built.current = mesh.geometry.uuid;
       for (const child of group.children) {
         const line = child as THREE.LineSegments;
         if (line.geometry && line.geometry !== mesh.geometry) line.geometry.dispose();
@@ -385,6 +416,10 @@ function BottlePart() {
   const design = useLab((s) => s.design);
   const stage = useLab((s) => s.stage);
   const boxOpen = useLab((s) => s.boxOpen);
+  const gesturing = useLab((s) => s.gesturing);
+  const widthMm = useThrottled(design.bottle.widthMm, 32, gesturing);
+  const depthMm = useThrottled(design.bottle.depthMm, 32, gesturing);
+  const heightMm = useThrottled(design.bottle.heightMm, 32, gesturing);
   const playing = useUnboxPlaying();
   const onStage = contentsOnStage(stage, boxOpen, playing);
   const spec = bottleById(design.bottle.variantId);
@@ -392,9 +427,9 @@ function BottlePart() {
   const geo = useDisposable(
     () =>
       buildBottleGeometry({
-        height: design.bottle.heightMm,
-        width: design.bottle.widthMm,
-        depth: design.bottle.depthMm,
+        height: heightMm,
+        width: widthMm,
+        depth: depthMm,
         section: spec.section,
         softness: spec.softness,
         faceted: spec.faceted,
@@ -403,13 +438,13 @@ function BottlePart() {
         shoulder: spec.shoulder,
         finishMm: spec.finishMm,
       }),
-    [design.bottle.heightMm, design.bottle.widthMm, design.bottle.depthMm, design.bottle.neck, spec],
+    [heightMm, widthMm, depthMm, design.bottle.neck, spec],
   );
   return (
     <PartShell part="bottle" index={5} home={[0, 0, 0]} explode={[0, 0, 0]} visible={design.bottle.visible && onStage} variantKey={spec.id}>
       <mesh geometry={geo} renderOrder={2}>
         <FinishMaterial finish={design.bottle.finish} color={design.bottle.color} opacity={design.bottle.opacity} flat={spec.faceted} glass />
-        <GoldRim part="bottle" stamp={spec.id + design.bottle.finish} hull={!isGlass(design.bottle.finish)} />
+        <GoldRim part="bottle" hull={!isGlass(design.bottle.finish)} />
       </mesh>
     </PartShell>
   );
@@ -419,20 +454,29 @@ function LiquidPart() {
   const design = useLab((s) => s.design);
   const stage = useLab((s) => s.stage);
   const boxOpen = useLab((s) => s.boxOpen);
+  const gesturing = useLab((s) => s.gesturing);
+  const widthMm = useThrottled(design.bottle.widthMm, 32, gesturing);
+  const depthMm = useThrottled(design.bottle.depthMm, 32, gesturing);
+  const heightMm = useThrottled(design.bottle.heightMm, 32, gesturing);
   const playing = useUnboxPlaying();
   const onStage = contentsOnStage(stage, boxOpen, playing);
   const spec = bottleById(design.bottle.variantId);
   const fit = computeFit(design, false);
+  const maxSurface = heightMm - 6;
   const surface = Math.min(
-    design.bottle.heightMm - 6,
-    Math.max(8, 4 + design.liquid.fill * design.bottle.heightMm * 0.7),
+    maxSurface,
+    Math.max(8, 4 + design.liquid.fill * heightMm * 0.7),
   );
+  
+  const plane = useMemo(() => new THREE.Plane(new THREE.Vector3(0, -1, 0), 0), []);
+  plane.constant = surface;
+  
   const geo = useDisposable(
     () =>
       buildBottleGeometry({
-        height: design.bottle.heightMm,
-        width: design.bottle.widthMm,
-        depth: design.bottle.depthMm,
+        height: heightMm,
+        width: widthMm,
+        depth: depthMm,
         section: spec.section,
         softness: spec.softness,
         faceted: spec.faceted,
@@ -442,12 +486,12 @@ function LiquidPart() {
         finishMm: spec.finishMm,
         inset: 2.4,
         closedTop: true,
-        limitY: surface,
+        limitY: maxSurface,
       }),
-    [design.bottle.heightMm, design.bottle.widthMm, design.bottle.depthMm, design.bottle.neck, spec, surface],
+    [heightMm, widthMm, depthMm, design.bottle.neck, spec, maxSurface],
   );
   return (
-    <PartShell part="liquid" index={5} home={[0, 0, 0]} explode={[0, 0, 0]} visible={design.liquid.visible && design.bottle.visible && onStage} variantKey={spec.id + design.liquid.color + surface.toFixed(1)}>
+    <PartShell part="liquid" index={5} home={[0, 0, 0]} explode={[0, 0, 0]} visible={design.liquid.visible && design.bottle.visible && onStage} variantKey={spec.id + design.liquid.color}>
       {/* Writes the liquid's depth before the floor grid so grid lines fail the depth test inside the liquid. Color is drawn later by JuiceMaterial; this mesh never writes color. */}
       <mesh geometry={geo} renderOrder={-1.5} userData={{ liquidDepth: true }} raycast={() => null}>
         <meshBasicMaterial
@@ -456,6 +500,7 @@ function LiquidPart() {
           polygonOffset
           polygonOffsetFactor={1}
           polygonOffsetUnits={1}
+          clippingPlanes={[plane]}
         />
       </mesh>
       <mesh geometry={geo} renderOrder={1}>
@@ -485,7 +530,7 @@ function CapPart() {
     <PartShell part="cap" index={1} home={[0, fit.capBottom, 0]} explode={fit.explode.cap} visible={design.cap.visible && onStage} variantKey={spec.id}>
       <mesh geometry={geo} renderOrder={6}>
         <FinishMaterial finish={design.cap.finish} color={design.cap.color} flat={spec.faceted} glass={glass} />
-        <GoldRim part="cap" stamp={`${spec.id}:${fit.capW.toFixed(1)}:${fit.capH.toFixed(1)}`} />
+        <GoldRim part="cap" />
       </mesh>
     </PartShell>
   );
@@ -519,7 +564,7 @@ function CollarPart() {
       <PartShell part="collar" index={3} home={[0, fit.collarBottom, 0]} explode={fit.explode.collar} visible={design.collar.visible && onStage} variantKey={spec.id + design.bottle.neck}>
         <mesh geometry={lathe} renderOrder={4}>
           <FinishMaterial finish={design.collar.finish} color={design.collar.color} />
-          <GoldRim part="collar" stamp={`${spec.id}:lathe`} />
+          <GoldRim part="collar" />
         </mesh>
         <HitProxy radius={fit.collarOuter + 3} height={fit.collarHeight + 6} />
       </PartShell>
@@ -531,7 +576,7 @@ function CollarPart() {
       <mesh position={[0, y, 0]} renderOrder={4}>
         <cylinderGeometry args={[fit.collarOuter, fit.collarOuter - spec.flareMm * 0.15, fit.collarHeight, spec.knurl ? 48 : 96, 1]} />
         <FinishMaterial finish={design.collar.finish} color={design.collar.color} flat={spec.knurl} />
-        <GoldRim part="collar" stamp={spec.id + design.bottle.neck} />
+        <GoldRim part="collar" />
       </mesh>
       {Array.from({ length: spec.rings }, (_, index) => (
         <mesh key={index} position={[0, 1.2 + (index * (fit.collarHeight - 2)) / Math.max(1, spec.rings), 0]} rotation={[Math.PI / 2, 0, 0]}>
@@ -577,7 +622,7 @@ function PumpPart() {
       <PartShell part="pump" index={2} home={[0, fit.pumpBase, 0]} explode={fit.explode.pump} visible={design.pump.visible && onStage} variantKey={spec.id}>
         <mesh geometry={lathe} renderOrder={5}>
           <FinishMaterial finish={design.pump.finish} color={design.pump.color} />
-          <GoldRim part="pump" stamp={`${spec.id}:lathe`} />
+          <GoldRim part="pump" />
         </mesh>
         <HitProxy radius={Math.max(8, Math.max(fit.actuatorR, fit.headR) * 2)} height={fit.actuatorH + 10} />
       </PartShell>
@@ -636,7 +681,7 @@ function Actuator({
         <mesh position={[0, h * 0.55, 0]} scale={[1, style === "soft" ? 0.8 : 0.9, 1]}>
           <sphereGeometry args={[r, 64, 40]} />
           <FinishMaterial finish={finish} color={color} />
-          <GoldRim part="pump" stamp={`${style}-${h.toFixed(1)}`} />
+          <GoldRim part="pump" />
         </mesh>
       ) : (
         <mesh position={[0, crimp ? (h + 0.12) / 2 : h / 2, 0]}>
@@ -649,7 +694,7 @@ function Actuator({
             ]}
           />
           <FinishMaterial finish={finish} color={color} />
-          <GoldRim part="pump" stamp={`${style}-${h.toFixed(1)}`} />
+          <GoldRim part="pump" />
         </mesh>
       )}
       {style === "screw" &&
@@ -671,6 +716,10 @@ function LabelPart() {
   const design = useLab((s) => s.design);
   const stage = useLab((s) => s.stage);
   const boxOpen = useLab((s) => s.boxOpen);
+  const gesturing = useLab((s) => s.gesturing);
+  const widthMm = useThrottled(design.bottle.widthMm, 32, gesturing);
+  const depthMm = useThrottled(design.bottle.depthMm, 32, gesturing);
+  const heightMm = useThrottled(design.bottle.heightMm, 32, gesturing);
   const playing = useUnboxPlaying();
   const onStage = contentsOnStage(stage, boxOpen, playing);
   const bottle = bottleById(design.bottle.variantId);
@@ -683,9 +732,9 @@ function LabelPart() {
   const canvas = useMemo(() => shared ?? document.createElement("canvas"), [shared]);
   const { color: texture, mask, emissive, normal } = useLabelMaps(canvas, ink, application);
   const plate = useDisposable(() => buildLabelPatch({
-    height: design.bottle.heightMm,
-    width: design.bottle.widthMm,
-    depth: design.bottle.depthMm,
+    height: heightMm,
+    width: widthMm,
+    depth: depthMm,
     section: bottle.section,
     softness: bottle.softness,
     faceted: bottle.faceted,
@@ -696,7 +745,7 @@ function LabelPart() {
     yCenter: fit.labelY,
     patchH: fit.labelH,
     patchW: fit.labelW,
-  }), [fit.labelW, fit.labelH, fit.labelY, fit.neckR, design.bottle.heightMm, design.bottle.widthMm, design.bottle.depthMm, bottle]);
+  }), [fit.labelW, fit.labelH, fit.labelY, fit.neckR, heightMm, widthMm, depthMm, bottle]);
   return (
     <PartShell part="label" index={4} home={[0, fit.labelY, fit.labelZ]} explode={fit.explode.label} visible={design.label.visible && onStage} variantKey={spec.id + design.label.text + bottle.id + application}>
       <mesh geometry={plate} renderOrder={8}>
@@ -709,7 +758,7 @@ function LabelPart() {
           application={application}
           substrate={application === "foil" ? design.bottle.color : undefined}
         />
-        <GoldRim part="label" stamp={spec.id + design.label.text} />
+        <GoldRim part="label" />
       </mesh>
     </PartShell>
   );
@@ -795,7 +844,7 @@ function CartonShell({
       <mesh position={[0, wall / 2, 0]}>
         <boxGeometry args={[w, wall, d]} />
         <FinishMaterial finish={finish} color={color} />
-        <GoldRim part="box" stamp="box" />
+        <GoldRim part="box" />
       </mesh>
       <mesh position={[0, y, -d / 2 + wall / 2]}>
         <boxGeometry args={[w, h, wall]} />
@@ -917,7 +966,7 @@ function BoxFormMesh({
       <group>
         <RoundedBox args={[w, Math.max(16, h * 0.18), d]} radius={2.4} smoothness={8} position={[0, 8, 0]}>
           <FinishMaterial finish={finish} color={color} />
-          <GoldRim part="box" stamp="box" />
+          <GoldRim part="box" />
         </RoundedBox>
         <BottleTray w={w * 0.86} d={d * 0.86} holeW={bottleW} holeD={bottleD} y={Math.max(16, h * 0.18) + 1} />
         <CartonMark w={w} y={Math.max(18, h * 0.18) + 1} z={d / 2 + 0.4} />
@@ -936,7 +985,7 @@ function BoxFormMesh({
           <mesh position={[0, 0, -d / 2 + wall / 2]} onPointerDown={stopLid} onClick={toggleLid}>
             <boxGeometry args={[w, h, wall]} />
             <FinishMaterial finish={finish} color={color} />
-            <GoldRim part="box" stamp="box" />
+            <GoldRim part="box" />
           </mesh>
           <mesh position={[-w / 2 + wall / 2, 0, 0]}><boxGeometry args={[wall, h, d]} /><FinishMaterial finish={finish} color={color} /></mesh>
           <mesh position={[w / 2 - wall / 2, 0, 0]}><boxGeometry args={[wall, h, d]} /><FinishMaterial finish={finish} color={color} /></mesh>
