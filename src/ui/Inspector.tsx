@@ -2,7 +2,7 @@ import { lazy, Suspense, useId } from "react";
 import { formatMoney } from "../budget/money.ts";
 import { bottleById, boxById, capById, collarById, logoById, pumpById, resolvedLabelApplication } from "../model/catalog.ts";
 import { computeFit, fitsContents } from "../model/fit.ts";
-import { FINISHES, PALETTE, LIQUID_PALETTE, effectiveGlassOpacity } from "../model/materials.ts";
+import { FINISHES, UI_FINISHES, PALETTE, LIQUID_PALETTE, effectiveGlassOpacity } from "../model/materials.ts";
 import { NECK_IDS } from "../model/necks.ts";
 import { setUnboxingMuted, useUnboxingTrack } from "../audio/unboxingTrack.ts";
 import { DEFAULT_INSERT_MOTION, INSERT_MATERIALS, OUTER_WRAPS, sleeveOverActive, withInnerStructure, withNeckHeight, withSleeveOver, withSleeveWindow } from "../model/boxFields.ts";
@@ -134,7 +134,7 @@ export function Inspector() {
             <>
               <h3>{t.finish}</h3>
               <div className="chips">
-                {FINISHES.map((finish) => (
+                {UI_FINISHES.map((finish) => (
                   <button
                     key={finish.id}
                     type="button"

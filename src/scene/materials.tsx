@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import type { BoxBoard, FinishId, WrapFinish } from "../model/types.ts";
 import { computeGlassProps, isGlass } from "../model/materials.ts";
-import { leatherBump, woodMap } from "../geometry/textures.ts";
+import { leatherBump, woodMap, fabricBump } from "../geometry/textures.ts";
 import { paperMaps, velvetMaps } from "../geometry/wrapTextures.ts";
 import { useLab } from "../store/labStore.ts";
 import { sectionPlanes } from "./sectionPlane.ts";
@@ -116,18 +116,17 @@ export function FinishMaterial({
 }) {
   const wood = useMemo(() => (finish === "wood" ? woodMap() : null), [finish]);
   const leather = useMemo(() => (finish === "leather" ? leatherBump() : null), [finish]);
+  const fabric = useMemo(() => (finish === "fabric" ? fabricBump() : null), [finish]);
   const paper = useMemo(() => (finish === "matteBlack" ? mattePaper() : null), [finish]);
 
   useEffect(() => {
     return () => {
-      if (wood) wood.dispose();
-      if (leather) leather.dispose();
       if (paper) {
         paper.map.dispose();
         paper.bump.dispose();
       }
     };
-  }, [wood, leather, paper]);
+  }, [paper]);
   const glassLike = glass && isGlass(finish);
   const gp = useMemo(
     () => (glassLike ? computeGlassProps(finish, opacity ?? undefined) : null),
@@ -162,20 +161,20 @@ export function FinishMaterial({
       ref={meshRef}
       color={color}
       flatShading={flat}
-      map={wood ?? paper?.map ?? undefined}
-      bumpMap={leather ?? paper?.bump ?? wood ?? undefined}
-      bumpScale={leather ? 0.35 : paper ? 0.55 : wood ? 0.15 : 0}
+      map={wood ?? paper?.map ?? null}
+      bumpMap={fabric ?? leather ?? paper?.bump ?? wood ?? null}
+      bumpScale={fabric ? 0.15 : leather ? 0.35 : paper ? 0.55 : wood ? 0.15 : 0}
       emissive="#000000"
       emissiveIntensity={0}
       metalness={metal ? 1 : 0}
-      roughness={gp ? gp.roughness : metal ? 0.22 : matte ? 0.68 : finish === "wood" ? 0.7 : 0.84}
-      sheen={matte ? 0.06 : 0}
+      roughness={gp ? gp.roughness : metal ? 0.22 : matte ? 0.68 : finish === "wood" ? 0.7 : finish === "fabric" ? 0.95 : 0.84}
+      sheen={finish === "fabric" ? 1 : matte ? 0.06 : 0}
       sheenRoughness={0.62}
-      sheenColor="#4a4f56"
+      sheenColor={finish === "fabric" ? color : "#4a4f56"}
       transmission={gp ? gp.transmission : 0}
       thickness={gp ? gp.thickness : 0}
       ior={gp ? gp.ior : 1.5}
-      clearcoat={gp ? 1 : metal ? 0.65 : 0.04}
+      clearcoat={gp ? 1 : metal ? 0.65 : finish === "fabric" ? 0 : 0.04}
       clearcoatRoughness={metal ? 0.12 : 0.04}
       attenuationColor={gp ? color : "#fff8ee"}
       attenuationDistance={gp ? 36 : 160}
@@ -241,8 +240,8 @@ export function WrapMaterial({
   return (
     <meshPhysicalMaterial
       color={color}
-      map={pile ? velvet?.map : paper?.map}
-      roughnessMap={pile ? velvet?.rough : paper?.rough}
+      map={pile ? (velvet?.map ?? null) : (paper?.map ?? null)}
+      roughnessMap={pile ? (velvet?.rough ?? null) : (paper?.rough ?? null)}
       metalness={0}
       roughness={surface.roughness}
       clearcoat={gloss ? 0.75 : soft ? 0.16 : 0.06}

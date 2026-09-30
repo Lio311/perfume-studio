@@ -40,7 +40,8 @@ export type FinishId =
   | "rose"
   | "matteBlack"
   | "wood"
-  | "leather";
+  | "leather"
+  | "fabric";
 
 export type VariantPart = "bottle" | "cap" | "label" | "pump" | "collar" | "box";
 

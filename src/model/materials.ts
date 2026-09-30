@@ -11,6 +11,7 @@ export interface FinishDef {
 export const MATTE_BLACK_COLOR = "#141414" as const;
 
 export const FINISHES: FinishDef[] = [
+
   { id: "clear", name: { he: "זכוכית שקופה", en: "Clear glass" }, color: "#f4f0e8", group: "glass" },
   { id: "frosted", name: { he: "זכוכית חלבית", en: "Frosted" }, color: "#f2f2f0", group: "glass" },
   { id: "tinted", name: { he: "זכוכית כהה", en: "Tinted" }, color: "#6e857c", group: "glass" },
@@ -20,7 +21,11 @@ export const FINISHES: FinishDef[] = [
   { id: "matteBlack", name: { he: "שחור מט", en: "Matte black" }, color: MATTE_BLACK_COLOR, group: "solid" },
   { id: "wood", name: { he: "עץ", en: "Wood" }, color: "#8a5a3a", group: "solid" },
   { id: "leather", name: { he: "עור", en: "Leather" }, color: "#6b3c32", group: "solid" },
+  { id: "fabric", name: { he: "בד (Sospiro)", en: "Fabric" }, color: "#3d4b68", group: "solid" },
 ];
+
+
+export const UI_FINISHES = FINISHES.filter(f => !["gold", "silver", "rose", "matteBlack"].includes(f.id));
 
 export const PALETTE = [
   "#f4f0e8",

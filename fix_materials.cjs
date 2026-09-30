@@ -1,5 +1,13 @@
-const fs = require('fs');
-let content = fs.readFileSync('src/scene/materials.tsx', 'utf-8');
-content = content.replace(/<<<<<<< HEAD\n\s*transmission={glassLike \? glassTransmission\(finish, opacity\) : 0}\n=======\n\s*transmission={glassLike \? \(finish === "tinted" \? 1.0 : Math\.max\(0\.01, 1 - actualOpacity\)\) : 0}\n>>>>>>> 81b3d4e.*/, '      transmission={glassLike ? Math.max(0.01, glassTransmission(finish, opacity) ?? 0) : 0}');
-content = content.replace(/<<<<<<< HEAD\n\s*opacity={glassLike \? \(effectiveGlassOpacity\(finish, opacity\) \?\? 1\) : 1}\n=======\n\s*opacity={glassLike \? \(finish === "tinted" \? 1.0 : actualOpacity\) : 1}\n>>>>>>> 81b3d4e.*/, '      opacity={glassLike ? (effectiveGlassOpacity(finish, opacity) ?? 1) : 1}');
-fs.writeFileSync('src/scene/materials.tsx', content);
+const fs = require("fs");
+let src = fs.readFileSync("src/model/materials.ts", "utf8");
+
+src = src.replace(/  \{ id: "leather".*?\},?\n/, `  { id: "leather", name: { he: "עור", en: "Leather" }, color: "#6b3c32", group: "solid" },\n  { id: "fabric", name: { he: "בד (Sospiro)", en: "Fabric" }, color: "#3d4b68", group: "solid" },\n`);
+
+src = src.replace("export const FINISHES: FinishDef[] = [", "export const FINISHES: FinishDef[] = [\n");
+
+// Add UI_FINISHES
+const uiFinishesDef = `\nexport const UI_FINISHES = FINISHES.filter(f => !["gold", "silver", "rose", "matteBlack"].includes(f.id));\n`;
+src = src.replace("export const PALETTE = [", uiFinishesDef + "\nexport const PALETTE = [");
+
+fs.writeFileSync("src/model/materials.ts", src);
+console.log("Done");
