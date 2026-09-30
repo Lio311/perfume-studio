@@ -237,6 +237,80 @@ final class StoreTests: XCTestCase {
         XCTAssertEqual(cleared?.sessionId, sessionId)
     }
 
+    func testUnknownStatusDecodesAsDraftAndStaysInTheList() throws {
+        let store = try makeStore()
+        let partId = UUID()
+        var sequence = CaptureSequence(partId: partId, kind: .label)
+        XCTAssertTrue(sequence.capture(samplePhoto(angle: .front, fileName: "front.jpg")))
+        try store.save(
+            sequence: sequence,
+            images: ["front.jpg": Data([1])],
+            status: .needsReview,
+            now: Date(timeIntervalSince1970: 7)
+        )
+        let url = store.root
+            .appendingPathComponent(partId.uuidString.lowercased(), isDirectory: true)
+            .appendingPathComponent("part.json")
+        var json = try String(contentsOf: url, encoding: .utf8)
+        XCTAssertTrue(json.contains("\"status\":\"needsReview\""))
+        json = json.replacingOccurrences(of: "\"status\":\"needsReview\"", with: "\"status\":\"sent\"")
+        try json.write(to: url, atomically: true, encoding: .utf8)
+
+        let listed = try store.list()
+        XCTAssertEqual(listed.count, 1)
+        XCTAssertEqual(listed[0].sequence.partId, partId)
+        XCTAssertEqual(listed[0].status, .draft)
+        XCTAssertEqual(store.load(partId: partId)?.resolvedStatus, .draft)
+    }
+
+    func testReadySaveRefusesBlockingErrors() throws {
+        let store = try makeStore()
+        let partId = UUID()
+        var sequence = CaptureSequence(partId: partId, kind: .cap)
+        XCTAssertTrue(sequence.capture(samplePhoto(angle: .side, fileName: "side.jpg")))
+        let measurement = DraftMeasurement(
+            widthMm: 25,
+            heightMm: 30,
+            depthMm: 25,
+            lathe: nil,
+            neckOuterDiameterMm: nil,
+            profile: "cylinder",
+            measurements: [],
+            scan: ScanInfo(
+                method: "photo-lathe",
+                capturedAt: "2026-09-29T00:00:00Z",
+                dimsVerifiedBySupplier: false,
+                toleranceMm: 5
+            )
+        )
+        try store.save(
+            sequence: sequence,
+            images: ["side.jpg": Data([9])],
+            measurement: measurement,
+            status: .needsReview,
+            now: Date(timeIntervalSince1970: 8)
+        )
+        let blocked = DraftMeasurement(
+            widthMm: 5,
+            heightMm: 30,
+            depthMm: 25,
+            lathe: nil,
+            neckOuterDiameterMm: nil,
+            profile: "cylinder",
+            measurements: [],
+            scan: measurement.scan
+        )
+        XCTAssertThrowsError(
+            try store.save(sequence: sequence, images: ["side.jpg": Data([8, 8])], measurement: blocked, status: .ready)
+        ) { error in
+            XCTAssertEqual(error as? ScanStoreError, .outboxBlocked)
+        }
+        let kept = store.load(partId: partId)
+        XCTAssertEqual(kept?.status, .needsReview)
+        XCTAssertEqual(kept?.measurement?.widthMm, 25)
+        XCTAssertEqual(try store.imageData(partId: partId, fileName: "side.jpg"), Data([9]))
+    }
+
     private func makeStore() throws -> ScanFileStore {
         ScanFileStore(root: try makeRoot())
     }

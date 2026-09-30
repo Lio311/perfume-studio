@@ -170,6 +170,29 @@ public enum ReviewModel {
         issues(draft).contains { $0.severity == .error }
     }
 
+    /// A price that can be written. Incomplete or invalid input returns nil.
+    /// A successful rebuild keeps `quotedAt` from the price already stored.
+    public static func storedPrice(_ input: ReviewPriceInput?, quotedAt: String? = nil) -> Price? {
+        guard let input,
+              let value = input.value, value > 0,
+              let currency = input.currency,
+              let normalized = PackValidator.normalizeCurrency(currency) else { return nil }
+        if let moq = input.moq, moq < 1 || moq.rounded() != moq { return nil }
+        var tiers: [PriceTier] = []
+        for tier in input.tiers {
+            guard let minQty = tier.minQty, minQty.rounded() == minQty, minQty >= 0,
+                  let tierValue = tier.value, tierValue > 0 else { return nil }
+            tiers.append(PriceTier(minQty: Int(minQty), value: tierValue))
+        }
+        return Price(
+            value: value,
+            currency: normalized,
+            moq: input.moq.map { Int($0) },
+            tiers: tiers.isEmpty ? nil : tiers,
+            quotedAt: quotedAt
+        )
+    }
+
     public static func priceObject(_ price: ReviewPriceInput) -> [String: Any] {
         var object: [String: Any] = [:]
         if let value = price.value { object["value"] = value }

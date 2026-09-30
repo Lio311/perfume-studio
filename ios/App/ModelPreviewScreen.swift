@@ -189,8 +189,9 @@ struct ModelPreviewScreen: View {
         exportWarning = nil
         cleanupExports()
         let fileBase = Self.fileBase(part: part, kind: draft.sequence.kind)
+        let exportScene = Self.cloneScene(scene)
         DispatchQueue.global(qos: .userInitiated).async {
-            let result = Self.writeExports(scene: scene, part: part, fileBase: fileBase)
+            let result = Self.writeExports(scene: exportScene, part: part, fileBase: fileBase)
             DispatchQueue.main.async {
                 exporting = false
                 switch result {
@@ -227,6 +228,16 @@ struct ModelPreviewScreen: View {
         var directory: URL
         var urls: [URL]
         var warning: String?
+    }
+
+    /// SceneKit export mutates the scene. The copy is what the background export writes; SceneView keeps the original.
+    private static func cloneScene(_ scene: SCNScene) -> SCNScene {
+        let copy = SCNScene()
+        copy.background.contents = scene.background.contents
+        for child in scene.rootNode.childNodes {
+            copy.rootNode.addChildNode(child.clone())
+        }
+        return copy
     }
 
     private static func writeExports(scene: SCNScene, part: SupplierPart, fileBase: String) -> Result<ExportPayload, Error> {

@@ -4,6 +4,8 @@ import PackKit
 public enum ScanStoreError: Error, Equatable {
     case invalidFileName
     case missing
+    /// `ready` was refused because the measurement is missing or has blocking pack errors.
+    case outboxBlocked
 }
 
 /// One saved part: the sequence (including photo metadata) plus when it was written.
@@ -69,13 +71,6 @@ public struct ScanFileStore {
         status: PartReviewStatus? = nil,
         now: Date = Date()
     ) throws {
-        let directory = try directoryURL(partId: sequence.partId, create: true)
-        for (name, data) in images {
-            guard let safe = Self.safeFileName(name) else { throw ScanStoreError.invalidFileName }
-            guard sequence.steps.contains(where: { $0.photo?.fileName == safe }) else { continue }
-            try data.write(to: directory.appendingPathComponent(safe), options: .atomic)
-        }
-        try removeOrphanJPEGs(in: directory, sequence: sequence)
         let existing = load(partId: sequence.partId)
         let kept = replaceMeasurement ? measurement : (measurement ?? existing?.measurement)
         let keptSession = sessionId ?? existing?.sessionId ?? sequence.partId
@@ -87,6 +82,18 @@ public struct ScanFileStore {
         } else {
             keptStatus = existing?.status ?? .draft
         }
+        if keptStatus == .ready {
+            guard let kept, !ReviewModel.outboxBlocked(kept.reviewDraft(kind: sequence.kind)) else {
+                throw ScanStoreError.outboxBlocked
+            }
+        }
+        let directory = try directoryURL(partId: sequence.partId, create: true)
+        for (name, data) in images {
+            guard let safe = Self.safeFileName(name) else { throw ScanStoreError.invalidFileName }
+            guard sequence.steps.contains(where: { $0.photo?.fileName == safe }) else { continue }
+            try data.write(to: directory.appendingPathComponent(safe), options: .atomic)
+        }
+        try removeOrphanJPEGs(in: directory, sequence: sequence)
         let draft = ScanDraft(
             sequence: sequence,
             updatedAt: now,

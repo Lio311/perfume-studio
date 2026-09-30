@@ -251,7 +251,14 @@ final class MeasureModel: ObservableObject {
     @discardableResult
     func save(sequence: CaptureSequence) -> Bool {
         guard let current = displayResult, !current.saveBlocked else { return false }
-        let measurement = DraftMeasurement(result: current)
+        var measurement = DraftMeasurement(result: current)
+        if let existing = library.store.load(partId: sequence.partId)?.measurement {
+            measurement.finish = existing.finish
+            measurement.finishSource = existing.finishSource
+            measurement.colorHex = existing.colorHex
+            measurement.colorSource = existing.colorSource
+            measurement.price = existing.price
+        }
         do {
             try library.save(
                 sequence: sequence,

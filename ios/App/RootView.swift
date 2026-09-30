@@ -233,9 +233,11 @@ struct RootView: View {
 
     private func retakeScan(_ id: UUID) {
         guard var sequence = opened[id] ?? library.store.load(partId: id)?.sequence else { return }
-        let sessionId = sessionForPart[id] ?? library.store.load(partId: id)?.resolvedSessionId ?? id
+        let existing = library.store.load(partId: id)
+        let sessionId = sessionForPart[id] ?? existing?.resolvedSessionId ?? id
         if sequence.retake(index: 0) {
-            try? library.save(sequence: sequence, images: [:], clearMeasurement: true, sessionId: sessionId, status: .draft)
+            // The new capture replaces the photo. Price, finish, and colour stay until a new measure replaces only the geometry.
+            try? library.save(sequence: sequence, images: [:], measurement: existing?.measurement, sessionId: sessionId)
         }
         opened[id] = sequence
         sessionForPart[id] = sessionId

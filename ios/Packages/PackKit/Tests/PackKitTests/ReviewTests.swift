@@ -60,6 +60,45 @@ final class ReviewModelTests: XCTestCase {
         XCTAssertEqual(edited.measurements.first { $0.key == "neckOuterDiameterMm" }?.value ?? .nan, 18.5, accuracy: 1e-9)
     }
 
+    func testInvalidPriceInputKeepsTheSavedPrice() {
+        let saved = Price(
+            value: 1.25,
+            currency: "USD",
+            moq: 100,
+            tiers: [PriceTier(minQty: 200, value: 1.1)],
+            quotedAt: "2026-09-01"
+        )
+        let invalid = [
+            ReviewPriceInput(value: nil, currency: "USD", moq: nil, tiers: []),
+            ReviewPriceInput(value: 2, currency: "FOO", moq: nil, tiers: []),
+            ReviewPriceInput(value: 2, currency: "USD", moq: nil, tiers: [ReviewTierInput(minQty: nil, value: nil)]),
+        ]
+        for input in invalid {
+            let persisted = persistPrice(input, saved: saved)
+            XCTAssertEqual(persisted, saved)
+        }
+    }
+
+    func testClearedPriceInputClearsTheSavedPrice() {
+        let saved = Price(value: 1.25, currency: "USD", moq: 100, quotedAt: "2026-09-01")
+        XCTAssertNil(persistPrice(nil, saved: saved))
+    }
+
+    func testRebuiltPriceKeepsQuotedAt() {
+        let saved = Price(value: 1.25, currency: "USD", quotedAt: "2026-09-01")
+        let input = ReviewPriceInput(value: 2.5, currency: "₪", moq: 10, tiers: [ReviewTierInput(minQty: 20, value: 2)])
+        let rebuilt = persistPrice(input, saved: saved)
+        XCTAssertEqual(rebuilt?.value, 2.5)
+        XCTAssertEqual(rebuilt?.currency, "ILS")
+        XCTAssertEqual(rebuilt?.moq, 10)
+        XCTAssertEqual(rebuilt?.tiers, [PriceTier(minQty: 20, value: 2)])
+        XCTAssertEqual(rebuilt?.quotedAt, "2026-09-01")
+    }
+
+    private func persistPrice(_ input: ReviewPriceInput?, saved: Price) -> Price? {
+        input == nil ? nil : (ReviewModel.storedPrice(input, quotedAt: saved.quotedAt) ?? saved)
+    }
+
     func testDefaultFinishPerKind() {
         XCTAssertEqual(FinishCatalog.defaultFinish(for: .bottle), "clear")
         XCTAssertEqual(FinishCatalog.defaultFinish(for: .box), "matteBlack")

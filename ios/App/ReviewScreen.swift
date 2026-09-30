@@ -416,7 +416,7 @@ struct ReviewScreen: View {
         measurement.finishSource = "user"
         measurement.colorHex = current.colorHex
         measurement.colorSource = current.colorSource
-        measurement.price = storedPrice(current.price)
+        measurement.price = current.price == nil ? nil : (ReviewModel.storedPrice(current.price, quotedAt: base?.price?.quotedAt) ?? base?.price)
         return measurement
     }
 
@@ -430,26 +430,6 @@ struct ReviewScreen: View {
             currency: currency.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : currency,
             moq: ReviewParse.number(moq),
             tiers: rows.map { ReviewTierInput(minQty: ReviewParse.number($0.minQty), value: ReviewParse.number($0.value)) }
-        )
-    }
-
-    private func storedPrice(_ input: ReviewPriceInput?) -> Price? {
-        guard let input,
-              let value = input.value, value > 0,
-              let currency = input.currency,
-              PackValidator.normalizeCurrency(currency) != nil else { return nil }
-        if let moq = input.moq, moq < 1 || moq.rounded() != moq { return nil }
-        var tiers: [PriceTier] = []
-        for tier in input.tiers {
-            guard let minQty = tier.minQty, minQty.rounded() == minQty, minQty >= 0,
-                  let value = tier.value, value > 0 else { return nil }
-            tiers.append(PriceTier(minQty: Int(minQty), value: value))
-        }
-        return Price(
-            value: value,
-            currency: currency,
-            moq: input.moq.map { Int($0) },
-            tiers: tiers.isEmpty ? nil : tiers
         )
     }
 
