@@ -104,10 +104,10 @@ export function computeGlassProps(finish: FinishId, slider?: number | null): Gla
   const t = slider ?? defaults.opacity;
 
   return {
-    materialOpacity: 0.08 + t * 0.92,
-    transmission: Math.max(0.01, (1 - t) * (glass === "clear" ? 0.95 : glass === "frosted" ? 0.6 : 0.7)),
-    roughness: glass === "frosted" ? 0.34 : glass === "tinted" ? 0.05 : 0.015,
-    thickness: glass === "tinted" ? 4.2 : 2.8,
+    materialOpacity: 1,
+    transmission: Math.max(0.01, (1 - t) * (glass === "clear" ? 1.0 : glass === "frosted" ? 0.95 : 0.85)),
+    roughness: glass === "frosted" ? 0.45 : glass === "tinted" ? 0.08 : 0.02,
+    thickness: glass === "tinted" ? 4.2 : 3.0,
     ior: glass === "clear" ? 1.52 : 1.5,
   };
 }
