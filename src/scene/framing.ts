@@ -55,11 +55,18 @@ export function readStageFrame(canvas: HTMLCanvasElement): StageFrame {
   return { width, height, stageLeft, stageTop, stageWidth, stageHeight, gutter, openTop, openHeight };
 }
 
-function expandFrame(box: THREE.Box3, frame: ReturnType<typeof frameFor>, explode: number, pad = 2) {
+function expandFrame(box: THREE.Box3, frame: ReturnType<typeof frameFor>, explode: number, pad = 2, aimed = false) {
   const local = explodeLocal(frame.index, explode);
-  const cx = frame.home[0] + frame.explode[0] * local + frame.center[0];
-  const cy = frame.home[1] + frame.explode[1] * local + frame.center[1];
-  const cz = frame.home[2] + frame.explode[2] * local + frame.center[2];
+  let cx = frame.home[0] + frame.explode[0] * local + frame.center[0];
+  let cy = frame.home[1] + frame.explode[1] * local + frame.center[1];
+  let cz = frame.home[2] + frame.explode[2] * local + frame.center[2];
+  if (aimed) {
+    const span = Math.hypot(frame.explode[0], frame.explode[1], frame.explode[2]);
+    const nudge = 12;
+    cx += (span > 0.5 ? frame.explode[0] / span : 0) * nudge;
+    cy += (span > 0.5 ? frame.explode[1] / span : 1) * nudge;
+    cz += (span > 0.5 ? frame.explode[2] / span : 0) * nudge;
+  }
   const hx = frame.size[0] / 2 + pad;
   const hy = frame.size[1] / 2 + pad;
   const hz = frame.size[2] / 2 + pad;
@@ -110,18 +117,18 @@ export function assemblyBounds(design: Design, explode: number, stage: StageMode
   return box;
 }
 
-export function partBounds(design: Design, explode: number, part: PartKey, stage: StageMode, solo = false, lidOpen = false): THREE.Box3 {
+export function partBounds(design: Design, explode: number, part: PartKey, stage: StageMode, solo = false, lidOpen = false, aimed = false): THREE.Box3 {
   const fit = computeFit(design, explode > 0.45);
   const frame = posedFrame(part, fit, stage);
   if (solo) {
     const home = turntableHome(frame);
     const parked = { ...frame, home, explode: [0, 0, 0] as [number, number, number] };
     const box = new THREE.Box3();
-    expandFrame(box, parked, 0, 6);
+    expandFrame(box, parked, 0, 6, aimed);
     return box;
   }
   const box = new THREE.Box3();
-  expandFrame(box, frame, explode, 4);
+  expandFrame(box, frame, explode, 4, aimed);
   const minHalf = 18;
   const cx = (box.min.x + box.max.x) / 2;
   const cy = (box.min.y + box.max.y) / 2;
