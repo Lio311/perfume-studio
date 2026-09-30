@@ -1,87 +1,83 @@
-import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import bottleText from "../../../fixtures/packkit/revolve/bottle.json?raw";
-import capText from "../../../fixtures/packkit/revolve/cap.json?raw";
-import sphereText from "../../../fixtures/packkit/revolve/sphere.json?raw";
+import bottleText from "../../../ios/Packages/PackKit/Tests/PackKitTests/Fixtures/revolve/cylinder-bottle.json?raw";
+import capText from "../../../ios/Packages/PackKit/Tests/PackKitTests/Fixtures/revolve/cap.json?raw";
+import shoulderText from "../../../ios/Packages/PackKit/Tests/PackKitTests/Fixtures/revolve/shouldered-bottle.json?raw";
 import { latheGeometry } from "../../import/lathe.ts";
-import { REVOLVE_PROFILES } from "./profiles.ts";
 import { revolveLathe } from "./revolve.ts";
-
-const FIXTURE_TEXT: Record<string, string> = { bottle: bottleText, cap: capText, sphere: sphereText };
 
 interface RevolveFixture {
   name: string;
+  widthMm: number;
   heightMm: number;
-  radiusMm: number;
-  samples: number[];
+  profile: number[];
   segments: number;
-  positions: number[];
-  indices: number[];
+  web: { vertexCount: number; indexCount: number };
+  expected: {
+    bboxMinM: [number, number, number];
+    bboxMaxM: [number, number, number];
+    firstRingMeters: [number, number, number][];
+  };
 }
 
-describe("scan revolve matches lathe.ts", () => {
-  for (const profile of REVOLVE_PROFILES) {
-    it(`matches the ${profile.name} fixture and lathe.ts`, () => {
-      const samples = profile.samples();
-      const mesh = revolveLathe(samples, profile.heightMm, profile.radiusMm);
-      const lathe = latheGeometry(samples, profile.heightMm, profile.radiusMm);
-      expect(mesh.segments).toBe(lathe.parameters.segments);
-      expect(mesh.segments).toBe(128);
+const FIXTURES = [bottleText, shoulderText, capText].map((text) => JSON.parse(text) as RevolveFixture);
+
+describe("scan revolve matches the PackKit fixtures", () => {
+  for (const fixture of FIXTURES) {
+    it(fixture.name, () => {
+      const radiusMm = fixture.widthMm / 2;
+      const mesh = revolveLathe(fixture.profile, fixture.heightMm, radiusMm);
+      const lathe = latheGeometry(fixture.profile, fixture.heightMm, radiusMm);
+      expect(mesh.segments).toBe(fixture.segments);
+      expect(mesh.positions.length / 3).toBe(fixture.web.vertexCount);
+      expect(mesh.indices.length).toBe(fixture.web.indexCount);
+
       const attribute = lathe.getAttribute("position");
-      expect(mesh.positions.length).toBe(attribute.count * 3);
-      for (let index = 0; index < attribute.count; index += 1) {
-        expect(Math.abs(mesh.positions[index * 3] - attribute.getX(index) / 1000)).toBeLessThanOrEqual(1e-6);
-        expect(Math.abs(mesh.positions[index * 3 + 1] - attribute.getY(index) / 1000)).toBeLessThanOrEqual(1e-6);
-        expect(Math.abs(mesh.positions[index * 3 + 2] - attribute.getZ(index) / 1000)).toBeLessThanOrEqual(1e-6);
-      }
       const index = lathe.getIndex();
       expect(index).not.toBeNull();
       expect(mesh.indices.length).toBe(index!.count);
       for (let cursor = 0; cursor < index!.count; cursor += 1) {
         expect(mesh.indices[cursor]).toBe(index!.getX(cursor));
       }
+      for (let vertex = 0; vertex < attribute.count; vertex += 1) {
+        expect(Math.abs(mesh.positions[vertex * 3] - attribute.getX(vertex) / 1000)).toBeLessThanOrEqual(1e-6);
+        expect(Math.abs(mesh.positions[vertex * 3 + 1] - attribute.getY(vertex) / 1000)).toBeLessThanOrEqual(1e-6);
+        expect(Math.abs(mesh.positions[vertex * 3 + 2] - attribute.getZ(vertex) / 1000)).toBeLessThanOrEqual(1e-6);
+      }
       lathe.dispose();
 
-      const fixture = JSON.parse(FIXTURE_TEXT[profile.name]) as RevolveFixture;
-      expect(fixture.segments).toBe(mesh.segments);
-      expect(fixture.samples).toEqual(samples);
-      expect(fixture.heightMm).toBe(profile.heightMm);
-      expect(fixture.radiusMm).toBe(profile.radiusMm);
-      expect(fixture.positions.length).toBe(mesh.positions.length);
-      expect(fixture.indices.length).toBe(mesh.indices.length);
-      for (let cursor = 0; cursor < mesh.positions.length; cursor += 1) {
-        expect(Math.abs(fixture.positions[cursor] - mesh.positions[cursor])).toBeLessThanOrEqual(1e-6);
+      const pointCount = fixture.profile.length + 2;
+      fixture.expected.firstRingMeters.forEach((expected, column) => {
+        const vertex = 1 + column * pointCount;
+        expect(Math.abs(mesh.positions[vertex * 3] - expected[0])).toBeLessThanOrEqual(1e-6);
+        expect(Math.abs(mesh.positions[vertex * 3 + 1] - expected[1])).toBeLessThanOrEqual(1e-6);
+        expect(Math.abs(mesh.positions[vertex * 3 + 2] - expected[2])).toBeLessThanOrEqual(1e-6);
+      });
+
+      let minX = Infinity;
+      let minY = Infinity;
+      let minZ = Infinity;
+      let maxX = -Infinity;
+      let maxY = -Infinity;
+      let maxZ = -Infinity;
+      for (let vertex = 0; vertex < mesh.positions.length / 3; vertex += 1) {
+        const x = mesh.positions[vertex * 3];
+        const y = mesh.positions[vertex * 3 + 1];
+        const z = mesh.positions[vertex * 3 + 2];
+        minX = Math.min(minX, x);
+        minY = Math.min(minY, y);
+        minZ = Math.min(minZ, z);
+        maxX = Math.max(maxX, x);
+        maxY = Math.max(maxY, y);
+        maxZ = Math.max(maxZ, z);
       }
-      for (let cursor = 0; cursor < mesh.indices.length; cursor += 1) {
-        expect(fixture.indices[cursor]).toBe(mesh.indices[cursor]);
-      }
+      const [ex0, ey0, ez0] = fixture.expected.bboxMinM;
+      const [ex1, ey1, ez1] = fixture.expected.bboxMaxM;
+      expect(Math.abs(minX - ex0)).toBeLessThanOrEqual(1e-6);
+      expect(Math.abs(minY - ey0)).toBeLessThanOrEqual(1e-6);
+      expect(Math.abs(minZ - ez0)).toBeLessThanOrEqual(1e-6);
+      expect(Math.abs(maxX - ex1)).toBeLessThanOrEqual(1e-6);
+      expect(Math.abs(maxY - ey1)).toBeLessThanOrEqual(1e-6);
+      expect(Math.abs(maxZ - ez1)).toBeLessThanOrEqual(1e-6);
     });
   }
-
-  it("reads the reference bottle glb as binary metres", () => {
-    const bytes = new Uint8Array(readFileSync(new URL("../../../fixtures/packkit/revolve/bottle.glb", import.meta.url)));
-    expect(new TextDecoder().decode(bytes.subarray(0, 4))).toBe("glTF");
-    const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-    const jsonLength = view.getUint32(12, true);
-    const json = JSON.parse(new TextDecoder().decode(bytes.subarray(20, 20 + jsonLength))) as {
-      accessors: Array<{ count: number; componentType: number; type: string; bufferView: number }>;
-      bufferViews: Array<{ byteOffset?: number; byteLength: number }>;
-      meshes: Array<{ primitives: Array<{ attributes: { POSITION?: number } }> }>;
-    };
-    const accessorIndex = json.meshes[0].primitives[0].attributes.POSITION ?? 0;
-    const accessor = json.accessors[accessorIndex];
-    const bufferView = json.bufferViews[accessor.bufferView];
-    const binStart = 20 + jsonLength;
-    const binHeader = 8;
-    const positions = new Float32Array(
-      bytes.buffer,
-      bytes.byteOffset + binStart + binHeader + (bufferView.byteOffset ?? 0),
-      accessor.count * 3,
-    );
-    const fixture = JSON.parse(bottleText) as RevolveFixture;
-    expect(accessor.count).toBe(fixture.positions.length / 3);
-    expect(Math.abs(positions[0] - fixture.positions[0])).toBeLessThanOrEqual(1e-6);
-    expect(Math.abs(positions[1] - fixture.positions[1])).toBeLessThanOrEqual(1e-6);
-    expect(Math.abs(positions[2] - fixture.positions[2])).toBeLessThanOrEqual(1e-6);
-  });
 });

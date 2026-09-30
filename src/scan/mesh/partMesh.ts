@@ -10,7 +10,7 @@ export { glbFilename } from "./partSpec.ts";
 export function buildPartGeometry(input: PartMeshInput): THREE.BufferGeometry {
   if (isRoundPart(input.kind)) {
     const samples = input.lathe && input.lathe.length >= 4 ? input.lathe : Array.from({ length: 42 }, () => 1);
-    const radiusMm = Math.max(input.widthMm, input.depthMm) / 2;
+    const radiusMm = input.widthMm / 2;
     const mesh = revolveLathe(samples, input.heightMm, radiusMm);
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute("position", new THREE.BufferAttribute(mesh.positions, 3));

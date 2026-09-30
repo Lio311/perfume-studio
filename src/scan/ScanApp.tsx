@@ -462,8 +462,8 @@ export function ScanApp() {
           <section className="sheet">
             {note ? <p className="error">{note}</p> : null}
             <div className="row">
-              <button type="button" onClick={() => void exportModel()}>טוב, ייצוא</button>
-              <button type="button" className="ghost" onClick={rescan}>סריקה מחדש</button>
+              <button type="button" onClick={() => void exportModel()}>טוב, ייצא</button>
+              <button type="button" className="ghost" onClick={rescan}>סרוק שוב</button>
             </div>
           </section>
         </>

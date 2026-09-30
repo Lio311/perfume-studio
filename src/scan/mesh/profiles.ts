@@ -18,17 +18,3 @@ export function capLathe(): number[] {
     return Math.max(0.16, Math.cos((u * Math.PI) / 2));
   });
 }
-
-/** Sphere ends. Classification uses the unsmoothed silhouette; this is the profile that is revolved. */
-export function sphereLathe(): number[] {
-  return Array.from({ length: 42 }, (_, index) => {
-    const t = index / 41;
-    return Math.max(0.04, Math.sqrt(Math.max(0, 1 - (2 * t - 1) ** 2)));
-  });
-}
-
-export const REVOLVE_PROFILES = [
-  { name: "bottle", heightMm: 100, radiusMm: 20, samples: bottleLathe },
-  { name: "cap", heightMm: 25, radiusMm: 15, samples: capLathe },
-  { name: "sphere", heightMm: 52, radiusMm: 26, samples: sphereLathe },
-] as const;
