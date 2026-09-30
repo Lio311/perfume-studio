@@ -1,3 +1,5 @@
+import { invalidate } from "@react-three/fiber";
+import type gsap from "gsap";
 import { closureById } from "../../model/closures/registry.ts";
 import { useLab } from "../../store/labStore.ts";
 import { prefersReducedMotion } from "../motion.ts";
@@ -11,7 +13,7 @@ import {
 } from "./playback.ts";
 import type { UnboxDriver } from "./timelines.ts";
 
-import type gsap from "gsap";
+
 
 type GsapApi = typeof gsap;
 type Timeline = gsap.core.Timeline;
@@ -36,6 +38,7 @@ function writeDriver(driver: UnboxDriver): void {
   play.sheen = driver.sheen;
   play.sweep = driver.sweep;
   play.camera = driver.camera;
+  invalidate();
 }
 
 function showCarton(): void {

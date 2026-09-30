@@ -92,6 +92,7 @@ interface LabState {
   brief: BudgetBrief;
   /** Not persisted. True while the brief dialog is open over an existing brief. */
   briefEditing: boolean;
+  continuous: number;
   priceOverrides: Record<string, PriceOverride>;
   /** ILS received for 1 unit of a foreign currency. Empty until the user types a rate. */
   exchangeRates: Record<string, number>;
@@ -165,6 +166,8 @@ interface LabState {
   closeBrief: () => void;
   setPriceOverride: (id: string, price: PriceOverride | null) => void;
   setExchangeRate: (currency: string, ilsPerUnit: number | null) => void;
+  addContinuous: () => void;
+  removeContinuous: () => void;
   setVoice: (voice: VoiceVariant) => void;
   setSoundOn: (on: boolean) => void;
   setStage: (stage: StageMode) => void;
@@ -451,6 +454,7 @@ export const useLab = create<LabState>()(
       packNotices: [],
       brief: DEFAULT_BUDGET_BRIEF,
       briefEditing: false,
+      continuous: 0,
       priceOverrides: {},
       exchangeRates: {},
       compareIds: ["seed-atelier", "seed-blush", "seed-noir"],
@@ -734,6 +738,8 @@ export const useLab = create<LabState>()(
           else exchangeRates[code] = ilsPerUnit;
           return { exchangeRates };
         }),
+      addContinuous: () => set((state) => ({ continuous: state.continuous + 1 })),
+      removeContinuous: () => set((state) => ({ continuous: Math.max(0, state.continuous - 1) })),
       setVoice: (voice) => {
         if (typeof location !== "undefined" && typeof history !== "undefined") {
           const url = new URL(location.href);

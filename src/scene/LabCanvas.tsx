@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ComponentProps, type ComponentType } from "react";
-import { Canvas, useFrame, useThree } from "@react-three/fiber";
+import { Canvas, useFrame, useThree, invalidate } from "@react-three/fiber";
 import { AdaptiveDpr, Grid, OrbitControls, PerformanceMonitor } from "@react-three/drei";
 import * as THREE from "three";
 import { themes } from "../theme/themes.ts";
@@ -17,8 +17,10 @@ import { prefersReducedMotion } from "./motion.ts";
 import { cameraProbe, sceneSpan } from "./limits.ts";
 import { clampPolarOffset, decayGlide, emptyGlide, PAN_SPEED, PAN_STEP, PITCH_STEP, polarAngle, poseBroken, pushGlide, ROTATE_SPEED, takeStep, YAW_STEP, type Glide } from "./orbitGlide.ts";
 import { Exposure, PixelRatio, StageFloor, StudioEnv, StudioLights } from "./studio.tsx";
-import { CinematicFloor, EnergyRings, ParticleField, VoiceGrade } from "./voiceScenery.tsx";
+import { CinematicFloor, EnergyRings, ParticleField } from "./voiceScenery.tsx";
 import { webglAvailable } from "./webgl.ts";
+import { lazy, Suspense } from "react";
+
 import { noteStudioFrame } from "../boot/splash.ts";
 import { clearSceneError, contextLostSuppressed, noteRenderer, StageFallback, WebglBoundary, WebglFallback } from "../ui/FallbackScreen.tsx";
 import { getUnboxPlayback, notifyUnbox, subscribeUnbox } from "./unbox/playback.ts";
@@ -508,6 +510,7 @@ function CameraRig() {
       tuneNear(camera, camera.position.distanceTo(look.current), radius.current);
       const shot = takeShot();
       if (shot) shot(gl.domElement.toDataURL("image/png"));
+      invalidate();
       return;
     }
     const limits = measureRadius();
@@ -564,6 +567,9 @@ function CameraRig() {
       camera.position.copy(controls.target).add(OFFSET);
       camera.up.lerp(UP, 0.02).normalize();
       camera.lookAt(controls.target);
+    }
+    if (coasting || (state.autoRotate && state.present && controls && !dragging.current)) {
+      invalidate();
     }
     const shot = takeShot();
     if (shot) shot(gl.domElement.toDataURL("image/png"));
@@ -771,7 +777,7 @@ function Stage() {
       <FirstFrameSignal />
       <UnboxHost />
       <CameraRig />
-      <VoiceGrade />
+      <LazyPostEffects />
       <Tier />
       <ScreenTarget />
       <FpsProbe />
@@ -853,6 +859,19 @@ function FpsProbe() {
   return null;
 }
 
+function LazyPostEffects() {
+  const gl = useThree((s) => s.gl);
+  const quality = useLab((s) => s.quality);
+  if (quality !== "high" || !gl.capabilities.isWebGL2) return null;
+  return (
+    <Suspense fallback={null}>
+      <PostEffects />
+    </Suspense>
+  );
+}
+
+const PostEffects = lazy(() => import("./PostEffects.tsx"));
+
 export function LabCanvas() {
   const [supported, setSupported] = useState(() => webglAvailable());
   const [lost, setLost] = useState(false);
@@ -865,12 +884,29 @@ export function LabCanvas() {
     setSupported(webglAvailable());
   };
 
+  const modal = useLab((s) => s.modal);
+  const continuous = useLab((s) => s.continuous);
+  const frameloop = modal ? "never" : continuous > 0 ? "always" : "demand";
+
+  useEffect(() => {
+    if (!modal) invalidate();
+  }, [modal]);
+
+  useEffect(() => {
+    const render = () => invalidate();
+    const unsub = useLab.subscribe(render);
+    return () => {
+      unsub();
+    };
+  }, []);
+
   useEffect(() => {
     const el = document.querySelector(".stage-slot");
     if (!el) return;
     const observer = new ResizeObserver((entries) => {
       slotWidth = entries[0].contentRect.width;
       slotHeight = entries[0].contentRect.height;
+      invalidate();
     });
     observer.observe(el);
     return () => observer.disconnect();
@@ -888,6 +924,7 @@ export function LabCanvas() {
     <WebglBoundary>
       <Canvas
         className="stage-canvas"
+        frameloop={frameloop}
         dpr={[1, 2]}
         camera={{ position: [120, 150, 640], fov: 30, near: 0.5, far: 5000 }}
         gl={{ antialias: true, alpha: false, preserveDrawingBuffer: true, powerPreference: "high-performance", localClippingEnabled: true }}
