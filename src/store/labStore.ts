@@ -568,7 +568,7 @@ export const useLab = create<LabState>()(
           return { design: next, future: state.future.slice(1), past: [...state.past, state.design].slice(-30), toast: note, demoHold: null };
         }),
       beginGesture: () =>
-        set((state) => (state.gesturing ? state : { gesturing: true, past: [...state.past, state.design].slice(-30), future: [] })),
+        set((state) => ({ gesturing: true, past: [...state.past, state.design].slice(-30), future: [] })),
       endGesture: () => set({ gesturing: false }),
       restoreDesign: (design) =>
         set((state) => ({

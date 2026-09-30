@@ -127,4 +127,29 @@ describe("labStore", () => {
     expect(stateAfterCommand.past.length).toBe(1);
     expect(stateAfterCommand.past[0]).toBe(initialDesign);
   });
+
+  it("recovers from an unclosed gesture when a new one begins", () => {
+    const store = useLab.getState();
+    const initialDesign = store.design;
+    
+    // start gesture -> edit
+    store.beginGesture();
+    useLab.getState().patch("box", { widthMm: 50 });
+    
+    // cancel (no pointerup / endGesture) -> edit again
+    // This second beginGesture simulates the fix: it should close the hanging gesture.
+    useLab.getState().beginGesture();
+    useLab.getState().patch("box", { widthMm: 60 });
+    useLab.getState().endGesture();
+    
+    expect(useLab.getState().design.box.widthMm).toBe(60);
+    
+    // Undo reverts only the last edit (widthMm 60 -> 50)
+    useLab.getState().undo();
+    expect(useLab.getState().design.box.widthMm).toBe(50);
+    
+    // Second Undo reverts the first edit (widthMm 50 -> initial)
+    useLab.getState().undo();
+    expect(useLab.getState().design.box.widthMm).toBe(initialDesign.box.widthMm);
+  });
 });
