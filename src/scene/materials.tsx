@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
+import { MeshTransmissionMaterial } from "@react-three/drei";
 import type { BoxBoard, FinishId, WrapFinish } from "../model/types.ts";
 import { computeGlassProps, isGlass } from "../model/materials.ts";
 import { leatherBump, woodMap, fabricBump } from "../geometry/textures.ts";
@@ -156,6 +157,35 @@ export function FinishMaterial({
     return <shaderMaterial transparent depthWrite toneMapped={false} uniforms={fade} vertexShader={BLUE_VERT} fragmentShader={BLUE_FRAG} clippingPlanes={planes} />;
   }
 
+
+  if (gp && !flat) {
+    return (
+      <MeshTransmissionMaterial
+        ref={meshRef as any}
+        color={color}
+        roughness={gp.roughness}
+        transmission={gp.transmission}
+        thickness={gp.thickness * 1.5}
+        ior={gp.ior}
+        chromaticAberration={0.03}
+        anisotropy={0.1}
+        distortion={0.0}
+        distortionScale={0.3}
+        temporalDistortion={0.0}
+        clearcoat={1}
+        attenuationColor={color}
+        attenuationDistance={36}
+        envMapIntensity={cartonOpen ? 2.4 : 1.7}
+        clippingPlanes={planes}
+        side={THREE.FrontSide}
+        background={new THREE.Color("#ffffff")}
+        transparent
+        resolution={1024}
+        samples={8}
+      />
+    );
+  }
+
   return (
     <meshPhysicalMaterial
       ref={meshRef}
@@ -167,23 +197,15 @@ export function FinishMaterial({
       emissive="#000000"
       emissiveIntensity={0}
       metalness={metal ? 1 : 0}
-      roughness={gp ? gp.roughness : metal ? 0.22 : matte ? 0.68 : finish === "wood" ? 0.7 : finish === "fabric" ? 0.95 : 0.84}
+      roughness={metal ? 0.22 : matte ? 0.68 : finish === "wood" ? 0.7 : finish === "fabric" ? 0.95 : 0.84}
       sheen={finish === "fabric" ? 1 : matte ? 0.06 : 0}
       sheenRoughness={0.62}
       sheenColor={finish === "fabric" ? color : "#4a4f56"}
-      transmission={gp ? gp.transmission : 0}
-      thickness={gp ? gp.thickness : 0}
-      ior={gp ? gp.ior : 1.5}
-      clearcoat={gp ? 1 : metal ? 0.65 : finish === "fabric" ? 0 : 0.04}
+      clearcoat={metal ? 0.65 : finish === "fabric" ? 0 : 0.04}
       clearcoatRoughness={metal ? 0.12 : 0.04}
-      attenuationColor={gp ? color : "#fff8ee"}
-      attenuationDistance={gp ? 36 : 160}
-      envMapIntensity={metal ? 1.65 : gp ? (cartonOpen ? 2.4 : 1.7) : matte ? 0.08 : 0.7}
+      envMapIntensity={metal ? 1.65 : matte ? 0.08 : 0.7}
       clippingPlanes={planes}
-      specularIntensity={gp || metal ? 1 : matte ? 0.4 : 0.3}
-      transparent={!!gp}
-      opacity={gp ? gp.materialOpacity : 1}
-      depthWrite={!gp}
+      specularIntensity={metal ? 1 : matte ? 0.4 : 0.3}
       side={THREE.FrontSide}
     />
   );

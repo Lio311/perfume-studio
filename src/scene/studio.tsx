@@ -21,7 +21,7 @@ export function PixelRatio() {
   const gl = useThree((s) => s.gl);
   const quality = useLab((s) => s.quality);
   useLayoutEffect(() => {
-    const cap = quality === "high" ? 1.75 : 1;
+    const cap = quality === "high" ? Math.max(window.devicePixelRatio, 2.5) : 1.5;
     gl.setPixelRatio(Math.min(window.devicePixelRatio || 1, cap));
   }, [gl, quality]);
   return null;
@@ -32,7 +32,7 @@ export function StudioEnv() {
   const theme = useLab((s) => s.theme);
   const playing = useUnboxPlaying();
   const open = useLab((s) => (s.boxOpen || playing) && s.stage === "box");
-  const resolution = 256;
+  const resolution = 1024;
   const dark = theme === "dark";
   const base = dark ? 1.15 : 1.2;
   return (
@@ -95,7 +95,7 @@ export function StageFloor() {
   const quality = useLab((s) => s.quality);
   const bucket = Math.round(explode * 6);
   if (!light && voice === 2) return null;
-  if (quality !== "high") return null;
+  if (quality !== "high" && !light) return null;
   return (
     <>
       {true && (
@@ -106,7 +106,7 @@ export function StageFloor() {
           scale={180}
           blur={3.6}
           far={140}
-          resolution={256}
+          resolution={1024}
           frames={1}
           color={light ? "#8b939e" : "#05070c"}
         />
