@@ -82,7 +82,7 @@ export function crimpHeadRadius(
   return Math.max(actuatorR, neckR * 0.9);
 }
 
-export function computeFit(design: Design, exploded = false): Fit {
+export function getContentsFit(design: Design, exploded = false) {
   const bottle = bottleById(design.bottle.variantId);
   const cap = capById(design.cap.variantId);
   const collar = collarById(design.collar.variantId);
@@ -132,6 +132,13 @@ export function computeFit(design: Design, exploded = false): Fit {
   // A crimp pump has no screw skirt, so its base is the glass lip. A screw
   // pump stands on the collar that carries the thread, a little above the lip.
   const pumpBase = pump.style === "crimp" ? lip : collarTop - 0.3;
+
+  return { bottle, cap, collar, pump, logo, neck, neckR, bottleH, bottleW, bottleD, ferrule, stockFerrule, collarInner, collarOuter, collarHeight, lip, overlap, collarBottom, collarTop, capH, capW, capD, capBottom, fullActuator, actuatorH, actuatorR, headR, nozzle, pumpBase };
+}
+
+export function computeFit(design: Design, exploded = false): Fit {
+  const c = getContentsFit(design, exploded);
+  const { bottle, collar, logo, neckR, bottleH, bottleW, bottleD, collarInner, collarOuter, collarHeight, collarBottom, collarTop, capH, capW, capD, capBottom, fullActuator, actuatorH, actuatorR, headR, nozzle, pumpBase } = c;
 
   const shoulderY = bottleH * (1 - bottle.shoulder) - 4;
   const fractions: Record<typeof logo.plate, [number, number]> = {
@@ -265,4 +272,26 @@ export function boxContentsSeat(design: Design): number {
   const seat = computeFit(design, false).seatY;
   seatCache = { design, seat };
   return seat;
+}
+
+export function fitsContents(design: Design) {
+  const envelope = envelopeFromDesign(design);
+  
+  if (design.box.linked !== false) {
+    // When linked, the box auto-resizes to the envelope, so it always fits.
+    return { ok: true, shortBy: { w: 0, d: 0, h: 0 }, envelope };
+  }
+
+  const okW = design.box.widthMm >= envelope.outerW - 0.1;
+  const okD = design.box.depthMm >= envelope.outerD - 0.1;
+  const okH = design.box.heightMm >= envelope.outerH - 0.1;
+  return {
+    ok: okW && okD && okH,
+    shortBy: {
+      w: okW ? 0 : envelope.outerW - design.box.widthMm,
+      d: okD ? 0 : envelope.outerD - design.box.depthMm,
+      h: okH ? 0 : envelope.outerH - design.box.heightMm,
+    },
+    envelope
+  };
 }
