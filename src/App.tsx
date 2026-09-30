@@ -16,7 +16,7 @@ import { useLab } from "./store/labStore.ts";
 import { demoSessionHold } from "./store/hydrate.ts";
 import { applyTheme } from "./theme/themes.ts";
 import { BudgetBrief } from "./ui/BudgetBrief.tsx";
-import { BudgetMeter } from "./ui/BudgetMeter.tsx";
+import { BudgetProgress } from "./ui/BudgetProgress.tsx";
 import { Crumb, Dock, Timeline } from "./ui/Dock.tsx";
 import { Inspector } from "./ui/Inspector.tsx";
 import { Library } from "./ui/Library.tsx";
@@ -63,6 +63,8 @@ export default function App() {
   const theme = useLab((s) => s.theme);
   const lang = useLab((s) => s.lang);
   const sideOpen = useLab((s) => s.sideOpen);
+  const libraryOpen = useLab((s) => s.libraryOpen);
+  const brief = useLab((s) => s.brief);
   const hovered = useLab((s) => s.hovered);
   const mode = useLab((s) => s.mode);
   const voice = useLab((s) => s.voice);
@@ -428,9 +430,11 @@ export default function App() {
       <Intro />
       <div className="chrome">
         <TopBar />
-        <Library />
+        <div className={`library-col ${libraryOpen ? "is-open" : ""}`} dir={lang === "he" ? "rtl" : "ltr"}>
+          {!unboxing && <BudgetProgress />}
+          <Library />
+        </div>
         <div className="stage-slot">
-          {!unboxing && <BudgetMeter onSavings={() => setSavingsOpen(true)} />}
           <div style={{ position: 'absolute', top: 12, right: 12, display: 'flex', gap: 8, pointerEvents: 'auto', zIndex: 10 }} dir={lang === "he" ? "rtl" : "ltr"}>
             <button type="button" className="icon-btn" style={{ background: 'var(--bg)' }} onClick={() => undo()} disabled={past === 0}>{t.undo}</button>
             <button type="button" className="icon-btn" style={{ background: 'var(--bg)' }} onClick={() => redo()} disabled={future === 0}>{t.redo}</button>
@@ -483,7 +487,25 @@ export default function App() {
           <Dock />
         </div>
         <div className={`side-col ${sideOpen ? "is-open" : ""}`}>
-          <BudgetMeter onSavings={() => setSavingsOpen(true)} />
+          {design.step === undefined && brief.confirmed && (
+            <button
+              type="button"
+              className="btn-savings"
+              onClick={() => setSavingsOpen(true)}
+              style={{
+                background: 'var(--panel)',
+                color: 'var(--text)',
+                border: '1px solid var(--line-strong)',
+                padding: '12px',
+                borderRadius: '8px',
+                fontWeight: 'bold',
+                cursor: 'pointer'
+              }}
+            >
+              {t.savingsOpen}
+            </button>
+          )}
+
           <Inspector />
           {/* <ChatPanel /> */}
         </div>
