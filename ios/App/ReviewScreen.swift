@@ -354,13 +354,11 @@ struct ReviewScreen: View {
             // draft.scan has paths. We can construct URLs for them.
             // Wait, we need the file paths on disk.
             var urls: [URL] = []
-            if let scan = current.scan {
-                if let root = try? Store.ScanFileStore.applicationSupportRoot() {
-                    let dir = root.appendingPathComponent(current.partId.uuidString)
-                    for step in scan.steps {
-                        if let photo = step.photo {
-                            urls.append(dir.appendingPathComponent(photo))
-                        }
+            if let scanDraft = library.store.load(partId: self.partId), let root = try? ScanFileStore.applicationSupportRoot() {
+                let dir = root.appendingPathComponent(self.partId.uuidString)
+                for step in scanDraft.sequence.steps {
+                    if let photo = step.photo {
+                        urls.append(dir.appendingPathComponent(photo.fileName))
                     }
                 }
             }

@@ -7,6 +7,7 @@ public struct OutboxView: View {
     @ObservedObject var manager: OutboxManager
     @State private var itemToDelete: OutboxItem?
     @State private var showExport = false
+    @State private var showSettings = false
     @State private var exportURL: URL?
     
     public init(manager: OutboxManager) {
@@ -75,6 +76,13 @@ public struct OutboxView: View {
             .navigationTitle("תיבת יוצאים")
             .toolbar {
                 ToolbarItem(placement: .automatic) {
+                    Button {
+                        showSettings = true
+                    } label: {
+                        Image(systemName: "gearshape")
+                    }
+                }
+                ToolbarItem(placement: .automatic) {
                     Button("ייצא הכל כ-JSON") {
                         exportAll()
                     }
@@ -95,6 +103,9 @@ public struct OutboxView: View {
                     }
                 }
                 Button("ביטול", role: .cancel) {}
+            }
+            .sheet(isPresented: $showSettings) {
+                SettingsView()
             }
             .sheet(isPresented: $showExport) {
                 if let url = exportURL {
@@ -124,18 +135,28 @@ public struct OutboxView: View {
     
     private func exportAll() {
         let items = manager.store.items
-        var jsonStrings = [String]()
+        var allParts: [[String: Any]] = []
+        
         for item in items {
-            if let str = String(data: item.packJSON, encoding: .utf8) {
-                jsonStrings.append(str)
+            if let pack = try? JSONSerialization.jsonObject(with: item.packJSON) as? [String: Any],
+               let parts = pack["parts"] as? [[String: Any]] {
+                allParts.append(contentsOf: parts)
             }
         }
-        let arrayString = "[" + jsonStrings.joined(separator: ",") + "]"
-        let data = arrayString.data(using: .utf8)
-        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("outbox_export.json")
-        try? data?.write(to: tempURL)
-        exportURL = tempURL
-        showExport = true
+        
+        let combinedPack: [String: Any] = [
+            "id": "export-\(UUID().uuidString.prefix(8))",
+            "name": "Outbox Export",
+            "createdAt": Int(Date().timeIntervalSince1970 * 1000),
+            "parts": allParts
+        ]
+        
+        if let data = try? JSONSerialization.data(withJSONObject: combinedPack, options: .prettyPrinted) {
+            let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("outbox_export.json")
+            try? data.write(to: tempURL)
+            exportURL = tempURL
+            showExport = true
+        }
     }
 }
 

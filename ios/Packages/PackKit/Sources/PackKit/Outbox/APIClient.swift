@@ -5,13 +5,20 @@ public enum APIError: Error {
 }
 
 public class APIClient {
-    public var baseURL: URL
-    public var token: String
     private let session: URLSession
     
-    public init(baseURL: URL = URL(string: "https://perfume-studio-indol.vercel.app")!, token: String = "", session: URLSession = .shared) {
-        self.baseURL = baseURL
-        self.token = token
+    public var baseURL: URL {
+        if let stored = UserDefaults.standard.string(forKey: "outboxBaseURL"), let url = URL(string: stored) {
+            return url
+        }
+        return URL(string: "https://perfume-studio-indol.vercel.app")!
+    }
+    
+    public var token: String {
+        return KeychainHelper.shared.readToken()
+    }
+    
+    public init(session: URLSession = .shared) {
         self.session = session
     }
     
@@ -25,9 +32,19 @@ public class APIClient {
                 uploadedURLs.append(url)
             }
             
-            // NOTE: Ideally we would inject uploadedURLs into the pack JSON here,
-            // but the spec just says POST /parts with the JSON.
-            try await postPart(packJSON: item.packJSON, idempotencyKey: item.id.uuidString)
+            var finalJSON = item.packJSON
+            if !uploadedURLs.isEmpty,
+               var pack = try JSONSerialization.jsonObject(with: finalJSON) as? [String: Any],
+               var parts = pack["parts"] as? [[String: Any]],
+               !parts.isEmpty {
+                parts[0]["images"] = uploadedURLs
+                pack["parts"] = parts
+                if let newData = try? JSONSerialization.data(withJSONObject: pack) {
+                    finalJSON = newData
+                }
+            }
+            
+            try await postPart(packJSON: finalJSON, idempotencyKey: item.id.uuidString)
             
             updatedItem.status = .sent
             updatedItem.lastError = nil

@@ -20,3 +20,17 @@ final class OutboxTests: XCTestCase {
         XCTAssertEqual(reloadedStore.items[0].id, item.id)
     }
 }
+    
+    @MainActor
+    func testStoreResetsSendingToPendingOnLoad() {
+        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let store = OutboxStore(fileURL: tempURL)
+        
+        var item = OutboxItem(packJSON: Data(), name: "Test")
+        item.status = .sending
+        store.add(item)
+        
+        let reloadedStore = OutboxStore(fileURL: tempURL)
+        XCTAssertEqual(reloadedStore.items.count, 1)
+        XCTAssertEqual(reloadedStore.items[0].status, .pending)
+    }

@@ -6,7 +6,8 @@ public class OutboxManager: ObservableObject {
     public let store: OutboxStore
     public let apiClient: APIClient
     private let monitor = NWPathMonitor()
-    private var isConnected = false
+    public var delays: [UInt64] = [5, 30, 120, 600, 600, 600]
+    public var isConnected = true
     private var isProcessing = false
     
     public init(store: OutboxStore, apiClient: APIClient = APIClient()) {
@@ -55,7 +56,7 @@ public class OutboxManager: ObservableObject {
         // Wait, the instructions say "retry with backoff ..., max 6 attempts, then failed"
         // Since we are processing the queue, we can just attempt once, and if it fails, schedule a retry.
         // Or attempt inside a loop for this specific item.
-        let delays: [UInt64] = [5, 30, 120, 600, 600, 600]
+        let delayList = self.delays
         
         while currentItem.attempts < 6 {
             currentItem.attempts += 1
@@ -77,7 +78,7 @@ public class OutboxManager: ObservableObject {
                 }
                 
                 // Backoff
-                let delaySeconds = delays[currentItem.attempts - 1]
+                let delaySeconds = delayList[currentItem.attempts - 1]
                 try? await Task.sleep(nanoseconds: delaySeconds * 1_000_000_000)
                 guard isConnected else {
                     currentItem.status = .pending

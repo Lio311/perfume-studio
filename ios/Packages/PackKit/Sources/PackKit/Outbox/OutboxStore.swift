@@ -6,15 +6,28 @@ public class OutboxStore: ObservableObject {
     
     private let fileURL: URL
     
-    public init(fileURL: URL = URL.documentsDirectory.appendingPathComponent("outbox.json")) {
-        self.fileURL = fileURL
+    public init(fileURL: URL? = nil) {
+        if let fileURL = fileURL {
+            self.fileURL = fileURL
+        } else {
+            let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+            let outboxDir = appSupport.appendingPathComponent("Outbox")
+            try? FileManager.default.createDirectory(at: outboxDir, withIntermediateDirectories: true)
+            self.fileURL = outboxDir.appendingPathComponent("outbox.json")
+        }
         load()
     }
     
     public func load() {
         guard let data = try? Data(contentsOf: fileURL) else { return }
         if let decoded = try? JSONDecoder().decode([OutboxItem].self, from: data) {
-            self.items = decoded
+            self.items = decoded.map {
+                var copy = $0
+                if copy.status == .sending {
+                    copy.status = .pending
+                }
+                return copy
+            }
         }
     }
     
