@@ -155,24 +155,24 @@ describe("label text layout", () => {
 
   it("gives each application its own ink and finish", () => {
     expect(labelInk("#D6B26A", "decal")).toBe("#D6B26A");
-    expect(labelInk("#d4a017", "foil")).toBe("#d4a017");
-    expect(labelInk("#f3f6fb", "foil")).toBe("#f3f6fb");
-    expect(labelInk("#D6B26A", "foil")).toBe("#D6B26A");
-    expect(labelInk("#b76e79", "foil")).toBe("#b76e79");
-    expect(labelInk("#000000", "foil")).toBe("#000000");
-    expect(labelInk("#111111", "foil")).not.toBe("#f3f6fb");
-    expect(labelInk("#D6B26A", "emboss")).toBe(EMBOSS_SUBSTRATE);
-    expect(labelInk("#D6B26A", "emboss", "#16130f")).toBe("#16130f");
+    expect(labelInk("#d4a017", "plaque")).toBe("#d4a017");
+    expect(labelInk("#f3f6fb", "plaque")).toBe("#f3f6fb");
+    expect(labelInk("#D6B26A", "plaque")).toBe("#D6B26A");
+    expect(labelInk("#b76e79", "plaque")).toBe("#b76e79");
+    expect(labelInk("#000000", "plaque")).toBe("#000000");
+    expect(labelInk("#111111", "plaque")).not.toBe("#f3f6fb");
+    expect(labelInk("#D6B26A", "sticker")).toBe(EMBOSS_SUBSTRATE);
+    expect(labelInk("#D6B26A", "sticker", "#16130f")).toBe("#16130f");
     expect(labelInk("#D6B26A", "engrave", "#16130f")).toBe("#16130f");
     expect(labelInk("#D6B26A", "engrave")).toBe(EMBOSS_SUBSTRATE);
     expect(labelFinish("decal")).toEqual({ metalness: 0, roughness: 1, bumpScale: 0, envMapIntensity: 1, emissive: 0 });
-    expect(labelFinish("foil")).toEqual({ metalness: 0.86, roughness: 0.18, bumpScale: 0, envMapIntensity: 2.8, emissive: 1.05 });
-    expect(labelFinish("emboss")).toEqual({ metalness: 0.02, roughness: 0.42, bumpScale: 16, envMapIntensity: 0.35, emissive: 0 });
+    expect(labelFinish("plaque")).toEqual({ metalness: 0.86, roughness: 0.18, bumpScale: 0, envMapIntensity: 2.8, emissive: 1.05 });
+    expect(labelFinish("sticker")).toEqual({ metalness: 0.02, roughness: 0.42, bumpScale: 16, envMapIntensity: 0.35, emissive: 0 });
     expect(labelFinish("engrave")).toEqual({ metalness: 0, roughness: 0.94, bumpScale: -14, envMapIntensity: 0.15, emissive: 0 });
   });
 
   it("pins foil roughness, an environment floor, and emissive in the ink colour", () => {
-    const foil = labelFinish("foil");
+    const foil = labelFinish("plaque");
     expect(foil.roughness).toBeGreaterThan(0.05);
     expect(foil.roughness).toBeLessThanOrEqual(0.22);
     expect(foil.metalness).toBeGreaterThan(0.45);
@@ -180,12 +180,12 @@ describe("label text layout", () => {
     expect(FOIL_ENV_FLOOR).toBeGreaterThan(0);
     expect(foil.envMapIntensity).toBeGreaterThanOrEqual(FOIL_ENV_FLOOR);
     expect(foil.emissive).toBeGreaterThan(0);
-    expect(labelEmissive("#c9a36a", "foil")).toBe("#c9a36a");
-    expect(labelEmissive("#141414", "foil")).toBe("#141414");
-    expect(labelEmissive("#c9a36a", "emboss")).toBe("#000000");
+    expect(labelEmissive("#c9a36a", "plaque")).toBe("#c9a36a");
+    expect(labelEmissive("#141414", "plaque")).toBe("#141414");
+    expect(labelEmissive("#c9a36a", "sticker")).toBe("#000000");
     expect(labelEmissive("#c9a36a", "engrave")).toBe("#000000");
     expect(labelEmissive("#c9a36a", "decal")).toBe("#000000");
-    expect(labelFinish("emboss").emissive).toBe(0);
+    expect(labelFinish("sticker").emissive).toBe(0);
     expect(labelFinish("engrave").emissive).toBe(0);
     expect(labelFinish("decal").emissive).toBe(0);
 
@@ -206,11 +206,11 @@ describe("label text layout", () => {
       }
     }
     const target = new Uint8ClampedArray(source.length);
-    paintLabelEmissive(source, "#c9a36a", "foil", target);
+    paintLabelEmissive(source, "#c9a36a", "plaque", target);
     const at = (x: number, y: number) => target[(y * width + x) * 4];
     expect(at(2, 2)).toBe(0);
     expect(at(16, 16)).toBe(255);
-    paintLabelEmissive(source, "#c9a36a", "emboss", target);
+    paintLabelEmissive(source, "#c9a36a", "sticker", target);
     expect(at(16, 16)).toBe(0);
     paintLabelEmissive(source, "#c9a36a", "decal", target);
     expect(at(16, 16)).toBe(0);
@@ -238,16 +238,16 @@ describe("label text layout", () => {
       const index = (y * width + x) * 4;
       return [target[index], target[index + 1], target[index + 2]] as const;
     };
-    paintLabelSurface(source, "#D6B26A", "foil", target, width, height);
+    paintLabelSurface(source, "#D6B26A", "plaque", target, width, height);
     const platePixel = at(2, 2);
     const inkPixel = at(24, 24);
     expect(platePixel[0]).toBe(0);
     expect(platePixel[1]).toBe(255);
     expect(platePixel[2]).toBe(0);
     expect(inkPixel[0]).toBe(255);
-    expect(inkPixel[1]).toBe(Math.round(labelFinish("foil").roughness * 255));
+    expect(inkPixel[1]).toBe(Math.round(labelFinish("plaque").roughness * 255));
     expect(inkPixel[2]).toBe(255);
-    paintLabelSurface(source, "#D6B26A", "emboss", target, width, height);
+    paintLabelSurface(source, "#D6B26A", "sticker", target, width, height);
     expect(at(24, 24)[0]).toBeGreaterThan(200);
     expect(at(2, 2)[0]).toBe(0);
     expect(contrastingPlate("#D6B26A")).toBe("#16130f");
@@ -257,11 +257,11 @@ describe("label text layout", () => {
     const source = new Uint8ClampedArray(8);
     source.set([0xd6, 0xb2, 0x6a, 0, 0xd6, 0xb2, 0x6a, 255]);
     const target = new Uint8ClampedArray(8);
-    paintLabelSurface(source, "#D6B26A", "foil", target, 2, 1);
+    paintLabelSurface(source, "#D6B26A", "plaque", target, 2, 1);
     expect(target[0]).toBe(0);
     expect(target[2]).toBe(0);
     expect(target[6]).toBe(255);
-    paintLabelEmissive(source, "#D6B26A", "foil", target);
+    paintLabelEmissive(source, "#D6B26A", "plaque", target);
     expect(target[0]).toBe(0);
     expect(target[1]).toBe(0);
     expect(target[2]).toBe(0);
@@ -296,9 +296,9 @@ describe("label text layout", () => {
     const engrave = new Uint8ClampedArray(source);
     const emboss = new Uint8ClampedArray(source);
     const print = new Uint8ClampedArray(source);
-    relieveLabelPixels(foil, width, height, "foil");
+    relieveLabelPixels(foil, width, height, "plaque");
     relieveLabelPixels(engrave, width, height, "engrave");
-    relieveLabelPixels(emboss, width, height, "emboss");
+    relieveLabelPixels(emboss, width, height, "sticker");
     relieveLabelPixels(print, width, height, "decal");
     expect(mean(print, source)).toBe(0);
     expect(mean(foil, engrave)).toBeGreaterThan(25);
@@ -323,7 +323,7 @@ describe("label text layout", () => {
       grey[i + 1] = 154;
       grey[i + 2] = 146;
     }
-    relieveLabelPixels(grey, width, height, "emboss");
+    relieveLabelPixels(grey, width, height, "sticker");
     const face = at(grey, 20, 16);
     let brightest = 0;
     let darkest = 255;
@@ -357,9 +357,9 @@ describe("label text layout", () => {
       silver[i + 1] = 246;
       silver[i + 2] = 251;
     }
-    relieveLabelPixels(black, width, height, "foil");
-    relieveLabelPixels(rose, width, height, "foil");
-    relieveLabelPixels(silver, width, height, "foil");
+    relieveLabelPixels(black, width, height, "plaque");
+    relieveLabelPixels(rose, width, height, "plaque");
+    relieveLabelPixels(silver, width, height, "plaque");
     const blackBody = at(black, 20, 16);
     const roseBody = at(rose, 20, 16);
     expect(blackBody[0]).toBeLessThan(20);
@@ -376,7 +376,7 @@ describe("label text layout", () => {
       onBlack[i + 1] = 0;
       onBlack[i + 2] = 0;
     }
-    relieveLabelPixels(onBlack, width, height, "foil", { ink: "#000000", substrate: "#000000" });
+    relieveLabelPixels(onBlack, width, height, "plaque", { ink: "#000000", substrate: "#000000" });
     const liftedBody = at(onBlack, 20, 16);
     expect(luma(liftedBody)).toBeGreaterThan(40);
     expect(luma(liftedBody)).toBeLessThan(60);
@@ -393,7 +393,7 @@ describe("label text layout", () => {
       cream[i + 1] = 239;
       cream[i + 2] = 230;
     }
-    relieveLabelPixels(cream, width, height, "emboss");
+    relieveLabelPixels(cream, width, height, "sticker");
     let creamPeak = 0;
     for (let y = 6; y < 26; y += 1) {
       for (let x = 8; x < 30; x += 1) {
@@ -440,15 +440,15 @@ describe("label text layout", () => {
   });
 
   it("keeps the carton plaque clear unless print has a plate colour", () => {
-    const painted = (application: "foil" | "emboss" | "engrave" | "decal", colour: string | null) => {
+    const painted = (application: "plaque" | "sticker" | "engrave" | "decal", colour: string | null) => {
       const ctx = fakeCtx();
       paintCartonMark(ctx as unknown as CanvasRenderingContext2D, { font: "cinzel" }, "ATELIER", "#c9a36a", 640, 180, application, colour);
       return ctx.plate === "" ? "clear" : ctx.plate;
     };
-    expect(painted("foil", "#111111")).toBe(cartonMarkPlate("foil", "#111111"));
-    expect(painted("emboss", "#111111")).toBe("clear");
-    expect(painted("emboss", "#111111")).toBe(cartonMarkPlate("emboss", "#111111"));
-    expect(painted("emboss", "  ")).toBe(cartonMarkPlate("emboss", "  "));
+    expect(painted("plaque", "#111111")).toBe(cartonMarkPlate("plaque", "#111111"));
+    expect(painted("sticker", "#111111")).toBe("clear");
+    expect(painted("sticker", "#111111")).toBe(cartonMarkPlate("sticker", "#111111"));
+    expect(painted("sticker", "  ")).toBe(cartonMarkPlate("sticker", "  "));
     expect(painted("engrave", "#111111")).toBe(cartonMarkPlate("engrave", "#111111"));
     expect(cartonMarkPlate("decal", null)).toBe("clear");
     expect(painted("decal", "  ")).toBe("clear");
@@ -457,14 +457,14 @@ describe("label text layout", () => {
     expect(painted("decal", "#f4efe6")).toBe("#f4efe6");
     expect(painted("decal", "#f4efe6")).toBe(cartonMarkPlate("decal", "#f4efe6"));
     const emboss = fakeCtx();
-    paintCartonMark(emboss as unknown as CanvasRenderingContext2D, { font: "cinzel" }, "ATELIER", "#c9a36a", 640, 180, "emboss");
+    paintCartonMark(emboss as unknown as CanvasRenderingContext2D, { font: "cinzel" }, "ATELIER", "#c9a36a", 640, 180, "sticker");
     expect(emboss.strokes.length).toBeGreaterThan(0);
-    expect(Math.min(...emboss.strokes)).toBeGreaterThanOrEqual(hairlineWidth(1, 0, "emboss"));
+    expect(Math.min(...emboss.strokes)).toBeGreaterThanOrEqual(hairlineWidth(1, 0, "sticker"));
   });
 
   it("paints carton foil and engrave on a clear ground, and keeps a plate only for print", () => {
     const foil = fakeCtx();
-    paintCartonMark(foil as unknown as CanvasRenderingContext2D, { font: "cinzel" }, "ATELIER", "#c9a36a", 640, 180, "foil");
+    paintCartonMark(foil as unknown as CanvasRenderingContext2D, { font: "cinzel" }, "ATELIER", "#c9a36a", 640, 180, "plaque");
     expect(foil.plate).toBe("");
     expect(foil.cleared).toBe(true);
     expect(foil.texts.filter((call) => call.text === "ATELIER")).toHaveLength(1);
@@ -473,7 +473,7 @@ describe("label text layout", () => {
     paintCartonMark(engrave as unknown as CanvasRenderingContext2D, { font: "cormorant" }, "ATELIER", "#c9a36a", 640, 180, "engrave");
     expect(engrave.plate).toBe("");
     const emboss = fakeCtx();
-    paintCartonMark(emboss as unknown as CanvasRenderingContext2D, { font: "cinzel" }, "ATELIER", "#c9a36a", 640, 180, "emboss");
+    paintCartonMark(emboss as unknown as CanvasRenderingContext2D, { font: "cinzel" }, "ATELIER", "#c9a36a", 640, 180, "sticker");
     expect(emboss.plate).toBe("");
     const platePixels = new Uint8ClampedArray([10, 20, 30, 0, 40, 50, 60, 255]);
     compositeEmbossPlatePixels(platePixels, [22, 19, 15]);
@@ -481,9 +481,9 @@ describe("label text layout", () => {
     expect(Array.from(platePixels.slice(4, 8))).toEqual([40, 50, 60, 255]);
     expect(hairlineWidth(80, 0.012, "decal")).toBeCloseTo(1, 5);
     expect(hairlineWidth(80, 0.012, "engrave")).toBe(2);
-    expect(hairlineWidth(80, 0.012, "emboss")).toBe(2);
-    expect(hairlineWidth(80, 0.012, "foil")).toBe(2);
-    expect(hairlineWidth(400, 0.012, "foil")).toBeCloseTo(4.8, 5);
+    expect(hairlineWidth(80, 0.012, "sticker")).toBe(2);
+    expect(hairlineWidth(80, 0.012, "plaque")).toBe(2);
+    expect(hairlineWidth(400, 0.012, "plaque")).toBeCloseTo(4.8, 5);
     expect(engraveAlpha(255)).toBe(255);
     expect(engraveAlpha(0)).toBe(0);
     expect(engraveAlpha(40)).toBeLessThan(80);

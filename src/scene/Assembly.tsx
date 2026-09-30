@@ -42,7 +42,7 @@ import type { BoxForm, PartKey, PumpStyle } from "../model/types.ts";
 import { ClosureBox } from "./boxClosure.tsx";
 import { useUnboxPlaying } from "./unbox/useUnboxPlaying.ts";
 import { buildBottleGeometry, buildCapGeometry, buildLabelPatch } from "../geometry/sweep.ts";
-import { contrastingPlate, labelInk } from "../geometry/logos.ts";
+import { labelInk } from "../geometry/logos.ts";
 import { LabelPaintProvider, useLabelMaps, useSharedLabelCanvas } from "./labelPaint.ts";
 import { CartonMark, LabelFinishMaterial } from "./cartonMark.tsx";
 import { useLab } from "../store/labStore.ts";
@@ -738,7 +738,7 @@ function LabelPart() {
   const spec = logoById(design.label.variantId);
   const application = resolvedLabelApplication(design.label);
   const fit = computeFit(design, false);
-  const ground = application === "emboss" || application === "engrave" ? contrastingPlate(design.label.color) : undefined;
+  const ground = application === "engrave" ? design.bottle.color : undefined;
   const ink = labelInk(design.label.color, application, ground);
   const shared = useSharedLabelCanvas();
   const canvas = useMemo(() => shared ?? document.createElement("canvas"), [shared]);
@@ -766,9 +766,9 @@ function LabelPart() {
           mask={mask}
           emissiveMap={emissive}
           normalMap={normal}
-          ink={application === "foil" ? design.label.color : ink}
+          ink={ink}
           application={application}
-          substrate={application === "foil" ? design.bottle.color : undefined}
+          substrate={application === "engrave" ? design.bottle.color : undefined}
         />
         <GoldRim part="label" />
       </mesh>

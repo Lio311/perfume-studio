@@ -12,9 +12,9 @@ describe("share links", () => {
 
   it("round-trips a logo application and replaces an unknown one with decal", () => {
     const design = createDefaultDesign();
-    design.label.application = "emboss";
+    design.label.application = "sticker";
     design.label.text = "NOIR";
-    expect(decodeShareDesign(encodeShareDesign(design))?.label.application).toBe("emboss");
+    expect(decodeShareDesign(encodeShareDesign(design))?.label.application).toBe("sticker");
     expect(decodeShareDesign(encodeShareDesign(design))).toEqual(design);
 
     expect(mergeShareDesign({

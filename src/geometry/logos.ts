@@ -83,8 +83,7 @@ function hexFromLinear(color: { r: number; g: number; b: number }): string {
  * Engrave and emboss have no ink of their own and take the substrate.
  */
 export function labelInk(color: string, application: LogoApplication = "decal", substrate?: string): string {
-  if (application === "foil") return color;
-  if (application === "engrave" || application === "emboss") {
+  if (application === "engrave") {
     const ground = substrate?.trim();
     if (ground) return ground;
     return EMBOSS_SUBSTRATE;
@@ -101,8 +100,8 @@ export function legacyLabelInk(application: string, plate: string): string {
   const color = parsedColor(plate);
   const lin = (channel: number) => (channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4);
   const lum = 0.2126 * lin(color.r) + 0.7152 * lin(color.g) + 0.0722 * lin(color.b);
-  if (application === "foil") return "#fff6e4";
-  if (application === "emboss") return lum > 0.62 ? "#6d583c" : "#f6f1e6";
+  if (application === "plaque") return "#fff6e4";
+  if (application === "sticker") return lum > 0.62 ? "#6d583c" : "#f6f1e6";
   if (application === "engrave") return lum > 0.45 ? "#241c14" : "#0c0b0a";
   return lum > 0.55 ? "#221910" : "#f4eee4";
 }
@@ -143,7 +142,7 @@ export const FOIL_LOW_METALNESS = 0.3;
  */
 export function labelFinish(application: LogoApplication = "decal"): LabelFinish {
   switch (application) {
-    case "foil":
+    case "plaque":
       return {
         metalness: 0.86,
         roughness: 0.18,
@@ -151,7 +150,7 @@ export function labelFinish(application: LogoApplication = "decal"): LabelFinish
         envMapIntensity: 2.8,
         emissive: 1.05,
       };
-    case "emboss":
+    case "sticker":
       return { metalness: 0.02, roughness: 0.42, bumpScale: 16, envMapIntensity: 0.35, emissive: 0 };
     case "engrave":
       return { metalness: 0, roughness: 0.94, bumpScale: -14, envMapIntensity: 0.15, emissive: 0 };
@@ -370,10 +369,10 @@ export function relieveLabelPixels(
   if (application === "decal" || width < 2 || height < 2) return;
   const src = new Uint8ClampedArray(data);
   const radius = Math.max(2, Math.round(Math.min(width, height) * 0.02));
-  const embossField = application === "emboss" ? embossHeightField(src, width, height) : null;
+  const embossField = application === "sticker" ? embossHeightField(src, width, height) : null;
   const sobel = embossSobelRadius(width, height);
   const lowContrast =
-    application === "foil" &&
+    application === "plaque" &&
     foil !== undefined &&
     contrastRatio(foil.ink, foil.substrate) < FOIL_CONTRAST_FLOOR;
   const alphaAt = (x: number, y: number) => {
@@ -397,7 +396,7 @@ export function relieveLabelPixels(
       const index = (y * width + x) * 4;
       const alpha = src[index + 3];
       if (alpha === 0) continue;
-      if (application === "foil") {
+      if (application === "plaque") {
         let red = src[index];
         let green = src[index + 1];
         let blue = src[index + 2];
@@ -510,7 +509,7 @@ export function paintLabelNormal(
     target[index + 2] = 255;
     target[index + 3] = 255;
   }
-  if (application !== "emboss" || width < 2 || height < 2 || width * height !== count) return;
+  if ((application !== "plaque" && application !== "sticker" && application !== "engrave") || width < 2 || height < 2 || width * height !== count) return;
   const field = embossHeightField(source, width, height);
   const radius = embossSobelRadius(width, height);
   const strength = 8;
@@ -1204,9 +1203,13 @@ export function logoTexture(
   const ctx = canvas.getContext("2d");
   if (!ctx) return canvas;
   const minStroke = hairlineWidth(1, 0, application);
-  paintLabel(ctx, spec, text, ink, w, h, application === "decal" ? "contrast" : "clear", minStroke);
+  if (application === "sticker") {
+    paintLabel(ctx, spec, text, contrastingPlate(ink), w, h, ink, minStroke);
+  } else {
+    paintLabel(ctx, spec, text, ink, w, h, application === "decal" ? "contrast" : "clear", minStroke);
+  }
   applyLabelRelief(canvas, application, foil);
-  if (application === "emboss") sealEmbossPlate(canvas, ink);
+  if (application === "plaque") sealEmbossPlate(canvas, ink);
   return canvas;
 }
 

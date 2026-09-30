@@ -92,8 +92,8 @@ export function LabelPaintProvider({ children }: { children: ReactNode }) {
   const spec = logoById(design.label.variantId);
   const application = resolvedLabelApplication(design.label);
   const fit = computeFit(design, false);
-  const ground = application === "emboss" || application === "engrave" ? contrastingPlate(design.label.color) : undefined;
-  const foil: FoilRelief | undefined = application === "foil" ? { ink: design.label.color, substrate: design.bottle.color } : undefined;
+  const ground = application === "sticker" || application === "engrave" ? contrastingPlate(design.label.color) : undefined;
+  const foil: FoilRelief | undefined = application === "plaque" ? { ink: design.label.color, substrate: design.bottle.color } : undefined;
   const ink = foil ? foilDisplayInk(foil.ink, foil.substrate) : labelInk(design.label.color, application, ground);
   const fontTick = useLabelFontTick(spec.font, design.label.text);
   const aspect = fit.labelW / Math.max(4, fit.labelH);
@@ -115,8 +115,8 @@ export function useCartonLabelCanvas(): HTMLCanvasElement {
   const design = useLab((s) => s.design);
   const spec = logoById(design.label.variantId);
   const application = resolvedLabelApplication(design.label);
-  const ground = application === "emboss" || application === "engrave" ? design.box.color : undefined;
-  const foil: FoilRelief | undefined = application === "foil" ? { ink: design.label.color, substrate: design.box.color } : undefined;
+  const ground = application === "sticker" || application === "engrave" ? design.box.color : undefined;
+  const foil: FoilRelief | undefined = application === "plaque" ? { ink: design.label.color, substrate: design.box.color } : undefined;
   const ink = foil ? foilDisplayInk(foil.ink, foil.substrate) : labelInk(design.label.color, application, ground);
   const fontTick = useLabelFontTick(spec.font, design.label.text);
   const immediate = [spec.id, application, spec.font, fontTick].join("\u0000");
@@ -162,7 +162,7 @@ export function useLabelMaps(canvas: HTMLCanvasElement, ink: string, application
     return map;
   }, [canvas, ink, application, finish.emissive]);
   const normal = useMemo(() => {
-    if (application !== "emboss") return null;
+    if (application !== "sticker") return null;
     const surface = labelNormalCanvas(embossHeightCanvas(canvas), application);
     const map = new THREE.CanvasTexture(surface);
     map.colorSpace = THREE.NoColorSpace;

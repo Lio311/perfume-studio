@@ -139,7 +139,7 @@ export type LogoMark =
   | "oval"
   | "numeral"
   | "bars";
-export type LogoApplication = "decal" | "engrave" | "emboss" | "foil";
+export type LogoApplication = "decal" | "engrave" | "plaque" | "sticker";
 export type LogoFont = "cormorant" | "cinzel" | "italiana" | "vibes" | "heebo";
 export type LogoFrame = "none" | "hairline" | "double" | "corners" | "circle" | "laurel";
 

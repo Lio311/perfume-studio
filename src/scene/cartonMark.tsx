@@ -32,8 +32,8 @@ export function LabelFinishMaterial({
   const finish = labelFinish(application);
   const flat = finish.metalness === 0 && finish.bumpScale === 0 && !normalMap;
   const open = overlay || application !== "decal";
-  const lowFoil = application === "foil" && !!substrate && contrastRatio(ink, substrate) < FOIL_CONTRAST_FLOOR;
-  const embossBoard = application === "emboss" && surface;
+  const lowFoil = application === "plaque" && !!substrate && contrastRatio(ink, substrate) < FOIL_CONTRAST_FLOOR;
+  const embossBoard = application === "sticker" && surface;
   // Engrave is baked frost and stays unlit. Emboss uses the normal map so it is lit, on the bottle and the carton.
   const baked = application === "engrave";
   if (baked || flat || !mask) {
@@ -56,7 +56,7 @@ export function LabelFinishMaterial({
   // Foil keeps an environment floor and a small ink-coloured emissive so a coloured tint stays itself
   // when the studio behind the camera is dark. A lifted black tint skips that glow. Its uniform is
   // 0.13 divided by the mapped roughness, so the ink lands near 0.13 and the face stays glossy black.
-  const envMapIntensity = application === "foil"
+  const envMapIntensity = application === "plaque"
     ? (lowFoil ? 0.55 : Math.max(finish.envMapIntensity, FOIL_ENV_FLOOR))
     : embossBoard
       ? surface.envMapIntensity
@@ -102,9 +102,9 @@ export function CartonMark({ w, y, z }: { w: number; y: number; z: number }) {
   const board = useLab((s) => s.design.box.material);
   const wrapFinish = useLab((s) => s.design.box.wrap?.finish ?? "soft-touch");
   const application = resolvedLabelApplication({ variantId, application: stored });
-  const ground = application === "emboss" || application === "engrave" ? boxColor : undefined;
+  const ground = application === "sticker" || application === "engrave" ? boxColor : undefined;
   const ink = labelInk(color, application, ground);
-  const surface = application === "emboss" ? boardSurface(board || "rigid", wrapFinish) : undefined;
+  const surface = application === "sticker" ? boardSurface(board || "rigid", wrapFinish) : undefined;
   const canvas = useCartonLabelCanvas();
   const aspect = Number(canvas.dataset.aspect);
   const { width: planeW, height: planeH } = cartonMarkSize(w, aspect);
@@ -121,7 +121,7 @@ export function CartonMark({ w, y, z }: { w: number; y: number; z: number }) {
         ink={ink}
         application={application}
         overlay
-        substrate={application === "foil" ? boxColor : undefined}
+        substrate={application === "plaque" ? boxColor : undefined}
         surface={surface}
       />
     </mesh>

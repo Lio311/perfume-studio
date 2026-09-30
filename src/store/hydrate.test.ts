@@ -666,9 +666,9 @@ describe("saved design hydration", () => {
       scale: 1,
       visible: true,
     };
-    const kept = sanitizeDesign({ label: { ...base, application: "emboss" } });
-    expect(kept.label.application).toBe("emboss");
-    expect(partializeLabState({ design: kept }).design).toMatchObject({ label: { application: "emboss" } });
+    const kept = sanitizeDesign({ label: { ...base, application: "sticker" } });
+    expect(kept.label.application).toBe("sticker");
+    expect(partializeLabState({ design: kept }).design).toMatchObject({ label: { application: "sticker" } });
 
     const missing = sanitizeDesign({ label: base });
     expect(missing.label.application).toBeUndefined();
@@ -676,21 +676,21 @@ describe("saved design hydration", () => {
 
     expect(sanitizeDesign({ label: { ...base, application: "stamp" } }).label.application).toBe("decal");
 
-    const foil = sanitizeDesign({ label: { ...base, color: "#b76e79", application: "foil" } });
+    const foil = sanitizeDesign({ label: { ...base, color: "#b76e79", application: "plaque" } });
     expect(foil.label.color).toBe("#b76e79");
-    expect(foil.label.application).toBe("foil");
-    expect(labelInk(foil.label.color, "foil")).toBe("#b76e79");
-    expect(labelInk("#000000", "foil")).toBe("#000000");
+    expect(foil.label.application).toBe("plaque");
+    expect(labelInk(foil.label.color, "plaque")).toBe("#b76e79");
+    expect(labelInk("#000000", "plaque")).toBe("#000000");
 
     const merged = mergePersistedLab(
       {
         design: { label: { ...base, application: "nope" } },
-        past: [{ ...createDefaultDesign(), label: { ...base, application: "foil" } }],
+        past: [{ ...createDefaultDesign(), label: { ...base, application: "plaque" } }],
       },
       slice(),
     );
     expect(merged.design.label.application).toBe("decal");
-    expect(merged.past[0]?.label.application).toBe("foil");
+    expect(merged.past[0]?.label.application).toBe("plaque");
   });
 
   it("keeps a trailing emoji whole when stored label text is capped", () => {

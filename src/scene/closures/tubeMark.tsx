@@ -59,9 +59,9 @@ export function TubeMark({ radius, y }: { radius: number; y: number }) {
   const board = useLab((s) => s.design.box.material);
   const wrapFinish = useLab((s) => s.design.box.wrap?.finish ?? "soft-touch");
   const application = resolvedLabelApplication({ variantId, application: stored });
-  const ground = application === "emboss" || application === "engrave" ? boxColor : undefined;
+  const ground = application === "sticker" || application === "engrave" ? boxColor : undefined;
   const ink = labelInk(color, application, ground);
-  const surface = application === "emboss" ? boardSurface(board || "rigid", wrapFinish) : undefined;
+  const surface = application === "sticker" ? boardSurface(board || "rigid", wrapFinish) : undefined;
   const canvas = useCartonLabelCanvas();
   const aspect = Number(canvas.dataset.aspect);
   const band = tubeMarkBand(radius, Number.isFinite(aspect) && aspect > 0 ? aspect : 3);
@@ -82,7 +82,7 @@ export function TubeMark({ radius, y }: { radius: number; y: number }) {
         ink={ink}
         application={application}
         overlay
-        substrate={application === "foil" ? boxColor : undefined}
+        substrate={application === "plaque" ? boxColor : undefined}
         surface={surface}
       />
     </mesh>

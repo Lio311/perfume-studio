@@ -37,10 +37,10 @@ describe("label texture lifetime", () => {
       return null;
     }
     await act(async () => {
-      root.render(createElement(Probe, { application: "foil" }));
+      root.render(createElement(Probe, { application: "plaque" }));
     });
     await act(async () => {
-      root.render(createElement(Probe, { application: "emboss" }));
+      root.render(createElement(Probe, { application: "sticker" }));
     });
     expect(colorDispose).toHaveBeenCalledTimes(0);
     expect(firstColor).toBeTruthy();
@@ -63,7 +63,7 @@ describe("shared label paint", () => {
     document.body.append(host);
     const root = createRoot(host);
     function Probe({ signature }: { signature: string }) {
-      useDebouncedLabelCanvas("foil", signature, () => {
+      useDebouncedLabelCanvas("plaque", signature, () => {
         paints += 1;
         const canvas = document.createElement("canvas");
         canvas.width = 4;
@@ -106,7 +106,7 @@ describe("shared label paint", () => {
       return null;
     }
     await act(async () => {
-      root.render(createElement(Probe, { finish: "foil", text: "NOIR" }));
+      root.render(createElement(Probe, { finish: "plaque", text: "NOIR" }));
     });
     expect(paints).toBe(1);
     await act(async () => {

@@ -34,8 +34,8 @@ export function buildSpecHtml(design: Design, lang: Lang, render: string): strin
   const applicationName = {
     decal: t.logoPrint,
     engrave: t.logoEngrave,
-    emboss: t.logoEmboss,
-    foil: t.logoFoil,
+    plaque: t.logoPlaque,
+    sticker: t.logoSticker,
   }[resolvedLabelApplication(design.label)];
   const supplierLine = supplier ? `${supplier.name}${supplier.ref ? ` · ${supplier.ref}` : ""}` : "—";
   const ferrule = neck

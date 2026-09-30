@@ -95,7 +95,6 @@ export function Inspector() {
               <Alternatives />
             </Suspense>
           )}
-          {!(part === "label" && (resolvedLabelApplication(design.label) === "emboss" || resolvedLabelApplication(design.label) === "engrave")) && (
           <>
           <h3>{t.color}</h3>
           <div className="swatches">
@@ -123,7 +122,6 @@ export function Inspector() {
             </label>
           </div>
           </>
-          )}
           {part !== "liquid" && (
             <>
               <h3>{t.finish}</h3>
@@ -256,9 +254,9 @@ export function Inspector() {
                   [
                     ["decal", "logoPrint"],
                     ["engrave", "logoEngrave"],
-                    ["emboss", "logoEmboss"],
-                    ["foil", "logoFoil"],
-                  ] as const satisfies ReadonlyArray<readonly [LogoApplication, "logoPrint" | "logoEngrave" | "logoEmboss" | "logoFoil"]>
+                    ["plaque", "logoPlaque"],
+                    ["sticker", "logoSticker"],
+                  ] as const satisfies ReadonlyArray<readonly [LogoApplication, "logoPrint" | "logoEngrave" | "logoPlaque" | "logoSticker"]>
                 ).map(([id, key]) => (
                   <button
                     key={id}
