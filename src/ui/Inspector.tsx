@@ -88,12 +88,6 @@ export function Inspector() {
               <span className="eyebrow">{partLabel[lang][part]}</span>
               <strong>{hidden ? <bdi>{name}</bdi> : name}</strong>
             </div>
-            {part !== "liquid" && (
-              <div className="cycle-btns">
-                <button type="button" onClick={() => cycle(-1, part)}>{t.prev}</button>
-                <button type="button" onClick={() => cycle(1, part)}>{t.next}</button>
-              </div>
-            )}
           </div>
           {!hidden && part !== "liquid" && <PartPriceEditor kind={part as VariantPart} partId={design[part].variantId} />}
           {!hidden && budget.summary.over && (
