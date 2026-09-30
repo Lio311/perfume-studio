@@ -69,9 +69,17 @@ export function Library() {
   const gridRef = useRef<HTMLDivElement>(null);
   const tabRef = useRef(tab);
   
+  const stage = useLab((s) => s.stage);
+  
   const wizardStep = design.step ?? 7;
   const isWizard = wizardStep < 7;
-  const activeTabs = isWizard ? [...WIZARD_ORDER.slice(0, wizardStep + 1), "pending" as const] : TABS;
+  const activeTabs = isWizard 
+    ? [...WIZARD_ORDER.slice(0, wizardStep + 1), "pending" as const] 
+    : stage === "box" 
+      ? ["box", "pending"] as typeof TABS
+      : stage === "bottle"
+        ? ["bottle", "cap", "label", "pump", "collar", "liquid", "pending"] as typeof TABS
+        : TABS;
   const visibleTab = isWizard ? tabForWizardStep(wizardStep) : tab;
 
   tabRef.current = tab;
@@ -97,8 +105,17 @@ export function Library() {
       setCat("all");
       setSupplier("all");
     }
-    setTab(next);
+    setTab(next as any);
   }, [selected, focusToken, isWizard]);
+
+  useEffect(() => {
+    if (isWizard) return;
+    if (stage === "box" && tab !== "box" && tab !== "pending") {
+      setTab("box");
+    } else if (stage === "bottle" && tab === "box") {
+      setTab("bottle");
+    }
+  }, [stage, isWizard, tab]);
 
 
   const activeId =
