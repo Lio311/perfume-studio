@@ -1038,10 +1038,6 @@ export function paintLabel(
     ctx.font = `${weight} ${px}px ${family}`;
     return ctx.measureText(line).width;
   });
-  if (!layout.text) {
-    ctx.restore();
-    return layout;
-  }
 
   const textShare = typeMark ? 0.78 : 0.58;
   const textHeight = h * textShare;
@@ -1060,20 +1056,24 @@ export function paintLabel(
     ctx.strokeRect(m, m, w - m * 2, h - m * 2);
   }
 
-  ctx.direction = layout.direction;
-  ctx.font = `${weight} ${layout.px}px ${family}`;
-  ctx.fillStyle = ink;
-  ctx.strokeStyle = ink;
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  const leading = layout.px * 1.16;
-  const block = layout.lines.length * leading;
-  let y = textTop + (textHeight - block) / 2 + leading * 0.5;
-  for (const line of layout.lines) {
+  let y = textTop + textHeight / 2;
+  if (layout.text) {
     ctx.direction = layout.direction;
-    ctx.fillText(line, w / 2, y);
-    y += leading;
+    ctx.font = `${weight} ${layout.px}px ${family}`;
+    ctx.fillStyle = ink;
+    ctx.strokeStyle = ink;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    const leading = layout.px * 1.16;
+    const block = layout.lines.length * leading;
+    y = textTop + (textHeight - block) / 2 + leading * 0.5;
+    for (const line of layout.lines) {
+      ctx.direction = layout.direction;
+      ctx.fillText(line, w / 2, y);
+      y += leading;
+    }
   }
+  
   if (spec.mark === "horizon") {
     ctx.lineWidth = Math.max(Math.max(minStroke, 1.5), h * 0.012);
     ctx.beginPath();
