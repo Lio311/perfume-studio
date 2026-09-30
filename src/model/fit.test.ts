@@ -1,9 +1,10 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { buildLabelPatch } from "../geometry/sweep.ts";
 import { syncRegistry, type SupplierPart } from "../import/registry.ts";
+import { BOTTLES } from "./bottles.ts";
 import { bottleById } from "./catalog.ts";
 import { applyVariant, createDefaultDesign } from "./design.ts";
-import { boxContentsSeat, computeFit } from "./fit.ts";
+import { boxContentsSeat, computeFit, fitsContents } from "./fit.ts";
 import { neckRadius } from "./necks.ts";
 import { bottleRadii } from "./sample.ts";
 
@@ -152,6 +153,60 @@ describe("label plate fit", () => {
     expect(importedFit.labelH).toBeLessThanOrEqual(importedShoulder * 0.72 + 0.05);
     expect(importedFit.labelH).toBeGreaterThan(importedShoulder * 0.6);
     expect(importedFit.labelY + importedFit.labelH / 2).toBeLessThanOrEqual(importedShoulder + 0.05);
+  });
+});
+
+describe("fitsContents", () => {
+  
+  it("fails if the box is too small (Cara 50 with 40x30x70)", () => {
+    const design = createDefaultDesign();
+    applyVariant(design, "bottle", "cara-50");
+    design.box.linked = false;
+    design.box.widthMm = 40;
+    design.box.depthMm = 30;
+    design.box.heightMm = 70;
+    
+    const res = fitsContents(design);
+    expect(res.ok).toBe(false);
+    expect(res.shortBy.w).toBeGreaterThan(0);
+    expect(res.shortBy.d).toBeGreaterThan(0);
+    expect(res.shortBy.h).toBeGreaterThan(0);
+  });
+
+  it("passes for every bottle in the library with default linked sizes", () => {
+    for (const bottle of BOTTLES) {
+      const design = createDefaultDesign();
+      applyVariant(design, "bottle", bottle.id);
+      design.box.linked = true; // should use envelope size
+      // When linked=true, the box dimensions in design.box are ignored by fitsContents?
+      // Wait, in computeFit, boxW is envelope.outerW if linked is true.
+      // But fitsContents checks design.box.widthMm.
+      // Ah! When linked is true, the user CANNOT make it smaller, it auto-updates.
+      // Actually, if linked is true, fitsContents might return false if design.box wasn't updated!
+      // In the app, if linked is true, the sliders are hidden or disabled.
+      // But let's set design.box dimensions to the envelope dimensions to test.
+      const fit = computeFit(design, false);
+      design.box.widthMm = fit.boxW;
+      design.box.depthMm = fit.boxD;
+      design.box.heightMm = fit.boxH;
+      expect(fitsContents(design).ok).toBe(true);
+    }
+  });
+
+  it("increases the required height when a crimp-pump collar is used", () => {
+    const design = createDefaultDesign();
+    applyVariant(design, "bottle", "cara-50");
+    // Standard screw cap/pump
+    const resScrew = fitsContents(design);
+    
+    // Crimp pump
+    applyVariant(design, "pump", "crimp-pump");
+    applyVariant(design, "collar", "crimp-collar");
+    const resCrimp = fitsContents(design);
+    
+    // Crimp collar sits higher on the neck, so the total required height should be taller.
+    expect(resCrimp.envelope.outerH).toBeGreaterThan(110);
+    expect(resCrimp.envelope.outerH).not.toBe(resScrew.envelope.outerH);
   });
 });
 

@@ -1,7 +1,7 @@
 import { lazy, Suspense, useId } from "react";
 import { formatMoney } from "../budget/money.ts";
 import { bottleById, boxById, capById, collarById, logoById, pumpById, resolvedLabelApplication } from "../model/catalog.ts";
-import { computeFit } from "../model/fit.ts";
+import { computeFit, fitsContents } from "../model/fit.ts";
 import { FINISHES, PALETTE, LIQUID_PALETTE, effectiveGlassOpacity } from "../model/materials.ts";
 import { NECK_IDS } from "../model/necks.ts";
 import { setUnboxingMuted, useUnboxingTrack } from "../audio/unboxingTrack.ts";
@@ -310,9 +310,24 @@ export function Inspector() {
               <input className="search" value={design.label.text} onChange={(event) => {
                 patch("label", { text: clampLabelText(event.target.value) });
               }} />
-              <Slider label={t.width} value={fit.boxW} min={40} max={160} onGesture={beginGesture} onGestureEnd={endGesture} onChange={(widthMm) => patch("box", { widthMm })} />
-              <Slider label={t.depth} value={fit.boxD} min={30} max={140} onGesture={beginGesture} onGestureEnd={endGesture} onChange={(depthMm) => patch("box", { depthMm })} />
-              <Slider label={t.height} value={fit.boxH} min={70} max={240} onGesture={beginGesture} onGestureEnd={endGesture} onChange={(heightMm) => patch("box", { heightMm })} />
+              {(() => {
+                const fits = fitsContents(design);
+                return (
+                  <>
+                    <Slider label={t.width} value={fit.boxW} min={Math.ceil(fits.envelope.outerW)} max={160} onGesture={beginGesture} onGestureEnd={endGesture} onChange={(widthMm) => patch("box", { widthMm })} />
+                    <Slider label={t.depth} value={fit.boxD} min={Math.ceil(fits.envelope.outerD)} max={140} onGesture={beginGesture} onGestureEnd={endGesture} onChange={(depthMm) => patch("box", { depthMm })} />
+                    <Slider label={t.height} value={fit.boxH} min={Math.ceil(fits.envelope.outerH)} max={240} onGesture={beginGesture} onGestureEnd={endGesture} onChange={(heightMm) => patch("box", { heightMm })} />
+                    {!fits.ok && !design.box.linked && (
+                      <div className="warning-card">
+                        <p>{lang === "he" ? "הקרטון קטן מהבקבוק" : "Carton is too small for the bottle"}</p>
+                        <button type="button" className="btn small" onClick={() => patch("box", { widthMm: Math.ceil(fits.envelope.outerW), depthMm: Math.ceil(fits.envelope.outerD), heightMm: Math.ceil(fits.envelope.outerH) })}>
+                          {lang === "he" ? "התאם אוטומטית" : "Auto-fit"}
+                        </button>
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
               <button type="button" className="text-btn fit" onClick={() => patch("box", { linked: true })}>{t.fit}</button>
               <BoxPack />
             </>
@@ -637,6 +652,9 @@ function Slider({
         value={value}
         onPointerDown={onGesture}
         onPointerUp={onGestureEnd}
+        onPointerCancel={onGestureEnd}
+        onLostPointerCapture={onGestureEnd}
+        onBlur={onGestureEnd}
         onChange={(event) => onChange(Number(event.target.value))}
       />
     </label>

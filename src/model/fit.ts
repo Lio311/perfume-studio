@@ -1,5 +1,5 @@
 import { labelPatchExtent } from "../geometry/labelPatch.ts";
-import { envelopeFromDesign } from "./boxFields.ts";
+import { envelopeFromDesign, hydrateBox } from "./boxFields.ts";
 import { bottleById, capById, collarById, logoById, pumpById } from "./catalog.ts";
 import { NECKS, neckRadius, neckStandard } from "./necks.ts";
 import { bottleRadii, neckFinishMm } from "./sample.ts";
@@ -82,7 +82,7 @@ export function crimpHeadRadius(
   return Math.max(actuatorR, neckR * 0.9);
 }
 
-export function computeFit(design: Design, exploded = false): Fit {
+export function getContentsFit(design: Design, exploded = false) {
   const bottle = bottleById(design.bottle.variantId);
   const cap = capById(design.cap.variantId);
   const collar = collarById(design.collar.variantId);
@@ -132,6 +132,13 @@ export function computeFit(design: Design, exploded = false): Fit {
   // A crimp pump has no screw skirt, so its base is the glass lip. A screw
   // pump stands on the collar that carries the thread, a little above the lip.
   const pumpBase = pump.style === "crimp" ? lip : collarTop - 0.3;
+
+  return { bottle, cap, collar, pump, logo, neck, neckR, bottleH, bottleW, bottleD, ferrule, stockFerrule, collarInner, collarOuter, collarHeight, lip, overlap, collarBottom, collarTop, capH, capW, capD, capBottom, fullActuator, actuatorH, actuatorR, headR, nozzle, pumpBase };
+}
+
+export function computeFit(design: Design, exploded = false): Fit {
+  const c = getContentsFit(design, exploded);
+  const { bottle, collar, logo, neckR, bottleH, bottleW, bottleD, collarInner, collarOuter, collarHeight, collarBottom, collarTop, capH, capW, capD, capBottom, fullActuator, actuatorH, actuatorR, headR, nozzle, pumpBase } = c;
 
   const shoulderY = bottleH * (1 - bottle.shoulder) - 4;
   const fractions: Record<typeof logo.plate, [number, number]> = {
@@ -265,4 +272,56 @@ export function boxContentsSeat(design: Design): number {
   const seat = computeFit(design, false).seatY;
   seatCache = { design, seat };
   return seat;
+}
+
+export function requiredInnerSize(design: Design) {
+  const c = getContentsFit(design, false);
+  const pack = hydrateBox(design.box);
+  const clearance = pack.insert.clearanceMm;
+  const includeCap = design.cap.visible;
+  const includePump = design.pump.visible;
+  
+  const capTop = c.capBottom + c.capH;
+  const pumpTop = c.pumpBase + c.actuatorH;
+  const stack = Math.max(c.bottleH, includeCap ? capTop : 0, includePump ? pumpTop : 0);
+  
+  const widthMm = Math.max(c.bottleW, includeCap ? c.capW : 0, includePump ? (c.actuatorR + c.nozzle) * 2 : 0) + clearance * 2;
+  const depthMm = Math.max(c.bottleD, includeCap ? c.capD : 0, includePump ? c.actuatorR * 2 : 0) + clearance * 2;
+  
+  const orientation = pack.insert.orientation;
+  if (orientation === "lying") {
+    return { w: widthMm, d: stack + clearance * 2, h: depthMm };
+  }
+  return { w: widthMm, d: depthMm, h: stack };
+}
+
+export function fitsContents(design: Design) {
+  // Calculate available inner space
+  // Wait, design.box.widthMm is OUTER width. innerW = outerW - boardMm * 2.
+  // Actually, requiredInnerSize gives us the required INNER size (insertW, insertD, insertH).
+  // Wait, let's look at how deriveEnvelope uses cavity width.
+  // deriveEnvelope: insertW = cavity.widthMm + margin*2 (margin = max(8, clearance*2)).
+  // Then innerW = insertW. outerW = innerW + boardMm*2.
+  // So the required outer dimensions are based on deriveEnvelope!
+  // It's safer to just call computeFit(design, false) to get the required MINIMAL dimensions.
+  // Wait, if computeFit uses design.box (which might be too small), computeFit might return the TOO SMALL box size.
+  // In computeFit:
+  // const fixed = design.box.linked === false;
+  // const boxW = fixed ? design.box.widthMm : envelope.outerW;
+  // So envelope.outerW is the REQUIRED outer width.
+  // So if design.box is smaller than envelope.outerW, it doesn't fit!
+  // So fitsContents is just:
+  const envelope = envelopeFromDesign(design);
+  const okW = design.box.widthMm >= envelope.outerW - 0.1;
+  const okD = design.box.depthMm >= envelope.outerD - 0.1;
+  const okH = design.box.heightMm >= envelope.outerH - 0.1;
+  return {
+    ok: okW && okD && okH,
+    shortBy: {
+      w: okW ? 0 : envelope.outerW - design.box.widthMm,
+      d: okD ? 0 : envelope.outerD - design.box.depthMm,
+      h: okH ? 0 : envelope.outerH - design.box.heightMm,
+    },
+    envelope
+  };
 }

@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { flushSync } from "react-dom";
 import { tx } from "../i18n/copy.ts";
 import { bottleById } from "../model/catalog.ts";
+import { fitsContents } from "../model/fit.ts";
 
 import { requestShot } from "../scene/capture.ts";
 import { useLab, type LabMode } from "../store/labStore.ts";
@@ -181,7 +182,16 @@ export function TopBar() {
           <div className="menu-pop">
             <button type="button" className="text-btn" onClick={share}>{t.share}</button>
             <button type="button" className="text-btn" onClick={exportPng}>{t.export}</button>
-            <button type="button" className="text-btn spec-export" onClick={exportSpec}>{t.exportSpec}</button>
+            {fitsContents(design).ok ? (
+              <button type="button" className="text-btn spec-export" onClick={exportSpec}>{t.exportSpec}</button>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
+                <button type="button" className="text-btn spec-export is-disabled" title={lang === "he" ? "הקרטון קטן מהבקבוק" : "Carton is too small"} disabled>{t.exportSpec}</button>
+                <span className="warning" style={{ fontSize: "0.8rem", color: "red", padding: "0 0.5rem" }}>
+                  {lang === "he" ? "הקרטון קטן מהבקבוק! ייצוא נחסם." : "Carton is too small! Export blocked."}
+                </span>
+              </div>
+            )}
             <button type="button" className="text-btn" onClick={() => { setMode("compare"); setMenu(null); }}>{t.compare}</button>
           </div>
         )}

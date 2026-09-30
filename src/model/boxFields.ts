@@ -3,9 +3,9 @@
  * Kept in this module on purpose: the supplier-pack price validator lands in a
  * different file, so a later rebase can move this without mixing the two.
  */
-import { bottleById, capById, collarById, pumpById } from "./catalog.ts";
+import { bottleById, capById } from "./catalog.ts";
+import { getContentsFit } from "./fit.ts";
 import { FINISHES } from "./materials.ts";
-import { NECKS, neckRadius, neckStandard } from "./necks.ts";
 import { bottleRadii, capRadius } from "./sample.ts";
 import { closureById, listClosures, packById, resolveClosure } from "./closures/registry.ts";
 import { readMotions, type ClosureDimsRange, type ClosureSpec } from "./closures/types.ts";
@@ -745,46 +745,26 @@ export function deriveEnvelope(cavity: CavitySpec, boardMm: number, limits?: Clo
 
 /** Bottle + selected cap + selected pump, using the same neck seating as the fitter. */
 export function cavityFromDesign(design: Design, orientation?: InsertOrientation): CavitySpec {
-  const bottle = bottleById(design.bottle.variantId);
-  const cap = capById(design.cap.variantId);
-  const collar = collarById(design.collar.variantId);
-  const pump = pumpById(design.pump.variantId);
-  const neck = Object.hasOwn(NECKS, design.bottle.neck) ? NECKS[design.bottle.neck] : neckStandard(design.bottle.neck);
-  const neckR = neckRadius(design.bottle.neck);
-  const bottleH = design.bottle.heightMm;
-  const ferrule = neck.ferrule;
-  const stockFerrule = collar.tags.includes("crimp") && collar.tags.includes("standard");
-  const collarInner = ferrule.innerMm / 2;
-  const collarOuter = stockFerrule ? ferrule.outerMm / 2 : Math.max(ferrule.outerMm / 2, collarInner + collar.wallMm);
-  const collarHeight = stockFerrule
-    ? Math.min(ferrule.heightMaxMm, Math.max(ferrule.heightMinMm, collar.heightMm))
-    : collar.heightMm;
-  const collarBottom = bottleH - Math.min(collarHeight * 0.72, neck.crimpMm * 0.85);
-  const collarTop = collarBottom + collarHeight;
-  const capH = design.cap.heightMm;
-  const capW = Math.max(design.cap.widthMm, (collarOuter + cap.overhangMm) * 2);
-  const capD = Math.max(cap.depthMm * (capW / Math.max(1, cap.widthMm)), (collarOuter + cap.overhangMm) * 2);
+  const c = getContentsFit(design, false);
   const pack = hydrateBox(design.box);
   return deriveCavity({
-    bottleH,
-    bottleW: design.bottle.widthMm,
-    bottleD: design.bottle.depthMm,
-    profile: bottle.profile,
-    shoulder: bottle.shoulder,
-    neckR,
-    capH,
-    capW,
-    capD,
-    capBottom: collarTop - 0.45,
-    capProfile: cap.profile,
-    includeCap: true,
-    pumpBase: collarTop - 0.3,
-    actuatorH: pump.actuatorHeightMm,
-    actuatorR: typeof pump.radiusFactor === "number" && pump.radiusFactor > 0
-      ? Math.max(neckR * pump.radiusFactor, neckR * 0.42)
-      : neckR * 0.42,
-    nozzle: pump.nozzleMm,
-    includePump: true,
+    bottleH: c.bottleH,
+    bottleW: c.bottleW,
+    bottleD: c.bottleD,
+    profile: bottleById(design.bottle.variantId).profile,
+    shoulder: bottleById(design.bottle.variantId).shoulder,
+    neckR: c.neckR,
+    capH: c.capH,
+    capW: c.capW,
+    capD: c.capD,
+    capBottom: c.capBottom,
+    capProfile: capById(design.cap.variantId).profile,
+    includeCap: design.cap.visible,
+    pumpBase: c.pumpBase,
+    actuatorH: c.actuatorH,
+    actuatorR: c.actuatorR,
+    nozzle: c.nozzle,
+    includePump: design.pump.visible,
     clearanceMm: pack.insert.clearanceMm,
     orientation: orientation ?? pack.insert.orientation,
   });
