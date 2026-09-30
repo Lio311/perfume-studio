@@ -206,7 +206,7 @@ export function computeFit(design: Design, exploded = false): Fit {
   const sep = (height: number) => Math.max(18, height * 0.42);
   const collarLift = sep(collarHeight);
   const pumpLift = collarLift + sep(Math.max(12, fullActuator * 0.5));
-  const capLift = pumpLift + fullActuator + sep(Math.min(capH, 40));
+  const capLift = pumpLift + fullActuator + Math.max(42, capH * 0.7);
   const explode: Record<PartKey, [number, number, number]> = {
     box: [-18, 0, -28],
     cap: [0, capLift, 0],
