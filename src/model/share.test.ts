@@ -208,7 +208,7 @@ describe("share links", () => {
   it("accepts an integer step from 0 to 7 and leaves an invalid step unset", () => {
     expect(mergeShareDesign({ bottle: {}, step: 4 })?.step).toBe(4);
     expect(mergeShareDesign({ bottle: {}, step: 0 })?.step).toBe(0);
-    expect(mergeShareDesign({ bottle: {}, step: 7 })?.step).toBe(7);
+    expect(mergeShareDesign({ bottle: {}, step: 6 })?.step).toBe(6);
     expect(mergeShareDesign({ bottle: {}, step: 8 })?.step).toBeUndefined();
     expect(mergeShareDesign({ bottle: {}, step: -1 })?.step).toBeUndefined();
     expect(mergeShareDesign({ bottle: {}, step: 1.5 })?.step).toBeUndefined();

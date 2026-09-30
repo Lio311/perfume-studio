@@ -54,7 +54,7 @@ export function Inspector() {
     ? ""
     : `✓ ${t.fitOk} ${neckLabel}`;
 
-  const isWizard = (design.step ?? 7) < 7;
+  const isWizard = (design.step ?? 6) < 7;
   const isPendingWizardPick = isWizard && part && part !== "liquid" && !wizardPicked.has(part);
 
   return (

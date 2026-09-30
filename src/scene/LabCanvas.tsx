@@ -217,7 +217,7 @@ function CameraRig() {
 
   const aimPart = (part: PartKey) => {
     const state = useLab.getState();
-    const bounds = partBounds(state.design, state.explode, part, state.stage, state.solo === part, state.boxOpen && state.stage !== "bottle");
+    const bounds = partBounds(state.design, state.explode, part, state.stage, state.solo === part, state.boxOpen && state.stage !== "bottle", state.aimed);
     const dir = camera.position.clone().sub(look.current);
     if (dir.length() < 10) dir.copy(direction.current);
     if (dir.y < 0.08) dir.y = 0.16;

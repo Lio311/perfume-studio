@@ -1,13 +1,11 @@
 import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
-import { useFrame } from "@react-three/fiber";
 import type { BoxBoard, FinishId, WrapFinish } from "../model/types.ts";
 import { computeGlassProps, isGlass } from "../model/materials.ts";
 import { leatherBump, woodMap } from "../geometry/textures.ts";
 import { paperMaps, velvetMaps } from "../geometry/wrapTextures.ts";
 import { useLab } from "../store/labStore.ts";
 import { sectionPlanes } from "./sectionPlane.ts";
-import { getUnboxPlayback } from "./unbox/playback.ts";
 import { useUnboxPlaying } from "./unbox/useUnboxPlaying.ts";
 
 const BLUE_VERT = `
@@ -97,102 +95,9 @@ function mattePaper(): { map: THREE.CanvasTexture; bump: THREE.CanvasTexture } {
   return { map, bump };
 }
 
-const CLEAR_VERT = `
-  varying vec3 vNormal;
-  varying vec3 vWorld;
-  void main() {
-    vec4 world = modelMatrix * vec4(position, 1.0);
-    vWorld = world.xyz;
-    vNormal = normalize(mat3(modelMatrix) * normal);
-    gl_Position = projectionMatrix * viewMatrix * world;
-  }
-`;
 
-const CLEAR_FRAG = `
-  varying vec3 vNormal;
-  varying vec3 vWorld;
-  uniform float uFade;
-  uniform float uOpacity;
-  uniform float uReveal;
-  uniform float uSweep;
-  uniform vec3 uTint;
-  void main() {
-    vec3 N = normalize(vNormal);
-    vec3 V = normalize(cameraPosition - vWorld);
-    float ndv = max(dot(N, V), 0.0);
-    float fresSoft = pow(1.0 - ndv, 2.45);
-    float fresHard = pow(1.0 - ndv, 1.45);
-    float fres = mix(fresSoft, fresHard, uReveal);
-    vec3 R = reflect(-V, N);
-    float envH = clamp(R.y * 0.5 + 0.58, 0.0, 1.0);
-    vec3 env = mix(vec3(0.74, 0.77, 0.81), vec3(0.98, 0.985, 0.99), envH);
-    vec3 L = normalize(mix(vec3(0.22, 0.92, 0.34), vec3(-0.9 + uSweep * 1.8, 0.62, 0.38), uReveal));
-    float spec = pow(max(dot(reflect(-L, N), V), 0.0), mix(70.0, 26.0, uReveal));
-    float tintAmt = clamp(uOpacity * 1.15, 0.0, 1.0);
-    vec3 tint = mix(vec3(0.97, 0.98, 0.99), uTint, tintAmt);
-    vec3 color = mix(env * 0.55, tint, fres);
-    color += vec3(1.0) * spec * 0.9;
-    vec3 revealColor = mix(vec3(0.50, 0.58, 0.68), vec3(0.20, 0.24, 0.30), fresHard);
-    revealColor += vec3(1.0) * spec * 1.45;
-    color = mix(color, revealColor, uReveal);
-    float cover = 0.08 + clamp(uOpacity, 0.0, 1.0) * 0.92;
-    float revealCover = 0.62 + fresHard * 0.32;
-    cover = mix(cover, revealCover, uReveal);
-    gl_FragColor = vec4(color, cover * uFade);
-  }
-`;
 
-function ClearGlass({ opacity = 0.14, color = "#f4f0e8", clippingPlanes, reveal = false }: { opacity?: number; color?: string; clippingPlanes?: THREE.Plane[]; reveal?: boolean }) {
-  const ref = useRef<THREE.ShaderMaterial>(null);
-  const uniforms = useMemo(
-    () => ({
-      uFade: { value: 1 },
-      uOpacity: { value: opacity },
-      uTint: { value: new THREE.Color(color) },
-      uReveal: { value: reveal ? 1 : 0 },
-      uSweep: { value: 0.35 },
-    }),
-    [],
-  );
-  const opacityRef = useRef(opacity);
-  const colorRef = useRef(color);
-  const revealRef = useRef(reveal);
-  opacityRef.current = opacity;
-  colorRef.current = color;
-  revealRef.current = reveal;
-  // Fiber copies uniforms onto the material, so slider changes have to write that copy.
-  useFrame(() => {
-    const material = ref.current;
-    if (!material?.uniforms?.uOpacity) return;
-    const amount = opacityRef.current;
-    const showing = revealRef.current ? 1 : 0;
-    const sweep = showing > 0 && getUnboxPlayback().phase === "playing" ? getUnboxPlayback().sweep : 0.35;
-    uniforms.uOpacity.value = amount;
-    uniforms.uReveal.value = showing;
-    uniforms.uSweep.value = sweep;
-    material.uniforms.uOpacity.value = amount;
-    material.uniforms.uReveal.value = showing;
-    material.uniforms.uSweep.value = sweep;
-    uniforms.uTint.value.set(colorRef.current);
-    material.uniforms.uTint.value.set(colorRef.current);
-  });
-  return (
-    <shaderMaterial
-      ref={ref}
-      transparent
-      depthWrite={false}
-      depthTest
-      side={THREE.FrontSide}
-      polygonOffset
-      polygonOffsetFactor={-1}
-      polygonOffsetUnits={-1}
-      uniforms={uniforms}
-      vertexShader={CLEAR_VERT}
-      fragmentShader={CLEAR_FRAG}
-      clippingPlanes={clippingPlanes}
-    />
-  );
-}
+
 
 export function FinishMaterial({
   finish,
@@ -231,13 +136,10 @@ export function FinishMaterial({
   const metal = finish === "gold" || finish === "silver" || finish === "rose";
   const blueprint = useLab((s) => s.blueprint);
   const theme = useLab((s) => s.theme);
-  const quality = useLab((s) => s.quality);
   const cutaway = useLab((s) => s.cutaway);
   const matte = finish === "matteBlack";
-  const clear = finish === "clear";
   const playing = useUnboxPlaying();
   const cartonOpen = useLab((s) => (s.boxOpen || playing) && s.stage === "box");
-  const clearHigh = clear && glass && (quality === "high" || cartonOpen);
   const planes = section && cutaway ? sectionPlanes : undefined;
   const fade = useMemo(() => ({ uFade: { value: 1 }, uColor: { value: new THREE.Color() } }), []);
   useEffect(() => {
@@ -254,10 +156,6 @@ export function FinishMaterial({
   if (blueprint) {
     return <shaderMaterial transparent depthWrite toneMapped={false} uniforms={fade} vertexShader={BLUE_VERT} fragmentShader={BLUE_FRAG} clippingPlanes={planes} />;
   }
-  if (clear && glass && cartonOpen) {
-    return <ClearGlass reveal opacity={typeof opacity === "number" ? opacity : 0.14} color={color} clippingPlanes={planes} />;
-  }
-  if (clear && glass && !clearHigh) return <ClearGlass opacity={typeof opacity === "number" ? opacity : 0.14} color={color} clippingPlanes={planes} />;
 
   return (
     <meshPhysicalMaterial
@@ -265,8 +163,8 @@ export function FinishMaterial({
       color={color}
       flatShading={flat}
       map={wood ?? paper?.map ?? undefined}
-      bumpMap={leather ?? paper?.bump ?? undefined}
-      bumpScale={leather ? 0.35 : paper ? 0.55 : 0}
+      bumpMap={leather ?? paper?.bump ?? wood ?? undefined}
+      bumpScale={leather ? 0.35 : paper ? 0.55 : wood ? 0.15 : 0}
       emissive="#000000"
       emissiveIntensity={0}
       metalness={metal ? 1 : 0}

@@ -16,7 +16,7 @@ import { useLab } from "./store/labStore.ts";
 import { demoSessionHold } from "./store/hydrate.ts";
 import { applyTheme } from "./theme/themes.ts";
 import { BudgetBrief } from "./ui/BudgetBrief.tsx";
-import { BudgetMeter } from "./ui/BudgetMeter.tsx";
+import { BudgetProgress } from "./ui/BudgetProgress.tsx";
 import { Crumb, Dock, Timeline } from "./ui/Dock.tsx";
 import { Inspector } from "./ui/Inspector.tsx";
 import { Library } from "./ui/Library.tsx";
@@ -49,7 +49,7 @@ function applyBackAction(action: Exclude<BackAction, "leave">, trap: Trap) {
     if ((design.step ?? 0) === step) return;
     useLab.setState({
       design: { ...design, step },
-      stage: step === 6 ? "box" : "bottle",
+      stage: step === 5 ? "box" : "bottle",
       demoHold: null,
     });
   } else if (action === "mode") {
@@ -63,6 +63,8 @@ export default function App() {
   const theme = useLab((s) => s.theme);
   const lang = useLab((s) => s.lang);
   const sideOpen = useLab((s) => s.sideOpen);
+  const libraryOpen = useLab((s) => s.libraryOpen);
+  const brief = useLab((s) => s.brief);
   const hovered = useLab((s) => s.hovered);
   const mode = useLab((s) => s.mode);
   const voice = useLab((s) => s.voice);
@@ -105,7 +107,7 @@ export default function App() {
   const [shareLock, setShareLock] = useState(() => location.hash.startsWith("#d="));
   const [swapping, setSwapping] = useState(false);
   const [savingsOpen, setSavingsOpen] = useState(false);
-  const step = design.step ?? 7;
+  const step = design.step ?? 6;
   const prevStep = useRef(step);
   const demoShot = useRef(false);
 
@@ -299,7 +301,7 @@ export default function App() {
         design.box.linked = false;
       }
       const tier = params.get("tier") === "fallback" ? "fallback" as const : "high" as const;
-      design.step = 7;
+      design.step = 6;
       const wizardPicked = new Set(useLab.getState().wizardPicked);
       wizardPicked.add("box");
       useLab.setState({
@@ -351,7 +353,7 @@ export default function App() {
 
   useEffect(() => {
     const remember = () => {
-      prevStep.current = useLab.getState().design.step ?? 7;
+      prevStep.current = useLab.getState().design.step ?? 6;
     };
     if (useLab.persist.hasHydrated()) remember();
     return useLab.persist.onFinishHydration(remember);
@@ -360,8 +362,8 @@ export default function App() {
   useEffect(() => {
     if (!useLab.persist.hasHydrated()) return;
     const shot = demoShot.current || isKnownPack(new URLSearchParams(location.search).get("closure") ?? new URLSearchParams(location.search).get("structure"));
-    if (!shot && (prevStep.current ?? 7) < 7 && step >= 7) setSavingsOpen(true);
-    if (shot && step >= 7) demoShot.current = false;
+    if (!shot && (prevStep.current ?? 7) < 7 && step >= 6) setSavingsOpen(true);
+    if (shot && step >= 6) demoShot.current = false;
     prevStep.current = step;
   }, [step]);
 
@@ -433,9 +435,11 @@ export default function App() {
       <Intro />
       <div className="chrome">
         <TopBar />
-        <Library />
+        <div className={`library-col ${libraryOpen ? "is-open" : ""}`} dir={lang === "he" ? "rtl" : "ltr"}>
+          {!unboxing && <BudgetProgress />}
+          <Library />
+        </div>
         <div className="stage-slot">
-          {!unboxing && <BudgetMeter onSavings={() => setSavingsOpen(true)} />}
           <div style={{ position: 'absolute', top: 12, right: 12, display: 'flex', gap: 8, pointerEvents: 'auto', zIndex: 10 }} dir={lang === "he" ? "rtl" : "ltr"}>
             <button type="button" className="icon-btn" style={{ background: 'var(--bg)' }} onClick={() => undo()} disabled={past === 0}>{t.undo}</button>
             <button type="button" className="icon-btn" style={{ background: 'var(--bg)' }} onClick={() => redo()} disabled={future === 0}>{t.redo}</button>
@@ -488,7 +492,25 @@ export default function App() {
           <Dock />
         </div>
         <div className={`side-col ${sideOpen ? "is-open" : ""}`}>
-          <BudgetMeter onSavings={() => setSavingsOpen(true)} />
+          {design.step === undefined && brief.confirmed && (
+            <button
+              type="button"
+              className="btn-savings"
+              onClick={() => setSavingsOpen(true)}
+              style={{
+                background: 'var(--panel)',
+                color: 'var(--text)',
+                border: '1px solid var(--line-strong)',
+                padding: '12px',
+                borderRadius: '8px',
+                fontWeight: 'bold',
+                cursor: 'pointer'
+              }}
+            >
+              {t.savingsOpen}
+            </button>
+          )}
+
           <Inspector />
           {/* <ChatPanel /> */}
         </div>

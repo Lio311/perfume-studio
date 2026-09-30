@@ -96,7 +96,7 @@ describe("browser back", () => {
     expect(backAction(idle({ wizard: true, step: 2, explode: 0.4 }))).toBe("mode");
     expect(backAction(idle({ boxOpen: true }))).toBe("box");
     expect(backAction(idle({ boxOpen: true, stage: "box" }))).toBe("box");
-    expect(backAction(idle({ boxOpen: true, stage: "box", wizard: true, step: 6 }))).toBe("box");
+    expect(backAction(idle({ boxOpen: true, stage: "box", wizard: true, step: 5 }))).toBe("box");
     expect(backAction(idle({ boxOpen: true, aimed: true }))).toBe("selection");
   });
 
@@ -112,8 +112,8 @@ describe("browser back", () => {
   });
 
   it("does not treat the carton stage as a back layer while the wizard is on the box step", () => {
-    expect(backAction(idle({ stage: "box", wizard: true, step: 6 }))).toBe("wizard");
-    expect(backAction(idle({ stage: "together", wizard: true, step: 6 }))).toBe("wizard");
+    expect(backAction(idle({ stage: "box", wizard: true, step: 5 }))).toBe("wizard");
+    expect(backAction(idle({ stage: "together", wizard: true, step: 5 }))).toBe("wizard");
     expect(backAction(idle({ stage: "box", wizard: true, step: 0 }))).toBe("leave");
     expect(backAction(idle({ stage: "box" }))).toBe("stage");
     const surface = backSurface({
@@ -126,10 +126,10 @@ describe("browser back", () => {
       stage: "box",
       mode: "assemble",
       explode: 0,
-      design: { step: 6 },
+      design: { step: 5 },
     });
     expect(surface.wizard).toBe(true);
-    expect(surface.step).toBe(6);
+    expect(surface.step).toBe(5);
     expect(backAction(surface)).toBe("wizard");
     const finished = backSurface({
       modal: null,
@@ -141,7 +141,7 @@ describe("browser back", () => {
       stage: "together",
       mode: "assemble",
       explode: 0,
-      design: { step: 7 },
+      design: { step: 6 },
     });
     expect(finished.wizard).toBe(false);
     expect(backAction(finished)).toBe("stage");
@@ -155,7 +155,7 @@ describe("browser back", () => {
       stage: "box",
       mode: "assemble",
       explode: 0,
-      design: { step: 6 },
+      design: { step: 5 },
       boxOpen: true,
     });
     expect(open.wizard).toBe(true);
@@ -221,7 +221,7 @@ describe("browser back", () => {
           if (action === "wizard") {
             const step = wizardStepAfterPop(history, trap);
             if (step === null) return;
-            surface.current = { ...surface.current, step, wizard: step < 7 };
+            surface.current = { ...surface.current, step, wizard: step < 6 };
           } else if (action === "modal") {
             surface.current = { ...surface.current, modal: false };
           } else if (action === "selection") {
@@ -339,7 +339,7 @@ describe("browser back", () => {
           if (action === "wizard") {
             const step = wizardStepAfterPop(history, trap);
             if (step === null) return;
-            surface.current = { ...surface.current, step, wizard: step < 7 };
+            surface.current = { ...surface.current, step, wizard: step < 6 };
           } else if (action === "stage") {
             surface.current = { ...surface.current, stage: "bottle" };
           }
@@ -511,7 +511,7 @@ describe("browser back", () => {
     const surface = { current: idle({ wizard: true, step: 0 }) };
     syncHistoryTrap(history, surface.current, trap);
     const applied = bindWizard(history, popWith, surface, trap);
-    surface.current = { ...surface.current, step: 6 };
+    surface.current = { ...surface.current, step: 5 };
     syncHistoryTrap(history, surface.current, trap);
     jumpBack(0, surface, history, trap);
     expect(history.length).toBe(2);

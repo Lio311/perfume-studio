@@ -73,20 +73,32 @@ export function PartGuides() {
   const frame = posedFrame(part, fit, stage);
   const posed = solo ? { ...frame, home: turntableHome(frame), explode: [0, 0, 0] as [number, number, number] } : frame;
   const neck = part === "bottle" ? fit.neckR * 2 : 0;
-  return <GuideFrame frame={posed} dims={Boolean(solo) || mode === "dimensions" || mode === "explode" || blueprint} neck={neck} unit={units} />;
+  return <GuideFrame part={part} frame={posed} dims={Boolean(solo) || mode === "dimensions" || mode === "explode" || blueprint} neck={neck} unit={units} />;
 }
 
-function GuideFrame({ frame, dims, neck, unit }: { frame: Frame; dims: boolean; neck: number; unit: "mm" | "cm" | "in" }) {
+function GuideFrame({ part, frame, dims, neck, unit }: { part: PartKey; frame: Frame; dims: boolean; neck: number; unit: "mm" | "cm" | "in" }) {
   const ref = useRef<THREE.Group>(null);
   const clock = useContext(Clock);
-  useFrame(() => {
+  const slide = useRef(0);
+  useFrame((_, dt) => {
     const group = ref.current;
     if (!group) return;
+    const state = useLab.getState();
+    const isolated = state.solo === part;
+    const focusSlide = state.aimed && state.selected === part && !isolated ? 1 : 0;
+    slide.current = THREE.MathUtils.damp(slide.current, focusSlide, 5, dt);
+    
     const local = explodeLocal(frame.index, clock.current);
+    const span = Math.hypot(frame.explode[0], frame.explode[1], frame.explode[2]);
+    const sx = span > 0.5 ? frame.explode[0] / span : 0;
+    const sy = span > 0.5 ? frame.explode[1] / span : 1;
+    const sz = span > 0.5 ? frame.explode[2] / span : 0;
+    const nudge = 12 * slide.current;
+    
     group.position.set(
-      frame.home[0] + frame.explode[0] * local,
-      frame.home[1] + frame.explode[1] * local,
-      frame.home[2] + frame.explode[2] * local,
+      frame.home[0] + frame.explode[0] * local + sx * nudge,
+      frame.home[1] + frame.explode[1] * local + sy * nudge,
+      frame.home[2] + frame.explode[2] * local + sz * nudge,
     );
   });
   const [w, h, d] = frame.size;

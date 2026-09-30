@@ -191,7 +191,7 @@ function clamp(n: number, min: number, max: number): number {
 }
 
 function makeSeed(design: Design) {
-  design.step = 7;
+  design.step = 6;
   design.bottle.visible = true;
   design.cap.visible = true;
   design.label.visible = true;
@@ -492,7 +492,7 @@ export const useLab = create<LabState>()(
           const quiet = options?.quiet;
           const designChanged = design !== state.design;
           // Track which parts the user explicitly picked during the wizard.
-          const isWizard = (design.step ?? 7) < 7;
+          const isWizard = (design.step ?? 6) < 7;
           let wizardPicked = state.wizardPicked;
           if (isWizard) {
             for (const command of commands) {
