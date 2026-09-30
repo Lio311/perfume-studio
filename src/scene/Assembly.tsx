@@ -1,5 +1,5 @@
 import { useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { useFrame } from "@react-three/fiber";
+import { useFrame, invalidate } from "@react-three/fiber";
 
 function useThrottled<T>(value: T, limitMs: number, active: boolean): T {
   const [throttledValue, setThrottledValue] = useState(value);
@@ -112,6 +112,9 @@ function PartShell({
     const faded = Boolean(state.solo) && state.solo !== part;
     const ghost = partIsGhost(state, part);
     const local = isolated ? 0 : explodeLocal(index, clock.current);
+    let moving = false;
+    const p1 = pop.current, s1 = group.scale.x, sl1 = slide.current, r1 = group.rotation.y;
+    const x1 = group.position.x, y1 = group.position.y, z1 = group.position.z;
     pop.current = THREE.MathUtils.damp(pop.current, 1, 6, dt);
     const shown = visible && !faded ? pop.current : 0.001;
     const scale = THREE.MathUtils.damp(group.scale.x || shown, shown, faded || isolated ? 4 : 8, dt);
@@ -182,7 +185,9 @@ function PartShell({
         const shader = mat as THREE.ShaderMaterial;
         if (shader.uniforms?.uFade) {
           const fadeTarget = ghost ? 0.1 : (mat.userData.intendedFade ?? 1);
+          const oldFade = shader.uniforms.uFade.value;
           shader.uniforms.uFade.value = THREE.MathUtils.damp(shader.uniforms.uFade.value, fadeTarget, 7, dt);
+          if (Math.abs(shader.uniforms.uFade.value - oldFade) > 0.001) moving = true;
           if (!mat.transparent) mat.transparent = true;
           const newDepthWrite = shader.uniforms.uFade.value > 0.55;
           if (mat.depthWrite !== newDepthWrite) mat.depthWrite = newDepthWrite;
@@ -195,12 +200,14 @@ function PartShell({
         const newTransparent = ghost || intended < 0.999;
         if (mat.transparent !== newTransparent) mat.transparent = newTransparent;
         const newOpacity = THREE.MathUtils.damp(mat.opacity, target, 7, dt);
-        if (Math.abs(mat.opacity - newOpacity) > 0.001) mat.opacity = newOpacity;
+        if (Math.abs(mat.opacity - newOpacity) > 0.001) { mat.opacity = newOpacity; moving = true; }
         mat.userData.fadeWrote = mat.opacity;
         const newDepthWrite = mat.opacity > 0.5;
         if (mat.depthWrite !== newDepthWrite) mat.depthWrite = newDepthWrite;
       }
     });
+    if (Math.abs(pop.current - p1) > 0.001 || Math.abs(group.scale.x - s1) > 0.001 || Math.abs(slide.current - sl1) > 0.001 || Math.abs(group.rotation.y - r1) > 0.001 || Math.abs(group.position.x - x1) > 0.001 || Math.abs(group.position.y - y1) > 0.001 || Math.abs(group.position.z - z1) > 0.001) moving = true;
+    if (moving) invalidate();
   });
 
   const hover = useLab((s) => s.hover);
@@ -309,7 +316,9 @@ export function Assembly() {
   const fit = useMemo(() => computeFit(design, explode > 0.45), [design, explode]);
 
   useFrame((_, dt) => {
+    const old = clock.current;
     clock.current = THREE.MathUtils.damp(clock.current, explode, 1.7, dt);
+    if (Math.abs(clock.current - old) > 0.001) invalidate();
   });
 
   return (
@@ -358,12 +367,19 @@ function BottleSeat({ children }: { children: ReactNode }) {
 }
 
 function Turntable() {
+
   const solo = useLab((s) => s.solo);
   const theme = useLab((s) => s.theme);
   const disc = useRef<THREE.Group>(null);
   useFrame((_, dt) => {
     if (disc.current) disc.current.rotation.y += dt * 0.35;
   });
+  useEffect(() => {
+    if (!solo) return;
+    const s = useLab.getState();
+    s.addContinuous();
+    return () => s.removeContinuous();
+  }, [solo]);
   if (!solo) return null;
   return (
     <group ref={disc} position={[0, 0.6, 0]}>
@@ -462,14 +478,11 @@ function LiquidPart() {
   const onStage = contentsOnStage(stage, boxOpen, playing);
   const spec = bottleById(design.bottle.variantId);
   const fit = computeFit(design, false);
-  const maxSurface = heightMm - 6;
-  const surface = Math.min(
-    maxSurface,
-    Math.max(8, 4 + design.liquid.fill * heightMm * 0.7),
+  const targetSurface = Math.min(
+    heightMm - 6,
+    Math.max(8, 4 + design.liquid.fill * heightMm * 0.7)
   );
-  
-  const plane = useMemo(() => new THREE.Plane(new THREE.Vector3(0, -1, 0), 0), []);
-  plane.constant = surface;
+  const surface = useThrottled(targetSurface, 32, gesturing);
   
   const geo = useDisposable(
     () =>
@@ -486,12 +499,12 @@ function LiquidPart() {
         finishMm: spec.finishMm,
         inset: 2.4,
         closedTop: true,
-        limitY: maxSurface,
+        limitY: surface,
       }),
-    [heightMm, widthMm, depthMm, design.bottle.neck, spec, maxSurface],
+    [heightMm, widthMm, depthMm, design.bottle.neck, spec, surface],
   );
   return (
-    <PartShell part="liquid" index={5} home={[0, 0, 0]} explode={[0, 0, 0]} visible={design.liquid.visible && design.bottle.visible && onStage} variantKey={spec.id + design.liquid.color}>
+    <PartShell part="liquid" index={5} home={[0, 0, 0]} explode={[0, 0, 0]} visible={design.liquid.visible && design.bottle.visible && onStage} variantKey={spec.id + design.liquid.color + surface.toFixed(1)}>
       {/* Writes the liquid's depth before the floor grid so grid lines fail the depth test inside the liquid. Color is drawn later by JuiceMaterial; this mesh never writes color. */}
       <mesh geometry={geo} renderOrder={-1.5} userData={{ liquidDepth: true }} raycast={() => null}>
         <meshBasicMaterial
@@ -500,7 +513,6 @@ function LiquidPart() {
           polygonOffset
           polygonOffsetFactor={1}
           polygonOffsetUnits={1}
-          clippingPlanes={[plane]}
         />
       </mesh>
       <mesh geometry={geo} renderOrder={1}>
@@ -944,7 +956,9 @@ function BoxFormMesh({
   const lidH = form === "coffret" ? h * 0.34 : h * 0.28;
   useFrame((_, dt) => {
     const live = stage !== "bottle" && open ? 1 : 0;
+    const oldAmount = amount.current;
     amount.current = THREE.MathUtils.damp(amount.current, live, 5.5, dt);
+    if (Math.abs(amount.current - oldAmount) > 0.001) invalidate();
     const a = amount.current;
     if (lid.current) lid.current.rotation.x = hasLid ? -1.2 * a : 0;
     if (mover.current) {

@@ -1,4 +1,4 @@
-import { useContext, useMemo, useRef } from "react";
+import { useContext, useEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { useLab } from "../store/labStore.ts";
@@ -80,6 +80,12 @@ export function HoloShell() {
 }
 
 export function ParticleField() {
+  useEffect(() => {
+    const s = useLab.getState();
+    s.addContinuous();
+    return () => s.removeContinuous();
+  }, []);
+
   const points = useRef<THREE.Points>(null);
   const count = 26;
   const geometry = useMemo(() => {
@@ -104,6 +110,12 @@ export function ParticleField() {
 }
 
 export function EnergyRings() {
+  useEffect(() => {
+    const s = useLab.getState();
+    s.addContinuous();
+    return () => s.removeContinuous();
+  }, []);
+
   const group = useRef<THREE.Group>(null);
   useFrame(({ clock }) => {
     const t = clock.elapsedTime;
@@ -153,6 +165,12 @@ const GRID_FRAG = `
 `;
 
 export function CinematicFloor() {
+  useEffect(() => {
+    const s = useLab.getState();
+    s.addContinuous();
+    return () => s.removeContinuous();
+  }, []);
+
   const grid = useRef<THREE.ShaderMaterial>(null);
   useFrame(({ clock }) => {
     if (grid.current) grid.current.uniforms.uTime.value = clock.elapsedTime;

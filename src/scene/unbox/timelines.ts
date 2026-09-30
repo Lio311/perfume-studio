@@ -1,3 +1,4 @@
+import { invalidate } from "@react-three/fiber";
 import gsap from "gsap";
 
 /**
@@ -71,7 +72,7 @@ export function buildUnboxTimeline(id: string, driver = createUnboxDriver()): {
   plan: UnboxPlan;
 } {
   const plan = unboxPlan(id);
-  const timeline = gsap.timeline({ paused: true });
+  const timeline = gsap.timeline({ paused: true, onUpdate: invalidate });
   const hold = { t: 0 };
   timeline.to(hold, { t: 1, duration: plan.total, ease: "none" }, 0);
   timeline.to(driver, { ribbon: 1, duration: plan.ribbonOut, ease: "power2.out" }, plan.ribbonAt);

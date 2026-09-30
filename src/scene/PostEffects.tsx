@@ -62,6 +62,9 @@ function GradePasses() {
   
   const samples = 4;
   const smooth = <SMAA preset={SMAAPreset.HIGH} />;
+  // The composer forces NoToneMapping on the renderer and copies a half-float buffer to the
+  // screen. Without this pass, a lit cream face (radiance above 1) clips to pure white while
+  // the unlit backdrop, which is already in display range, stays normal.
   const grade = <ToneMapping mode={ToneMappingMode.ACES_FILMIC} />;
   if (theme === "light" || voice === 1) {
     return (

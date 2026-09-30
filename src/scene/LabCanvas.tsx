@@ -1,6 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ComponentProps, type ComponentType } from "react";
 import { Canvas, useFrame, useThree, invalidate } from "@react-three/fiber";
-import gsap from "gsap";
 import { AdaptiveDpr, Grid, OrbitControls, PerformanceMonitor } from "@react-three/drei";
 import * as THREE from "three";
 import { themes } from "../theme/themes.ts";
@@ -21,7 +20,7 @@ import { Exposure, PixelRatio, StageFloor, StudioEnv, StudioLights } from "./stu
 import { CinematicFloor, EnergyRings, ParticleField } from "./voiceScenery.tsx";
 import { webglAvailable } from "./webgl.ts";
 import { lazy, Suspense } from "react";
-const PostEffects = lazy(() => import("./PostEffects.tsx"));
+
 import { noteStudioFrame } from "../boot/splash.ts";
 import { clearSceneError, contextLostSuppressed, noteRenderer, StageFallback, WebglBoundary, WebglFallback } from "../ui/FallbackScreen.tsx";
 import { getUnboxPlayback, subscribeUnbox } from "./unbox/playback.ts";
@@ -769,9 +768,7 @@ function Stage() {
       <FirstFrameSignal />
       <UnboxHost />
       <CameraRig />
-      <Suspense fallback={null}>
-        <PostEffects />
-      </Suspense>
+      <LazyPostEffects />
       <Tier />
       <ScreenTarget />
       <FpsProbe />
@@ -853,6 +850,19 @@ function FpsProbe() {
   return null;
 }
 
+function LazyPostEffects() {
+  const gl = useThree((s) => s.gl);
+  const quality = useLab((s) => s.quality);
+  if (quality !== "high" || !gl.capabilities.isWebGL2) return null;
+  return (
+    <Suspense fallback={null}>
+      <PostEffects />
+    </Suspense>
+  );
+}
+
+const PostEffects = lazy(() => import("./PostEffects.tsx"));
+
 export function LabCanvas() {
   const [supported, setSupported] = useState(() => webglAvailable());
   const [lost, setLost] = useState(false);
@@ -866,13 +876,17 @@ export function LabCanvas() {
   };
 
   const modal = useLab((s) => s.modal);
+  const continuous = useLab((s) => s.continuous);
+  const frameloop = modal ? "never" : continuous > 0 ? "always" : "demand";
+
+  useEffect(() => {
+    if (!modal) invalidate();
+  }, [modal]);
 
   useEffect(() => {
     const render = () => invalidate();
-    gsap.ticker.add(render);
     const unsub = useLab.subscribe(render);
     return () => {
-      gsap.ticker.remove(render);
       unsub();
     };
   }, []);
@@ -901,7 +915,7 @@ export function LabCanvas() {
     <WebglBoundary>
       <Canvas
         className="stage-canvas"
-        frameloop={modal ? "never" : "demand"}
+        frameloop={frameloop}
         dpr={[1, 2]}
         camera={{ position: [120, 150, 640], fov: 30, near: 0.5, far: 5000 }}
         gl={{ antialias: true, alpha: false, preserveDrawingBuffer: true, powerPreference: "high-performance", localClippingEnabled: true }}

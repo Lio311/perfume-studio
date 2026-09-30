@@ -1,3 +1,4 @@
+import { invalidate } from "@react-three/fiber";
 import gsap from "gsap";
 import { openDriver } from "../../model/closures/registry.ts";
 import type { ClosureSpec } from "../../model/closures/types.ts";
@@ -10,7 +11,7 @@ import type { ClosureSpec } from "../../model/closures/types.ts";
  */
 export function closureTimeline(spec: ClosureSpec): gsap.core.Timeline {
   const driver = { openAmount: 0 };
-  const timeline = gsap.timeline({ paused: true });
+  const timeline = gsap.timeline({ paused: true, onUpdate: invalidate });
   timeline.to(driver, { openAmount: 1, duration: 1, ease: "none" }, 0);
   for (const group of openDriver(spec).groups) {
     timeline.addLabel(group.id, group.delay);

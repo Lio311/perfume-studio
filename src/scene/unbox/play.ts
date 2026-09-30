@@ -1,3 +1,4 @@
+import { invalidate } from "@react-three/fiber";
 import gsap from "gsap";
 import { closureById } from "../../model/closures/registry.ts";
 import { useLab } from "../../store/labStore.ts";
@@ -27,6 +28,7 @@ function writeDriver(driver: UnboxDriver): void {
   play.sheen = driver.sheen;
   play.sweep = driver.sweep;
   play.camera = driver.camera;
+  invalidate();
 }
 
 function showCarton(): void {
