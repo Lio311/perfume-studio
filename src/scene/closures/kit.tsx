@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, type MutableRefObject, type ReactNode } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
-import type { InsertMaterial } from "../../model/types.ts";
+import type { InsertMaterial, BoxShape } from "../../model/types.ts";
 import type { Fit } from "../../model/fit.ts";
 import { useLab } from "../../store/labStore.ts";
 import { CartonMark } from "../cartonMark.tsx";
