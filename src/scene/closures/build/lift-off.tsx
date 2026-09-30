@@ -4,6 +4,7 @@ import type * as THREE from "three";
 import { partPivot } from "../../../model/closures/registry.ts";
 import type { Fit } from "../../../model/fit.ts";
 import { useLab } from "../../../store/labStore.ts";
+import { BOX_CLOSED_MARK_AZIMUTH } from "../../boxCamera.ts";
 import { prismFrontFacet } from "../prism.ts";
 import { trayLiftNow } from "../../trayLift.ts";
 import { TubeMark } from "../tubeMark.tsx";
@@ -11,10 +12,19 @@ import { BrandMark, InsertBlock, InsertFinish, Magnet, MARK_FACE_GAP, PrismMesh,
 import { closurePull, cylinderRibbonLayout, cylinderRibbonYaw, facetRibbonDiameter, facetRibbonYaw, rectRibbonLayout } from "../ribbonPose.ts";
 import type { ClosureBuilder } from "../types.ts";
 
-/** Width passed to the carton mark, and the plane's z, for the facet that faces the camera. */
-export function octagonMarkPlacement(radius: number, sides: number): { z: number; width: number } {
+/**
+ * Local plane on the +Z facet, plus the yaw that turns that facet toward the closed-shot azimuth.
+ * The polygon body uses `yaw`, so the mark stays on the board and faces the front camera.
+ */
+export function octagonMarkPlacement(radius: number, sides: number): { z: number; width: number; yaw: number } {
   const face = prismFrontFacet(radius, sides);
-  return { z: face.z + MARK_FACE_GAP, width: face.width };
+  return { z: face.z + MARK_FACE_GAP, width: face.width, yaw: BOX_CLOSED_MARK_AZIMUTH };
+}
+
+/** World position of that mark once the body has yawed. */
+export function octagonMarkWorld(radius: number, sides: number, y = 0): { x: number; y: number; z: number } {
+  const place = octagonMarkPlacement(radius, sides);
+  return { x: Math.sin(place.yaw) * place.z, y, z: Math.cos(place.yaw) * place.z };
 }
 
 function LidShell({ w, h, d, wall }: { w: number; h: number; d: number; wall: number }) {
@@ -138,8 +148,9 @@ const LiftOff: ClosureBuilder = ({ form, fit, spec, dims, bind, ribbon, pullTab,
     const yaw = cylinder ? cylinderRibbonYaw(radius, lidR, dims.w, lidR * 2) : facetRibbonYaw(sides);
     const ribbonSpan = cylinderRibbonLayout(dims.h, lid[1], radius, lidR);
     const pull = closurePull(tied, pullTab);
+    const markYaw = cylinder ? 0 : octagonMarkPlacement(radius, sides).yaw;
     return (
-      <group>
+      <group rotation={[0, markYaw, 0]}>
         <PrismMesh radius={radius - 0.15} inner={0} height={dims.wall} sides={sides} />
         <PrismMesh radius={radius} inner={inner} height={trayH} sides={sides} />
         {shoulder && <PrismMesh radius={neckR} inner={Math.max(neckR - wall, neckR * 0.72)} height={neckRise} sides={Math.max(8, sides)} y={dims.baseH} />}
