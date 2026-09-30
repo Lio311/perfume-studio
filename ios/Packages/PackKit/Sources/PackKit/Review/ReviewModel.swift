@@ -212,7 +212,7 @@ public enum ReviewModel {
         return object
     }
 
-    private static func packJSON(_ draft: ReviewDraft) -> Data? {
+    public static func packJSON(_ draft: ReviewDraft) -> Data? {
         var part: [String: Any] = [
             "id": "review-part",
             "kind": draft.kind.rawValue,

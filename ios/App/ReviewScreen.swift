@@ -5,6 +5,7 @@ import UIKit
 
 /// Per-part review after "שמור מידות", and when a measured draft is opened.
 struct ReviewScreen: View {
+    @EnvironmentObject private var outboxManager: OutboxManager
     @ObservedObject var library: DraftLibrary
     let partId: UUID
     var onRemeasure: () -> Void
@@ -347,6 +348,27 @@ struct ReviewScreen: View {
 
     private func saveToOutbox(_ current: ReviewDraft) {
         guard !ReviewModel.outboxBlocked(current) else { return }
+        if let json = ReviewModel.packJSON(current) {
+            // Also collect photos if available in draft.scan or draft.measurement
+            // The prompt says: photo file URLs.
+            // draft.scan has paths. We can construct URLs for them.
+            // Wait, we need the file paths on disk.
+            var urls: [URL] = []
+            if let scan = current.scan {
+                if let root = try? Store.ScanFileStore.applicationSupportRoot() {
+                    let dir = root.appendingPathComponent(current.partId.uuidString)
+                    for step in scan.steps {
+                        if let photo = step.photo {
+                            urls.append(dir.appendingPathComponent(photo))
+                        }
+                    }
+                }
+            }
+            
+            let item = OutboxItem(packJSON: json, photoURLs: urls, name: current.kind.hebrewName)
+            outboxManager.store.add(item)
+            outboxManager.processQueue()
+        }
         draft = current
         fieldBaseline = fieldSnapshot()
         status = .ready

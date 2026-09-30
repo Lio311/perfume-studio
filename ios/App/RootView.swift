@@ -8,9 +8,11 @@ private enum ScannerRoute: Hashable {
     case review(UUID)
     case summary(UUID)
     case preview(UUID)
+    case outbox
 }
 
 struct RootView: View {
+    @EnvironmentObject private var outboxManager: OutboxManager
     @StateObject private var library = DraftLibrary()
     @State private var path: [ScannerRoute] = []
     @State private var opened: [UUID: CaptureSequence] = [:]
@@ -27,6 +29,27 @@ struct RootView: View {
                 VStack(alignment: .leading, spacing: 20) {
                     Text("רכיב חדש")
                         .font(.title3.bold())
+                    
+                    Button {
+                        path.append(.outbox)
+                    } label: {
+                        HStack {
+                            Text("תיבת יוצאים")
+                            Spacer()
+                            let pending = outboxManager.store.items.filter { $0.status == .pending || $0.status == .sending }.count
+                            if pending > 0 {
+                                Text("\(pending)")
+                                    .font(.caption.bold())
+                                    .foregroundColor(.white)
+                                    .padding(6)
+                                    .background(Color.blue)
+                                    .clipShape(Circle())
+                            }
+                        }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.blue.opacity(0.3))
+                    
                     ForEach(kinds, id: \.self) { kind in
                         Button {
                             let sequence = CaptureSequence(kind: kind)
@@ -74,6 +97,8 @@ struct RootView: View {
             .navigationBarTitleDisplayMode(.inline)
             .navigationDestination(for: ScannerRoute.self) { route in
                 switch route {
+                case .outbox:
+                    OutboxView(manager: outboxManager)
                 case .capture(let id):
                     if let sequence = opened[id] ?? library.store.load(partId: id)?.sequence {
                         CaptureFlowView(
