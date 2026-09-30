@@ -212,9 +212,9 @@ export function ClosureBox({ form, fit }: { form: BoxForm; fit: Fit }) {
       <ClipSync />
       <Builder form={form} fit={fit} spec={spec} dims={dims} bind={bind} ribbon={ribbonOn} pullTab={pull} latch={latch} drawerPull={drawerPull} shape={drawn} />
       {SleeveBuilder && sleeveSpec && (
-        <SleeveBuilder form={form} fit={fit} spec={sleeveSpec} dims={outerDims} bind={bindSleeve} ribbon={false} pullTab={false} latch="none" drawerPull="none" shape={{ type: "rect" }} shellOnly window={sleeveWindow} />
+        <SleeveBuilder form={form} fit={fit} spec={sleeveSpec} dims={outerDims} bind={bindSleeve} ribbon={false} pullTab={false} latch="none" drawerPull="none" shape={drawn} shellOnly window={sleeveWindow} />
       )}
-      <OuterSkin w={outerDims.w} h={outerDims.h} d={outerDims.d} amount={amount} />
+      <OuterSkin w={outerDims.w} h={outerDims.h} d={outerDims.d} amount={amount} shape={drawn} />
     </group>
   );
 }

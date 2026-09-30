@@ -374,7 +374,7 @@ export function PullTab({ w, z, y = 0, x = 0, color, side = false }: {
   );
 }
 
-export function OuterSkin({ w, h, d, amount }: { w: number; h: number; d: number; amount: MutableRefObject<number> }) {
+export function OuterSkin({ w, h, d, amount, shape }: { w: number; h: number; d: number; amount: MutableRefObject<number>; shape: BoxShape }) {
   const ref = useRef<THREE.Group>(null);
   const kind = useLab((s) => s.design.box.outerWrap);
   const quality = useLab((s) => s.quality);
@@ -389,10 +389,16 @@ export function OuterSkin({ w, h, d, amount }: { w: number; h: number; d: number
   const pad = kind === "cellophane" ? 1.4 : 2.2;
   const skin = outerWrapMaterialProps(kind, color, quality);
   // Side clearance is pad/2. The top matches it. The bottom sits a hair under the floor so the shell does not z-fight the carton.
+  const isCylinder = shape.type === "cylinder";
+  const radius = Math.min(w, d) / 2;
   return (
     <group ref={ref}>
       <mesh position={[0, (h + pad / 2) / 2 - 0.01, 0]}>
-        <boxGeometry args={[w + pad, h + pad / 2 + 0.02, d + pad]} />
+        {isCylinder ? (
+          <cylinderGeometry args={[radius + pad / 2, radius + pad / 2, h + pad / 2 + 0.02, 48]} />
+        ) : (
+          <boxGeometry args={[w + pad, h + pad / 2 + 0.02, d + pad]} />
+        )}
         <meshPhysicalMaterial key={kind} {...skin} clippingPlanes={planes} />
       </mesh>
     </group>
