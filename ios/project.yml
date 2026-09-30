@@ -43,6 +43,10 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.perfumestudio.scanner
         TARGETED_DEVICE_FAMILY: "1"
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.business
+      configs:
+        Release:
+          # DEBUG sample photos stay out of the release bundle.
+          EXCLUDED_SOURCE_FILE_NAMES: "measure-bottle.jpg measure-bottle.json measure-cap-side.jpg measure-cap-top.jpg measure-cap.json measure-box-front.jpg measure-box-side.jpg measure-box.json"
 schemes:
   Scanner:
     build: { targets: { Scanner: all } }

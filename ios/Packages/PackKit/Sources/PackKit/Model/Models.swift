@@ -4,14 +4,20 @@ public enum PartKind: String, Codable, Equatable, CaseIterable, Sendable {
     case bottle, cap, label, pump, collar, box
 }
 
-public enum Neck: String, Codable, Equatable, CaseIterable {
+public enum Neck: String, Codable, Equatable, CaseIterable, Sendable {
     case FEA13, FEA15, FEA17, FEA18, FEA20
 }
 
-public struct Dimensions: Codable, Equatable {
+public struct Dimensions: Codable, Equatable, Sendable {
     public var widthMm: Double
     public var heightMm: Double
     public var depthMm: Double
+
+    public init(widthMm: Double, heightMm: Double, depthMm: Double) {
+        self.widthMm = widthMm
+        self.heightMm = heightMm
+        self.depthMm = depthMm
+    }
 }
 
 public struct PriceTier: Codable, Equatable {
@@ -99,15 +105,22 @@ public struct MeshRef: Codable, Equatable {
 }
 
 /// One recorded measurement. The pack stores these under `measurements`.
-public struct Measurements: Codable, Equatable {
+public struct Measurements: Codable, Equatable, Sendable {
     public var key: String
     public var value: Double
     public var source: String
     public var toleranceMm: Double?
+
+    public init(key: String, value: Double, source: String, toleranceMm: Double? = nil) {
+        self.key = key
+        self.value = value
+        self.source = source
+        self.toleranceMm = toleranceMm
+    }
 }
 
-public struct ScanInfo: Codable, Equatable {
-    public struct NeckSuggestion: Codable, Equatable {
+public struct ScanInfo: Codable, Equatable, Sendable {
+    public struct NeckSuggestion: Codable, Equatable, Sendable {
         public var suggested: Neck?
         public var confidence: Double?
         public var measuredMm: Double?
@@ -127,6 +140,32 @@ public struct ScanInfo: Codable, Equatable {
     public var neckSuggestion: NeckSuggestion?
     public var dimsVerifiedBySupplier: Bool?
     public var toleranceMm: Double?
+
+    public init(
+        method: String,
+        capturedAt: String,
+        device: String? = nil,
+        appVersion: String? = nil,
+        material: String? = nil,
+        scale: String? = nil,
+        referenceObject: String? = nil,
+        confidence: Double? = nil,
+        neckSuggestion: NeckSuggestion? = nil,
+        dimsVerifiedBySupplier: Bool? = nil,
+        toleranceMm: Double? = nil
+    ) {
+        self.method = method
+        self.capturedAt = capturedAt
+        self.device = device
+        self.appVersion = appVersion
+        self.material = material
+        self.scale = scale
+        self.referenceObject = referenceObject
+        self.confidence = confidence
+        self.neckSuggestion = neckSuggestion
+        self.dimsVerifiedBySupplier = dimsVerifiedBySupplier
+        self.toleranceMm = toleranceMm
+    }
 }
 
 public struct LocalizedName: Codable, Equatable {

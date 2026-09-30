@@ -10,10 +10,13 @@ public enum ScanStoreError: Error, Equatable {
 public struct ScanDraft: Equatable, Codable, Sendable {
     public var sequence: CaptureSequence
     public var updatedAt: Date
+    /// Present after "שמור מידות". Omitted on capture-only drafts.
+    public var measurement: DraftMeasurement?
 
-    public init(sequence: CaptureSequence, updatedAt: Date) {
+    public init(sequence: CaptureSequence, updatedAt: Date, measurement: DraftMeasurement? = nil) {
         self.sequence = sequence
         self.updatedAt = updatedAt
+        self.measurement = measurement
     }
 }
 
@@ -40,7 +43,15 @@ public struct ScanFileStore {
         return scans
     }
 
-    public func save(sequence: CaptureSequence, images: [String: Data], now: Date = Date()) throws {
+    /// `measurement: nil` keeps a measurement already stored for this part.
+    /// Pass `replaceMeasurement: true` to write `measurement` even when it is nil.
+    public func save(
+        sequence: CaptureSequence,
+        images: [String: Data],
+        measurement: DraftMeasurement? = nil,
+        replaceMeasurement: Bool = false,
+        now: Date = Date()
+    ) throws {
         let directory = try directoryURL(partId: sequence.partId, create: true)
         for (name, data) in images {
             guard let safe = Self.safeFileName(name) else { throw ScanStoreError.invalidFileName }
@@ -48,7 +59,8 @@ public struct ScanFileStore {
             try data.write(to: directory.appendingPathComponent(safe), options: .atomic)
         }
         try removeOrphanJPEGs(in: directory, sequence: sequence)
-        let draft = ScanDraft(sequence: sequence, updatedAt: now)
+        let kept = replaceMeasurement ? measurement : (measurement ?? load(partId: sequence.partId)?.measurement)
+        let draft = ScanDraft(sequence: sequence, updatedAt: now, measurement: kept)
         let encoded = try Self.encoder.encode(draft)
         try encoded.write(to: directory.appendingPathComponent("part.json"), options: .atomic)
     }

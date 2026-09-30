@@ -8,6 +8,7 @@ struct RootView: View {
     @State private var path = NavigationPath()
     @State private var opened: [UUID: CaptureSequence] = [:]
     @State private var pendingDelete: UUID?
+    @State private var measureFirst: Set<UUID> = []
 
     private let kinds: [PartKind] = [.bottle, .cap, .pump, .collar, .box, .label]
 
@@ -34,6 +35,15 @@ struct RootView: View {
                         .accessibilityLabel(kind.hebrewName)
                     }
 
+                    #if DEBUG
+                    Text("דוגמאות מדידה")
+                        .font(.title3.bold())
+                        .padding(.top, 8)
+                    debugSampleButton(MeasureSampleLibrary.bottle)
+                    debugSampleButton(MeasureSampleLibrary.cap)
+                    debugSampleButton(MeasureSampleLibrary.box)
+                    #endif
+
                     Text("טיוטות")
                         .font(.title3.bold())
                         .padding(.top, 8)
@@ -54,7 +64,7 @@ struct RootView: View {
             .navigationBarTitleDisplayMode(.inline)
             .navigationDestination(for: UUID.self) { id in
                 if let sequence = opened[id] {
-                    CaptureFlowView(library: library, sequence: sequence)
+                    CaptureFlowView(library: library, sequence: sequence, startsOnMeasure: measureFirst.contains(id))
                 } else {
                     Text("הטיוטה לא נמצאה")
                         .foregroundStyle(.white)
@@ -92,6 +102,10 @@ struct RootView: View {
             Text(photoCount(draft))
                 .font(.footnote)
                 .foregroundStyle(.white.opacity(0.7))
+            if let measurement = draft.measurement {
+                Text("\(MeasureFormat.millimetres(measurement.widthMm)) × \(MeasureFormat.millimetres(measurement.heightMm)) × \(MeasureFormat.millimetres(measurement.depthMm)) מ״מ")
+                    .font(.footnote.monospacedDigit())
+            }
             HStack(spacing: 12) {
                 Button("המשך") {
                     opened[draft.sequence.partId] = draft.sequence
@@ -108,6 +122,20 @@ struct RootView: View {
         .padding(14)
         .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
+
+    #if DEBUG
+    private func debugSampleButton(_ sample: MeasureSample) -> some View {
+        Button(sample.labelHe) {
+            guard let sequence = try? DebugMeasureSamples.install(sample, store: library.store) else { return }
+            library.reload()
+            opened[sequence.partId] = sequence
+            measureFirst.insert(sequence.partId)
+            path.append(sequence.partId)
+        }
+        .buttonStyle(.bordered)
+        .accessibilityLabel(sample.labelHe)
+    }
+    #endif
 
     private func photoCount(_ draft: ScanDraft) -> String {
         let count = draft.sequence.steps.compactMap(\.photo).count

@@ -344,6 +344,26 @@ describe("parsePackFile", () => {
     expect(edge.ok).toBe(true);
   });
 
+  it("normalises an old quotedAt datetime on import and keeps a date-only value", () => {
+    const dated = parsePackFile(packWith({ price: { value: 4, currency: "USD", quotedAt: "2026-09-01T10:00:00Z" } }));
+    expect(dated.ok).toBe(true);
+    if (!dated.ok) return;
+    expect((dated.pack.parts[0] as { price?: { quotedAt?: string } }).price?.quotedAt).toBe("2026-09-01");
+    expect(dated.warnings.some((notice) => notice.type === "priceIssue" && notice.code === "price_quoted_at")).toBe(false);
+
+    const day = parsePackFile(packWith({ price: { value: 4, currency: "USD", quotedAt: "2026-09-01" } }));
+    expect(day.ok).toBe(true);
+    if (!day.ok) return;
+    expect((day.pack.parts[0] as { price?: { quotedAt?: string } }).price?.quotedAt).toBe("2026-09-01");
+    expect(day.warnings).toEqual([]);
+
+    const invalid = parsePackFile(packWith({ price: { value: 4, currency: "USD", quotedAt: "2026-02-30" } }));
+    expect(invalid.ok).toBe(true);
+    if (!invalid.ok) return;
+    expect((invalid.pack.parts[0] as { price?: { quotedAt?: string } }).price).toEqual({ value: 4, currency: "USD" });
+    expect(invalid.warnings.some((notice) => notice.type === "priceIssue" && notice.code === "price_quoted_at")).toBe(true);
+  });
+
   it("drops a non-object mesh and keeps a valid price exactly", () => {
     const price = { value: 1.25, currency: "EUR", moq: 1, tiers: [{ minQty: 2, value: 1.25 }, { minQty: 10, value: 1.1 }], quotedAt: "2026-10-06" };
     const result = parsePackFile(packWith({ price, mesh: "glb", measurements: [{ key: "heightMm", value: 32 }] }));
@@ -470,6 +490,37 @@ describe("syncRegistry and selection", () => {
 
 describe("reviveStoredPack", () => {
   afterEach(() => syncRegistry([]));
+
+  it("normalises an old quotedAt datetime on load", () => {
+    const datetime = reviveStoredPack({
+      id: "sup-old",
+      name: "Stored",
+      createdAt: 4,
+      parts: [{ ...base, price: { value: 4, currency: "USD", quotedAt: "2026-09-01T10:00:00Z" } }],
+    });
+    expect(datetime.pack?.parts[0]).toMatchObject({ price: { value: 4, currency: "USD", quotedAt: "2026-09-01" } });
+    expect(datetime.warnings.some((notice) => notice.type === "priceIssue" && notice.code === "price_quoted_at")).toBe(false);
+
+    const day = reviveStoredPack({
+      id: "sup-old",
+      name: "Stored",
+      createdAt: 4,
+      parts: [{ ...base, price: { value: 4, currency: "USD", quotedAt: "2026-09-01" } }],
+    });
+    expect(day.pack?.parts[0]).toMatchObject({ price: { quotedAt: "2026-09-01" } });
+    expect(day.warnings).toEqual([]);
+
+    const invalid = reviveStoredPack({
+      id: "sup-old",
+      name: "Stored",
+      createdAt: 4,
+      parts: [{ ...base, price: { value: 4, currency: "USD", quotedAt: "not-a-date" } }],
+    });
+    expect(invalid.pack).not.toBeNull();
+    expect(invalid.pack?.parts[0]).toMatchObject({ price: { value: 4, currency: "USD" } });
+    expect((invalid.pack?.parts[0] as { price?: { quotedAt?: string } }).price).not.toHaveProperty("quotedAt");
+    expect(invalid.warnings.some((notice) => notice.type === "priceIssue" && notice.code === "price_quoted_at")).toBe(true);
+  });
 
   it("keeps a valid stored pack, including price, mesh, scan, and measurements", () => {
     const raw = JSON.parse(v2Text);
