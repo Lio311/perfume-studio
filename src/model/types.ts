@@ -204,6 +204,7 @@ export type BoxForm =
   | "rigid"
   | "magnetic"
   | "drawer"
+  | "gatefold"
   | "tube"
   | "plinth"
   | "window"

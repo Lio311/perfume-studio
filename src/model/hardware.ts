@@ -37,4 +37,5 @@ export const BOXES: BoxSpec[] = [
   { id: "box-plinth", name: { he: "כן", en: "Plinth" }, form: "plinth", padMm: 20, liftMm: 8, tags: ["plinth", "כן", "base"], model: { type: "procedural" } },
   { id: "box-window", name: { he: "חלון", en: "Window box" }, form: "window", padMm: 15, liftMm: 20, tags: ["window", "חלון"], model: { type: "procedural" } },
   { id: "box-coffret", name: { he: "קופרה", en: "Coffret" }, form: "coffret", padMm: 22, liftMm: 26, tags: ["coffret", "קופרה", "gift"], model: { type: "procedural" } },
+  { id: "box-gatefold", name: { he: "דלתות כפולות", en: "Gatefold" }, form: "gatefold", padMm: 20, liftMm: 20, tags: ["gatefold", "דלתות כפולות", "כפול", "double"], model: { type: "procedural" } },
 ];
