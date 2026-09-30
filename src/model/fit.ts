@@ -1,5 +1,5 @@
 import { labelPatchExtent } from "../geometry/labelPatch.ts";
-import { envelopeFromDesign, hydrateBox } from "./boxFields.ts";
+import { envelopeFromDesign } from "./boxFields.ts";
 import { bottleById, capById, collarById, logoById, pumpById } from "./catalog.ts";
 import { NECKS, neckRadius, neckStandard } from "./necks.ts";
 import { bottleRadii, neckFinishMm } from "./sample.ts";
@@ -274,44 +274,14 @@ export function boxContentsSeat(design: Design): number {
   return seat;
 }
 
-export function requiredInnerSize(design: Design) {
-  const c = getContentsFit(design, false);
-  const pack = hydrateBox(design.box);
-  const clearance = pack.insert.clearanceMm;
-  const includeCap = design.cap.visible;
-  const includePump = design.pump.visible;
-  
-  const capTop = c.capBottom + c.capH;
-  const pumpTop = c.pumpBase + c.actuatorH;
-  const stack = Math.max(c.bottleH, includeCap ? capTop : 0, includePump ? pumpTop : 0);
-  
-  const widthMm = Math.max(c.bottleW, includeCap ? c.capW : 0, includePump ? (c.actuatorR + c.nozzle) * 2 : 0) + clearance * 2;
-  const depthMm = Math.max(c.bottleD, includeCap ? c.capD : 0, includePump ? c.actuatorR * 2 : 0) + clearance * 2;
-  
-  const orientation = pack.insert.orientation;
-  if (orientation === "lying") {
-    return { w: widthMm, d: stack + clearance * 2, h: depthMm };
-  }
-  return { w: widthMm, d: depthMm, h: stack };
-}
-
 export function fitsContents(design: Design) {
-  // Calculate available inner space
-  // Wait, design.box.widthMm is OUTER width. innerW = outerW - boardMm * 2.
-  // Actually, requiredInnerSize gives us the required INNER size (insertW, insertD, insertH).
-  // Wait, let's look at how deriveEnvelope uses cavity width.
-  // deriveEnvelope: insertW = cavity.widthMm + margin*2 (margin = max(8, clearance*2)).
-  // Then innerW = insertW. outerW = innerW + boardMm*2.
-  // So the required outer dimensions are based on deriveEnvelope!
-  // It's safer to just call computeFit(design, false) to get the required MINIMAL dimensions.
-  // Wait, if computeFit uses design.box (which might be too small), computeFit might return the TOO SMALL box size.
-  // In computeFit:
-  // const fixed = design.box.linked === false;
-  // const boxW = fixed ? design.box.widthMm : envelope.outerW;
-  // So envelope.outerW is the REQUIRED outer width.
-  // So if design.box is smaller than envelope.outerW, it doesn't fit!
-  // So fitsContents is just:
   const envelope = envelopeFromDesign(design);
+  
+  if (design.box.linked !== false) {
+    // When linked, the box auto-resizes to the envelope, so it always fits.
+    return { ok: true, shortBy: { w: 0, d: 0, h: 0 }, envelope };
+  }
+
   const okW = design.box.widthMm >= envelope.outerW - 0.1;
   const okD = design.box.depthMm >= envelope.outerD - 0.1;
   const okH = design.box.heightMm >= envelope.outerH - 0.1;

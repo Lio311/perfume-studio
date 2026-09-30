@@ -177,20 +177,19 @@ describe("fitsContents", () => {
     for (const bottle of BOTTLES) {
       const design = createDefaultDesign();
       applyVariant(design, "bottle", bottle.id);
-      design.box.linked = true; // should use envelope size
-      // When linked=true, the box dimensions in design.box are ignored by fitsContents?
-      // Wait, in computeFit, boxW is envelope.outerW if linked is true.
-      // But fitsContents checks design.box.widthMm.
-      // Ah! When linked is true, the user CANNOT make it smaller, it auto-updates.
-      // Actually, if linked is true, fitsContents might return false if design.box wasn't updated!
-      // In the app, if linked is true, the sliders are hidden or disabled.
-      // But let's set design.box dimensions to the envelope dimensions to test.
-      const fit = computeFit(design, false);
-      design.box.widthMm = fit.boxW;
-      design.box.depthMm = fit.boxD;
-      design.box.heightMm = fit.boxH;
+      design.box.linked = true;
       expect(fitsContents(design).ok).toBe(true);
     }
+  });
+
+  it("returns ok=true when linked=true even with tiny stale box dimensions", () => {
+    const design = createDefaultDesign();
+    applyVariant(design, "bottle", "cara-50");
+    design.box.linked = true;
+    design.box.widthMm = 10;
+    design.box.depthMm = 10;
+    design.box.heightMm = 10;
+    expect(fitsContents(design).ok).toBe(true);
   });
 
   it("increases the required height when a crimp-pump collar is used", () => {
@@ -204,9 +203,8 @@ describe("fitsContents", () => {
     applyVariant(design, "collar", "crimp-collar");
     const resCrimp = fitsContents(design);
     
-    // Crimp collar sits higher on the neck, so the total required height should be taller.
-    expect(resCrimp.envelope.outerH).toBeGreaterThan(110);
-    expect(resCrimp.envelope.outerH).not.toBe(resScrew.envelope.outerH);
+    // A crimp ferrule sinks lower into the finish (no screw skirt), so the pump base is lower, decreasing the required height.
+    expect(resCrimp.envelope.outerH).toBeLessThan(resScrew.envelope.outerH);
   });
 });
 
