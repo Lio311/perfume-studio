@@ -17,8 +17,8 @@ import { PriceTag } from "./PriceTag.tsx";
 import { useBudgetModel } from "./useBudget.ts";
 import { clampLabelText } from "../geometry/logos.ts";
 
-const TABS: Array<VariantPart | "liquid" | "pending"> = ["bottle", "cap", "label", "pump", "collar", "box", "liquid", "pending"];
-const WIZARD_ORDER: Array<VariantPart | "liquid"> = ["bottle", "liquid", "pump", "collar", "cap", "label", "box"];
+const TABS: Array<VariantPart | "liquid" | "pending"> = ["bottle", "cap", "label", "pump", "collar", "box", "pending"];
+const WIZARD_ORDER: Array<VariantPart | "liquid"> = ["bottle", "pump", "collar", "cap", "label", "box"];
 
 const CAP_CATS: Array<{ id: string; label: "catAll" | "catZamac" | "catSurlyn" | "catWood" | "catAcrylic" | "catMagnetic" | "catSculptural" | "catMinimal"; tags: string[] }> = [
   { id: "all", label: "catAll", tags: [] },
@@ -39,7 +39,7 @@ function tabForWizardStep(step: number): (typeof TABS)[number] {
 function moveWizardStep(step: number) {
   const design = useLab.getState().design;
   useLab.setState({ design: { ...design, step } });
-  if (step < 7) useLab.getState().setStage(step === 6 ? "box" : "bottle");
+  if (step < 6) useLab.getState().setStage(step === 5 ? "box" : "bottle");
 }
 
 export function Library() {
@@ -58,7 +58,7 @@ export function Library() {
   const removeSupplier = useLab((s) => s.removeSupplier);
   const selected = useLab((s) => s.selected);
   const focusToken = useLab((s) => s.focusToken);
-  const [tab, setTab] = useState<(typeof TABS)[number]>(() => tabForWizardStep(useLab.getState().design.step ?? 7));
+  const [tab, setTab] = useState<(typeof TABS)[number]>(() => tabForWizardStep(useLab.getState().design.step ?? 6));
   const [query, setQuery] = useState("");
   const [cat, setCat] = useState("all");
   const [supplier, setSupplier] = useState("all");
@@ -71,14 +71,14 @@ export function Library() {
   
   const stage = useLab((s) => s.stage);
   
-  const wizardStep = design.step ?? 7;
-  const isWizard = wizardStep < 7;
+  const wizardStep = design.step ?? 6;
+  const isWizard = wizardStep < 6;
   const activeTabs = isWizard 
     ? [...WIZARD_ORDER.slice(0, wizardStep + 1), "pending" as const] 
     : stage === "box" 
       ? ["box", "pending"] as typeof TABS
       : stage === "bottle"
-        ? ["bottle", "cap", "label", "pump", "collar", "liquid", "pending"] as typeof TABS
+        ? ["bottle", "cap", "label", "pump", "collar", "pending"] as typeof TABS
         : TABS;
   const visibleTab = isWizard ? tabForWizardStep(wizardStep) : tab;
 

@@ -94,7 +94,7 @@ function applyBackAction(history: HistoryLike, action: Exclude<BackAction, "leav
     if ((design.step ?? 0) === step) return;
     useLab.setState({
       design: { ...design, step },
-      stage: step === 6 ? "box" : "bottle",
+      stage: step === 5 ? "box" : "bottle",
     });
   } else if (action === "mode") {
     useLab.setState({ explode: 0 });
@@ -117,7 +117,7 @@ function install(history: HistoryLike, trap: Trap, popWith: (handler: () => void
 
 function clickNext(history: HistoryLike, trap: Trap) {
   const design = useLab.getState().design;
-  const step = design.step ?? 7;
+  const step = design.step ?? 6;
   const tab = WIZARD_ORDER[step];
   const part = tab ? design[tab] : undefined;
   if (!part || !("visible" in part) || !part.visible) throw new Error(`Next disabled on step ${step}`);
@@ -128,7 +128,7 @@ function clickNext(history: HistoryLike, trap: Trap) {
 }
 
 function clickPrevious(history: HistoryLike) {
-  const step = useLab.getState().design.step ?? 7;
+  const step = useLab.getState().design.step ?? 6;
   if (historyWizardStep(history.state) === step) {
     history.back();
     return;

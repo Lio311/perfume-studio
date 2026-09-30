@@ -150,8 +150,24 @@ export function BudgetBrief() {
         </label>
         <p className={belowMoq ? "hint is-warn" : "hint"}>{belowMoq ? t.belowMoq : brief.quantity ? t.briefQuantityOn : t.basePriceNote}</p>
         <p className="hint">{t.briefNote}</p>
-        <div className="modal-actions">
-          {brief.confirmed && <button type="button" onClick={() => closeBrief()}>{t.briefCancel}</button>}
+        <div className="modal-actions" style={{ display: 'flex', gap: '12px' }}>
+          {brief.confirmed ? (
+            <button type="button" onClick={() => closeBrief()}>{t.briefCancel}</button>
+          ) : (
+            <button
+              type="button"
+              className="is-primary"
+              style={{ background: 'transparent', color: 'var(--text)', border: '1px solid var(--accent)' }}
+              onClick={() => {
+                if (!brief.projectName?.trim()) {
+                  setBrief({ projectName: lang === "he" ? "פרויקט ללא שם" : "Untitled" });
+                }
+                confirmBrief();
+              }}
+            >
+              {lang === "he" ? "דלג" : "Skip"}
+            </button>
+          )}
           <button type="submit" className="is-primary">{brief.confirmed ? t.briefUpdate : t.briefStart}</button>
         </div>
       </form>

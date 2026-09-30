@@ -145,7 +145,7 @@ describe("saved design hydration", () => {
     design.collar = { ...design.collar, visible: false };
     design.box = { ...design.box, linked: false, widthMm: 90, visible: true };
     design.liquid = { ...design.liquid, fill: 0.4, visible: true };
-    design.step = 7;
+    design.step = 6;
     const saved = {
       id: "cfg-1",
       name: "נואר",

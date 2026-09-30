@@ -152,7 +152,7 @@ export function mergeShareDesign(input: unknown): Design | null {
 
   if (Object.hasOwn(source, "step")) {
     const step = source.step;
-    if (typeof step === "number" && Number.isInteger(step) && step >= 0 && step <= 7) design.step = step;
+    if (typeof step === "number" && Number.isInteger(step) && step >= 0 && step <= 6) design.step = step;
   }
   if (label && !Object.hasOwn(source, "version")) {
     const stored = label.color;

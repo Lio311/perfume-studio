@@ -72,7 +72,7 @@ export function isLabHistory(state: unknown): boolean {
 export function historyWizardStep(state: unknown): number | undefined {
   if (!isLabHistory(state)) return undefined;
   const step = (state as { step?: unknown }).step;
-  return typeof step === "number" && Number.isInteger(step) && step >= 0 && step <= 7 ? step : undefined;
+  return typeof step === "number" && Number.isInteger(step) && step >= 0 && step <= 6 ? step : undefined;
 }
 
 function isOverlayGuard(state: unknown): boolean {
@@ -216,8 +216,8 @@ export function backSurface(state: {
   boxOpen?: boolean;
 }): BackSurface {
   const raw = state.design.step;
-  const known = typeof raw === "number" && Number.isInteger(raw) && raw >= 0 && raw <= 7;
-  const wizard = known && raw < 7;
+  const known = typeof raw === "number" && Number.isInteger(raw) && raw >= 0 && raw <= 6;
+  const wizard = known && raw < 6;
   return {
     modal: Boolean(state.modal),
     present: state.present,

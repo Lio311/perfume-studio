@@ -49,7 +49,7 @@ function applyBackAction(action: Exclude<BackAction, "leave">, trap: Trap) {
     if ((design.step ?? 0) === step) return;
     useLab.setState({
       design: { ...design, step },
-      stage: step === 6 ? "box" : "bottle",
+      stage: step === 5 ? "box" : "bottle",
       demoHold: null,
     });
   } else if (action === "mode") {
@@ -102,7 +102,7 @@ export default function App() {
   const [shareLock, setShareLock] = useState(() => location.hash.startsWith("#d="));
   const [swapping, setSwapping] = useState(false);
   const [savingsOpen, setSavingsOpen] = useState(false);
-  const step = design.step ?? 7;
+  const step = design.step ?? 6;
   const prevStep = useRef(step);
   const demoShot = useRef(false);
 
@@ -296,7 +296,7 @@ export default function App() {
         design.box.linked = false;
       }
       const tier = params.get("tier") === "fallback" ? "fallback" as const : "high" as const;
-      design.step = 7;
+      design.step = 6;
       const wizardPicked = new Set(useLab.getState().wizardPicked);
       wizardPicked.add("box");
       useLab.setState({
@@ -348,7 +348,7 @@ export default function App() {
 
   useEffect(() => {
     const remember = () => {
-      prevStep.current = useLab.getState().design.step ?? 7;
+      prevStep.current = useLab.getState().design.step ?? 6;
     };
     if (useLab.persist.hasHydrated()) remember();
     return useLab.persist.onFinishHydration(remember);
@@ -357,8 +357,8 @@ export default function App() {
   useEffect(() => {
     if (!useLab.persist.hasHydrated()) return;
     const shot = demoShot.current || isKnownPack(new URLSearchParams(location.search).get("closure") ?? new URLSearchParams(location.search).get("structure"));
-    if (!shot && (prevStep.current ?? 7) < 7 && step >= 7) setSavingsOpen(true);
-    if (shot && step >= 7) demoShot.current = false;
+    if (!shot && (prevStep.current ?? 7) < 7 && step >= 6) setSavingsOpen(true);
+    if (shot && step >= 6) demoShot.current = false;
     prevStep.current = step;
   }, [step]);
 
@@ -439,7 +439,7 @@ export default function App() {
             <button type="button" className="icon-btn" style={{ background: 'var(--bg)' }} onClick={() => undo()} disabled={past === 0}>{t.undo}</button>
             <button type="button" className="icon-btn" style={{ background: 'var(--bg)' }} onClick={() => redo()} disabled={future === 0}>{t.redo}</button>
           </div>
-          {!unboxing && (design.step !== undefined && design.step < 7 ? (
+          {!unboxing && (design.step !== undefined && design.step < 6 ? (
             <p className="hint-strip" style={{ opacity: 1 }} dir={lang === "he" ? "rtl" : "ltr"}>
               <b>{wizardTitle(lang, design.step)}</b>
             </p>
