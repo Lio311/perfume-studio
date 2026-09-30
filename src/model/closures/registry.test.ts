@@ -9,8 +9,8 @@ const SAMPLE = { w: 80, h: 120, d: 70, boardMm: 2.2 };
 describe("closure registry", () => {
   it("loads every structure with a preset, latches, parts, and named stages", () => {
     const specs = listClosures();
-    expect(specs.map((spec) => spec.id)).toEqual(["hinged-lid", "lift-off", "sleeve", "drawer", "book", "tube"]);
-    expect(specs.map((spec) => spec.preset.label.he)).toEqual(["מגנט", "לחיצה", "הזזה", "מגירה", "ספר", "גליל"]);
+    expect(specs.map((spec) => spec.id)).toEqual(["hinged-lid", "clamshell", "lift-off", "sleeve", "drawer", "book", "gatefold", "tube"]);
+    expect(specs.map((spec) => spec.preset.label.he)).toEqual(["מגנט", "מגנט", "לחיצה", "הזזה", "מגירה", "ספר", "כפול", "גליל"]);
     for (const spec of specs) {
       expect(spec.label.he.length).toBeGreaterThan(0);
       expect(spec.label.en.length).toBeGreaterThan(0);

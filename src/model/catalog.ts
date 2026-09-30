@@ -65,7 +65,7 @@ export function logoApplication(id: string): LogoApplication | null {
   return spec?.application ?? null;
 }
 
-const LOGO_APPLICATIONS = new Set<string>(["decal", "engrave", "emboss", "foil"]);
+const LOGO_APPLICATIONS = new Set<string>(["decal", "engrave", "plaque", "sticker"]);
 
 export function isLogoApplication(value: unknown): value is LogoApplication {
   return typeof value === "string" && LOGO_APPLICATIONS.has(value);

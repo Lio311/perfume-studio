@@ -161,8 +161,8 @@ describe("label text layout", () => {
     expect(labelInk("#b76e79", "plaque")).toBe("#b76e79");
     expect(labelInk("#000000", "plaque")).toBe("#000000");
     expect(labelInk("#111111", "plaque")).not.toBe("#f3f6fb");
-    expect(labelInk("#D6B26A", "sticker")).toBe(EMBOSS_SUBSTRATE);
-    expect(labelInk("#D6B26A", "sticker", "#16130f")).toBe("#16130f");
+    expect(labelInk("#D6B26A", "sticker")).toBe("#D6B26A");
+    expect(labelInk("#D6B26A", "sticker", "#16130f")).toBe("#D6B26A");
     expect(labelInk("#D6B26A", "engrave", "#16130f")).toBe("#16130f");
     expect(labelInk("#D6B26A", "engrave")).toBe(EMBOSS_SUBSTRATE);
     expect(labelFinish("decal")).toEqual({ metalness: 0, roughness: 1, bumpScale: 0, envMapIntensity: 1, emissive: 0 });
