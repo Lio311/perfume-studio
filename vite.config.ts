@@ -12,6 +12,14 @@ export default defineConfig({
             { name: "preload", test: /preload-helper/, priority: 60 },
             { name: "react", test: /node_modules[\\/](react-dom|react|scheduler)[\\/]/, priority: 50 },
             { name: "state", test: /node_modules[\\/](zustand|use-sync-external-store|immer)[\\/]/, priority: 45 },
+            {
+              name: "gltf-exporter",
+              test: /GLTFExporter/,
+              priority: 48,
+              // Keep three core in the shared `three` chunk. The default pulls every
+              // dependency of GLTFExporter into this group, which swallowed the library.
+              includeDependenciesRecursively: false,
+            },
             { name: "three", test: /node_modules[\\/]three[\\/]/, priority: 40 },
             { name: "postprocessing", test: /node_modules[\\/]postprocessing[\\/]/, priority: 35 },
             { name: "three-stdlib", test: /node_modules[\\/]three-stdlib[\\/]/, priority: 34 },

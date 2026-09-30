@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { detectCardQuad } from "./calib/detect.ts";
 import { calibrationKey, clearCalibration, readCalibration, screenLabel, trackLabel, writeCalibration, type StoredCalibration } from "./calib/store.ts";
 import { calibrateViews, quadAcceptable, undistort } from "./calib/zhang.ts";
@@ -6,8 +6,10 @@ import { cameraBlocker, openRearCamera, type CameraFailure } from "./camera.ts";
 import { createDistanceGuide, type DistanceBand } from "./distance/guide.ts";
 import { buildScanPack, todayDate, type ScanPackResult } from "./export/pack.ts";
 import { configuratorUrl, rememberPack, saveScanPack } from "./export/savePack.ts";
-import { exportGlb } from "./mesh/seam.ts";
-import { estimateCardPose } from "./packkit/cardPose.ts";
+import { glbFilename, type PartMeshInput } from "./mesh/partSpec.ts";
+import { bottleLathe, capLathe } from "./mesh/profiles.ts";
+import { solveCardPose, type CardPoseMemory } from "./packkit/cardPose.ts";
+import { orientRgba, safariCaptureOrientation, type CaptureOrientation } from "./packkit/imageOrientation.ts";
 import { ANGLE_HEBREW, capturePlan, KIND_HEBREW, type CaptureAngle } from "./packkit/capturePlan.ts";
 import { estimateMeasure } from "./packkit/estimator.ts";
 import type { PartKind, ShapeHint } from "./packkit/shape.ts";
@@ -16,7 +18,9 @@ import type { Vec2 } from "./packkit/vec.ts";
 import { drawStage } from "./stageArt.ts";
 import "./scan.css";
 
-type Phase = "intro" | "error" | "calibrate" | "distance" | "capture" | "review" | "result";
+const PartStage = lazy(() => import("./view/PartStage.tsx").then((mod) => ({ default: mod.PartStage })));
+
+type Phase = "intro" | "error" | "calibrate" | "distance" | "capture" | "review" | "model" | "result";
 
 const PROMPTS = [
   "החזיקו את הכרטיס ישר, במרכז",
@@ -51,6 +55,7 @@ const HINT_TEXT = { closer: "קרב", farther: "הרחק", hold: "מחזיקים
 interface ShotView {
   shot: string;
   state: string;
+  part: string;
 }
 
 interface KeptShot {
@@ -65,7 +70,7 @@ interface KeptShot {
 
 function readShot(): ShotView {
   const params = new URLSearchParams(location.search);
-  return { shot: params.get("shot") ?? "", state: params.get("state") ?? "ok" };
+  return { shot: params.get("shot") ?? "", state: params.get("state") ?? "ok", part: params.get("part") ?? "bottle" };
 }
 
 export function ScanApp() {
@@ -87,16 +92,19 @@ export function ScanApp() {
   const [price, setPrice] = useState("");
   const [currency, setCurrency] = useState("ILS");
   const [shotReady, setShotReady] = useState(false);
+  const [model, setModel] = useState<PartMeshInput | null>(() => (fixture && shot.shot === "model" ? fixtureModel(shot.part) : null));
+  const [glbName, setGlbName] = useState(() => (fixture && (shot.shot === "export" || shot.shot === "result") ? "bottle-40.20x102.40x39.60.glb" : ""));
   const videoRef = useRef<HTMLVideoElement>(null);
   const sceneRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const calibRef = useRef<StoredCalibration | null>(null);
   const keyRef = useRef("");
   const guideRef = useRef(createDistanceGuide());
+  const poseMemoryRef = useRef<CardPoseMemory | null>(null);
   const quotedAt = todayDate();
 
   useEffect(() => {
-    if (!fixture) return undefined;
+    if (!fixture || phase === "model") return undefined;
     let cancelled = false;
     void document.fonts.ready.then(() => {
       if (cancelled) return;
@@ -127,7 +135,8 @@ export function ScanApp() {
       if (stopped) return;
       frame += 1;
       if (frame % 2 === 0 && video.videoWidth > 0 && phase !== "calibrate") {
-        const reading = readFrame(video, calibRef.current);
+        const reading = readFrame(video, calibRef.current, poseMemoryRef.current);
+        if (reading?.memory) poseMemoryRef.current = reading.memory;
         const output = guideRef.current.push({ timeMs: performance.now(), distanceMm: reading?.distanceMm ?? null, tiltDeg: reading?.tiltDeg ?? null });
         if (output.publish) {
           setBand(output.band === "lost" ? "lost" : output.band);
@@ -162,7 +171,8 @@ export function ScanApp() {
       video.setAttribute("webkit-playsinline", "true");
       await video.play();
     }
-    keyRef.current = calibrationKey(navigator.userAgent, screenLabel(), trackLabel(opened.settings));
+    const orientation = video && video.videoWidth > 2 ? bufferOrientation(video) : "up";
+    keyRef.current = calibrationKey(navigator.userAgent, screenLabel(), trackLabel(opened.settings), orientation);
     const stored = readCalibration(keyRef.current);
     calibRef.current = stored;
     setPhase(stored ? "distance" : "calibrate");
@@ -171,14 +181,7 @@ export function ScanApp() {
   function grab(): { width: number; height: number; rgba: Uint8ClampedArray } | null {
     const video = videoRef.current;
     if (!video || video.videoWidth < 2) return null;
-    const canvas = document.createElement("canvas");
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    const ctx = canvas.getContext("2d", { willReadFrequently: true });
-    if (!ctx) return null;
-    ctx.drawImage(video, 0, 0);
-    const image = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    return { width: canvas.width, height: canvas.height, rgba: image.data };
+    return sampleVideo(video, null);
   }
 
   function takeCalibration() {
@@ -228,6 +231,7 @@ export function ScanApp() {
   function recalibrate() {
     if (keyRef.current) clearCalibration(keyRef.current);
     calibRef.current = null;
+    poseMemoryRef.current = null;
     setViews([]);
     setReprojection(null);
     guideRef.current.reset();
@@ -307,16 +311,42 @@ export function ScanApp() {
       currency,
       quotedAt,
     });
-    exportGlb({
+    const spec: PartMeshInput = {
       kind,
       widthMm: dims.widthMm,
       heightMm: dims.heightMm,
       depthMm: dims.depthMm,
       lathe: measured?.lathe ?? null,
-      frames: shots.map((item) => ({ angle: item.angle, width: item.width, height: item.height })),
-    });
+      color: "#d8d2c8",
+      name: `SCAN-1 · ${KIND_HEBREW[kind]}`,
+    };
+    setModel(spec);
+    setGlbName(glbFilename(kind, dims.widthMm, dims.heightMm, dims.depthMm));
     setPack(built);
-    setPhase("result");
+    setPhase("model");
+  }
+
+  function rescan() {
+    setStep(0);
+    setShots([]);
+    setNote("");
+    guideRef.current.reset();
+    setPhase("capture");
+  }
+
+  async function exportModel() {
+    const spec = model ?? (fixture ? fixtureModel(shot.part) : null);
+    if (!spec) return;
+    const filename = glbFilename(spec.kind, spec.widthMm, spec.heightMm, spec.depthMm);
+    try {
+      const { exportPartGlb } = await import("./mesh/glb.ts");
+      const bytes = await exportPartGlb(spec);
+      setGlbName(filename);
+      await shareBytes(bytes, filename, "model/gltf-binary");
+      setPhase("result");
+    } catch {
+      setNote("ייצוא המודל נכשל.");
+    }
   }
 
   async function sharePack() {
@@ -358,7 +388,7 @@ export function ScanApp() {
           <button type="button" onClick={() => void start()}>פתיחת המצלמה</button>
         </section>
       ) : null}
-      {phase !== "intro" && phase !== "error" && phase !== "review" && phase !== "result" ? (
+      {phase !== "intro" && phase !== "error" && phase !== "review" && phase !== "result" && phase !== "model" ? (
         <div className="stage">
           {fixture ? <canvas ref={sceneRef} className="scene" /> : <video ref={videoRef} className="scene" playsInline muted autoPlay />}
           {phase === "distance" || phase === "capture" || (fixture && shot.shot === "distance") ? (
@@ -412,8 +442,31 @@ export function ScanApp() {
               </figure>
             ))}
           </div>
-          <button type="button" onClick={() => (fixture ? setPhase("result") : finishReview())}>חישוב מידות</button>
+          <button type="button" onClick={() => {
+            if (fixture) {
+              const spec = fixtureModel(shot.part);
+              setModel(spec);
+              setGlbName(glbFilename(spec.kind, spec.widthMm, spec.heightMm, spec.depthMm));
+              setPhase("model");
+              return;
+            }
+            finishReview();
+          }}>חישוב מידות</button>
         </section>
+      ) : null}
+      {phase === "model" && model ? (
+        <>
+          <Suspense fallback={<div className="viewer" />}>
+            <PartStage {...model} onReady={() => setShotReady(true)} />
+          </Suspense>
+          <section className="sheet">
+            {note ? <p className="error">{note}</p> : null}
+            <div className="row">
+              <button type="button" onClick={() => void exportModel()}>טוב, ייצא</button>
+              <button type="button" className="ghost" onClick={rescan}>סרוק שוב</button>
+            </div>
+          </section>
+        </>
       ) : null}
       {phase === "result" ? (
         <ResultSheet
@@ -421,6 +474,7 @@ export function ScanApp() {
           quotedAt={quotedAt}
           price={price}
           currency={currency}
+          glbName={glbName}
           onPrice={setPrice}
           onCurrency={setCurrency}
           onDownload={() => {
@@ -431,7 +485,6 @@ export function ScanApp() {
           onOpen={() => void openConfigurator()}
         />
       ) : null}
-      {phase !== "result" ? null : <p className="muted">ייצוא מודל תלת־ממד אינו חלק מהשלב הזה.</p>}
     </main>
   );
 }
@@ -441,6 +494,7 @@ function ResultSheet(props: {
   quotedAt: string;
   price: string;
   currency: string;
+  glbName: string;
   onPrice: (value: string) => void;
   onCurrency: (value: string) => void;
   onDownload: () => void;
@@ -453,7 +507,9 @@ function ResultSheet(props: {
   const depth = parts?.[0]?.depthMm ?? 39.6;
   return (
     <section className="sheet">
-      <h2>מידות</h2>
+      <h2>ייצוא</h2>
+      {props.glbName ? <p className="file"><bdi dir="ltr">{props.glbName}</bdi></p> : null}
+      <p className="muted">GLB · מטרים · ציר Y למעלה</p>
       <div className="dims">
         <div><b>{width}</b>רוחב</div>
         <div><b>{height}</b>גובה</div>
@@ -480,8 +536,15 @@ function ResultSheet(props: {
 function fixturePhase(shot: string): Phase {
   if (shot === "distance") return "distance";
   if (shot === "review") return "review";
-  if (shot === "result") return "result";
+  if (shot === "result" || shot === "export") return "result";
+  if (shot === "model") return "model";
   return "calibrate";
+}
+
+function fixtureModel(part: string): PartMeshInput {
+  if (part === "cap") return { kind: "cap", widthMm: 30, heightMm: 25, depthMm: 30, lathe: capLathe(), color: "#c4b8a4", name: "cap" };
+  if (part === "box") return { kind: "box", widthMm: 60, heightMm: 100, depthMm: 40, lathe: null, color: "#d7d1c6", name: "box" };
+  return { kind: "bottle", widthMm: 40, heightMm: 100, depthMm: 40, lathe: bottleLathe(), color: "#d8d2c8", name: "bottle" };
 }
 
 function fixtureBand(shot: ShotView): DistanceBand | "lost" {
@@ -561,20 +624,43 @@ function profileFor(kind: PartKind, shape: ShapeHint): string {
   return "cylinder";
 }
 
-function readFrame(video: HTMLVideoElement, calibration: StoredCalibration | null): { distanceMm: number; tiltDeg: number } | null {
-  if (!calibration) return null;
+function bufferOrientation(video: HTMLVideoElement): CaptureOrientation {
+  return safariCaptureOrientation({
+    bufferWidth: video.videoWidth,
+    bufferHeight: video.videoHeight,
+    screenWidth: window.screen?.width || window.innerWidth,
+    screenHeight: window.screen?.height || window.innerHeight,
+    userAgent: navigator.userAgent,
+  });
+}
+
+function sampleVideo(video: HTMLVideoElement, maxWidth: number | null): { width: number; height: number; rgba: Uint8ClampedArray } | null {
+  if (video.videoWidth < 2 || video.videoHeight < 2) return null;
+  const scale = maxWidth == null ? 1 : Math.min(1, maxWidth / video.videoWidth);
+  const width = Math.max(2, Math.round(video.videoWidth * scale));
+  const height = Math.max(2, Math.round(video.videoHeight * scale));
   const canvas = document.createElement("canvas");
-  const scale = Math.min(1, 640 / video.videoWidth);
-  canvas.width = Math.max(2, Math.round(video.videoWidth * scale));
-  canvas.height = Math.max(2, Math.round(video.videoHeight * scale));
+  canvas.width = width;
+  canvas.height = height;
   const ctx = canvas.getContext("2d", { willReadFrequently: true });
   if (!ctx) return null;
-  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-  const image = ctx.getImageData(0, 0, canvas.width, canvas.height);
-  const quad = detectCardQuad({ width: canvas.width, height: canvas.height, rgba: image.data });
+  ctx.drawImage(video, 0, 0, width, height);
+  const image = ctx.getImageData(0, 0, width, height);
+  return orientRgba(image.data, width, height, bufferOrientation(video));
+}
+
+function readFrame(
+  video: HTMLVideoElement,
+  calibration: StoredCalibration | null,
+  memory: CardPoseMemory | null,
+): { distanceMm: number; tiltDeg: number; memory: CardPoseMemory | null } | null {
+  if (!calibration) return null;
+  const frame = sampleVideo(video, 640);
+  if (!frame) return null;
+  const quad = detectCardQuad(frame);
   if (!quad) return null;
-  const sx = canvas.width / calibration.width;
-  const sy = canvas.height / calibration.height;
+  const sx = frame.width / calibration.width;
+  const sy = frame.height / calibration.height;
   const camera = {
     fx: calibration.fx * sx,
     fy: calibration.fy * sy,
@@ -584,9 +670,34 @@ function readFrame(video: HTMLVideoElement, calibration: StoredCalibration | nul
     k2: calibration.k2,
   };
   const corners = quad.map((point) => undistort(point, camera));
-  const pose = estimateCardPose(corners, camera);
-  if (!pose) return null;
-  return { distanceMm: pose.depthMm, tiltDeg: pose.tiltDegrees };
+  const solved = solveCardPose({
+    imageCorners: corners,
+    intrinsics: camera,
+    memory,
+    requireWidthAgreement: true,
+  });
+  if (!solved.estimate) return null;
+  return { distanceMm: solved.estimate.depthMm, tiltDeg: solved.estimate.tiltDegrees, memory: solved.memory };
+}
+
+async function shareBytes(bytes: ArrayBuffer, filename: string, type: string) {
+  const file = new File([bytes], filename, { type });
+  const nav = navigator as Navigator & { canShare?: (data: ShareData) => boolean };
+  const ios = /iPhone|iPad|iPod/.test(navigator.userAgent);
+  if (ios && nav.share && (!nav.canShare || nav.canShare({ files: [file] }))) {
+    try {
+      await nav.share({ files: [file], title: filename });
+      return;
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") return;
+    }
+  }
+  const url = URL.createObjectURL(new Blob([bytes], { type }));
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
 }
 
 function thumbnail(frame: { width: number; height: number; rgba: Uint8ClampedArray }): string {

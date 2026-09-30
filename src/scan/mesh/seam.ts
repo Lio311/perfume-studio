@@ -1,6 +1,6 @@
 /**
- * Seam for a later 3D / GLB export. The scanner records the frames and the
- * measured millimetres; it does not build a mesh.
+ * The scan route loads three.js only for the model step (`view/PartStage.tsx`)
+ * and GLTFExporter only when the operator exports (`mesh/glb.ts`).
  */
 export interface MeshFrame {
   angle: string;
@@ -15,8 +15,4 @@ export interface MeshExportRequest {
   depthMm: number;
   lathe: number[] | null;
   frames: readonly MeshFrame[];
-}
-
-export function exportGlb(_request: MeshExportRequest): null {
-  return null;
 }

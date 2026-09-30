@@ -1,0 +1,25 @@
+{
+  "source": "ios/Packages/PackKit/Tests/PackKitTests/MeasureTests.swift synthetic table. Pinhole fx = fy = 1500, card at 200 mm. Values are the printed millimetres (height, width, depth), not the true size.",
+  "toleranceMm": 0.05,
+  "bottle": {
+    "trueMm": { "heightMm": 100, "widthMm": 40, "depthMm": 40 },
+    "measuredMm": { "heightMm": 100.05, "widthMm": 40.17, "depthMm": 40.17 },
+    "tilts": [0, 10, -10],
+    "axes": ["y", "x"]
+  },
+  "cap": {
+    "trueMm": { "heightMm": 25, "widthMm": 30, "depthMm": 30 },
+    "measuredMm": { "heightMm": 25.26, "widthMm": 30.11, "depthMm": 30.11 },
+    "tilts": [0, 10, -10]
+  },
+  "box": {
+    "trueMm": { "heightMm": 100, "widthMm": 60, "depthMm": 40 },
+    "measuredMm": { "heightMm": 99.87, "widthMm": 60.27, "depthMm": 40.27 },
+    "tilt": 0
+  },
+  "label": {
+    "trueMm": { "heightMm": 36, "widthMm": 80, "depthMm": 0 },
+    "measuredMm": { "heightMm": 35.87, "widthMm": 80.13, "depthMm": 0 }
+  },
+  "worstNoise1pxMm": 0.33
+}
