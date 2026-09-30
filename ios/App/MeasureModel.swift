@@ -47,6 +47,7 @@ enum MeasureParse {
 final class MeasureModel: ObservableObject {
     let kind: PartKind
     let partId: UUID
+    let sessionId: UUID
     private let library: DraftLibrary
     private let pipeline = MeasurePipeline()
     private var jpegs: [String: Data] = [:]
@@ -78,6 +79,7 @@ final class MeasureModel: ObservableObject {
     init(
         library: DraftLibrary,
         sequence: CaptureSequence,
+        sessionId: UUID,
         referenceKind: MeasureReferenceKind,
         printedWidthMm: Double,
         printedHeightMm: Double
@@ -85,6 +87,7 @@ final class MeasureModel: ObservableObject {
         self.library = library
         self.kind = sequence.kind
         self.partId = sequence.partId
+        self.sessionId = sessionId
         self.referenceKind = referenceKind
         self.printedWidthMm = printedWidthMm
         self.printedHeightMm = printedHeightMm
@@ -248,9 +251,22 @@ final class MeasureModel: ObservableObject {
     @discardableResult
     func save(sequence: CaptureSequence) -> Bool {
         guard let current = displayResult, !current.saveBlocked else { return false }
-        let measurement = DraftMeasurement(result: current)
+        var measurement = DraftMeasurement(result: current)
+        if let existing = library.store.load(partId: sequence.partId)?.measurement {
+            measurement.finish = existing.finish
+            measurement.finishSource = existing.finishSource
+            measurement.colorHex = existing.colorHex
+            measurement.colorSource = existing.colorSource
+            measurement.price = existing.price
+        }
         do {
-            try library.save(sequence: sequence, images: [:], measurement: measurement)
+            try library.save(
+                sequence: sequence,
+                images: [:],
+                measurement: measurement,
+                sessionId: sessionId,
+                status: .needsReview
+            )
             validation = measurement.validationIssues(kind: kind)
             savedTick += 1
             return true

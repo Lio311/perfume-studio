@@ -26,13 +26,17 @@ final class DraftLibrary: ObservableObject {
         sequence: CaptureSequence,
         images: [String: Data],
         measurement: DraftMeasurement? = nil,
-        clearMeasurement: Bool = false
+        clearMeasurement: Bool = false,
+        sessionId: UUID? = nil,
+        status: PartReviewStatus? = nil
     ) throws {
         try store.save(
             sequence: sequence,
             images: images,
             measurement: measurement,
-            replaceMeasurement: clearMeasurement
+            replaceMeasurement: clearMeasurement,
+            sessionId: sessionId,
+            status: status
         )
         reload()
     }

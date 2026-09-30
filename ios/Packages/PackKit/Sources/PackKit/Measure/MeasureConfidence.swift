@@ -10,7 +10,7 @@ public enum ConfidenceBand: String, Codable, Equatable, Sendable {
 }
 
 /// σ from the scale source, pixel quantisation, and the parallax residual, added in quadrature.
-public struct DimensionErrorModel: Equatable, Sendable {
+public struct DimensionErrorModel: Codable, Equatable, Sendable {
     public var sigmaScaleMm: Double
     public var sigmaQuantisationMm: Double
     public var sigmaParallaxMm: Double
@@ -32,7 +32,7 @@ public struct DimensionErrorModel: Equatable, Sendable {
     }
 }
 
-public struct DimensionConfidence: Equatable, Sendable {
+public struct DimensionConfidence: Codable, Equatable, Sendable {
     public var key: String
     public var model: DimensionErrorModel
 

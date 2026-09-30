@@ -3,12 +3,21 @@ import Store
 import SwiftUI
 
 /// Home: pick a part kind, or resume and delete a saved draft. Hebrew, right to left.
+private enum ScannerRoute: Hashable {
+    case capture(UUID)
+    case review(UUID)
+    case summary(UUID)
+    case preview(UUID)
+}
+
 struct RootView: View {
     @StateObject private var library = DraftLibrary()
-    @State private var path = NavigationPath()
+    @State private var path: [ScannerRoute] = []
     @State private var opened: [UUID: CaptureSequence] = [:]
+    @State private var sessionForPart: [UUID: UUID] = [:]
     @State private var pendingDelete: UUID?
     @State private var measureFirst: Set<UUID> = []
+    @State private var openMeasureToken = UUID()
 
     private let kinds: [PartKind] = [.bottle, .cap, .pump, .collar, .box, .label]
 
@@ -22,7 +31,8 @@ struct RootView: View {
                         Button {
                             let sequence = CaptureSequence(kind: kind)
                             opened[sequence.partId] = sequence
-                            path.append(sequence.partId)
+                            sessionForPart[sequence.partId] = sequence.partId
+                            path.append(.capture(sequence.partId))
                         } label: {
                             Text(kind.hebrewName)
                                 .font(.title2.bold())
@@ -62,14 +72,43 @@ struct RootView: View {
             .foregroundStyle(.white)
             .navigationTitle("סורק רכיבים")
             .navigationBarTitleDisplayMode(.inline)
-            .navigationDestination(for: UUID.self) { id in
-                if let sequence = opened[id] {
-                    CaptureFlowView(library: library, sequence: sequence, startsOnMeasure: measureFirst.contains(id))
-                } else {
-                    Text("הטיוטה לא נמצאה")
-                        .foregroundStyle(.white)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .background(Color.black.ignoresSafeArea())
+            .navigationDestination(for: ScannerRoute.self) { route in
+                switch route {
+                case .capture(let id):
+                    if let sequence = opened[id] ?? library.store.load(partId: id)?.sequence {
+                        CaptureFlowView(
+                            library: library,
+                            sequence: sequence,
+                            sessionId: sessionForPart[id] ?? library.store.load(partId: id)?.resolvedSessionId ?? id,
+                            startsOnMeasure: measureFirst.contains(id),
+                            openMeasureToken: openMeasureToken,
+                            onMeasured: { openReview(id) }
+                        )
+                    } else {
+                        missingDraft
+                    }
+                case .review(let id):
+                    ReviewScreen(
+                        library: library,
+                        partId: id,
+                        onRemeasure: { openMeasure(id) },
+                        onSummary: { openSummary(id) },
+                        onPreview: { path.append(.preview(id)) }
+                    )
+                case .summary(let sessionId):
+                    SessionSummaryScreen(
+                        library: library,
+                        sessionId: sessionId,
+                        onOpen: { openReview($0) },
+                        onAdd: { addPart($0, sessionId: sessionId) },
+                        onFinish: { path = [] }
+                    )
+                case .preview(let id):
+                    if let draft = library.store.load(partId: id), let measurement = draft.measurement {
+                        ModelPreviewScreen(draft: draft, measurement: measurement, onRetake: { retakeScan(id) })
+                    } else {
+                        missingDraft
+                    }
                 }
             }
             .onAppear { library.reload() }
@@ -106,10 +145,17 @@ struct RootView: View {
                 Text("\(MeasureFormat.millimetres(measurement.widthMm)) × \(MeasureFormat.millimetres(measurement.heightMm)) × \(MeasureFormat.millimetres(measurement.depthMm)) מ״מ")
                     .font(.footnote.monospacedDigit())
             }
+            Text(draft.resolvedStatus.hebrew)
+                .font(.footnote.bold())
             HStack(spacing: 12) {
                 Button("המשך") {
                     opened[draft.sequence.partId] = draft.sequence
-                    path.append(draft.sequence.partId)
+                    sessionForPart[draft.sequence.partId] = draft.resolvedSessionId
+                    if draft.measurement != nil {
+                        path.append(.review(draft.sequence.partId))
+                    } else {
+                        path.append(.capture(draft.sequence.partId))
+                    }
                 }
                 .buttonStyle(.borderedProminent)
                 Button("מחק", role: .destructive) {
@@ -129,13 +175,75 @@ struct RootView: View {
             guard let sequence = try? DebugMeasureSamples.install(sample, store: library.store) else { return }
             library.reload()
             opened[sequence.partId] = sequence
+            sessionForPart[sequence.partId] = sequence.partId
             measureFirst.insert(sequence.partId)
-            path.append(sequence.partId)
+            path.append(.capture(sequence.partId))
         }
         .buttonStyle(.bordered)
         .accessibilityLabel(sample.labelHe)
     }
     #endif
+
+    private var missingDraft: some View {
+        Text("הטיוטה לא נמצאה")
+            .foregroundStyle(.white)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Color.black.ignoresSafeArea())
+    }
+
+    private func openReview(_ id: UUID) {
+        if case .review(id) = path.last { return }
+        if let draft = library.store.load(partId: id) {
+            opened[id] = draft.sequence
+            sessionForPart[id] = draft.resolvedSessionId
+        }
+        path.append(.review(id))
+    }
+
+    private func openSummary(_ partId: UUID) {
+        let sessionId = sessionForPart[partId] ?? library.store.load(partId: partId)?.resolvedSessionId ?? partId
+        if case .summary(sessionId) = path.last { return }
+        path.append(.summary(sessionId))
+    }
+
+    private func openMeasure(_ id: UUID) {
+        if let draft = library.store.load(partId: id) {
+            opened[id] = draft.sequence
+            sessionForPart[id] = draft.resolvedSessionId
+        }
+        measureFirst.insert(id)
+        openMeasureToken = UUID()
+        if let index = path.lastIndex(where: { route in
+            if case .capture(let part) = route { return part == id }
+            return false
+        }) {
+            path = Array(path.prefix(through: index))
+        } else {
+            path.append(.capture(id))
+        }
+    }
+
+    private func addPart(_ kind: PartKind, sessionId: UUID) {
+        let sequence = CaptureSequence(kind: kind)
+        opened[sequence.partId] = sequence
+        sessionForPart[sequence.partId] = sessionId
+        measureFirst.remove(sequence.partId)
+        path.append(.capture(sequence.partId))
+    }
+
+    private func retakeScan(_ id: UUID) {
+        guard var sequence = opened[id] ?? library.store.load(partId: id)?.sequence else { return }
+        let existing = library.store.load(partId: id)
+        let sessionId = sessionForPart[id] ?? existing?.resolvedSessionId ?? id
+        if sequence.retake(index: 0) {
+            // The new capture replaces the photo. Price, finish, and colour stay until a new measure replaces only the geometry.
+            try? library.save(sequence: sequence, images: [:], measurement: existing?.measurement, sessionId: sessionId)
+        }
+        opened[id] = sequence
+        sessionForPart[id] = sessionId
+        measureFirst.remove(id)
+        path = [.capture(id)]
+    }
 
     private func photoCount(_ draft: ScanDraft) -> String {
         let count = draft.sequence.steps.compactMap(\.photo).count

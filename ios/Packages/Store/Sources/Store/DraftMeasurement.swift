@@ -11,6 +11,13 @@ public struct DraftMeasurement: Equatable, Codable, Sendable {
     public var profile: String
     public var measurements: [Measurements]
     public var scan: ScanInfo
+    /// Per-axis confidence from the measure screen. Missing on drafts saved before M4.
+    public var fieldConfidence: [DimensionConfidence]?
+    public var finish: String?
+    public var finishSource: String?
+    public var colorHex: String?
+    public var colorSource: String?
+    public var price: Price?
 
     public init(
         widthMm: Double,
@@ -20,7 +27,13 @@ public struct DraftMeasurement: Equatable, Codable, Sendable {
         neckOuterDiameterMm: Double?,
         profile: String,
         measurements: [Measurements],
-        scan: ScanInfo
+        scan: ScanInfo,
+        fieldConfidence: [DimensionConfidence]? = nil,
+        finish: String? = nil,
+        finishSource: String? = nil,
+        colorHex: String? = nil,
+        colorSource: String? = nil,
+        price: Price? = nil
     ) {
         self.widthMm = widthMm
         self.heightMm = heightMm
@@ -32,7 +45,17 @@ public struct DraftMeasurement: Equatable, Codable, Sendable {
         var stored = scan
         stored.dimsVerifiedBySupplier = false
         stored.toleranceMm = ScaleLimits.toleranceMillimetres
+        if var suggestion = stored.neckSuggestion {
+            suggestion.verifiedBySupplier = false
+            stored.neckSuggestion = suggestion
+        }
         self.scan = stored
+        self.fieldConfidence = fieldConfidence
+        self.finish = finish
+        self.finishSource = finishSource
+        self.colorHex = colorHex
+        self.colorSource = colorSource
+        self.price = price
     }
 
     public init(result: MeasureResult) {
@@ -56,7 +79,33 @@ public struct DraftMeasurement: Equatable, Codable, Sendable {
                 neckSuggestion: nil,
                 dimsVerifiedBySupplier: false,
                 toleranceMm: ScaleLimits.toleranceMillimetres
-            )
+            ),
+            fieldConfidence: result.confidence
+        )
+    }
+
+    public func reviewDraft(kind: PartKind) -> ReviewDraft {
+        let finish = self.finish.flatMap { FinishCatalog.isKnown($0) ? $0 : nil } ?? FinishCatalog.defaultFinish(for: kind)
+        return ReviewDraft(
+            kind: kind,
+            dimensions: dimensions,
+            confidence: fieldConfidence ?? [],
+            finish: finish,
+            colorHex: colorHex ?? "#888888",
+            colorSource: colorSource,
+            neckOuterDiameterMm: neckOuterDiameterMm,
+            price: price.map { stored in
+                ReviewPriceInput(
+                    value: stored.value,
+                    currency: stored.currency,
+                    moq: stored.moq.map(Double.init),
+                    tiers: (stored.tiers ?? []).map { ReviewTierInput(minQty: Double($0.minQty), value: $0.value) }
+                )
+            },
+            profile: profile,
+            lathe: lathe,
+            measurements: measurements,
+            scan: scan
         )
     }
 
@@ -75,19 +124,39 @@ public struct DraftMeasurement: Equatable, Codable, Sendable {
             "id": "measure-draft-part",
             "kind": kind.rawValue,
             "code": "DRAFT",
-            "name": "draft",
+            "name": kind.hebrewName,
             "neck": NSNull(),
             "widthMm": widthMm,
             "heightMm": heightMm,
             "depthMm": depthMm,
             "capacityMl": NSNull(),
             "profile": profile,
-            "color": "#888888",
+            "color": colorHex ?? "#888888",
             "thumb": "",
             "page": 1,
             "dimsVerifiedBySupplier": false,
         ]
         if let lathe { part["lathe"] = lathe }
+        let resolvedFinish = finish.flatMap { FinishCatalog.isKnown($0) ? $0 : nil } ?? FinishCatalog.defaultFinish(for: kind)
+        var appearance: [String: Any] = [
+            "finish": resolvedFinish,
+            "finishSource": finishSource ?? "heuristic",
+        ]
+        if let colorSource { appearance["colorSource"] = colorSource }
+        if let colorHex { appearance["colors"] = [colorHex] }
+        part["appearance"] = appearance
+        if let price {
+            var object: [String: Any] = [
+                "value": price.value,
+                "currency": price.currency,
+            ]
+            if let moq = price.moq { object["moq"] = moq }
+            if let tiers = price.tiers, !tiers.isEmpty {
+                object["tiers"] = tiers.map { ["minQty": $0.minQty, "value": $0.value] }
+            }
+            if let quotedAt = price.quotedAt { object["quotedAt"] = quotedAt }
+            part["price"] = object
+        }
         if !measurements.isEmpty {
             part["measurements"] = measurements.map { item -> [String: Any] in
                 var object: [String: Any] = [
