@@ -205,6 +205,7 @@ export type BoxForm =
   | "magnetic"
   | "drawer"
   | "gatefold"
+  | "clamshell"
   | "tube"
   | "plinth"
   | "window"
