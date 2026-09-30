@@ -12,12 +12,27 @@ public struct ScanDraft: Equatable, Codable, Sendable {
     public var updatedAt: Date
     /// Present after "שמור מידות". Omitted on capture-only drafts.
     public var measurement: DraftMeasurement?
+    /// Parts added with "הוסף חלק" share one id. Older drafts use the part id.
+    public var sessionId: UUID?
+    /// Local outbox. Missing on drafts saved before M4, which read as `draft`.
+    public var status: PartReviewStatus?
 
-    public init(sequence: CaptureSequence, updatedAt: Date, measurement: DraftMeasurement? = nil) {
+    public init(
+        sequence: CaptureSequence,
+        updatedAt: Date,
+        measurement: DraftMeasurement? = nil,
+        sessionId: UUID? = nil,
+        status: PartReviewStatus? = nil
+    ) {
         self.sequence = sequence
         self.updatedAt = updatedAt
         self.measurement = measurement
+        self.sessionId = sessionId
+        self.status = status
     }
+
+    public var resolvedSessionId: UUID { sessionId ?? sequence.partId }
+    public var resolvedStatus: PartReviewStatus { status ?? .draft }
 }
 
 /// On-device drafts under `Application Support/Scans/<partId>/`.
@@ -50,6 +65,8 @@ public struct ScanFileStore {
         images: [String: Data],
         measurement: DraftMeasurement? = nil,
         replaceMeasurement: Bool = false,
+        sessionId: UUID? = nil,
+        status: PartReviewStatus? = nil,
         now: Date = Date()
     ) throws {
         let directory = try directoryURL(partId: sequence.partId, create: true)
@@ -59,8 +76,24 @@ public struct ScanFileStore {
             try data.write(to: directory.appendingPathComponent(safe), options: .atomic)
         }
         try removeOrphanJPEGs(in: directory, sequence: sequence)
-        let kept = replaceMeasurement ? measurement : (measurement ?? load(partId: sequence.partId)?.measurement)
-        let draft = ScanDraft(sequence: sequence, updatedAt: now, measurement: kept)
+        let existing = load(partId: sequence.partId)
+        let kept = replaceMeasurement ? measurement : (measurement ?? existing?.measurement)
+        let keptSession = sessionId ?? existing?.sessionId ?? sequence.partId
+        let keptStatus: PartReviewStatus
+        if let status {
+            keptStatus = status
+        } else if replaceMeasurement, measurement == nil {
+            keptStatus = .draft
+        } else {
+            keptStatus = existing?.status ?? .draft
+        }
+        let draft = ScanDraft(
+            sequence: sequence,
+            updatedAt: now,
+            measurement: kept,
+            sessionId: keptSession,
+            status: keptStatus
+        )
         let encoded = try Self.encoder.encode(draft)
         try encoded.write(to: directory.appendingPathComponent("part.json"), options: .atomic)
     }

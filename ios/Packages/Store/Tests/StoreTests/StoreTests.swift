@@ -155,6 +155,88 @@ final class StoreTests: XCTestCase {
         XCTAssertTrue(try store.list().isEmpty)
     }
 
+    func testOutboxReadySurvivesReloadAndReturnsToDraft() throws {
+        let root = try makeRoot()
+        let store = ScanFileStore(root: root)
+        let partId = UUID()
+        let sessionId = UUID()
+        var sequence = CaptureSequence(partId: partId, kind: .cap)
+        let photo = samplePhoto(angle: .side, fileName: "side.jpg")
+        XCTAssertTrue(sequence.capture(photo))
+        let measurement = DraftMeasurement(
+            widthMm: 25,
+            heightMm: 30,
+            depthMm: 25,
+            lathe: nil,
+            neckOuterDiameterMm: 18,
+            profile: "cylinder",
+            measurements: [],
+            scan: ScanInfo(
+                method: "photo-lathe",
+                capturedAt: "2026-09-29T00:00:00Z",
+                dimsVerifiedBySupplier: false,
+                toleranceMm: 5
+            ),
+            fieldConfidence: [
+                DimensionConfidence(
+                    key: "heightMm",
+                    model: DimensionErrorModel(sigmaScaleMm: 1, sigmaQuantisationMm: 0, sigmaParallaxMm: 0, totalMm: 1, band: .ok)
+                ),
+            ],
+            finish: "gold",
+            finishSource: "user",
+            colorHex: "#c81010",
+            colorSource: "photo-median",
+            price: Price(value: 1.25, currency: "usd", moq: 100, tiers: [PriceTier(minQty: 200, value: 1.1)])
+        )
+        try store.save(
+            sequence: sequence,
+            images: ["side.jpg": Data([0xFF, 0xD8])],
+            measurement: measurement,
+            sessionId: sessionId,
+            status: .needsReview,
+            now: Date(timeIntervalSince1970: 3)
+        )
+
+        let reloaded = ScanFileStore(root: root)
+        let loaded = reloaded.load(partId: partId)
+        XCTAssertEqual(loaded?.status, .needsReview)
+        XCTAssertEqual(loaded?.resolvedStatus, .needsReview)
+        XCTAssertEqual(loaded?.sessionId, sessionId)
+        XCTAssertEqual(loaded?.measurement?.finish, "gold")
+        XCTAssertEqual(loaded?.measurement?.colorHex, "#c81010")
+        XCTAssertEqual(loaded?.measurement?.colorSource, "photo-median")
+        XCTAssertEqual(loaded?.measurement?.price?.currency, "USD")
+        XCTAssertEqual(loaded?.measurement?.price?.tiers?.first?.minQty, 200)
+        XCTAssertEqual(loaded?.measurement?.fieldConfidence?.first?.model.band, .ok)
+
+        try reloaded.save(sequence: sequence, images: [:], status: .ready, now: Date(timeIntervalSince1970: 4))
+        let ready = ScanFileStore(root: root).load(partId: partId)
+        XCTAssertEqual(ready?.status, .ready)
+        XCTAssertEqual(ready?.resolvedStatus.hebrew, "מוכן")
+        XCTAssertEqual(ready?.sessionId, sessionId)
+        XCTAssertEqual(ready?.measurement, loaded?.measurement)
+
+        try ScanFileStore(root: root).save(sequence: sequence, images: [:], now: Date(timeIntervalSince1970: 5))
+        let kept = ScanFileStore(root: root).load(partId: partId)
+        XCTAssertEqual(kept?.status, .ready)
+        XCTAssertEqual(kept?.sessionId, sessionId)
+
+        try ScanFileStore(root: root).save(sequence: sequence, images: [:], status: .draft, now: Date(timeIntervalSince1970: 6))
+        let drafted = ScanFileStore(root: root).load(partId: partId)
+        XCTAssertEqual(drafted?.status, .draft)
+        XCTAssertEqual(drafted?.resolvedStatus.hebrew, "טיוטה")
+        XCTAssertEqual(drafted?.measurement?.widthMm, 25)
+        XCTAssertEqual(drafted?.sessionId, sessionId)
+
+        try ScanFileStore(root: root).save(sequence: sequence, images: [:], status: .ready)
+        try ScanFileStore(root: root).save(sequence: sequence, images: [:], measurement: nil, replaceMeasurement: true)
+        let cleared = ScanFileStore(root: root).load(partId: partId)
+        XCTAssertNil(cleared?.measurement)
+        XCTAssertEqual(cleared?.status, .draft)
+        XCTAssertEqual(cleared?.sessionId, sessionId)
+    }
+
     private func makeStore() throws -> ScanFileStore {
         ScanFileStore(root: try makeRoot())
     }

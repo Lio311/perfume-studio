@@ -20,12 +20,17 @@ public struct Dimensions: Codable, Equatable, Sendable {
     }
 }
 
-public struct PriceTier: Codable, Equatable {
+public struct PriceTier: Codable, Equatable, Sendable {
     public var minQty: Int
     public var value: Double
+
+    public init(minQty: Int, value: Double) {
+        self.minQty = minQty
+        self.value = value
+    }
 }
 
-public struct Price: Codable, Equatable {
+public struct Price: Codable, Equatable, Sendable {
     public var value: Double
     public var currency: String
     public var moq: Int?

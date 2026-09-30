@@ -10,6 +10,9 @@ struct CaptureFlowView: View {
     @StateObject private var model = CaptureModel()
     @StateObject private var measureModel: MeasureModel
     @State private var sequence: CaptureSequence
+    let sessionId: UUID
+    var openMeasureToken: UUID
+    var onMeasured: () -> Void
     @AppStorage("distance.targetCm") private var targetCm = 20.0
     @AppStorage("distance.halfBandCm") private var halfBandCm = 0.5
     @AppStorage("distance.autoCapture") private var autoCapture = false
@@ -24,13 +27,24 @@ struct CaptureFlowView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
 
-    init(library: DraftLibrary, sequence: CaptureSequence, startsOnMeasure: Bool = false) {
+    init(
+        library: DraftLibrary,
+        sequence: CaptureSequence,
+        sessionId: UUID,
+        startsOnMeasure: Bool = false,
+        openMeasureToken: UUID = UUID(),
+        onMeasured: @escaping () -> Void = {}
+    ) {
         self.library = library
+        self.sessionId = sessionId
+        self.openMeasureToken = openMeasureToken
+        self.onMeasured = onMeasured
         _sequence = State(initialValue: sequence)
         _showMeasure = State(initialValue: startsOnMeasure)
         _measureModel = StateObject(wrappedValue: MeasureModel(
             library: library,
             sequence: sequence,
+            sessionId: sessionId,
             referenceKind: MeasureReferenceKind(rawValue: UserDefaults.standard.string(forKey: "measure.referenceKind") ?? "") ?? .creditCard,
             printedWidthMm: Self.storedDouble("measure.printedWidthMm", fallback: 85.60),
             printedHeightMm: Self.storedDouble("measure.printedHeightMm", fallback: 53.98)
@@ -103,6 +117,10 @@ struct CaptureFlowView: View {
         .onChange(of: printedHeightMm) { _, _ in syncMeasureSettings() }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active { model.refreshCameraAccess() }
+        }
+        .onChange(of: openMeasureToken) { _, _ in
+            showPreview = false
+            showMeasure = true
         }
         .onChange(of: targetCm) { _, value in model.setTarget(centimetres: value) }
         .onChange(of: halfBandCm) { _, value in model.setHalfBand(centimetres: value) }
@@ -301,6 +319,8 @@ struct CaptureFlowView: View {
                 .accessibilityLabel("מדוד")
                 
                 if library.store.load(partId: sequence.partId)?.measurement != nil {
+                    Button("סקירה") { onMeasured() }
+                        .buttonStyle(.borderedProminent)
                     Button("תצוגת תלת ממד") {
                         showPreview = true
                     }
@@ -381,7 +401,7 @@ struct CaptureFlowView: View {
             onClose: { showMeasure = false },
             onSave: {
                 showMeasure = false
-                showPreview = true
+                onMeasured()
             }
         )
     }
@@ -429,7 +449,7 @@ struct CaptureFlowView: View {
         var updated = sequence
         guard updated.capture(pending.photo) else { return }
         do {
-            try library.save(sequence: updated, images: [pending.photo.fileName: pending.jpeg])
+            try library.save(sequence: updated, images: [pending.photo.fileName: pending.jpeg], sessionId: sessionId)
             sequence = updated
             model.discardPending()
             syncAngle()
@@ -462,7 +482,13 @@ struct CaptureFlowView: View {
     @discardableResult
     private func commit(_ updated: CaptureSequence, images: [String: Data], clearMeasurement: Bool = false) -> Bool {
         do {
-            try library.save(sequence: updated, images: images, clearMeasurement: clearMeasurement)
+            try library.save(
+                sequence: updated,
+                images: images,
+                clearMeasurement: clearMeasurement,
+                sessionId: sessionId,
+                status: clearMeasurement ? .draft : nil
+            )
             sequence = updated
             return true
         } catch {
@@ -538,9 +564,25 @@ struct ActivityShareSheet: UIViewControllerRepresentable {
     let url: URL
 
     func makeUIViewController(context: Context) -> UIActivityViewController {
-        UIActivityViewController(activityItems: [url], applicationActivities: nil)
+        let controller = UIActivityViewController(activityItems: [url], applicationActivities: nil)
+        if let popover = controller.popoverPresentationController {
+            let host = controller.view ?? UIView(frame: CGRect(x: 0, y: 0, width: 1, height: 1))
+            popover.sourceView = host
+            popover.sourceRect = CGRect(x: host.bounds.midX, y: host.bounds.midY, width: 1, height: 1)
+            popover.permittedArrowDirections = []
+        }
+        return controller
     }
 
-    func updateUIViewController(_ controller: UIActivityViewController, context: Context) {}
+    func updateUIViewController(_ controller: UIActivityViewController, context: Context) {
+        if let popover = controller.popoverPresentationController {
+            let host = controller.view.window ?? controller.view
+            popover.sourceView = host
+            if let host {
+                popover.sourceRect = CGRect(x: host.bounds.midX, y: host.bounds.midY, width: 1, height: 1)
+            }
+            popover.permittedArrowDirections = []
+        }
+    }
 }
 #endif
